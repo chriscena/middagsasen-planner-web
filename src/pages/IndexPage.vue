@@ -61,53 +61,85 @@
         </template>
         <!-- <template #day="{ scope: { timestamp } }"> -->
         <template #day>
-          <q-card class="q-ma-sm bg-green-1" flat>
-            <q-card-section class="q-py-sm text-bold">Test</q-card-section>
-            <q-separator> </q-separator>
-            <q-list separator>
-              <q-item>
-                <q-item-section>
-                  <q-item-label>Navn</q-item-label>
-                  <q-item-label caption>Dette er min kommentar</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round icon="edit"></q-btn>
-                </q-item-section>
-              </q-item>
-              <q-item>
-                <q-item-section>
-                  <q-item-label>Navn</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round icon="call"></q-btn>
-                </q-item-section>
-              </q-item>
-            </q-list>
-            <q-card-section>Test</q-card-section>
-          </q-card>
+          <template v-for="event in events" :key="event.eventId">
+            <q-card class="q-mt-sm" flat bordered>
+              <q-card-section class="q-py-sm text-bold row">
+                <span class="col">{{ event.eventName }}</span
+                ><span class="col text-right">{{
+                  formatStartEndTime(event)
+                }}</span></q-card-section
+              >
+            </q-card>
 
-          <q-card class="q-ma-sm bg-red-1" flat>
-            <q-card-section>Test</q-card-section>
-            <q-separator> </q-separator>
-            <q-list separator>
-              <q-item>
-                <q-item-section>
-                  <q-item-label overline>Ledig</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round icon="add"></q-btn>
-                </q-item-section>
-              </q-item>
-              <q-item>
-                <q-item-section>
-                  <q-item-label overline>Ledig</q-item-label>
-                </q-item-section>
-                <q-item-section side>
-                  <q-btn flat round icon="add"></q-btn>
-                </q-item-section>
-              </q-item>
-            </q-list>
-          </q-card>
+            <q-card
+              v-for="resource in event.resources"
+              :key="resource.eventResourceId"
+              :class="
+                'q-mt-sm ' +
+                (resource.minimumStaff <= resource.users.length
+                  ? 'bg-green-1'
+                  : 'bg-red-1')
+              "
+              flat
+            >
+              <q-card-section class="q-py-sm text-bold row"
+                ><span class="col">{{ resource.resourceTypeName }}</span
+                ><span class="col text-right">{{
+                  formatStartEndTime(resource)
+                }}</span></q-card-section
+              >
+              <q-separator> </q-separator>
+              <q-list separator>
+                <q-item
+                  v-for="user in createUserList(resource)"
+                  :key="user.eventResourceUserId"
+                >
+                  <q-item-section>
+                    <q-item-label overline v-if="user.userId === 0"
+                      >Ledig</q-item-label
+                    >
+                    <q-item-label v-if="user.userId > 0">{{
+                      user.name
+                    }}</q-item-label>
+                    <q-item-label caption v-if="user.userId > 0">{{
+                      user.comment
+                    }}</q-item-label>
+                  </q-item-section>
+                  <q-item-section side>
+                    <q-btn
+                      flat
+                      round
+                      icon="edit"
+                      v-if="user.userId === currentUser.userId"
+                    ></q-btn>
+                    <q-btn
+                      flat
+                      round
+                      icon="call"
+                      v-if="user.userId > 1"
+                    ></q-btn>
+                    <q-btn
+                      flat
+                      round
+                      icon="add"
+                      v-if="user.userId === 0"
+                    ></q-btn>
+                  </q-item-section>
+                </q-item>
+                <q-item v-if="resource.users.length >= resource.minimumStaff">
+                  <q-item-section> </q-item-section>
+                  <q-item-section side>
+                    <q-btn
+                      dense
+                      flat
+                      round
+                      icon="add"
+                      @click="addUserAsResource(user)"
+                    ></q-btn>
+                  </q-item-section>
+                </q-item>
+              </q-list> </q-card
+          ></template>
         </template>
       </q-calendar-agenda>
     </div>
@@ -152,6 +184,9 @@
         ></q-btn>
       </q-btn-group>
     </q-footer>
+    <q-page-sticky position="bottom-right" :offset="[18, 18]">
+      <q-btn fab icon="add" color="accent" @click="$router.push('/event')" />
+    </q-page-sticky>
   </q-page>
 </template>
 
@@ -164,15 +199,35 @@ import {
   createNativeLocaleFormatter,
   parseTimestamp,
 } from "@quasar/quasar-ui-qcalendar";
-import { formatISO, addDays, isBefore, isAfter } from "date-fns";
+import {
+  parseISO,
+  format,
+  formatISO,
+  addDays,
+  isBefore,
+  isAfter,
+} from "date-fns";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
+import { useEventStore } from "stores/EventStore";
+import { useUserStore } from "stores/UserStore";
 
 const loading = false;
 const selectedDay = ref(today());
 const $q = useQuasar();
-
+const $router = useRouter();
 const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
+});
+
+const events = computed(() => eventStore.events);
+const currentUser = computed(() => userStore.user);
+
+const eventStore = useEventStore();
+const userStore = useUserStore();
+onMounted(() => {
+  userStore.getUser();
+  eventStore.getEvents();
 });
 
 const calendar = ref(null);
@@ -191,5 +246,37 @@ function onChange() {}
 
 function setNow(value) {
   selectedDay.value = value;
+}
+
+function createUserList(resource) {
+  const list = [];
+  list.push(...resource.users);
+  const neededStaff = resource.minimumStaff - list.length;
+
+  if (neededStaff > 0) {
+    for (let i = 0; i < neededStaff; i += 1) {
+      list.push({
+        eventResourceUserId: 0,
+        userId: 0,
+        name: null,
+        phoneNumber: null,
+        comment: null,
+      });
+    }
+  }
+  return list;
+}
+
+function formatTime(isoDateTime) {
+  const date = parseISO(isoDateTime);
+  return format(date, "HH:mm");
+}
+
+function formatStartEndTime(event) {
+  return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
+}
+
+function addUserAsResource(user) {
+  Object.assign(user, currentUser.value);
 }
 </script>
