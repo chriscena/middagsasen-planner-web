@@ -1,59 +1,33 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <!-- <q-header elevated>
-      <q-toolbar>
-        <q-btn
-          flat
-          dense
-          round
-          icon="menu"
-          aria-label="Menu"
-          @click="toggleLeftDrawer"
-        />
+    <q-drawer v-model="leftDrawerOpen" side="left">
+      <!-- drawer content -->
+    </q-drawer>
 
-        <q-toolbar-title>
-          Quasar App
-        </q-toolbar-title>
-
-        <div>Quasar v{{ $q.version }}</div>
-      </q-toolbar>
-    </q-header>
-
-    <q-drawer
-      v-model="leftDrawerOpen"
-      show-if-above
-      bordered
-    >
-      <q-list>
-        <q-item-label
-          header
-        >
-          Essential Links
-        </q-item-label>
-      </q-list>
-    </q-drawer> -->
+    <q-drawer v-model="rightDrawerOpen" side="right" overlay>
+      <!-- drawer content -->
+    </q-drawer>
 
     <q-page-container>
-      <router-view />
+      <router-view
+        @toggle-left="toggleLeftDrawer"
+        @toggle-right="toggleRightDrawer"
+      />
     </q-page-container>
   </q-layout>
 </template>
 
-<script>
+<script setup>
 import { defineComponent, ref } from "vue";
 
-export default defineComponent({
-  name: "MainLayout",
+const leftDrawerOpen = ref(false);
+const rightDrawerOpen = ref(false);
 
-  setup() {
-    const leftDrawerOpen = ref(false);
+function toggleLeftDrawer() {
+  leftDrawerOpen.value = !leftDrawerOpen.value;
+}
 
-    return {
-      leftDrawerOpen,
-      toggleLeftDrawer() {
-        leftDrawerOpen.value = !leftDrawerOpen.value;
-      },
-    };
-  },
-});
+function toggleRightDrawer() {
+  rightDrawerOpen.value = !rightDrawerOpen.value;
+}
 </script>
