@@ -12,7 +12,7 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-$primary: #293274;
+$primary: #495297;
 $secondary: #26a69a;
 $accent: #9c27b0;
 
@@ -23,3 +23,7 @@ $positive: #21ba45;
 $negative: #c10015;
 $info: #31ccec;
 $warning: #f2c037;
+
+$generic-border-radius: 12px !default;
+$button-border-radius: 20px !default;
+$button-padding: 6px 24px !default;
