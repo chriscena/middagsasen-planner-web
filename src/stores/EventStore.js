@@ -1,4 +1,5 @@
 import { defineStore } from "pinia";
+import { uid } from "quasar";
 
 const events = [
   {
@@ -84,6 +85,41 @@ export const useEventStore = defineStore("events", {
             sortOrder: 4,
           },
         ]
+      );
+    },
+    updateUser(user) {
+      this.events.forEach((e) =>
+        e.resources.forEach((r) =>
+          r.users.forEach((u) => {
+            if (u.eventResourceUserId === user.eventResourceUserId) {
+              u.comment = user.comment;
+              return;
+            }
+          })
+        )
+      );
+    },
+    addUser(eventResourceId, user) {
+      this.events.forEach((e) =>
+        e.resources.forEach((r) => {
+          if (r.eventResourceId == eventResourceId) {
+            const newUser = Object.assign(
+              { eventResourceUserId: uid(), comment: null },
+              user
+            );
+            r.users.push(newUser);
+            return;
+          }
+        })
+      );
+    },
+    deleteUser(user) {
+      this.events.forEach((e) =>
+        e.resources.forEach((r) => {
+          r.users = r.users.filter(
+            (u) => u.eventResourceUserId !== user.eventResourceUserId
+          );
+        })
       );
     },
   },
