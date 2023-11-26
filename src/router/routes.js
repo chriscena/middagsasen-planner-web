@@ -6,6 +6,10 @@ const routes = [
     component: () => import("layouts/MainLayout.vue"),
     children: [
       {
+        path: "login",
+        component: () => import("pages/LoginPage.vue"),
+      },
+      {
         path: "",
         redirect: `/day/${formatISO(new Date(), { representation: "date" })}`,
       },
