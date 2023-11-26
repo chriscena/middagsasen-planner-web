@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Users;
 
@@ -22,6 +22,8 @@ builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProv
 builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 builder.Services.AddTransient<ISmsSender, SmsSenderService>();
+
+builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 
@@ -44,8 +46,5 @@ app.UseMiddleware<JwtMiddleware>();
 app.MapControllers();
 
 app.UseHttpsRedirection();
-
-
-
 
 app.Run();

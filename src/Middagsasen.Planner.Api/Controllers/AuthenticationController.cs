@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Users;
+using Middagsasen.Planner.Api.Services.Authentication;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -8,19 +8,19 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
-        public AuthenticationController(IUserService userService)
+        public AuthenticationController(IAuthenticationService authService)
         {
-            UserService = userService;
+            AuthService = authService;
         }
 
-        public IUserService UserService { get; }
+        public IAuthenticationService AuthService { get; }
 
 
 
         [HttpPost("authenticate")]
         public async Task<IActionResult> Authenticate(AuthRequest request)
         {
-            var response = await UserService.Authenticate(request);
+            var response = await AuthService.Authenticate(request);
             switch (response.Status)
             {
                 case AuthStatus.Success:
@@ -36,7 +36,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("otp")]
         public async Task<IActionResult> CreateOneTimePassword(OtpRequest request)
         {
-            var response = await UserService.GenerateOtpForUser(request);
+            var response = await AuthService.GenerateOtpForUser(request);
             switch (response.Status)
             {
                 case OtpStatus.Sent:

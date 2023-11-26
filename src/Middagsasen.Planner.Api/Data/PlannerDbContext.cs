@@ -1,7 +1,4 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.EntityFrameworkCore;
-using System.Data;
-using System.Security.Principal;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace Middagsasen.Planner.Api.Data
 {

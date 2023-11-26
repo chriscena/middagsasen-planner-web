@@ -2,7 +2,6 @@
 {
     using Microsoft.IdentityModel.Tokens;
     using Middagsasen.Planner.Api.Services;
-    using Middagsasen.Planner.Api.Services.Users;
     using System.IdentityModel.Tokens.Jwt;
     using System.Security.Claims;
     using System.Text;
@@ -23,7 +22,7 @@
             _authSettings = appSettings;
         }
 
-        public async Task Invoke(HttpContext context, IUserService userService)
+        public async Task Invoke(HttpContext context, IAuthenticationService userService)
         {
             var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
 
@@ -32,7 +31,7 @@
             await _next(context);
         }
 
-        private async Task AttachUserToContext(HttpContext context, IUserService userService, string token)
+        private async Task AttachUserToContext(HttpContext context, IAuthenticationService userService, string token)
         {
             try
             {
@@ -44,14 +43,12 @@
                     IssuerSigningKey = new SymmetricSecurityKey(key),
                     ValidateIssuer = false,
                     ValidateAudience = false,
-                    // set clockskew to zero so tokens expire exactly at token expiration time (instead of 5 minutes later)
                     ClockSkew = TimeSpan.Zero
                 }, out SecurityToken validatedToken);
 
                 var jwtToken = (JwtSecurityToken)validatedToken;
                 var sessionId = Guid.Parse(jwtToken.Claims.First(x => x.Type == "id").Value);
 
-                // attach user to context on successful jwt validation
                 var user = await userService.GetUserBySessionId(sessionId);
                 if (user == null) return;
 
@@ -70,8 +67,7 @@
             }
             catch
             {
-                // do nothing if jwt validation fails
-                // user is not attached to context so request won't have access to secure routes
+
             }
         }
     }

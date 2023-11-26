@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Services.Users
+﻿namespace Middagsasen.Planner.Api.Services.Authentication
 {
     public class AuthResponse
     {
