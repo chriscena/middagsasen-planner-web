@@ -1,195 +1,187 @@
 <template>
   <q-page padding>
-    <q-header bordered
-      ><q-toolbar class="bg-grey-1 text-blue-grey-8">
-        <q-btn flat dense round icon="close" @click="$router.push('/')"></q-btn>
-        <q-toolbar-title>Vaktliste</q-toolbar-title>
-        <q-space></q-space>
-        <q-btn
-          color="primary"
-          flat
-          label="Lagre"
-          @click="saveEvent"
-          :disable="!canSave"
-          no-caps
-        ></q-btn> </q-toolbar
-    ></q-header>
-    <div class="q-gutter-sm">
-      <q-input outlined label="Navn" v-model="name"></q-input>
-      <q-input outlined label="Dato" :model-value="startDate"
-        ><template v-slot:append>
-          <q-icon name="event" class="cursor-pointer">
-            <q-popup-proxy
-              cover
-              transition-show="scale"
-              transition-hide="scale"
-            >
-              <q-date v-model="startDateTime" mask="YYYY-MM-DDTHH:mm">
-                <div class="row items-center justify-end">
-                  <q-btn v-close-popup label="Close" color="primary" flat />
-                </div>
-              </q-date>
-            </q-popup-proxy>
-          </q-icon> </template
-      ></q-input>
-      <q-input outlined label="Start" :model-value="startTime">
-        <template v-slot:append>
-          <q-icon name="access_time" class="cursor-pointer">
-            <q-popup-proxy
-              v-model="showingStartTimePicker"
-              cover
-              transition-show="scale"
-              transition-hide="scale"
-            >
-              <q-time v-model="startDateTime" format24h mask="YYYY-MM-DDTHH:mm">
-                <div class="row items-center justify-end">
-                  <q-btn v-close-popup label="Close" color="primary" flat />
-                </div>
-              </q-time>
-            </q-popup-proxy>
-          </q-icon> </template
-      ></q-input>
-      <q-input outlined label="Slutt" :model-value="endTime">
-        <template v-slot:append>
-          <q-icon name="access_time" class="cursor-pointer">
-            <q-popup-proxy
-              v-model="showingEndTimePicker"
-              cover
-              transition-show="scale"
-              transition-hide="scale"
-            >
-              <q-time v-model="endDateTime" format24h mask="YYYY-MM-DDTHH:mm">
-                <div class="row items-center justify-end">
-                  <q-btn v-close-popup label="Close" color="primary" flat />
-                </div>
-              </q-time>
-            </q-popup-proxy>
-          </q-icon> </template
-      ></q-input>
-      <q-card bordered flat>
-        <q-list separator>
-          <q-item v-for="resource in resources" :key="resource.eventResourceId">
-            <q-item-section>
-              <q-item-label
-                >{{ resource.resourceType.name }}
-                <q-badge> {{ resource.minimumStaff }}</q-badge></q-item-label
-              ></q-item-section
-            >
-            <q-item-section side>
-              <q-item-label>{{
-                formatStartEndTime(resource)
-              }}</q-item-label></q-item-section
-            >
-            <q-item-section side
-              ><q-btn
-                flat
-                round
-                icon="delete"
-                @click="deleteResource(resource)"
-              ></q-btn
-            ></q-item-section> </q-item
-        ></q-list>
-        <q-card-actions align="right">
+    <q-form @submit="saveEvent">
+      <q-header bordered
+        ><q-toolbar class="bg-grey-1 text-blue-grey-8">
           <q-btn
-            no-caps
-            dense
             flat
-            label="Legg til vakt"
+            dense
+            round
+            icon="close"
+            @click="$router.push('/')"
+          ></q-btn>
+          <q-toolbar-title>Vaktliste</q-toolbar-title>
+          <q-space></q-space>
+          <q-btn
             color="primary"
-            icon="add"
-            @click="addResource"
-          ></q-btn
-        ></q-card-actions>
-      </q-card>
-      <q-dialog v-model="showingEdit" persistent>
-        <q-card>
-          <q-card-section class="q-gutter-md">
-            <q-select
-              label="Vakt"
-              outlined
-              :options="resourceTypes"
-              option-label="name"
-              option-value="resourceTypeId"
-              v-model="selectedResource.resourceType"
-            ></q-select>
-            <q-input
-              outlined
-              label="Minste bemanning"
-              suffix="stk"
-              step="1"
-              type="number"
-              v-model="selectedResource.minimumStaff"
-            ></q-input>
-            <q-input outlined label="Start" :model-value="resourceStartTime">
-              <template v-slot:append>
-                <q-icon name="access_time" class="cursor-pointer">
-                  <q-popup-proxy
-                    cover
-                    transition-show="scale"
-                    transition-hide="scale"
-                  >
-                    <q-time
-                      v-model="selectedResource.startDateTime"
-                      format24h
-                      mask="YYYY-MM-DDTHH:mm"
-                    >
-                      <div class="row items-center justify-end">
-                        <q-btn
-                          v-close-popup
-                          label="Close"
-                          color="primary"
-                          flat
-                        />
-                      </div>
-                    </q-time>
-                  </q-popup-proxy>
-                </q-icon> </template
-            ></q-input>
-            <q-input outlined label="Slutt" :model-value="resourceEndTime">
-              <template v-slot:append>
-                <q-icon name="access_time" class="cursor-pointer">
-                  <q-popup-proxy
-                    cover
-                    transition-show="scale"
-                    transition-hide="scale"
-                  >
-                    <q-time
-                      v-model="selectedResource.endDateTime"
-                      format24h
-                      mask="YYYY-MM-DDTHH:mm"
-                    >
-                      <div class="row items-center justify-end">
-                        <q-btn
-                          v-close-popup
-                          label="Close"
-                          color="primary"
-                          flat
-                        />
-                      </div>
-                    </q-time>
-                  </q-popup-proxy>
-                </q-icon> </template></q-input
-          ></q-card-section>
-          <q-separator></q-separator>
+            flat
+            label="Lagre"
+            type="submit"
+            :disable="!canSave"
+            no-caps
+          ></q-btn> </q-toolbar
+      ></q-header>
+      <div class="q-gutter-sm">
+        <q-input autofocus outlined label="Navn" v-model="name"></q-input>
+        <q-input outlined label="Dato" :model-value="startDate"
+          ><template v-slot:append>
+            <q-icon name="event" class="cursor-pointer">
+              <q-popup-proxy transition-show="scale" transition-hide="scale">
+                <q-date v-model="startDateTime" mask="YYYY-MM-DDTHH:mm">
+                  <div class="row items-center justify-end">
+                    <q-btn v-close-popup label="Close" color="primary" flat />
+                  </div>
+                </q-date>
+              </q-popup-proxy>
+            </q-icon> </template
+        ></q-input>
+        <q-input outlined label="Start" :model-value="startTime">
+          <template v-slot:append>
+            <q-icon name="access_time" class="cursor-pointer">
+              <q-popup-proxy
+                v-model="showingStartTimePicker"
+                transition-show="scale"
+                transition-hide="scale"
+              >
+                <q-time
+                  v-model="startDateTime"
+                  format24h
+                  mask="YYYY-MM-DDTHH:mm"
+                >
+                  <div class="row items-center justify-end">
+                    <q-btn v-close-popup label="Close" color="primary" flat />
+                  </div>
+                </q-time>
+              </q-popup-proxy>
+            </q-icon> </template
+        ></q-input>
+        <q-input outlined label="Slutt" :model-value="endTime">
+          <template v-slot:append>
+            <q-icon name="access_time" class="cursor-pointer">
+              <q-popup-proxy
+                v-model="showingEndTimePicker"
+                transition-show="scale"
+                transition-hide="scale"
+              >
+                <q-time v-model="endDateTime" format24h mask="YYYY-MM-DDTHH:mm">
+                  <div class="row items-center justify-end">
+                    <q-btn v-close-popup label="Close" color="primary" flat />
+                  </div>
+                </q-time>
+              </q-popup-proxy>
+            </q-icon> </template
+        ></q-input>
+        <q-card bordered flat>
+          <q-list separator>
+            <q-item
+              v-for="resource in resources"
+              :key="resource.eventResourceId"
+            >
+              <q-item-section>
+                <q-item-label
+                  >{{ resource.resourceType.name }}
+                  <q-badge> {{ resource.minimumStaff }}</q-badge></q-item-label
+                ></q-item-section
+              >
+              <q-item-section side>
+                <q-item-label>{{
+                  formatStartEndTime(resource)
+                }}</q-item-label></q-item-section
+              >
+              <q-item-section side
+                ><q-btn
+                  flat
+                  round
+                  icon="delete"
+                  @click="deleteResource(resource)"
+                ></q-btn
+              ></q-item-section> </q-item
+          ></q-list>
           <q-card-actions align="right">
             <q-btn
               no-caps
+              dense
               flat
-              label="Avbryt"
-              @click="showingEdit = false"
-            ></q-btn>
-            <q-btn
-              no-caps
-              unelevated
+              label="Legg til vakt"
               color="primary"
-              label="Lagre"
-              :disable="!canAdd"
-              @click="saveResource"
-            ></q-btn>
-          </q-card-actions>
-        </q-card>
-      </q-dialog>
-    </div>
+              icon="add"
+              @click="addResource"
+            ></q-btn
+          ></q-card-actions>
+        </q-card></div
+    ></q-form>
+    <q-dialog v-model="showingEdit" persistent>
+      <q-card>
+        <q-card-section class="q-gutter-md">
+          <q-select
+            autofocus
+            label="Vakt"
+            outlined
+            :options="resourceTypes"
+            option-label="name"
+            option-value="resourceTypeId"
+            v-model="selectedResource.resourceType"
+          ></q-select>
+          <q-input
+            outlined
+            @focus="(event) => event.target.select()"
+            label="Minste bemanning"
+            suffix="stk"
+            step="1"
+            type="number"
+            v-model="selectedResource.minimumStaff"
+          ></q-input>
+          <q-input outlined label="Start" :model-value="resourceStartTime">
+            <template v-slot:append>
+              <q-icon name="access_time" class="cursor-pointer">
+                <q-popup-proxy transition-show="scale" transition-hide="scale">
+                  <q-time
+                    v-model="selectedResource.startDateTime"
+                    format24h
+                    mask="YYYY-MM-DDTHH:mm"
+                  >
+                    <div class="row items-center justify-end">
+                      <q-btn v-close-popup label="Close" color="primary" flat />
+                    </div>
+                  </q-time>
+                </q-popup-proxy>
+              </q-icon> </template
+          ></q-input>
+          <q-input outlined label="Slutt" :model-value="resourceEndTime">
+            <template v-slot:append>
+              <q-icon name="access_time" class="cursor-pointer">
+                <q-popup-proxy transition-show="scale" transition-hide="scale">
+                  <q-time
+                    v-model="selectedResource.endDateTime"
+                    format24h
+                    mask="YYYY-MM-DDTHH:mm"
+                  >
+                    <div class="row items-center justify-end">
+                      <q-btn v-close-popup label="Close" color="primary" flat />
+                    </div>
+                  </q-time>
+                </q-popup-proxy>
+              </q-icon> </template></q-input
+        ></q-card-section>
+        <q-separator></q-separator>
+        <q-card-actions align="right">
+          <q-btn
+            no-caps
+            flat
+            label="Avbryt"
+            @click="showingEdit = false"
+          ></q-btn>
+          <q-btn
+            no-caps
+            unelevated
+            color="primary"
+            label="Lagre"
+            :disable="!canAdd"
+            @click="saveResource"
+          ></q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
