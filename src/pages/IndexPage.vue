@@ -237,7 +237,7 @@
           icon="add"
           color="accent"
           text-color="blue-grey-9"
-          @click="$router.push('/create')"
+          @click="toCreate()"
       /></q-toolbar>
     </q-footer>
   </q-page>
@@ -255,7 +255,7 @@ import {
 import {
   parseISO,
   format,
-  isDate,
+  isValid,
   formatISO,
   addDays,
   isBefore,
@@ -265,7 +265,6 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
-import { watch } from "vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -274,10 +273,6 @@ const props = defineProps({
 
 const loading = false;
 const selectedDay = ref(today());
-
-watch(props.date, (newVal) => (selectedDay.value = newVal), {
-  immediate: true,
-});
 
 const $q = useQuasar();
 const $router = useRouter();
@@ -289,10 +284,11 @@ const currentUser = computed(() => userStore.user);
 const events = ref([]);
 const eventStore = useEventStore();
 const userStore = useUserStore();
-onMounted(() => {
+onMounted(async () => {
   userStore.getUser();
   eventStore.getEvents();
-  if (!isDate(props.date)) $router.replace(`/day/${today()}`);
+  if (isValid(new Date(props.date))) selectedDay.value = props.date;
+  else await $router.replace(`/day/${today()}`);
 });
 
 const calendar = ref(null);
@@ -377,5 +373,9 @@ function saveUser() {
 function deleteUser() {
   eventStore.deleteUser(selectedUser.value);
   showingEdit.value = false;
+}
+
+function toCreate() {
+  $router.push(`/create/${selectedDay.value}`);
 }
 </script>

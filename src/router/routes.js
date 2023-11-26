@@ -14,7 +14,17 @@ const routes = [
         component: () => import("pages/IndexPage.vue"),
         props: true,
       },
-      { path: "create", component: () => import("pages/EventPage.vue") },
+      {
+        path: "create",
+        redirect: `/create/${formatISO(new Date(), {
+          representation: "date",
+        })}`,
+      },
+      {
+        path: "create/:date",
+        component: () => import("pages/EventPage.vue"),
+        props: true,
+      },
     ],
   },
 

@@ -16,7 +16,7 @@
     ></q-header>
     <div class="q-gutter-sm">
       <q-input outlined label="Navn" v-model="name"></q-input>
-      <q-input outlined label="Dato" :model-value="date"
+      <q-input outlined label="Dato" :model-value="startDate"
         ><template v-slot:append>
           <q-icon name="event" class="cursor-pointer">
             <q-popup-proxy
@@ -212,6 +212,8 @@ import { useRouter } from "vue-router";
 import { uid } from "quasar";
 import { watch } from "vue";
 import router from "src/router";
+import { stringify } from "postcss";
+import { toDisplayString } from "vue";
 
 const emit = defineEmits(["toggle-right"]);
 const loading = false;
@@ -219,8 +221,17 @@ const $q = useQuasar();
 const $router = useRouter();
 const eventStore = useEventStore();
 
+const props = defineProps({
+  date: {
+    type: String,
+    default: () => formatISO(new Date(), { representation: "date" }),
+  },
+});
+
 onMounted(() => {
   eventStore.getResourceTypes();
+  startDateTime.value = props.date + "T10:00";
+  endDateTime.value = props.date + "T17:00";
 });
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
@@ -229,7 +240,8 @@ const name = ref(null);
 const startDateTime = ref(
   formatISO(new Date(), { representation: "date" }) + "T10:00"
 );
-const date = computed(() => {
+
+const startDate = computed(() => {
   return startDateTime.value
     ? format(parseISO(startDateTime.value), "dd.MM.yyyy")
     : null;
@@ -351,6 +363,9 @@ function saveEvent() {
     }),
   };
   eventStore.addEvent(model);
-  $router.push("/");
+  const date = formatISO(parseISO(startDateTime.value), {
+    representation: "date",
+  });
+  $router.push(`/day/${date}`);
 }
 </script>
