@@ -2,16 +2,28 @@
   <q-page padding>
     <q-header>
       <q-toolbar>
-        <q-btn flat round icon="menu" @click="emit('toggle-left')"></q-btn>
+        <q-btn
+          dense
+          flat
+          round
+          icon="menu"
+          @click="emit('toggle-left')"
+        ></q-btn>
         <q-space></q-space>
-        <q-btn flat round icon="person" @click="emit('toggle-right')"></q-btn>
+        <q-btn
+          dense
+          flat
+          round
+          icon="person"
+          @click="emit('toggle-right')"
+        ></q-btn>
       </q-toolbar>
     </q-header>
     <q-calendar-agenda
       locale="no"
       :view="mode"
       v-model="selectedDay"
-      :weekdays="[1, 2, 3, 4, 5, 6, 7]"
+      :weekdays="[1, 2, 3, 4, 5, 6, 0]"
       @change="onChange"
       animated
       @click-date="dateClicked"
@@ -24,9 +36,11 @@
           indeterminate
         ></q-linear-progress>
       </template>
-      <!-- <template #day="{ scope: { timestamp } }"> -->
-      <template #day>
-        <template v-for="event in events" :key="event.eventId">
+      <template #day="{ scope: { timestamp } }">
+        <template
+          v-for="event in getEventsForDate(timestamp)"
+          :key="event.eventId"
+        >
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
             <q-card-section class="q-py-sm text-bold row">
               <span class="col">{{ event.eventName }}</span
@@ -49,7 +63,7 @@
           >
             <q-card-section class="q-py-sm text-bold row"
               ><span class="col"
-                >{{ resource.resourceTypeName }}
+                >{{ resource.resourceType.name }}
                 <q-icon
                   color="negative"
                   name="warning"
@@ -222,6 +236,7 @@
           class="q-ma-xs"
           icon="add"
           color="accent"
+          text-color="blue-grey-9"
           @click="$router.push('/event')"
       /></q-toolbar>
     </q-footer>
@@ -260,9 +275,8 @@ const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
 });
 
-const events = computed(() => eventStore.events);
 const currentUser = computed(() => userStore.user);
-
+const events = ref([]);
 const eventStore = useEventStore();
 const userStore = useUserStore();
 onMounted(() => {
@@ -282,7 +296,19 @@ function onNext() {
   calendar.value.next();
 }
 function dateClicked() {}
-function onChange() {}
+function onChange(event) {
+  events.value = eventStore.getEventsForDates(event.start, event.end);
+}
+
+function getEventsForDate(timestamp) {
+  const start = new Date(timestamp.date);
+  const end = addDays(start, 1);
+  return events.value.filter(
+    (e) =>
+      isAfter(new Date(e.startTime), start) &&
+      isBefore(new Date(e.startTime), end)
+  );
+}
 
 function setNow(value) {
   selectedDay.value = value;
@@ -308,6 +334,7 @@ function createUserList(resource) {
 }
 
 function formatTime(isoDateTime) {
+  if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }

@@ -1,44 +1,62 @@
 import { defineStore } from "pinia";
 import { uid } from "quasar";
+import {
+  parseISO,
+  format,
+  addHours,
+  addMinutes,
+  formatISO,
+  addDays,
+  isBefore,
+  isAfter,
+} from "date-fns";
+
+const today = new Date();
 
 const events = [
   {
-    eventId: 1,
+    eventId: uid(),
     eventName: "Helg",
-    startTime: "2023-11-25T10:00:00",
-    endTime: "2023-11-25T14:00:00",
+    startTime: formatISO(today, { representation: "date" }) + "T10:00:00",
+    endTime: formatISO(today, { representation: "date" }) + "T17:00:00",
     resources: [
       {
-        eventResourceId: 1,
-        resourceTypeId: 1,
-        resourceTypeName: "Heis voksen",
-        startTime: "2023-11-25T09:00:00",
-        endTime: "2023-11-25T15:00:00",
+        eventResourceId: uid(),
+        resourceType: { resourceTypeId: 1, name: "Heis voksen" },
+        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
+        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
         minimumStaff: 2,
         users: [
           {
-            eventResourceUserId: 1,
+            eventResourceUserId: uid(),
             userId: 1,
             name: "Christoffer Cena",
             phoneNumber: "91305023",
             comment: "Test",
           },
           {
-            eventResourceUserId: 2,
+            eventResourceUserId: uid(),
             userId: 2,
-            name: "Test Cena",
+            name: "Stina Gryhn",
             phoneNumber: "12345678",
             comment: null,
           },
         ],
       },
       {
-        eventResourceId: 2,
-        resourceTypeId: 2,
-        resourceTypeName: "Heis barn",
-        startTime: "2023-11-25T09:00:00",
-        endTime: "2023-11-25T15:00:00",
-        minimumStaff: 2,
+        eventResourceId: uid(),
+        resourceType: { resourceTypeId: 2, name: "Heis barn" },
+        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
+        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
+        minimumStaff: 1,
+        users: [],
+      },
+      {
+        eventResourceId: uid(),
+        resourceType: { resourceTypeId: 4, name: "Kiosk" },
+        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
+        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
+        minimumStaff: 3,
         users: [],
       },
     ],
@@ -58,10 +76,21 @@ export const useEventStore = defineStore("events", {
       this.events.push(event);
     },
     getEvents() {
-      this.events.splice(0, this.events.length);
+      //this.events.splice(0, this.events.length);
+      if (this.events.length) return;
       this.events.push(...events);
     },
+    getEventsForDates(start, end) {
+      this.getEvents();
+      var startDate = formatISO(parseISO(start));
+      var endDate = formatISO(addDays(parseISO(end), 1));
+      return this.events.filter(
+        (e) => e.startTime >= startDate && e.startTime < endDate
+      );
+    },
     getResourceTypes() {
+      //this.resourceTypes.splice(0, this.events.length);
+      if (this.resourceTypes.length) return;
       this.resourceTypes.push(
         ...[
           {
