@@ -1,11 +1,18 @@
 <template>
   <q-page padding>
-    <q-header
-      ><q-toolbar>
+    <q-header bordered
+      ><q-toolbar class="bg-grey-1 text-blue-grey-8">
         <q-btn flat dense round icon="close" @click="$router.push('/')"></q-btn>
         <q-toolbar-title>Vaktliste</q-toolbar-title>
         <q-space></q-space>
-        <q-btn color="accent" flat label="Lagre" no-caps></q-btn> </q-toolbar
+        <q-btn
+          color="primary"
+          flat
+          label="Lagre"
+          @click="saveEvent"
+          :disable="!canSave"
+          no-caps
+        ></q-btn> </q-toolbar
     ></q-header>
     <div class="q-gutter-sm">
       <q-input outlined label="Navn" v-model="name"></q-input>
@@ -29,6 +36,7 @@
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">
             <q-popup-proxy
+              v-model="showingStartTimePicker"
               cover
               transition-show="scale"
               transition-hide="scale"
@@ -45,6 +53,7 @@
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">
             <q-popup-proxy
+              v-model="showingEndTimePicker"
               cover
               transition-show="scale"
               transition-hide="scale"
@@ -105,8 +114,9 @@
             ></q-select>
             <q-input
               outlined
-              label="Antall"
+              label="Minste bemanning"
               suffix="stk"
+              step="1"
               type="number"
               v-model="selectedResource.minimumStaff"
             ></q-input>
@@ -173,6 +183,7 @@
               unelevated
               color="primary"
               label="Lagre"
+              :disable="!canAdd"
               @click="saveResource"
             ></q-btn>
           </q-card-actions>
@@ -200,6 +211,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { uid } from "quasar";
 import { watch } from "vue";
+import router from "src/router";
 
 const emit = defineEmits(["toggle-right"]);
 const loading = false;
@@ -214,7 +226,9 @@ onMounted(() => {
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
 const name = ref(null);
-const startDateTime = ref(formatISO(new Date()));
+const startDateTime = ref(
+  formatISO(new Date(), { representation: "date" }) + "T10:00"
+);
 const date = computed(() => {
   return startDateTime.value
     ? format(parseISO(startDateTime.value), "dd.MM.yyyy")
@@ -226,13 +240,19 @@ const startTime = computed(() => {
     : null;
 });
 
-const endDateTime = ref(formatISO(new Date()));
+const showingStartTimePicker = ref(false);
+
+const endDateTime = ref(
+  formatISO(new Date(), { representation: "date" }) + "T17:00"
+);
 
 const endTime = computed(() => {
   return endDateTime.value
     ? format(parseISO(endDateTime.value), "HH:mm")
     : null;
 });
+
+const showingEndTimePicker = ref(false);
 
 watch(startDateTime, (newValue) => {
   endDateTime.value =
@@ -258,6 +278,15 @@ const resourceEndTime = computed(() => {
 });
 
 const showingEdit = ref(false);
+
+const canSave = computed(() => {
+  return !!(
+    name.value &&
+    startDateTime.value &&
+    endDateTime.value &&
+    resources.value.length
+  );
+});
 
 function addResource() {
   selectedResource.value = {
@@ -286,6 +315,15 @@ function deleteResource(resource) {
   );
 }
 
+const canAdd = computed(() => {
+  return !!(
+    selectedResource.value.resourceType &&
+    selectedResource.value.startDateTime &&
+    selectedResource.value.endDateTime &&
+    selectedResource.value.minimumStaff > 0
+  );
+});
+
 function formatTime(isoDateTime) {
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
@@ -293,5 +331,26 @@ function formatTime(isoDateTime) {
 
 function formatStartEndTime(event) {
   return `${formatTime(event.startDateTime)}-${formatTime(event.endDateTime)}`;
+}
+
+function saveEvent() {
+  const model = {
+    eventId: uid(),
+    eventName: name.value,
+    startTime: startDateTime.value,
+    endTime: endDateTime.value,
+    resources: resources.value.map((r) => {
+      return {
+        eventResourceId: r.eventResourceId,
+        resourceType: r.resourceType,
+        startTime: r.startDateTime,
+        endTime: r.endDateTime,
+        minimumStaff: r.minimumStaff,
+        users: [],
+      };
+    }),
+  };
+  eventStore.addEvent(model);
+  $router.push("/");
 }
 </script>
