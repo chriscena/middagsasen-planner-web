@@ -72,7 +72,12 @@
               }}</q-item-label></q-item-section
             >
             <q-item-section side
-              ><q-btn flat round icon="delete"></q-btn
+              ><q-btn
+                flat
+                round
+                icon="delete"
+                @click="deleteResource(resource)"
+              ></q-btn
             ></q-item-section> </q-item
         ></q-list>
         <q-card-actions align="right">
@@ -272,6 +277,13 @@ function addResource() {
 function saveResource() {
   resources.value.push(selectedResource.value);
   showingEdit.value = false;
+}
+
+function deleteResource(resource) {
+  console.log(resource);
+  resources.value = resources.value.filter(
+    (r) => r.eventResourceId !== resource.eventResourceId
+  );
 }
 
 function formatTime(isoDateTime) {
