@@ -101,7 +101,7 @@
           ></q-btn
         ></q-card-actions>
       </q-card>
-      <q-dialog v-model="showingEdit">
+      <q-dialog v-model="showingEdit" persistent>
         <q-card>
           <q-card-section class="q-gutter-md">
             <q-select
@@ -321,7 +321,6 @@ function saveResource() {
 }
 
 function deleteResource(resource) {
-  console.log(resource);
   resources.value = resources.value.filter(
     (r) => r.eventResourceId !== resource.eventResourceId
   );
