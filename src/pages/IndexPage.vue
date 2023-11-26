@@ -237,7 +237,7 @@
           icon="add"
           color="accent"
           text-color="blue-grey-9"
-          @click="$router.push('/event')"
+          @click="$router.push('/create')"
       /></q-toolbar>
     </q-footer>
   </q-page>
@@ -255,6 +255,7 @@ import {
 import {
   parseISO,
   format,
+  isDate,
   formatISO,
   addDays,
   isBefore,
@@ -264,11 +265,20 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
+import { watch } from "vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
+const props = defineProps({
+  date: { type: String, required: true },
+});
 
 const loading = false;
 const selectedDay = ref(today());
+
+watch(props.date, (newVal) => (selectedDay.value = newVal), {
+  immediate: true,
+});
+
 const $q = useQuasar();
 const $router = useRouter();
 const mode = computed(() => {
@@ -282,18 +292,22 @@ const userStore = useUserStore();
 onMounted(() => {
   userStore.getUser();
   eventStore.getEvents();
+  if (!isDate(props.date)) $router.replace(`/day/${today()}`);
 });
 
 const calendar = ref(null);
 
-function onToday() {
-  calendar.value.moveToToday();
+async function onToday() {
+  await calendar.value.moveToToday();
+  $router.replace(`/day/${selectedDay.value}`);
 }
-function onPrev() {
-  calendar.value.prev();
+async function onPrev() {
+  await calendar.value.prev();
+  $router.replace(`/day/${selectedDay.value}`);
 }
-function onNext() {
-  calendar.value.next();
+async function onNext() {
+  await calendar.value.next();
+  $router.replace(`/day/${selectedDay.value}`);
 }
 function dateClicked() {}
 function onChange(event) {
@@ -312,6 +326,7 @@ function getEventsForDate(timestamp) {
 
 function setNow(value) {
   selectedDay.value = value;
+  $router.replace(`/day/${selectedDay.value}`);
 }
 
 function createUserList(resource) {
