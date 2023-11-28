@@ -95,10 +95,10 @@
                     flat
                     round
                     icon="edit"
-                    v-if="user.userId === currentUser.userId"
+                    v-if="user.userId === currentUser?.userId"
                     @click="edit(user)"
                   ></q-btn>
-                  <q-btn flat round icon="call" v-if="user.userId > 1"></q-btn>
+                  <q-btn flat round icon="call" v-if="user?.userId > 1"></q-btn>
                   <q-btn
                     flat
                     round
@@ -230,6 +230,7 @@
         ></q-btn
         ><q-space></q-space>
         <q-btn
+          v-if="authStore.isAdmin"
           fab
           unelevated
           padding="md"
@@ -265,6 +266,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
+import { useAuthStore } from "stores/AuthStore";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -280,9 +282,10 @@ const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
 });
 
-const currentUser = computed(() => userStore.user);
+const currentUser = computed(() => authStore.user);
 const events = ref([]);
 const eventStore = useEventStore();
+const authStore = useAuthStore();
 const userStore = useUserStore();
 onMounted(async () => {
   userStore.getUser();

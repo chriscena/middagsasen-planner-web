@@ -29,6 +29,10 @@ const routes = [
         component: () => import("pages/EventPage.vue"),
         props: true,
       },
+      {
+        path: "resourceTypes",
+        component: () => import("pages/ResourceTypesPage.vue"),
+      },
     ],
   },
 

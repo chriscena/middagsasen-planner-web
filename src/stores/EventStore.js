@@ -10,6 +10,7 @@ import {
   isBefore,
   isAfter,
 } from "date-fns";
+import { api } from "boot/axios";
 
 const today = new Date();
 
@@ -88,33 +89,27 @@ export const useEventStore = defineStore("events", {
         (e) => e.startTime >= startDate && e.startTime < endDate
       );
     },
-    getResourceTypes() {
-      //this.resourceTypes.splice(0, this.events.length);
-      if (this.resourceTypes.length) return;
-      this.resourceTypes.push(
-        ...[
-          {
-            resourceTypeId: 1,
-            name: "Heis voksen",
-            sortOrder: 1,
-          },
-          {
-            resourceTypeId: 2,
-            name: "Heis barn",
-            sortOrder: 2,
-          },
-          {
-            resourceTypeId: 3,
-            name: "Skiutleie",
-            sortOrder: 3,
-          },
-          {
-            resourceTypeId: 4,
-            name: "Kiosk",
-            sortOrder: 4,
-          },
-        ]
+    async createResourceType(resourceType) {
+      const response = await api.post("/api/resourcetypes", resourceType);
+      await this.getResourceTypes();
+    },
+    async updateResourceType(resourceType) {
+      const response = await api.put(
+        `/api/resourcetypes/${resourceType.id}`,
+        resourceType
       );
+      await this.getResourceTypes();
+    },
+    async deleteResourceType(resourceType) {
+      const response = await api.delete(
+        `/api/resourcetypes/${resourceType.id}`
+      );
+      await this.getResourceTypes();
+    },
+    async getResourceTypes() {
+      // if (this.resourceTypes.length) return;
+      const response = await api.get("/api/resourcetypes");
+      this.resourceTypes = response.data;
     },
     updateUser(user) {
       this.events.forEach((e) =>
