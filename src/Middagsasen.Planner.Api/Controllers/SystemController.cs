@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.SmsSender;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -8,14 +9,14 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class SystemController : ControllerBase
     {
-        public SystemController(PlannerDbContext dbContext, InfrastructureSettings settings)
+        public SystemController(PlannerDbContext dbContext, ISmsSenderSettings settings)
         {
             DbContext = dbContext;
             Settings = settings;
         }
 
         public PlannerDbContext DbContext { get; }
-        public InfrastructureSettings Settings { get; }
+        public ISmsSenderSettings Settings { get; }
 
         [HttpGet]
         public ActionResult Get()
