@@ -19,7 +19,14 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddCors();
 builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
-builder.Services.Configure<InfrastructureSettings>(builder.Configuration.GetSection("Infrastructure"));
+//builder.Services.Configure<InfrastructureSettings>(builder.Configuration.GetSection("Infrastructure"));
+builder.Services.Configure<InfrastructureSettings>(settings =>
+{
+    settings.Secret = builder.Configuration["Infrastructure:Secret"] ?? string.Empty;
+    settings.SmsUsername = builder.Configuration["Infrastructure:SmsUsername"];
+    settings.SmsPassword = builder.Configuration["Infrastructure:SmsPassword"];
+    settings.SmsSenderName = builder.Configuration["Infrastructure:SmsSenderName"];
+});
 builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
