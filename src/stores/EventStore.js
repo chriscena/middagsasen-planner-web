@@ -1,5 +1,4 @@
 import { defineStore } from "pinia";
-import { uid } from "quasar";
 import {
   parseISO,
   format,
@@ -11,58 +10,6 @@ import {
   isAfter,
 } from "date-fns";
 import { api } from "boot/axios";
-
-const today = new Date();
-
-const events = [
-  {
-    eventId: uid(),
-    eventName: "Helg",
-    startTime: formatISO(today, { representation: "date" }) + "T10:00:00",
-    endTime: formatISO(today, { representation: "date" }) + "T17:00:00",
-    resources: [
-      {
-        eventResourceId: uid(),
-        resourceType: { resourceTypeId: 1, name: "Heis voksen" },
-        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
-        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
-        minimumStaff: 2,
-        users: [
-          {
-            eventResourceUserId: uid(),
-            userId: 1,
-            name: "Christoffer Cena",
-            phoneNumber: "91305023",
-            comment: "Test",
-          },
-          {
-            eventResourceUserId: uid(),
-            userId: 2,
-            name: "Stina Gryhn",
-            phoneNumber: "12345678",
-            comment: null,
-          },
-        ],
-      },
-      {
-        eventResourceId: uid(),
-        resourceType: { resourceTypeId: 2, name: "Heis barn" },
-        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
-        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
-        minimumStaff: 1,
-        users: [],
-      },
-      {
-        eventResourceId: uid(),
-        resourceType: { resourceTypeId: 4, name: "Kiosk" },
-        startTime: formatISO(today, { representation: "date" }) + "T09:30:00",
-        endTime: formatISO(today, { representation: "date" }) + "T17:30:00",
-        minimumStaff: 3,
-        users: [],
-      },
-    ],
-  },
-];
 
 export const useEventStore = defineStore("events", {
   state: () => ({
@@ -115,18 +62,6 @@ export const useEventStore = defineStore("events", {
       const response = await api.get("/api/resourcetypes");
       this.resourceTypes = response.data;
     },
-    updateUser(user) {
-      this.events.forEach((e) =>
-        e.resources.forEach((r) =>
-          r.shifts.forEach((u) => {
-            if (u.eventResourceUserId === user.eventResourceUserId) {
-              u.comment = user.comment;
-              return;
-            }
-          })
-        )
-      );
-    },
     async addShift(parentResource, user) {
       const model = {
         startTime: parentResource.startTime,
@@ -157,9 +92,30 @@ export const useEventStore = defineStore("events", {
         const resource = e.resources.find(
           (r) => r.id === deletedShift.eventResourceId
         );
-        resource.shifts = resource.shifts.filter(
-          (u) => u.id !== deletedShift.id
+        if (resource) {
+          resource.shifts = resource.shifts.filter(
+            (u) => u.id !== deletedShift.id
+          );
+          return;
+        }
+      });
+    },
+    async updateShift(shift) {
+      const response = await api.put(`/api/shifts/${shift.id}`, shift);
+      const updatedShift = response.data;
+      this.events.forEach((e) => {
+        const resource = e.resources.find(
+          (r) => r.id === updatedShift.eventResourceId
         );
+        if (resource) {
+          const shiftToUpdate = resource.shifts.find(
+            (s) => s.id === updatedShift.id
+          );
+          shiftToUpdate.startTime = updatedShift.startTime;
+          shiftToUpdate.endTime = updatedShift.endTime;
+          shiftToUpdate.comment = updatedShift.comment;
+          return;
+        }
       });
     },
   },

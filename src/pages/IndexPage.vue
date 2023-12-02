@@ -31,6 +31,7 @@
     >
       <template #head-days-events>
         <q-linear-progress
+          color="primary"
           size="xs"
           v-show="loading"
           indeterminate
@@ -74,7 +75,9 @@
             <q-list separator>
               <q-item v-for="shift in createUserList(resource)" :key="shift.id">
                 <q-item-section>
-                  <q-item-label overline v-if="shift?.user?.id === 0 ?? false"
+                  <q-item-label
+                    overline
+                    v-if="(shift?.user?.id ?? 0) === 0 ?? false"
                     >Ledig</q-item-label
                   >
                   <q-item-label v-if="shift?.user?.id > 0">{{
@@ -105,6 +108,7 @@
                     flat
                     round
                     icon="add"
+                    :disable="adding"
                     v-if="(shift?.user?.id ?? 0) === 0"
                     @click="addUserAsResource(resource)"
                   ></q-btn>
@@ -122,12 +126,16 @@
                   ></q-btn>
                 </q-item-section>
               </q-item>
-            </q-list> </q-card
+            </q-list>
+
+            <q-inner-loading :showing="adding">
+              <q-spinner size="3em" color="primary"></q-spinner>
+            </q-inner-loading> </q-card
         ></template>
       </template>
     </q-calendar-agenda>
     <q-dialog v-model="showingEdit" persistent>
-      <q-card>
+      <q-card class="full-width">
         <q-card-section class="text-h6 row"
           ><span> Redigere</span><q-space></q-space
           ><q-btn
@@ -145,7 +153,7 @@
             autofocus
             outlined
             label="Kommentar"
-            v-model="selectedUser.comment"
+            v-model="selectedShift.comment"
           ></q-input>
         </q-card-section>
         <q-card-actions align="right">
@@ -160,7 +168,7 @@
             color="primary"
             label="Lagre"
             no-caps
-            @click="saveUser"
+            @click="updateShift"
           ></q-btn>
         </q-card-actions>
       </q-card>
@@ -276,7 +284,7 @@ const props = defineProps({
   date: { type: String, required: true },
 });
 
-const loading = false;
+const loading = ref(false);
 const selectedDay = ref(today());
 
 const $q = useQuasar();
@@ -311,8 +319,15 @@ async function onNext() {
   $router.replace(`/day/${selectedDay.value}`);
 }
 function dateClicked() {}
-function onChange(event) {
-  eventStore.getEventsForDates(event.start, event.end);
+
+async function onChange(event) {
+  try {
+    loading.value = true;
+    await eventStore.getEventsForDates(event.start, event.end);
+  } catch (error) {
+  } finally {
+    loading.value = false;
+  }
 }
 
 function getEventsForDate(timestamp) {
@@ -357,24 +372,31 @@ function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
 
+const adding = ref(false);
 async function addUserAsResource(resource) {
-  await eventStore.addShift(resource, currentUser.value);
+  try {
+    adding.value = true;
+    await eventStore.addShift(resource, currentUser.value);
+  } catch (error) {
+  } finally {
+    adding.value = false;
+  }
 }
 
 const showingEdit = ref(false);
-const selectedUser = ref(null);
-function edit(user) {
-  selectedUser.value = Object.assign({}, user);
+const selectedShift = ref(null);
+function edit(shift) {
+  selectedShift.value = Object.assign({}, shift);
   showingEdit.value = true;
 }
 
-function saveUser() {
-  eventStore.updateUser(selectedUser.value);
+function updateShift() {
+  eventStore.updateShift(selectedShift.value);
   showingEdit.value = false;
 }
 
 async function deleteShift() {
-  await eventStore.deleteShift(selectedUser.value);
+  await eventStore.deleteShift(selectedShift.value);
   showingEdit.value = false;
 }
 
