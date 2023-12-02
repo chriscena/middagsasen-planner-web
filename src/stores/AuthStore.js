@@ -1,29 +1,41 @@
 import { defineStore } from "pinia";
 
-export const useAuthStore = defineStore("auth", {
-  state: () => ({
-    user: null,
-  }),
+const tokenItem = "access_token";
+const userItem = "user";
 
+export const useAuthStore = defineStore("auth", {
+  state: () => ({ loggedInUser: null }),
   getters: {
     accessToken(state) {
-      return localStorage.getItem("access_token");
+      return localStorage.getItem(tokenItem);
+    },
+    user(state) {
+      if (!this.loggedInUser) {
+        var userJson = localStorage.getItem(userItem);
+        this.loggedInUser = userJson ? JSON.parse(userJson) : null;
+      }
+      return this.loggedInUser;
     },
     isAdmin(state) {
-      return !!this.user?.isAdmin;
+      return this.user?.isAdmin;
     },
   },
 
   actions: {
-    setAccessToken(token) {
-      localStorage.setItem("access_token", token);
+    async setAccessToken(token) {
+      localStorage.removeItem(tokenItem);
+      localStorage.setItem(tokenItem, token);
+      await new Promise((resolve) => setTimeout(resolve(), 100));
     },
     setUser(user) {
-      this.user = user;
+      localStorage.removeItem(userItem);
+      localStorage.setItem(userItem, JSON.stringify(user));
+      this.loggedInUser = user;
     },
     removeUserSession() {
-      localStorage.removeItem("access_token");
-      this.user = null;
+      localStorage.removeItem(tokenItem);
+      localStorage.removeItem(userItem);
+      this.loggedInUser = null;
     },
   },
 });

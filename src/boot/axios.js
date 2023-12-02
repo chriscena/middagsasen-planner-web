@@ -25,18 +25,6 @@ api.interceptors.request.use(
   }
 );
 
-api.interceptors.response.use(
-  function (response) {
-    return response;
-  },
-  function (error) {
-    // if (error.response.status === 401)
-    // Any status codes that falls outside the range of 2xx cause this function to trigger
-    // Do something with response error
-    return Promise.reject(error);
-  }
-);
-
 export default boot(({ app }) => {
   // for use inside Vue files (Options API) through this.$axios and this.$api
 

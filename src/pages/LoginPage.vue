@@ -30,6 +30,7 @@
               type="submit"
               unelevated
               color="primary"
+              :loading="performingLogin"
             ></q-btn>
           </q-card-actions> </q-card
       ></q-form>
@@ -76,17 +77,19 @@
 import { ref } from "vue";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
+import { useUserStore } from "src/stores/UserStore";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 
 const authStore = useAuthStore();
+const userStore = useUserStore();
 const router = useRouter();
+const $q = useQuasar();
 
 const username = ref(null);
 const password = ref(null);
-const $q = useQuasar();
-
 const performingLogin = ref(false);
+
 async function login() {
   try {
     performingLogin.value = true;
@@ -95,10 +98,14 @@ async function login() {
       password: password.value,
     });
 
-    authStore.setAccessToken(response.data.token);
-    router.push("/");
+    await authStore.setAccessToken(response.data.token);
+    await userStore.getUser();
+    await router.push("/");
   } catch (error) {
     console.log(error);
+    $q.notify({
+      message: "Klarte ikke å logge deg på 😣",
+    });
   } finally {
     performingLogin.value = false;
   }
@@ -113,9 +120,12 @@ async function createOtp() {
       userName: username.value,
     });
     showingOtpDialog.value = false;
-    $q.notify({ type: "positive", message: "Engangskode er på vei." });
+    $q.notify({ message: "Engangskode er på vei på SMS 🙌" });
   } catch (error) {
     console.log(error);
+    $q.notify({
+      message: "Klarte ikke å lage engangskode 😳",
+    });
   } finally {
     creatingOtp.value = false;
   }

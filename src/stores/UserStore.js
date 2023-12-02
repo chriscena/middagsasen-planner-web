@@ -1,8 +1,25 @@
 import { defineStore } from "pinia";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
+import { useRouter } from "vue-router";
 
 const authStore = useAuthStore();
+const router = useRouter();
+
+api.interceptors.response.use(
+  function (response) {
+    return response;
+  },
+  function (error) {
+    if (error.response.status === 401) {
+      window.location("/login");
+      return Promise.reject("Unauthorized");
+    }
+    // Any status codes that falls outside the range of 2xx cause this function to trigger
+    // Do something with response error
+    return Promise.reject(error);
+  }
+);
 
 export const useUserStore = defineStore("users", {
   state: () => ({
@@ -14,8 +31,12 @@ export const useUserStore = defineStore("users", {
   // },
   actions: {
     async getUser() {
-      const userResponse = await api.get("/api/me");
-      authStore.setUser(userResponse.data);
+      try {
+        const userResponse = await api.get("/api/me");
+        authStore.setUser(userResponse.data);
+      } catch (error) {
+        if (error?.response?.status === 401) router.replace("/login");
+      }
     },
     async getUsers() {
       const response = await api.get("/api/users");
@@ -31,7 +52,9 @@ export const useUserStore = defineStore("users", {
       this.phoneList = response.data;
     },
     async logout() {
-      await api.post("/api/authentication/logout");
+      try {
+        await api.post("/api/authentication/logout");
+      } catch (error) {}
       authStore.removeUserSession();
     },
   },
