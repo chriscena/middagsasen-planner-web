@@ -8,20 +8,24 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class SystemController : ControllerBase
     {
-        public SystemController(PlannerDbContext dbContext, ISmsSenderSettings settings)
+        public SystemController(ILogger<SystemController> logger, PlannerDbContext dbContext, ISmsSenderSettings settings)
         {
+            Logger = logger;
             DbContext = dbContext;
             Settings = settings;
         }
 
+        public ILogger<SystemController> Logger { get; }
         public PlannerDbContext DbContext { get; }
         public ISmsSenderSettings Settings { get; }
 
         [HttpGet]
         public ActionResult Get()
         {
-            DbContext.Users.Count();
-            return Ok(new { Settings.SmsSenderName});
+            Logger.LogInformation("Checking configuration");
+            var dbTest = DbContext.Users.Count() > 0 ? "OK" : "Failed";
+            var settingsTest = !string.IsNullOrEmpty(Settings.SmsSenderName) ? "OK" : "Failed";
+            return Ok(new { DatabaseConnection = dbTest, Settings = settingsTest });
         }
     }
 }

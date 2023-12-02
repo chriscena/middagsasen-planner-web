@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
@@ -13,13 +14,15 @@ using Middagsasen.Planner.Api.Services.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddApplicationInsights();
+builder.Logging.AddFilter<ApplicationInsightsLoggerProvider>("PlannerApi", LogLevel.Trace);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors();
 builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
-//builder.Services.Configure<InfrastructureSettings>(builder.Configuration.GetSection("Infrastructure"));
 builder.Services.Configure<InfrastructureSettings>(settings =>
 {
     settings.Secret = builder.Configuration["Infrastructure:Secret"] ?? string.Empty;
