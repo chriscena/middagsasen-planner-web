@@ -56,7 +56,7 @@
       /></q-toolbar>
     </q-footer>
     <q-dialog v-model="showingEdit">
-      <q-card>
+      <q-card class="full-width">
         <q-card-section class="row"
           >{{ !selectedResource.id ? "Ny vakttype" : "Endre vakttype"
           }}<q-space></q-space>

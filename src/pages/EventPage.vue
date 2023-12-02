@@ -111,7 +111,7 @@
         </q-card></div
     ></q-form>
     <q-dialog v-model="showingEdit" persistent>
-      <q-card>
+      <q-card class="full-width">
         <q-card-section class="q-gutter-md">
           <q-select
             autofocus

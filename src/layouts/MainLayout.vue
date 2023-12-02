@@ -14,7 +14,7 @@
         @toggle-right="toggleRightDrawer"
       />
     </q-page-container>
-    <q-dialog v-model="showingUserDialog">
+    <q-dialog v-model="showingUserDialog" persistent>
       <q-card class="full-width">
         <q-form @submit="saveUser">
           <q-card-section class="">Ny bruker</q-card-section>
@@ -51,11 +51,11 @@
             <q-input
               class="col-12"
               outlined
-              label="Passord"
+              label="Passord (valgfritt)"
               type="password"
               autocomplete="new-password"
               v-model="state.password"
-              hint="Skriv inn passord om du vil slippe engangspassord."
+              hint="Skriv inn passord om du vil slippe engangspassord. La feltet være tomt om du ikke vil legge til/endre passord."
             ></q-input>
           </q-card-section>
           <q-card-actions align="right"
