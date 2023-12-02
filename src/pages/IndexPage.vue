@@ -169,8 +169,10 @@
             label="Lagre"
             no-caps
             @click="updateShift"
-          ></q-btn>
-        </q-card-actions>
+          ></q-btn> </q-card-actions
+        ><q-inner-loading :showing="saving">
+          <q-spinner size="3em" color="primary"></q-spinner>
+        </q-inner-loading>
       </q-card>
     </q-dialog>
     <q-footer>
@@ -377,7 +379,13 @@ async function addUserAsResource(resource) {
   try {
     adding.value = true;
     await eventStore.addShift(resource, currentUser.value);
+    $q.notify({
+      message: "Woohoo! Du har tatt en vakt 🎉",
+    });
   } catch (error) {
+    $q.notify({
+      message: "Oh no! Noe tryna da du skulle ta vakta! 🙈",
+    });
   } finally {
     adding.value = false;
   }
@@ -390,14 +398,33 @@ function edit(shift) {
   showingEdit.value = true;
 }
 
-function updateShift() {
-  eventStore.updateShift(selectedShift.value);
-  showingEdit.value = false;
+const saving = ref(false);
+async function updateShift() {
+  try {
+    saving.value = true;
+    await eventStore.updateShift(selectedShift.value);
+    showingEdit.value = false;
+    $q.notify({
+      message: "Endringer er lagret 👍",
+    });
+  } catch (error) {
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function deleteShift() {
-  await eventStore.deleteShift(selectedShift.value);
-  showingEdit.value = false;
+  try {
+    saving.value = true;
+    await eventStore.deleteShift(selectedShift.value);
+    showingEdit.value = false;
+    $q.notify({
+      message: "Ajaj! Du har tatt bort vakta 😱",
+    });
+  } catch (error) {
+  } finally {
+    saving.value = false;
+  }
 }
 
 function toCreate() {
