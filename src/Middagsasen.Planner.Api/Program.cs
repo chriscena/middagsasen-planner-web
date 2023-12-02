@@ -17,6 +17,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddCors();
+builder.Services.AddApplicationInsightsTelemetry(builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]);
 
 builder.Services.Configure<InfrastructureSettings>(builder.Configuration.GetSection("Infrastructure"));
 builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
