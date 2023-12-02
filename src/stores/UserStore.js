@@ -21,5 +21,9 @@ export const useUserStore = defineStore("users", {
       this.users.splice(0, this.users.length);
       this.users.push(...response.data);
     },
+    async saveUser(user) {
+      const response = await api.put("/api/me", user);
+      authStore.setUser(response.data);
+    },
   },
 });
