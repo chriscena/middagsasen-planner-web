@@ -6,5 +6,7 @@ namespace Middagsasen.Planner.Api.Services
     {
         Task<IEnumerable<UserResponse>> GetUsers();
         Task<UserResponse?> GetUserById(int id);
+        Task<UserResponse?> UpdateUser(int id, UserRequest request);
+        Task<IEnumerable<PhoneResponse>> GetPhoneList();
     }
 }

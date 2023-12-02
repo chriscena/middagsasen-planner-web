@@ -83,9 +83,29 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                     await DbContext.SaveChangesAsync();
                     return new AuthResponse { Status = AuthStatus.Success, Token = token };
                 }
+                if (user.EncryptedPassword != null && user.Salt != null && PasswordHasher.VerifyHash(request.Password, user.Salt, user.EncryptedPassword))
+                {
+                    var session = await CreateSession(user, AuthType.Password);
+
+                    var token = GenerateJwtToken(session);
+
+                    user.OtpCreated = null;
+                    user.OneTimePassword = null;
+                    await DbContext.SaveChangesAsync();
+                    return new AuthResponse { Status = AuthStatus.Success, Token = token };
+                }
             }
 
             return new AuthResponse { Status = AuthStatus.AuthenticationFailed };
+        }
+
+        public async Task LogOut(Guid sessionId)
+        {
+            var session = await DbContext.UserSessions.SingleOrDefaultAsync(u => u.UserSessionId == sessionId);
+            if (session == null) return;
+
+            DbContext.UserSessions.Remove(session);
+            await DbContext.SaveChangesAsync();
         }
 
         private async Task<UserSession> CreateSession(User user, AuthType authType)

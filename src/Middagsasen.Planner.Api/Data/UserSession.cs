@@ -9,6 +9,6 @@ namespace Middagsasen.Planner.Api.Data
         public DateTime Created { get; set; } = DateTime.UtcNow;
         public AuthType AuthType { get; set; }
 
-        public User? User { get; set; }
+        public User User { get; set; } = null!;
     }
 }

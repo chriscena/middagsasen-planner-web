@@ -8,5 +8,6 @@ namespace Middagsasen.Planner.Api.Services
         Task<AuthResponse> Authenticate(AuthRequest request);
         Task<OtpResponse> GenerateOtpForUser(OtpRequest request);
         Task<UserResponse?> GetUserBySessionId(Guid id);
+        Task LogOut(Guid sessionId);
     }
 }

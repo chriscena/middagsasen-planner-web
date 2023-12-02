@@ -1,11 +1,11 @@
-﻿namespace Middagsasen.Planner.Api.Authentication
-{
-    using Microsoft.IdentityModel.Tokens;
-    using Middagsasen.Planner.Api.Services;
-    using System.IdentityModel.Tokens.Jwt;
-    using System.Security.Claims;
-    using System.Text;
+﻿using Microsoft.IdentityModel.Tokens;
+using Middagsasen.Planner.Api.Services;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
+namespace Middagsasen.Planner.Api.Authentication
+{
     public interface IAuthSettings
     {
         string Secret { get; }
@@ -47,7 +47,8 @@
                 }, out SecurityToken validatedToken);
 
                 var jwtToken = (JwtSecurityToken)validatedToken;
-                var sessionId = Guid.Parse(jwtToken.Claims.First(x => x.Type == "id").Value);
+                var sessionIdString = jwtToken.Claims.First(x => x.Type == "id").Value;
+                var sessionId = Guid.Parse(sessionIdString);
 
                 var user = await userService.GetUserBySessionId(sessionId);
                 if (user == null) return;
@@ -62,8 +63,9 @@
                         new Claim(ClaimTypes.GivenName, user.FirstName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.Surname, user.LastName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.Role, user.IsAdmin ? "Administrator" : "User", ClaimValueTypes.String),
+                        new Claim(ClaimTypes.Authentication, sessionIdString, ClaimValueTypes.String)
                     },
-                    "Password", ClaimTypes.Name, ClaimTypes.Role));
+                    "Password", ClaimTypes.Name, ClaimTypes.Role)); ;
             }
             catch
             {

@@ -5,6 +5,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Authentication;
+using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Users;
 
@@ -24,16 +25,22 @@ builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(
 builder.Services.AddTransient<ISmsSender, SmsSenderService>();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IEventsService, EventsService>();
+builder.Services.AddScoped<IResourceTypesService, EventsService>();
 builder.Services.AddScoped<IUserService, UserService>();
 
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+}
+
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
 }
 
 app.UseCors(x => x
@@ -41,10 +48,7 @@ app.UseCors(x => x
         .AllowAnyMethod()
         .AllowAnyHeader());
 
-// custom jwt auth middleware
 app.UseMiddleware<JwtMiddleware>();
 app.MapControllers();
-
-app.UseHttpsRedirection();
 
 app.Run();

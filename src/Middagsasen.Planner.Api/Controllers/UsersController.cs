@@ -1,11 +1,10 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
-    [Route("api/[controller]")]
     [ApiController, Authorize]
     public class UsersController : ControllerBase
     {
@@ -16,7 +15,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IUserService UserService { get; }
 
-        [HttpGet("me")]
+        [HttpGet("api/me")]
         public async Task<IActionResult> Me()
         {
             var user = (UserResponse?)HttpContext.Items["User"];
@@ -26,7 +25,26 @@ namespace Middagsasen.Planner.Api.Controllers
             return Ok(response);
         }
 
-        [HttpGet("")]
+        [HttpPut("api/me")]
+        public async Task<IActionResult> UpdateMe([FromBody]UserRequest request)
+        {
+            var user = (UserResponse?)HttpContext.Items["User"];
+            if (user == null) return Unauthorized();
+
+            var response = await UserService.UpdateUser(user.Id, request);
+            if (response == null) return NotFound($"Fant ikke bruker med ID {user.Id}");
+
+            return Ok(response);
+        }
+
+        [HttpGet("api/users/phone")]
+        public async Task<IActionResult> GetPhoneList()
+        {
+            var response = await UserService.GetPhoneList();
+            return Ok(response);
+        }
+
+        [HttpGet("api/users")]
         public async Task<IActionResult> GetUsers()
         {
             var user = (UserResponse?)HttpContext.Items["User"];

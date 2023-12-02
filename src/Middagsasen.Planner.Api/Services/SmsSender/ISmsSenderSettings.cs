@@ -17,21 +17,21 @@
     {
         public Guid SmsNotificationId { get; set; }
         public long ReceiverPhoneNo { get; set; }
-        public string Body { get; set; }
+        public string Body { get; set; } = null!;
     }
 
     public class SmsResult
     {
         public bool Success { get; set; }
         public string? Info { get; set; }
-        public IEnumerable<SmsMessageResult> Messages { get; set; }
+        public IEnumerable<SmsMessageResult>? Messages { get; set; }
     }
 
     public class SmsMessageResult
     {
         public long ReceiverPhoneNo { get; set; }
         public bool Success { get; set; }
-        public string ExternalId { get; set; }
-        public string Info { get; set; }
+        public string? ExternalId { get; set; }
+        public string? Info { get; set; }
     }
 }

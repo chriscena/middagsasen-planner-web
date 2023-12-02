@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Authentication;
+using System.Security.Claims;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -47,6 +48,17 @@ namespace Middagsasen.Planner.Api.Controllers
                 default:
                     return new StatusCodeResult(StatusCodes.Status429TooManyRequests);
             }
+        }
+
+        [HttpPost("logout")]
+        public async Task<IActionResult> LogOut()
+        {
+            var user = HttpContext.User;
+            var sessionIdString = user.FindFirstValue(ClaimTypes.Authentication);
+            if (sessionIdString == null) return NotFound();
+            
+            await AuthService.LogOut(Guid.Parse(sessionIdString));
+            return Ok();
         }
     }
 }
