@@ -37,13 +37,10 @@
         ></q-linear-progress>
       </template>
       <template #day="{ scope: { timestamp } }">
-        <template
-          v-for="event in getEventsForDate(timestamp)"
-          :key="event.eventId"
-        >
+        <template v-for="event in getEventsForDate(timestamp)" :key="event.id">
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
             <q-card-section class="q-py-sm text-bold row">
-              <span class="col">{{ event.eventName }}</span
+              <span class="col">{{ event.name }}</span
               ><span class="col text-right">{{
                 formatStartEndTime(event)
               }}</span></q-card-section
@@ -52,10 +49,10 @@
 
           <q-card
             v-for="resource in event.resources"
-            :key="resource.eventResourceId"
+            :key="resource.id"
             :class="
               'q-mt-sm q-mx-sm ' +
-              (resource.minimumStaff <= resource.users.length
+              (resource.minimumStaff <= resource.shifts.length
                 ? 'bg-green-1'
                 : 'bg-red-1')
             "
@@ -67,7 +64,7 @@
                 <q-icon
                   color="negative"
                   name="warning"
-                  v-if="!(resource.minimumStaff <= resource.users.length)"
+                  v-if="!(resource.minimumStaff <= resource.shifts.length)"
                 ></q-icon></span
               ><span class="col text-right">{{
                 formatStartEndTime(resource)
@@ -75,19 +72,16 @@
             >
             <q-separator> </q-separator>
             <q-list separator>
-              <q-item
-                v-for="user in createUserList(resource)"
-                :key="user.eventResourceUserId"
-              >
+              <q-item v-for="shift in createUserList(resource)" :key="shift.id">
                 <q-item-section>
-                  <q-item-label overline v-if="user.userId === 0"
+                  <q-item-label overline v-if="shift?.user?.id === 0 ?? false"
                     >Ledig</q-item-label
                   >
-                  <q-item-label v-if="user.userId > 0">{{
-                    user.name
+                  <q-item-label v-if="shift?.user?.id > 0">{{
+                    shift.user.fullName
                   }}</q-item-label>
-                  <q-item-label caption v-if="user.userId > 0">{{
-                    user.comment
+                  <q-item-label caption v-if="shift?.user?.id > 0">{{
+                    shift.comment
                   }}</q-item-label>
                 </q-item-section>
                 <q-item-section side>
@@ -95,20 +89,28 @@
                     flat
                     round
                     icon="edit"
-                    v-if="user.userId === currentUser?.userId"
-                    @click="edit(user)"
+                    v-if="(shift?.user?.id ?? 0) === currentUser?.id"
+                    @click="edit(shift)"
                   ></q-btn>
-                  <q-btn flat round icon="call" v-if="user?.userId > 1"></q-btn>
+                  <q-btn
+                    flat
+                    round
+                    icon="call"
+                    v-if="
+                      (shift?.user?.id ?? 0) > 1 &&
+                      (shift?.user?.id ?? 0) !== currentUser?.id
+                    "
+                  ></q-btn>
                   <q-btn
                     flat
                     round
                     icon="add"
-                    v-if="user.userId === 0"
-                    @click="addUserAsResource(resource.eventResourceId)"
+                    v-if="(shift?.user?.id ?? 0) === 0"
+                    @click="addUserAsResource(resource)"
                   ></q-btn>
                 </q-item-section>
               </q-item>
-              <q-item v-if="resource.users.length >= resource.minimumStaff">
+              <q-item v-if="resource.shifts.length >= resource.minimumStaff">
                 <q-item-section> </q-item-section>
                 <q-item-section side>
                   <q-btn
@@ -116,7 +118,7 @@
                     flat
                     round
                     icon="add"
-                    @click="addUserAsResource(resource.eventResourceId)"
+                    @click="addUserAsResource(resource.id)"
                   ></q-btn>
                 </q-item-section>
               </q-item>
@@ -135,11 +137,12 @@
             round
             icon="delete"
             color="negative"
-            @click="deleteUser"
+            @click="deleteShift"
           ></q-btn>
         </q-card-section>
         <q-card-section>
           <q-input
+            autofocus
             outlined
             label="Kommentar"
             v-model="selectedUser.comment"
@@ -283,15 +286,14 @@ const mode = computed(() => {
 });
 
 const currentUser = computed(() => authStore.user);
-const events = ref([]);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 onMounted(async () => {
   userStore.getUser();
-  eventStore.getEvents();
   if (isValid(new Date(props.date))) selectedDay.value = props.date;
   else await $router.replace(`/day/${today()}`);
+  //eventStore.getEventsForDates(event.start, event.end);
 });
 
 const calendar = ref(null);
@@ -310,13 +312,13 @@ async function onNext() {
 }
 function dateClicked() {}
 function onChange(event) {
-  events.value = eventStore.getEventsForDates(event.start, event.end);
+  eventStore.getEventsForDates(event.start, event.end);
 }
 
 function getEventsForDate(timestamp) {
   const start = new Date(timestamp.date);
   const end = addDays(start, 1);
-  return events.value.filter(
+  return eventStore.events.filter(
     (e) =>
       isAfter(new Date(e.startTime), start) &&
       isBefore(new Date(e.startTime), end)
@@ -330,16 +332,14 @@ function setNow(value) {
 
 function createUserList(resource) {
   const list = [];
-  list.push(...resource.users);
+  list.push(...resource.shifts);
   const neededStaff = resource.minimumStaff - list.length;
 
   if (neededStaff > 0) {
     for (let i = 0; i < neededStaff; i += 1) {
       list.push({
-        eventResourceUserId: 0,
-        userId: 0,
-        name: null,
-        phoneNumber: null,
+        id: 0,
+        user: null,
         comment: null,
       });
     }
@@ -357,8 +357,8 @@ function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
 
-function addUserAsResource(eventResourceId) {
-  eventStore.addUser(eventResourceId, currentUser.value);
+async function addUserAsResource(resource) {
+  await eventStore.addShift(resource, currentUser.value);
 }
 
 const showingEdit = ref(false);
@@ -373,8 +373,8 @@ function saveUser() {
   showingEdit.value = false;
 }
 
-function deleteUser() {
-  eventStore.deleteUser(selectedUser.value);
+async function deleteShift() {
+  await eventStore.deleteShift(selectedUser.value);
   showingEdit.value = false;
 }
 

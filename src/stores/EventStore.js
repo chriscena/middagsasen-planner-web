@@ -73,21 +73,25 @@ export const useEventStore = defineStore("events", {
   //   doubleCount: (state) => state.counter * 2,
   // },
   actions: {
-    addEvent(event) {
-      this.events.push(event);
+    async addEvent(event) {
+      const response = await api.post("/api/events", event);
     },
     getEvents() {
       //this.events.splice(0, this.events.length);
       if (this.events.length) return;
       this.events.push(...events);
     },
-    getEventsForDates(start, end) {
-      this.getEvents();
-      var startDate = formatISO(parseISO(start));
-      var endDate = formatISO(addDays(parseISO(end), 1));
-      return this.events.filter(
-        (e) => e.startTime >= startDate && e.startTime < endDate
+    async getEventsForDates(start, end) {
+      var startDate = encodeURIComponent(
+        formatISO(parseISO(start), { representation: "date" })
       );
+      var endDate = encodeURI(
+        formatISO(addDays(parseISO(end), 1), { representation: "date" })
+      );
+      const response = await api.get(
+        `/api/events?start=${startDate}&end=${endDate}`
+      );
+      this.events = response.data;
     },
     async createResourceType(resourceType) {
       const response = await api.post("/api/resourcetypes", resourceType);
@@ -114,7 +118,7 @@ export const useEventStore = defineStore("events", {
     updateUser(user) {
       this.events.forEach((e) =>
         e.resources.forEach((r) =>
-          r.users.forEach((u) => {
+          r.shifts.forEach((u) => {
             if (u.eventResourceUserId === user.eventResourceUserId) {
               u.comment = user.comment;
               return;
@@ -123,28 +127,40 @@ export const useEventStore = defineStore("events", {
         )
       );
     },
-    addUser(eventResourceId, user) {
-      this.events.forEach((e) =>
-        e.resources.forEach((r) => {
-          if (r.eventResourceId == eventResourceId) {
-            const newUser = Object.assign(
-              { eventResourceUserId: uid(), comment: null },
-              user
-            );
-            r.users.push(newUser);
-            return;
-          }
-        })
+    async addShift(parentResource, user) {
+      const model = {
+        startTime: parentResource.startTime,
+        endTime: parentResource.endTime,
+        userId: user.id,
+      };
+      const response = await api.post(
+        `/api/resources/${parentResource.id}/shifts`,
+        model
       );
+
+      const newShift = response.data;
+
+      this.events.forEach((e) => {
+        const resource = e.resources.find(
+          (r) => r.id === newShift.eventResourceId
+        );
+        if (resource) {
+          resource.shifts.push(newShift);
+          return;
+        }
+      });
     },
-    deleteUser(user) {
-      this.events.forEach((e) =>
-        e.resources.forEach((r) => {
-          r.users = r.users.filter(
-            (u) => u.eventResourceUserId !== user.eventResourceUserId
-          );
-        })
-      );
+    async deleteShift(shift) {
+      const response = await api.delete(`/api/shifts/${shift.id}`);
+      const deletedShift = response.data;
+      this.events.forEach((e) => {
+        const resource = e.resources.find(
+          (r) => r.id === deletedShift.eventResourceId
+        );
+        resource.shifts = resource.shifts.filter(
+          (u) => u.id !== deletedShift.id
+        );
+      });
     },
   },
 });

@@ -121,6 +121,7 @@
             option-label="name"
             option-value="resourceTypeId"
             v-model="selectedResource.resourceType"
+            @update:model-value="resourceTypeChanged"
           ></q-select>
           <q-input
             outlined
@@ -292,9 +293,14 @@ const canSave = computed(() => {
   );
 });
 
+function resourceTypeChanged(newValue) {
+  if (newValue && newValue.defaultStaff) {
+    selectedResource.value.minimumStaff = newValue.defaultStaff;
+  }
+}
+
 function addResource() {
   selectedResource.value = {
-    eventResourceId: uid(),
     resourceType: null,
     startDateTime: startDateTime.value
       ? formatISO(addMinutes(parseISO(startDateTime.value), -30))
@@ -338,18 +344,17 @@ function formatStartEndTime(event) {
 
 function saveEvent() {
   const model = {
-    eventId: uid(),
-    eventName: name.value,
+    name: name.value,
     startTime: startDateTime.value,
     endTime: endDateTime.value,
     resources: resources.value.map((r) => {
       return {
         eventResourceId: r.eventResourceId,
-        resourceType: r.resourceType,
+        resourceTypeId: r.resourceType.id,
         startTime: r.startDateTime,
         endTime: r.endDateTime,
         minimumStaff: r.minimumStaff,
-        users: [],
+        shifts: [],
       };
     }),
   };
