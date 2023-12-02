@@ -187,26 +187,12 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref, reactive } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
-import {
-  parseISO,
-  format,
-  addHours,
-  addMinutes,
-  formatISO,
-  addDays,
-  isBefore,
-  isAfter,
-} from "date-fns";
+import { parseISO, format, addMinutes, formatISO } from "date-fns";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
-import { uid } from "quasar";
-import { watch } from "vue";
-import router from "src/router";
-import { stringify } from "postcss";
-import { toDisplayString } from "vue";
 
 const emit = defineEmits(["toggle-right"]);
 const loading = false;

@@ -1,11 +1,97 @@
 <template>
   <q-layout view="hHh lpR fFf">
     <q-drawer v-model="leftDrawerOpen" side="left">
-      <!-- drawer content -->
+      <q-toolbar
+        ><q-space></q-space
+        ><q-btn
+          text-color="blue-grey-8 "
+          flat
+          round
+          icon="close"
+          @click="leftDrawerOpen = false"
+        ></q-btn
+      ></q-toolbar>
+      <q-separator></q-separator>
+      <q-list separator>
+        <q-item clickable to="/" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="calendar_today"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Kalender</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item clickable to="/phonelist" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="contacts"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Telefonliste</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="settings"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Vakttyper</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-item v-if="isAdmin" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="edit_calendar"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Maler</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-item v-if="isAdmin" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="group"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Brukere</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
     </q-drawer>
 
     <q-drawer v-model="rightDrawerOpen" side="right" overlay>
-      <!-- drawer content -->
+      <q-toolbar
+        ><q-btn
+          text-color="blue-grey-8 "
+          flat
+          round
+          icon="close"
+          @click="rightDrawerOpen = false"
+        ></q-btn
+      ></q-toolbar>
+      <q-separator></q-separator>
+      <q-list separator>
+        <q-item>
+          <q-item-section avatar
+            ><q-icon name="person"></q-icon
+          ></q-item-section>
+          <q-item-section>
+            <q-item-label>{{ user?.fullName }}</q-item-label>
+            <q-item-label caption>{{ user?.userName }}</q-item-label>
+          </q-item-section>
+          <q-item-section side
+            ><q-btn flat round icon="edit" @click="editUser"></q-btn
+          ></q-item-section>
+        </q-item>
+        <q-item clickable @click="logout">
+          <q-item-section avatar
+            ><q-icon name="logout"></q-icon
+          ></q-item-section>
+          <q-item-section>
+            <q-item-label>Logg ut</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
     </q-drawer>
 
     <q-page-container>
@@ -60,6 +146,15 @@
           </q-card-section>
           <q-card-actions align="right"
             ><q-btn
+              v-if="editingUser"
+              flat
+              no-caps
+              label="Avbryt"
+              :disable="saving"
+              @click.stop="editingUser = false"
+            ></q-btn
+            ><q-btn
+              no-caps
               color="primary"
               unelevated
               type="submit"
@@ -78,17 +173,22 @@ import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
 import { useVuelidate } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
+import { useRouter } from "vue-router";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
+const router = useRouter();
 
 const user = computed(() => authStore.user);
+const isAdmin = computed(() => user.value?.isAdmin ?? false);
+
+const editingUser = ref(false);
 
 const showingUserDialog = computed(
   () =>
     !!user.value &&
     !!user.value.id &&
-    (!user.value.firstName || !user.value.lastName)
+    (editingUser.value || !user.value.firstName || !user.value.lastName)
 );
 
 const state = reactive({
@@ -107,6 +207,13 @@ const rules = {
 
 const v$ = useVuelidate(rules, state);
 
+function editUser() {
+  state.firstName = user.value?.firstName;
+  state.lastName = user.value?.lastName;
+  state.password = null;
+  editingUser.value = true;
+}
+
 async function saveUser() {
   try {
     saving.value = true;
@@ -116,11 +223,17 @@ async function saveUser() {
       password: state.password,
     };
     await userStore.saveUser(model);
+    editingUser.value = false;
   } catch (error) {
     console.log(error);
   } finally {
     saving.value = false;
   }
+}
+
+async function logout() {
+  await userStore.logout();
+  router.push("/login");
 }
 
 const leftDrawerOpen = ref(false);

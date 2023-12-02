@@ -7,6 +7,7 @@ const authStore = useAuthStore();
 export const useUserStore = defineStore("users", {
   state: () => ({
     users: [],
+    phoneList: [],
   }),
   // getters: {
   //   doubleCount: (state) => state.counter * 2,
@@ -24,6 +25,14 @@ export const useUserStore = defineStore("users", {
     async saveUser(user) {
       const response = await api.put("/api/me", user);
       authStore.setUser(response.data);
+    },
+    async getPhoneList() {
+      const response = await api.get("/api/users/phone");
+      this.phoneList = response.data;
+    },
+    async logout() {
+      await api.post("/api/authentication/logout");
+      authStore.removeUserSession();
     },
   },
 });
