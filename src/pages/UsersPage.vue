@@ -65,9 +65,18 @@
     </q-footer>
     <q-dialog v-model="showingEditDialog" persistent>
       <q-card class="full-width">
-        <q-card-section>{{
-          selectedUser.id ? "Endre" : "Legg til"
-        }}</q-card-section>
+        <q-card-section class="row"
+          ><span>{{ selectedUser.id ? "Endre" : "Legg til" }}</span
+          ><q-space></q-space
+          ><q-btn
+            v-if="selectedUser.id"
+            flat
+            round
+            icon="delete"
+            @click="deleteUser"
+            color="negative"
+          ></q-btn
+        ></q-card-section>
         <q-card-section class="q-gutter-sm">
           <q-input
             outlined
@@ -184,6 +193,19 @@ async function saveUser() {
     showingEditDialog.value = false;
   } catch (error) {
     $q.notify({ message: "Klarte ikke å lagre bruker" });
+  } finally {
+    saving.value = true;
+  }
+}
+
+async function deleteUser() {
+  try {
+    saving.value = true;
+    await userStore.deleteUser(selectedUser.value);
+    $q.notify({ message: "Bruker slettet" });
+    showingEditDialog.value = false;
+  } catch (error) {
+    $q.notify({ message: "Klarte ikke å slette bruker" });
   } finally {
     saving.value = true;
   }
