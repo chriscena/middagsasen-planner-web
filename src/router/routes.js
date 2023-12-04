@@ -37,6 +37,10 @@ const routes = [
         path: "phonelist",
         component: () => import("pages/PhoneListPage.vue"),
       },
+      {
+        path: "users",
+        component: () => import("pages/UsersPage.vue"),
+      },
     ],
   },
 
