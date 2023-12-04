@@ -122,15 +122,10 @@
                     flat
                     round
                     icon="add"
-                    @click="addUserAsResource(resource.id)"
+                    @click="addUserAsResource(resource)"
                   ></q-btn>
                 </q-item-section>
-              </q-item>
-            </q-list>
-
-            <q-inner-loading :showing="adding">
-              <q-spinner size="3em" color="primary"></q-spinner>
-            </q-inner-loading> </q-card
+              </q-item> </q-list></q-card
         ></template>
       </template>
     </q-calendar-agenda>
@@ -254,6 +249,10 @@
           @click="toCreate()"
       /></q-toolbar>
     </q-footer>
+
+    <q-inner-loading :showing="adding">
+      <q-spinner size="3em" color="primary"></q-spinner>
+    </q-inner-loading>
   </q-page>
 </template>
 
