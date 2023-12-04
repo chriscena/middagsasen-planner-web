@@ -12,7 +12,7 @@
         public string? LastName { get; set; }
         public bool IsHidden { get; set; }
         public bool IsAdmin { get; set; }
-        public DateTime Created { get; set; }
+        public DateTime Created { get; set; } = DateTime.UtcNow;
         public bool Inactive { get; set; }
 
         public virtual ICollection<UserSession> Sessions { get; set; } = new HashSet<UserSession>();

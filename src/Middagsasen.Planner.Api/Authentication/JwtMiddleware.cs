@@ -58,7 +58,7 @@ namespace Middagsasen.Planner.Api.Authentication
                     new[]
                     {
                         new Claim(ClaimTypes.Sid, user.Id.ToString(), ClaimValueTypes.Integer),
-                        new Claim(ClaimTypes.MobilePhone, user.UserName, ClaimValueTypes.String),
+                        new Claim(ClaimTypes.MobilePhone, user.PhoneNo, ClaimValueTypes.String),
                         new Claim(ClaimTypes.Name, user.FullName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.GivenName, user.FirstName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.Surname, user.LastName ?? "", ClaimValueTypes.String),

@@ -20,8 +20,8 @@ namespace Middagsasen.Planner.Api.Services.Users
 
         public async Task<IEnumerable<UserResponse>> GetUsers()
         {
-            var users =  await DbContext.Users.Where(u => !u.Inactive).AsNoTracking().ToListAsync();
-            return users.Select(Map).ToList();
+            var users = await DbContext.Users.Where(u => !u.Inactive).AsNoTracking().ToListAsync();
+            return users.Select(Map).OrderBy(u => u.FullName).ToList();
         }
 
         public async Task<UserResponse?> GetUserById(int id)
@@ -30,19 +30,56 @@ namespace Middagsasen.Planner.Api.Services.Users
             return user != null ? Map(user) : null;
         }
 
-        public async Task<UserResponse?> UpdateUser(int id, UserRequest request)
+        public async Task<UserResponse> Create(UserRequest request)
+        {
+            var user = new User
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                UserName = request.PhoneNo,
+                IsAdmin = request.IsAdmin ?? false,
+                IsHidden = request.IsHidden ?? false,
+            };
+            DbContext.Users.Add(user);
+            await DbContext.SaveChangesAsync();
+
+            return Map(user);
+        }
+
+        public async Task<UserResponse?> Update(int id, UserRequest request)
         {
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id);
             if (user == null) return null;
 
-            user.FirstName = request.FirstName;
-            user.LastName = request.LastName;
-            if (request.Password != null) {
+            if (request.FirstName != null)
+                user.FirstName = request.FirstName;
+            if (request.LastName != null)
+                user.LastName = request.LastName;
+            if (request.PhoneNo != null)
+                user.UserName = request.PhoneNo;
+            if (request.IsAdmin.HasValue)
+                user.IsAdmin = request.IsAdmin.Value;
+            if (request.IsHidden.HasValue)
+                user.IsHidden = request.IsHidden.Value;
+            if (request.Password != null)
+            {
                 var salt = PasswordHasher.CreateSalt();
                 var password = PasswordHasher.HashPassword(request.Password, salt);
                 user.Salt = salt;
                 user.EncryptedPassword = password;
             }
+
+            await DbContext.SaveChangesAsync();
+
+            return Map(user);
+        }
+
+        public async Task<UserResponse?> Delete(int id)
+        {
+            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id);
+            if (user == null) return null;
+
+            user.Inactive = true;
             await DbContext.SaveChangesAsync();
 
             return Map(user);
@@ -70,16 +107,17 @@ namespace Middagsasen.Planner.Api.Services.Users
             return new UserResponse
             {
                 Id = user.UserId,
-                UserName = user.UserName,
+                PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
                 IsAdmin = user.IsAdmin,
+                IsHidden = user.IsHidden,
             };
         }
     }
 
-    public static class UserNameExtensions 
+    public static class UserNameExtensions
     {
         public static string ToUserName(this long phoneNumber)
         {

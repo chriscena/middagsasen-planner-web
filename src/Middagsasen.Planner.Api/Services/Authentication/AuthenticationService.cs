@@ -67,7 +67,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
 
             var userName = phoneNumber.ToUserName();
 
-            var user = await DbContext.Users.SingleOrDefaultAsync(user => user.UserName == userName);
+            var user = await DbContext.Users.SingleOrDefaultAsync(user => user.UserName == userName && !user.Inactive);
 
             if (user != null)
             {
@@ -151,7 +151,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             return new UserResponse
             {
                 Id = user.UserId,
-                UserName = user.UserName,
+                PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
                 FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
