@@ -1,6 +1,11 @@
 <template>
   <q-layout view="hHh lpR fFf">
-    <q-drawer v-model="leftDrawerOpen" side="left">
+    <q-drawer
+      :bordered="!$q.platform.is.mobile"
+      :elevated="$q.platform.is.mobile"
+      v-model="leftDrawerOpen"
+      side="left"
+    >
       <q-toolbar
         ><q-space></q-space
         ><q-btn
@@ -59,7 +64,7 @@
       </q-list>
     </q-drawer>
 
-    <q-drawer v-model="rightDrawerOpen" side="right" overlay>
+    <q-drawer elevated v-model="rightDrawerOpen" side="right" overlay>
       <q-toolbar
         ><q-btn
           text-color="blue-grey-8 "
