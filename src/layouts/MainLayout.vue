@@ -48,7 +48,7 @@
           </q-item-section>
         </q-item>
 
-        <q-item v-if="isAdmin" v-ripple>
+        <q-item v-if="isAdmin" to="/users" v-ripple>
           <q-item-section avatar>
             <q-icon name="group"></q-icon>
           </q-item-section>
@@ -77,11 +77,22 @@
           ></q-item-section>
           <q-item-section>
             <q-item-label>{{ user?.fullName }}</q-item-label>
-            <q-item-label caption>{{ user?.userName }}</q-item-label>
+            <q-item-label caption>{{ user?.phoneNo }}</q-item-label>
           </q-item-section>
           <q-item-section side
             ><q-btn flat round icon="edit" @click="editUser"></q-btn
           ></q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>
+            <q-item-label>Skjul fra telefonliste</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-toggle
+              :model-value="user?.isHidden"
+              @update:model-value="updateHidden"
+            ></q-toggle>
+          </q-item-section>
         </q-item>
         <q-item clickable @click="logout">
           <q-item-section avatar
@@ -107,7 +118,7 @@
           <q-card-section class="row q-col-gutter-sm">
             <q-input
               class="col-12"
-              :model-value="user.userName"
+              :model-value="user.phoneNo"
               outlined
               label="Mobiltelefon"
               readonly
@@ -174,10 +185,12 @@ import { useUserStore } from "src/stores/UserStore";
 import { useVuelidate } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
+import { useQuasar } from "quasar";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
 const router = useRouter();
+const $q = useQuasar();
 
 const user = computed(() => authStore.user);
 const isAdmin = computed(() => user.value?.isAdmin ?? false);
@@ -223,9 +236,32 @@ async function saveUser() {
       password: state.password,
     };
     await userStore.saveUser(model);
+    $q.notify({ message: "Endringer er lagret" });
     editingUser.value = false;
   } catch (error) {
     console.log(error);
+    $q.notify({ message: "Klarte ikke å lagre endringer" });
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function updateHidden(isHidden) {
+  try {
+    saving.value = true;
+    const model = {
+      isHidden: isHidden,
+    };
+    await userStore.saveUser(model);
+    $q.notify({
+      message: model.isHidden
+        ? "Du er nå skjult fra telefonlisten 👻"
+        : "Du vises nå i telefonlisten 🙋‍♂️",
+    });
+    editingUser.value = false;
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å lagre endringen" });
   } finally {
     saving.value = false;
   }
@@ -233,6 +269,7 @@ async function saveUser() {
 
 async function logout() {
   await userStore.logout();
+  $q.notify({ message: "Du er logget ut" });
   router.push("/login");
 }
 
