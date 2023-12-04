@@ -43,6 +43,21 @@ export const useUserStore = defineStore("users", {
       this.users.splice(0, this.users.length);
       this.users.push(...response.data);
     },
+    async createUser(user) {
+      const response = await api.post("/api/users", user);
+      this.users.push(response.data);
+    },
+    async updateUser(user) {
+      const response = await api.put(`/api/users/${user.id}`, user);
+      var updatedUser = response.data;
+      var existingUser = this.users.find((u) => u.id === updatedUser.id);
+      if (existingUser) Object.assign(existingUser, updatedUser);
+    },
+    async deleteUser(user) {
+      const response = await api.delete(`/api/users/${user.id}`, user);
+      var deletedUser = response.data;
+      this.users = this.users.filter((u) => u.id !== deletedUser.id);
+    },
     async saveUser(user) {
       const response = await api.put("/api/me", user);
       authStore.setUser(response.data);

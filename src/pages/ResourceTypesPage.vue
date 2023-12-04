@@ -58,9 +58,17 @@
     <q-dialog v-model="showingEdit">
       <q-card class="full-width">
         <q-card-section class="row"
-          >{{ !selectedResource.id ? "Ny vakttype" : "Endre vakttype"
-          }}<q-space></q-space>
-          <q-btn color="negative" round flat icon="delete"></q-btn
+          ><span>{{
+            !selectedResource.id ? "Ny vakttype" : "Endre vakttype"
+          }}</span
+          ><q-space></q-space>
+          <q-btn
+            v-if="selectedResource.id"
+            color="negative"
+            round
+            flat
+            icon="delete"
+          ></q-btn
         ></q-card-section>
         <q-card-section class="q-gutter-sm">
           <q-input
