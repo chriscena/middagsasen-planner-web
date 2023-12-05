@@ -16,8 +16,13 @@
           ></q-btn> </q-toolbar
       ></q-header>
       <div class="q-gutter-sm">
-        <q-input autofocus outlined label="Navn" v-model="name"></q-input>
-        <q-input outlined label="Dato" :model-value="startDate"
+        <q-input
+          outlined
+          label="Navn"
+          v-model="name"
+          @focus="(event) => event.target.select()"
+        ></q-input>
+        <q-input autofocus outlined label="Dato" :model-value="startDate"
           ><template v-slot:append>
             <q-icon name="event" class="cursor-pointer">
               <q-popup-proxy transition-show="scale" transition-hide="scale">
@@ -205,6 +210,7 @@ onMounted(() => {
   eventStore.getResourceTypes();
   startDateTime.value = props.date + "T10:00";
   endDateTime.value = props.date + "T17:00";
+  name.value = "Åpningstid";
 });
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
