@@ -7,7 +7,7 @@
           flat
           round
           icon="arrow_back"
-          @click="router.push('/')"
+          @click="$router.go(-1)"
         ></q-btn>
         <q-toolbar-title>Telefonliste</q-toolbar-title>
         <q-space></q-space>

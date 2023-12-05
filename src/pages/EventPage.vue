@@ -3,13 +3,7 @@
     <q-form @submit="saveEvent">
       <q-header bordered
         ><q-toolbar class="bg-grey-1 text-blue-grey-8">
-          <q-btn
-            flat
-            dense
-            round
-            icon="close"
-            @click="$router.push('/')"
-          ></q-btn>
+          <q-btn flat dense round icon="close" @click="$router.go(-1)"></q-btn>
           <q-toolbar-title>Vaktliste</q-toolbar-title>
           <q-space></q-space>
           <q-btn
