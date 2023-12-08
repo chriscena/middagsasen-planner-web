@@ -44,6 +44,13 @@ namespace Middagsasen.Planner.Api.Controllers
             return (resourceType == null) ? NotFound() : Ok(resourceType);
         }
 
+        [HttpDelete("api/events/{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var resourceType = await EventsService.DeleteEvent(id);
+            return (resourceType == null) ? NotFound() : Ok(resourceType);
+        }
+
         [HttpPost("api/resources/{id}/shifts")]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
@@ -65,12 +72,5 @@ namespace Middagsasen.Planner.Api.Controllers
             var shift = await EventsService.DeleteShift(id);
             return (shift == null) ? NotFound() : Ok(shift);
         }
-
-        //[HttpDelete("{id}")]
-        //public async Task<IActionResult> Delete(int id)
-        //{
-        //    var resourceType = await EventsService.DeleteEvent(id);
-        //    return (resourceType == null) ? NotFound() : Ok(resourceType);
-        //}
     }
 }

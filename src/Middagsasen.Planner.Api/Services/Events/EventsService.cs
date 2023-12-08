@@ -140,11 +140,47 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             foreach (var resource in request.Resources)
             {
-
+                if (resource.IsDeleted)
+                {
+                    var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                    if (resourceToDelete == null) continue;
+                    existingEvent.Resources.Remove(resourceToDelete);
+                } else if (!resource.Id.HasValue)
+                {
+                    existingEvent.Resources.Add(Map(resource));
+                } 
+                else
+                {
+                    var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                    if (resourceToUpdate == null) continue;
+                    resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
+                    resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
+                    resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
+                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;  
+                }
             }
-            //existingEvent.Resources.
             await DbContext.SaveChangesAsync();
 
+            var response = await DbContext.Events
+                .Include(e => e.Resources)
+                    .ThenInclude(r => r.Shifts)
+                        .ThenInclude(s => s.User)
+                .Include(e => e.Resources)
+                    .ThenInclude(r => r.ResourceType)
+            .SingleOrDefaultAsync(e => e.EventId == eventId);
+
+            return response != null ? Map(response) : null;
+        }
+
+        public async Task<EventResponse?> DeleteEvent(int id)
+        {
+            var existingEvent = await DbContext.Events.SingleOrDefaultAsync(e => e.EventId == id);
+
+            if (existingEvent == null) return null;
+
+            DbContext.Events.Remove(existingEvent);
+
+            await DbContext.SaveChangesAsync();
             return Map(existingEvent);
         }
 
@@ -159,7 +195,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             };
             DbContext.Shifts.Add(newShift);
             await DbContext.SaveChangesAsync();
-            
+
             var responseShift = await DbContext.Shifts.Include(s => s.User).AsNoTracking().SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId);
             return responseShift == null ? null : Map(responseShift);
         }
@@ -171,10 +207,10 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             if (request.StartTime.HasValue)
                 shift.StartTime = request.StartTime;
-            
+
             if (request.EndTime.HasValue)
                 shift.EndTime = request.EndTime;
-            
+
             shift.Comment = request.Comment;
 
             await DbContext.SaveChangesAsync();
@@ -183,7 +219,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<ShiftResponse?> DeleteShift(int id)
         {
-            var shift = await DbContext.Shifts.Include(s =>s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
+            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();
