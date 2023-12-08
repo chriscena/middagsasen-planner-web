@@ -408,6 +408,7 @@ async function onChange(event) {
     loading.value = true;
     await eventStore.getEventsForDates(event.start, event.end);
   } catch (error) {
+    $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
   } finally {
     loading.value = false;
   }
@@ -497,6 +498,9 @@ async function updateShift() {
       message: "Endringer er lagret 👍",
     });
   } catch (error) {
+    $q.notify({
+      message: "Oh no! Noe tryna da vi skulle lagre endringene! 🙈",
+    });
   } finally {
     saving.value = false;
   }
@@ -512,6 +516,9 @@ async function deleteShift() {
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
   } catch (error) {
+    $q.notify({
+      message: "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈",
+    });
   } finally {
     saving.value = false;
   }
@@ -533,6 +540,7 @@ async function getUsers() {
     loadingUsers.value = true;
     await userStore.getUsers();
   } catch (error) {
+    $q.notify({ message: "Klarte ikke å hente lista over brukere." });
   } finally {
     loadingUsers.value = false;
   }

@@ -460,14 +460,14 @@ async function saveEvent() {
     loading.value = true;
     const model = {
       name: name.value,
-      startTime: formatISO(startDateTime.value),
-      endTime: formatISO(endDateTime.value),
+      startTime: formatDateTime(startDateTime.value),
+      endTime: formatDateTime(endDateTime.value),
       resources: resources.value.map((r) => {
         return {
           id: r.id,
           resourceTypeId: r.resourceType.id,
-          startTime: formatISO(toDateTime(startDate.value, r.startTime)),
-          endTime: formatISO(toDateTime(startDate.value, r.endTime)),
+          startTime: formatDateTime(toDateTime(startDate.value, r.startTime)),
+          endTime: formatDateTime(toDateTime(startDate.value, r.endTime)),
           minimumStaff: r.minimumStaff,
           isDeleted: r.isDeleted,
           shifts: [],
@@ -515,5 +515,9 @@ async function deleteEvent() {
   } finally {
     loading.value = false;
   }
+}
+
+function formatDateTime(date) {
+  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm", new Date());
 }
 </script>
