@@ -41,10 +41,12 @@ export const useEventStore = defineStore("events", {
       );
       this.events = response.data;
     },
+
     async createResourceType(resourceType) {
       const response = await api.post("/api/resourcetypes", resourceType);
       await this.getResourceTypes();
     },
+
     async updateResourceType(resourceType) {
       const response = await api.put(
         `/api/resourcetypes/${resourceType.id}`,
@@ -52,6 +54,7 @@ export const useEventStore = defineStore("events", {
       );
       await this.getResourceTypes();
     },
+
     async deleteResourceType(resourceType) {
       const response = await api.delete(
         `/api/resourcetypes/${resourceType.id}`
@@ -63,6 +66,7 @@ export const useEventStore = defineStore("events", {
       const response = await api.get("/api/resourcetypes");
       this.resourceTypes = response.data;
     },
+
     async addShift(parentResource, user) {
       const model = {
         startTime: parentResource.startTime,
@@ -127,6 +131,10 @@ export const useEventStore = defineStore("events", {
     async deleteEvent(id) {
       const response = await api.delete(`/api/events/${id}`);
       this.events = this.events.filter((e) => e.id !== id);
+    },
+
+    async updateEvent(id, event) {
+      const response = await api.put(`/api/events/${id}`, event);
     },
   },
 });

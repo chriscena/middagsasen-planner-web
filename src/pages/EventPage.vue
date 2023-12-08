@@ -92,7 +92,7 @@
         ></q-input>
         <q-card bordered flat>
           <q-list separator>
-            <q-item v-for="(resource, index) in resources" :key="index">
+            <q-item v-for="(resource, index) in visibleResources" :key="index">
               <q-item-section>
                 <q-item-label
                   >{{ resource.resourceType.name }}
@@ -129,7 +129,7 @@
     <div class="text-center">
       <q-btn
         v-if="props.id"
-        @click="deleteEvent(props.id)"
+        @click="confirmDeleteEvent"
         class="q-mt-xl"
         icon="delete"
         no-caps
@@ -138,6 +138,27 @@
         label="Slett vaktliste"
       ></q-btn>
     </div>
+    <q-dialog v-model="showingDelete">
+      <q-card>
+        <q-card-section> Vil du slette denne vaktlista? </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            no-caps
+            flat
+            label="Avbryt"
+            color="primary"
+            @click="showingDelete = false"
+          ></q-btn>
+          <q-btn
+            no-caps
+            flat
+            label="Slett"
+            color="primary"
+            @click="deleteEvent(props.id)"
+          ></q-btn>
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
     <q-dialog v-model="showingEdit" persistent>
       <q-card class="full-width">
         <q-card-section class="row">
@@ -225,11 +246,11 @@
                 </q-popup-proxy>
               </q-icon> </template></q-input
         ></q-card-section>
-        <q-separator></q-separator>
         <q-card-actions align="right">
           <q-btn
             no-caps
             flat
+            color="primary"
             label="Avbryt"
             @click="showingEdit = false"
           ></q-btn>
@@ -244,6 +265,9 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <q-inner-loading :showing="loading">
+      <q-spinner size="3em" color="primary"></q-spinner>
+    </q-inner-loading>
   </q-page>
 </template>
 
@@ -265,7 +289,7 @@ import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
 const emit = defineEmits(["toggle-right"]);
-const loading = false;
+const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
 const eventStore = useEventStore();
@@ -282,22 +306,38 @@ const props = defineProps({
 });
 
 onMounted(async () => {
-  eventStore.getResourceTypes();
+  try {
+    loading.value = true;
+    eventStore.getResourceTypes();
 
-  if (props.id) {
-    await eventStore.getEvent(props.id);
-    const event = eventStore.selectedEvent;
-    name.value = event.name;
-    startDate.value = format(new Date(event.startTime), "dd.MM.yyyy");
-    startTime.value = format(new Date(event.startTime), "HH:mm");
-    endTime.value = format(new Date(event.endTime), "HH:mm");
-    resources.value = event.resources;
-  } else {
-    startDate.value = format(
-      parse(props.date, "yyyy-MM-dd", new Date()),
-      "dd.MM.yyyy"
-    );
-    name.value = "Åpningstid";
+    if (props.id) {
+      await eventStore.getEvent(props.id);
+      const event = eventStore.selectedEvent;
+      name.value = event.name;
+      startDate.value = formatDate(new Date(event.startTime));
+      startTime.value = formatTime(new Date(event.startTime));
+      endTime.value = formatTime(new Date(event.endTime));
+      resources.value = event.resources.map((r) => {
+        return {
+          id: r.id,
+          eventId: r.eventId,
+          resourceType: r.resourceType,
+          startTime: formatTime(r.startTime),
+          endTime: formatTime(r.endTime),
+          minimumStaff: r.minimumStaff,
+          isDeleted: false,
+        };
+      });
+    } else {
+      startDate.value = format(
+        parse(props.date, "yyyy-MM-dd", new Date()),
+        "dd.MM.yyyy"
+      );
+      name.value = "Åpningstid";
+    }
+  } catch (error) {
+  } finally {
+    loading.value = false;
   }
 });
 
@@ -339,7 +379,7 @@ function toDateTime(date, time, start) {
   return datetime;
 }
 
-const startDate = ref(format(new Date(), "dd.MM.yyyy"));
+const startDate = ref(formatDate(new Date()));
 const startTime = ref("10:00");
 
 const showingStartTimePicker = ref(false);
@@ -350,17 +390,11 @@ const showingEndTimePicker = ref(false);
 
 const resources = ref([]);
 
+const visibleResources = computed(() =>
+  resources.value.filter((r) => !r.isDeleted)
+);
+
 const selectedResource = ref(null);
-const resourceStartTime = computed(() => {
-  return selectedResource.value?.startDateTime
-    ? format(parseISO(selectedResource.value.startDateTime), "HH:mm")
-    : null;
-});
-const resourceEndTime = computed(() => {
-  return selectedResource.value?.endDateTime
-    ? format(parseISO(selectedResource.value.endDateTime), "HH:mm")
-    : null;
-});
 
 const showingEdit = ref(false);
 
@@ -389,6 +423,7 @@ function addResource() {
       ? format(addMinutes(endDateTime.value, 30), "HH:mm")
       : null,
     minimumStaff: 1,
+    isDeleted: false,
   };
   showingEdit.value = true;
 }
@@ -400,9 +435,8 @@ function saveResource() {
 }
 
 function deleteResource(resource) {
-  resources.value = resources.value.filter(
-    (r) => r.eventResourceId !== resource.eventResourceId
-  );
+  resource.isDeleted = true;
+  showingEdit.value = false;
 }
 
 function editResource(resource) {
@@ -420,44 +454,74 @@ const canAdd = computed(() => {
 });
 
 function formatTime(isoDateTime) {
-  const date = parseISO(isoDateTime);
-  return format(date, "HH:mm");
+  if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
+  return format(parseISO(isoDateTime), "HH:mm");
 }
 
-function formatStartEndTime(event) {
-  return `${formatTime(event.startDateTime)}-${formatTime(event.endDateTime)}`;
+function formatDate(isoDateTime) {
+  if (isoDateTime instanceof Date) return format(isoDateTime, "dd.MM.yyyy");
+  return format(parseISO(isoDateTime), "dd.MM.yyyy");
 }
 
 async function saveEvent() {
-  const model = {
-    name: name.value,
-    startTime: formatISO(startDateTime.value),
-    endTime: formatISO(endDateTime.value),
-    resources: resources.value.map((r) => {
-      return {
-        eventResourceId: r.eventResourceId,
-        resourceTypeId: r.resourceType.id,
-        startTime: r.startDateTime,
-        endTime: r.endDateTime,
-        minimumStaff: r.minimumStaff,
-        shifts: [],
-      };
-    }),
-  };
-  await eventStore.addEvent(model);
-  const date = formatISO(parseISO(startDateTime.value), {
-    representation: "date",
-  });
-  await $router.push(`/day/${date}`);
+  try {
+    loading.value = true;
+    const model = {
+      name: name.value,
+      startTime: formatISO(startDateTime.value),
+      endTime: formatISO(endDateTime.value),
+      resources: resources.value.map((r) => {
+        return {
+          id: r.id,
+          resourceTypeId: r.resourceType.id,
+          startTime: formatISO(toDateTime(startDate.value, r.startTime)),
+          endTime: formatISO(toDateTime(startDate.value, r.endTime)),
+          minimumStaff: r.minimumStaff,
+          isDeleted: r.isDeleted,
+          shifts: [],
+        };
+      }),
+    };
+    if (props.id) {
+      await eventStore.updateEvent(props.id, model);
+      $q.notify({
+        message: "Endringer i vaktlista er lagret",
+      });
+    } else {
+      await eventStore.addEvent(model);
+      $q.notify({
+        message: "Vaktlista er lagt til",
+      });
+    }
+    const date = formatISO(startDateTime.value, {
+      representation: "date",
+    });
+    await $router.push(`/day/${date}`);
+  } catch (error) {
+  } finally {
+    loading.value = false;
+  }
+}
+
+const showingDelete = ref(null);
+function confirmDeleteEvent() {
+  showingDelete.value = true;
 }
 
 async function deleteEvent() {
-  const event = eventStore.selectedEvent;
-  const date = formatISO(parseISO(event.startTime), {
-    representation: "date",
-  });
-  await eventStore.deleteEvent(event.id);
-  $q.notify({ message: "Vaktlista er slettet." });
-  $router.push(`/day/${date}`);
+  try {
+    loading.value = true;
+    showingDelete.value = false;
+    const event = eventStore.selectedEvent;
+    const date = formatISO(parseISO(event.startTime), {
+      representation: "date",
+    });
+    await eventStore.deleteEvent(event.id);
+    $q.notify({ message: "Vaktlista er slettet." });
+    $router.push(`/day/${date}`);
+  } catch (error) {
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
