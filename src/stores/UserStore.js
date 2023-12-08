@@ -1,10 +1,8 @@
 import { defineStore } from "pinia";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
-import { useRouter } from "vue-router";
 
 const authStore = useAuthStore();
-const router = useRouter();
 
 api.interceptors.response.use(
   function (response) {
@@ -12,6 +10,7 @@ api.interceptors.response.use(
   },
   function (error) {
     if (error.response.status === 401) {
+      authStore.removeUserSession();
       window.location("/login");
       return Promise.reject("Unauthorized");
     }
@@ -35,7 +34,7 @@ export const useUserStore = defineStore("users", {
         const userResponse = await api.get("/api/me");
         authStore.setUser(userResponse.data);
       } catch (error) {
-        if (error?.response?.status === 401) router.replace("/login");
+        if (error?.response?.status === 401) authStore.removeUserSession();
       }
     },
     async getUsers() {

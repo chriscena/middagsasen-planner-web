@@ -12,6 +12,7 @@ const api = axios.create(/*{ baseURL: "https://api.example.com" }*/);
 
 api.interceptors.request.use(
   function (config) {
+    config.signal = AbortSignal.timeout(10000);
     const token = localStorage.getItem("access_token");
     if (token) {
       config.headers = {
@@ -21,6 +22,7 @@ api.interceptors.request.use(
     return config;
   },
   function (error) {
+    console.log(error);
     return Promise.reject(error);
   }
 );
