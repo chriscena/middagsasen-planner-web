@@ -30,6 +30,11 @@ const routes = [
         props: true,
       },
       {
+        path: "edit/:id",
+        component: () => import("pages/EventPage.vue"),
+        props: true,
+      },
+      {
         path: "resourceTypes",
         component: () => import("pages/ResourceTypesPage.vue"),
       },

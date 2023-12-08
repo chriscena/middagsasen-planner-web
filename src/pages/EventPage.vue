@@ -20,21 +20,37 @@
           outlined
           label="Navn"
           v-model="name"
-          @focus="(event) => event.target.select()"
+          @focus="(event) => (event.target?.select ? event.target.select() : _)"
         ></q-input>
-        <q-input autofocus outlined label="Dato" :model-value="startDate"
+        <q-input
+          :error="!isValidDate"
+          autofocus
+          outlined
+          label="Dato"
+          mask="##.##.####"
+          placeholder="DD.MM.ÅÅÅÅ"
+          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          v-model="startDate"
           ><template v-slot:append>
             <q-icon name="event" class="cursor-pointer">
               <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-date v-model="startDateTime" mask="YYYY-MM-DDTHH:mm">
+                <q-date v-model="startDate" mask="DD.MM.YYYY">
                   <div class="row items-center justify-end">
-                    <q-btn v-close-popup label="Close" color="primary" flat />
+                    <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
                 </q-date>
               </q-popup-proxy>
             </q-icon> </template
         ></q-input>
-        <q-input outlined label="Start" :model-value="startTime">
+        <q-input
+          outlined
+          :error="!isValidStartTime"
+          label="Start"
+          mask="##:##"
+          placeholder="TT:MM"
+          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          v-model="startTime"
+        >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
               <q-popup-proxy
@@ -42,19 +58,23 @@
                 transition-show="scale"
                 transition-hide="scale"
               >
-                <q-time
-                  v-model="startDateTime"
-                  format24h
-                  mask="YYYY-MM-DDTHH:mm"
-                >
+                <q-time v-model="startTime" format24h mask="HH:mm">
                   <div class="row items-center justify-end">
-                    <q-btn v-close-popup label="Close" color="primary" flat />
+                    <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
                 </q-time>
               </q-popup-proxy>
             </q-icon> </template
         ></q-input>
-        <q-input outlined label="Slutt" :model-value="endTime">
+        <q-input
+          outlined
+          label="Slutt"
+          mask="##:##"
+          placeholder="TT:MM"
+          v-model="endTime"
+          :error="!isValidEndTime"
+          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+        >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
               <q-popup-proxy
@@ -62,9 +82,9 @@
                 transition-show="scale"
                 transition-hide="scale"
               >
-                <q-time v-model="endDateTime" format24h mask="YYYY-MM-DDTHH:mm">
+                <q-time v-model="endTime" format24h mask="HH:mm">
                   <div class="row items-center justify-end">
-                    <q-btn v-close-popup label="Close" color="primary" flat />
+                    <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
                 </q-time>
               </q-popup-proxy>
@@ -72,10 +92,7 @@
         ></q-input>
         <q-card bordered flat>
           <q-list separator>
-            <q-item
-              v-for="resource in resources"
-              :key="resource.eventResourceId"
-            >
+            <q-item v-for="(resource, index) in resources" :key="index">
               <q-item-section>
                 <q-item-label
                   >{{ resource.resourceType.name }}
@@ -83,16 +100,16 @@
                 ></q-item-section
               >
               <q-item-section side>
-                <q-item-label>{{
-                  formatStartEndTime(resource)
-                }}</q-item-label></q-item-section
+                <q-item-label
+                  >{{ resource.startTime }}-{{ resource.endTime }}</q-item-label
+                ></q-item-section
               >
               <q-item-section side
                 ><q-btn
                   flat
                   round
-                  icon="delete"
-                  @click="deleteResource(resource)"
+                  icon="edit"
+                  @click="editResource(resource)"
                 ></q-btn
               ></q-item-section> </q-item
           ></q-list>
@@ -109,8 +126,32 @@
           ></q-card-actions>
         </q-card></div
     ></q-form>
+    <div class="text-center">
+      <q-btn
+        v-if="props.id"
+        @click="deleteEvent(props.id)"
+        class="q-mt-xl"
+        icon="delete"
+        no-caps
+        unelevated
+        color="negative"
+        label="Slett vaktliste"
+      ></q-btn>
+    </div>
     <q-dialog v-model="showingEdit" persistent>
       <q-card class="full-width">
+        <q-card-section class="row">
+          <div>Vakt</div>
+          <q-space></q-space>
+          <q-btn
+            v-if="selectedResource.id"
+            color="negative"
+            flat
+            round
+            icon="delete"
+            @click="deleteResource(selectedResource)"
+          ></q-btn>
+        </q-card-section>
         <q-card-section class="q-gutter-md">
           <q-select
             autofocus
@@ -124,40 +165,61 @@
           ></q-select>
           <q-input
             outlined
-            @focus="(event) => event.target.select()"
+            @focus="
+              (event) => (event.target?.select ? event.target.select() : _)
+            "
             label="Minste bemanning"
             suffix="stk"
             step="1"
             type="number"
             v-model="selectedResource.minimumStaff"
           ></q-input>
-          <q-input outlined label="Start" :model-value="resourceStartTime">
+
+          <q-input
+            outlined
+            label="Start"
+            mask="##:##"
+            placeholder="TT:MM"
+            @focus="
+              (event) => (event.target?.select ? event.target.select() : _)
+            "
+            v-model="selectedResource.startTime"
+          >
             <template v-slot:append>
               <q-icon name="access_time" class="cursor-pointer">
                 <q-popup-proxy transition-show="scale" transition-hide="scale">
                   <q-time
-                    v-model="selectedResource.startDateTime"
+                    v-model="selectedResource.startTime"
                     format24h
-                    mask="YYYY-MM-DDTHH:mm"
+                    mask="HH:mm"
                   >
                     <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Close" color="primary" flat />
+                      <q-btn v-close-popup label="Lukk" color="primary" flat />
                     </div>
                   </q-time>
                 </q-popup-proxy>
               </q-icon> </template
           ></q-input>
-          <q-input outlined label="Slutt" :model-value="resourceEndTime">
+          <q-input
+            outlined
+            label="Slutt"
+            mask="##:##"
+            placeholder="TT:MM"
+            v-model="selectedResource.endTime"
+            @focus="
+              (event) => (event.target?.select ? event.target.select() : _)
+            "
+          >
             <template v-slot:append>
               <q-icon name="access_time" class="cursor-pointer">
                 <q-popup-proxy transition-show="scale" transition-hide="scale">
                   <q-time
-                    v-model="selectedResource.endDateTime"
+                    v-model="selectedResource.endTime"
                     format24h
-                    mask="YYYY-MM-DDTHH:mm"
+                    mask="HH:mm"
                   >
                     <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Close" color="primary" flat />
+                      <q-btn v-close-popup label="Lukk" color="primary" flat />
                     </div>
                   </q-time>
                 </q-popup-proxy>
@@ -189,7 +251,16 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
-import { parseISO, format, addMinutes, formatISO } from "date-fns";
+import {
+  parseISO,
+  format,
+  isValid,
+  addMinutes,
+  formatISO,
+  parse,
+  isBefore,
+  addDays,
+} from "date-fns";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
@@ -204,55 +275,78 @@ const props = defineProps({
     type: String,
     default: () => formatISO(new Date(), { representation: "date" }),
   },
+  id: {
+    type: String,
+    default: null,
+  },
 });
 
-onMounted(() => {
+onMounted(async () => {
   eventStore.getResourceTypes();
-  startDateTime.value = props.date + "T10:00";
-  endDateTime.value = props.date + "T17:00";
-  name.value = "Åpningstid";
+
+  if (props.id) {
+    await eventStore.getEvent(props.id);
+    const event = eventStore.selectedEvent;
+    name.value = event.name;
+    startDate.value = format(new Date(event.startTime), "dd.MM.yyyy");
+    startTime.value = format(new Date(event.startTime), "HH:mm");
+    endTime.value = format(new Date(event.endTime), "HH:mm");
+    resources.value = event.resources;
+  } else {
+    startDate.value = format(
+      parse(props.date, "yyyy-MM-dd", new Date()),
+      "dd.MM.yyyy"
+    );
+    name.value = "Åpningstid";
+  }
 });
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
 const name = ref(null);
-const startDateTime = ref(
-  formatISO(new Date(), { representation: "date" }) + "T10:00"
+
+const isValidDate = computed(() =>
+  isValid(parse(startDate.value, "dd.MM.yyyy", new Date()))
+);
+const isValidStartTime = computed(() =>
+  isValid(parse(startTime.value, "HH:mm", new Date()))
+);
+const isValidEndTime = computed(() =>
+  isValid(parse(endTime.value, "HH:mm", new Date()))
 );
 
-const startDate = computed(() => {
-  return startDateTime.value
-    ? format(parseISO(startDateTime.value), "dd.MM.yyyy")
-    : null;
+const startDateTime = computed(() => {
+  try {
+    return toDateTime(startDate.value, startTime.value);
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
 });
-const startTime = computed(() => {
-  return startDateTime.value
-    ? format(parseISO(startDateTime.value), "HH:mm")
-    : null;
+
+const endDateTime = computed(() => {
+  try {
+    return toDateTime(startDate.value, endTime.value, startDateTime.value);
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
 });
+
+function toDateTime(date, time, start) {
+  const datetime = parse(`${date} ${time}`, "dd.MM.yyyy HH:mm", new Date());
+  if (start && isBefore(datetime, start)) datetime = addDays(datetime, 1);
+  return datetime;
+}
+
+const startDate = ref(format(new Date(), "dd.MM.yyyy"));
+const startTime = ref("10:00");
 
 const showingStartTimePicker = ref(false);
 
-const endDateTime = ref(
-  formatISO(new Date(), { representation: "date" }) + "T17:00"
-);
-
-const endTime = computed(() => {
-  return endDateTime.value
-    ? format(parseISO(endDateTime.value), "HH:mm")
-    : null;
-});
+const endTime = ref("17:00");
 
 const showingEndTimePicker = ref(false);
-
-watch(startDateTime, (newValue) => {
-  endDateTime.value =
-    formatISO(parseISO(newValue), { representation: "date" }) +
-    "T" +
-    formatISO(parseISO(endDateTime.value ?? newValue), {
-      representation: "time",
-    });
-});
 
 const resources = ref([]);
 
@@ -273,8 +367,8 @@ const showingEdit = ref(false);
 const canSave = computed(() => {
   return !!(
     name.value &&
-    startDateTime.value &&
-    endDateTime.value &&
+    // startDateTime.value &&
+    // endDateTime.value &&
     resources.value.length
   );
 });
@@ -288,11 +382,11 @@ function resourceTypeChanged(newValue) {
 function addResource() {
   selectedResource.value = {
     resourceType: null,
-    startDateTime: startDateTime.value
-      ? formatISO(addMinutes(parseISO(startDateTime.value), -30))
+    startTime: startDateTime.value
+      ? format(addMinutes(startDateTime.value, -30), "HH:mm")
       : null,
-    endDateTime: endDateTime.value
-      ? formatISO(addMinutes(parseISO(endDateTime.value), 30))
+    endTime: endDateTime.value
+      ? format(addMinutes(endDateTime.value, 30), "HH:mm")
       : null,
     minimumStaff: 1,
   };
@@ -300,6 +394,7 @@ function addResource() {
 }
 
 function saveResource() {
+  if (resources.value.includes(selectedResource.value));
   resources.value.push(selectedResource.value);
   showingEdit.value = false;
 }
@@ -310,11 +405,16 @@ function deleteResource(resource) {
   );
 }
 
+function editResource(resource) {
+  selectedResource.value = resource;
+  showingEdit.value = true;
+}
+
 const canAdd = computed(() => {
   return !!(
     selectedResource.value.resourceType &&
-    selectedResource.value.startDateTime &&
-    selectedResource.value.endDateTime &&
+    selectedResource.value.startTime &&
+    selectedResource.value.endTime &&
     selectedResource.value.minimumStaff > 0
   );
 });
@@ -328,11 +428,11 @@ function formatStartEndTime(event) {
   return `${formatTime(event.startDateTime)}-${formatTime(event.endDateTime)}`;
 }
 
-function saveEvent() {
+async function saveEvent() {
   const model = {
     name: name.value,
-    startTime: startDateTime.value,
-    endTime: endDateTime.value,
+    startTime: formatISO(startDateTime.value),
+    endTime: formatISO(endDateTime.value),
     resources: resources.value.map((r) => {
       return {
         eventResourceId: r.eventResourceId,
@@ -344,10 +444,20 @@ function saveEvent() {
       };
     }),
   };
-  eventStore.addEvent(model);
+  await eventStore.addEvent(model);
   const date = formatISO(parseISO(startDateTime.value), {
     representation: "date",
   });
+  await $router.push(`/day/${date}`);
+}
+
+async function deleteEvent() {
+  const event = eventStore.selectedEvent;
+  const date = formatISO(parseISO(event.startTime), {
+    representation: "date",
+  });
+  await eventStore.deleteEvent(event.id);
+  $q.notify({ message: "Vaktlista er slettet." });
   $router.push(`/day/${date}`);
 }
 </script>

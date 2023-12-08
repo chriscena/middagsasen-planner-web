@@ -41,7 +41,16 @@
         <template v-for="event in getEventsForDate(timestamp)" :key="event.id">
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
             <q-card-section class="q-py-sm text-bold row">
-              <span class="col">{{ event.name }}</span
+              <span class="col">
+                <q-btn
+                  flat
+                  round
+                  icon="edit"
+                  v-if="isAdmin"
+                  size="sm"
+                  @click="editEvent(event)"
+                ></q-btn>
+                {{ event.name }}</span
               ><span class="col text-right">{{
                 formatStartEndTime(event)
               }}</span></q-card-section
@@ -238,7 +247,7 @@
         ></q-btn
         ><q-space></q-space>
         <q-btn
-          v-if="authStore.isAdmin"
+          v-if="isAdmin"
           fab
           unelevated
           padding="md"
@@ -293,6 +302,7 @@ const $router = useRouter();
 const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
 });
+const isAdmin = computed(() => authStore.isAdmin);
 
 const currentUser = computed(() => authStore.user);
 const eventStore = useEventStore();
@@ -428,5 +438,9 @@ async function deleteShift() {
 
 function toCreate() {
   $router.push(`/create/${selectedDay.value}`);
+}
+
+function editEvent(event) {
+  $router.push(`/edit/${event.id}`);
 }
 </script>

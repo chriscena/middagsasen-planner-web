@@ -13,6 +13,7 @@ import { api } from "boot/axios";
 
 export const useEventStore = defineStore("events", {
   state: () => ({
+    selectedEvent: null,
     events: [],
     resourceTypes: [],
   }),
@@ -117,6 +118,15 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
+    },
+    async getEvent(id) {
+      const response = await api.get(`/api/events/${id}`);
+      this.selectedEvent = response.data;
+    },
+
+    async deleteEvent(id) {
+      const response = await api.delete(`/api/events/${id}`);
+      this.events = this.events.filter((e) => e.id !== id);
     },
   },
 });
