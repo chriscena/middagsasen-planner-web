@@ -129,12 +129,14 @@ export const useEventStore = defineStore("events", {
     },
 
     async deleteEvent(id) {
-      const response = await api.delete(`/api/events/${id}`);
+      await api.delete(`/api/events/${id}`);
+      this.selectedEvent = null;
       this.events = this.events.filter((e) => e.id !== id);
     },
 
     async updateEvent(id, event) {
       const response = await api.put(`/api/events/${id}`, event);
+      this.selectedEvent = response.data;
     },
   },
 });

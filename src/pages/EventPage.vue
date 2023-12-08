@@ -53,11 +53,7 @@
         >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
-              <q-popup-proxy
-                v-model="showingStartTimePicker"
-                transition-show="scale"
-                transition-hide="scale"
-              >
+              <q-popup-proxy transition-show="scale" transition-hide="scale">
                 <q-time v-model="startTime" format24h mask="HH:mm">
                   <div class="row items-center justify-end">
                     <q-btn v-close-popup label="Lukk" color="primary" flat />
@@ -77,11 +73,7 @@
         >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
-              <q-popup-proxy
-                v-model="showingEndTimePicker"
-                transition-show="scale"
-                transition-hide="scale"
-              >
+              <q-popup-proxy transition-show="scale" transition-hide="scale">
                 <q-time v-model="endTime" format24h mask="HH:mm">
                   <div class="row items-center justify-end">
                     <q-btn v-close-popup label="Lukk" color="primary" flat />
@@ -381,22 +373,8 @@ function toDateTime(date, time, start) {
 
 const startDate = ref(formatDate(new Date()));
 const startTime = ref("10:00");
-
-const showingStartTimePicker = ref(false);
-
 const endTime = ref("17:00");
-
-const showingEndTimePicker = ref(false);
-
 const resources = ref([]);
-
-const visibleResources = computed(() =>
-  resources.value.filter((r) => !r.isDeleted)
-);
-
-const selectedResource = ref(null);
-
-const showingEdit = ref(false);
 
 const canSave = computed(() => {
   return !!(
@@ -406,6 +384,13 @@ const canSave = computed(() => {
     resources.value.length
   );
 });
+
+const visibleResources = computed(() =>
+  resources.value.filter((r) => !r.isDeleted)
+);
+
+const selectedResource = ref(null);
+const showingEdit = ref(false);
 
 function resourceTypeChanged(newValue) {
   if (newValue && newValue.defaultStaff) {
@@ -423,25 +408,32 @@ function addResource() {
       ? format(addMinutes(endDateTime.value, 30), "HH:mm")
       : null,
     minimumStaff: 1,
-    isDeleted: false,
+    isNew: true,
   };
   showingEdit.value = true;
 }
 
+function editResource(resource) {
+  selectedResource.value = resource;
+  showingEdit.value = true;
+}
+
 function saveResource() {
-  if (resources.value.includes(selectedResource.value));
-  resources.value.push(selectedResource.value);
+  if (selectedResource.value?.isNew) {
+    resources.value.push({
+      resourceType: selectedResource.value.resourceType,
+      startTime: selectedResource.value.startTime,
+      endTime: selectedResource.value.endTime,
+      minimumStaff: selectedResource.value.minimumStaff,
+      isDeleted: false,
+    });
+  }
   showingEdit.value = false;
 }
 
 function deleteResource(resource) {
   resource.isDeleted = true;
   showingEdit.value = false;
-}
-
-function editResource(resource) {
-  selectedResource.value = resource;
-  showingEdit.value = true;
 }
 
 const canAdd = computed(() => {
