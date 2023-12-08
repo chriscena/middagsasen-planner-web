@@ -83,6 +83,15 @@
             <q-separator> </q-separator>
             <q-list separator>
               <q-item v-for="shift in createUserList(resource)" :key="shift.id">
+                <q-item-section v-if="isAdmin" avatar>
+                  <q-btn
+                    flat
+                    round
+                    icon="edit"
+                    size="sm"
+                    @click="editShift(resource, shift)"
+                  ></q-btn>
+                </q-item-section>
                 <q-item-section>
                   <q-item-label
                     overline
@@ -173,6 +182,69 @@
             label="Lagre"
             no-caps
             @click="updateShift"
+          ></q-btn> </q-card-actions
+        ><q-inner-loading :showing="saving">
+          <q-spinner size="3em" color="primary"></q-spinner>
+        </q-inner-loading>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="showingAdminEdit" persistent>
+      <q-card class="full-width">
+        <q-card-section class="text-h6 row"
+          ><span> Endre vakt</span><q-space></q-space
+          ><q-btn
+            size="md"
+            flat
+            dense
+            round
+            icon="delete"
+            color="negative"
+            @click="deleteShift"
+            v-if="selectedShift.id"
+          ></q-btn>
+        </q-card-section>
+        <q-card-section class="q-gutter-sm">
+          <q-select
+            label="Navn"
+            autofocus
+            outlined
+            :options="users"
+            :loading="loadingUsers"
+            option-label="fullName"
+            option-value="id"
+            v-model="selectedShift.user"
+          >
+            <template v-slot:option="scope">
+              <q-item v-bind="scope.itemProps">
+                <q-item-section>
+                  {{ scope.opt.fullName }}
+                </q-item-section>
+                <q-item-section side>
+                  <q-item-label caption>{{ scope.opt.phoneNo }}</q-item-label>
+                </q-item-section>
+              </q-item>
+            </template>
+          </q-select>
+          <q-input
+            outlined
+            label="Kommentar"
+            v-model="selectedShift.comment"
+          ></q-input>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            label="Avbryt"
+            no-caps
+            @click="showingAdminEdit = false"
+          ></q-btn>
+          <q-btn
+            unelevated
+            color="primary"
+            label="Lagre"
+            no-caps
+            @click="updateShift"
+            :disable="!selectedShift.user"
           ></q-btn> </q-card-actions
         ><q-inner-loading :showing="saving">
           <q-spinner size="3em" color="primary"></q-spinner>
@@ -411,8 +483,16 @@ const saving = ref(false);
 async function updateShift() {
   try {
     saving.value = true;
-    await eventStore.updateShift(selectedShift.value);
+    if (isAdmin.value && selectedShift.value.id === 0) {
+      await eventStore.addShift(
+        selectedResource.value,
+        selectedShift.value.user
+      );
+    } else {
+      await eventStore.updateShift(selectedShift.value);
+    }
     showingEdit.value = false;
+    showingAdminEdit.value = false;
     $q.notify({
       message: "Endringer er lagret 👍",
     });
@@ -427,12 +507,34 @@ async function deleteShift() {
     saving.value = true;
     await eventStore.deleteShift(selectedShift.value);
     showingEdit.value = false;
+    showingAdminEdit.value = false;
     $q.notify({
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
   } catch (error) {
   } finally {
     saving.value = false;
+  }
+}
+
+const selectedResource = ref(null);
+const showingAdminEdit = ref(false);
+async function editShift(resource, shift) {
+  selectedShift.value = Object.assign({}, shift);
+  selectedResource.value = resource;
+  showingAdminEdit.value = true;
+  await getUsers();
+}
+
+const loadingUsers = ref(false);
+const users = computed(() => userStore.users);
+async function getUsers() {
+  try {
+    loadingUsers.value = true;
+    await userStore.getUsers();
+  } catch (error) {
+  } finally {
+    loadingUsers.value = false;
   }
 }
 
