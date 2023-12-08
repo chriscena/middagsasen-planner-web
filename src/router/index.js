@@ -38,6 +38,7 @@ export default route(function (/* { store, ssrContext } */) {
 
   Router.beforeEach((to, from, next) => {
     if (to.path !== "/login" && !authStore.user) next({ path: "/login" });
+    else if (to.path === "/login" && authStore.user) next({ path: "/" });
     else next();
   });
 

@@ -35,15 +35,6 @@
           </q-item-section>
         </q-item>
 
-        <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="settings"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Vakttyper</q-item-label>
-          </q-item-section>
-        </q-item>
-
         <q-item v-if="isAdmin" v-ripple>
           <q-item-section avatar>
             <q-icon name="edit_calendar"></q-icon>
@@ -59,6 +50,15 @@
           </q-item-section>
           <q-item-section>
             <q-item-label>Brukere</q-item-label>
+          </q-item-section>
+        </q-item>
+
+        <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="settings"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Vakttyper</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>
