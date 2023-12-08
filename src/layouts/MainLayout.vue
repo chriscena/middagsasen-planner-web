@@ -119,7 +119,7 @@
     <q-dialog v-model="showingUserDialog" persistent>
       <q-card class="full-width">
         <q-form @submit="saveUser">
-          <q-card-section class="">Ny bruker</q-card-section>
+          <q-card-section class="text-h6">Brukerinfo</q-card-section>
           <q-card-section class="row q-col-gutter-sm">
             <q-input
               class="col-12"
