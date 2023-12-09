@@ -122,10 +122,19 @@ async function createOtp() {
     showingOtpDialog.value = false;
     $q.notify({ message: "Engangskode er på vei på SMS 🙌" });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å lage engangskode 😳",
-    });
+    if (error?.response?.status === 429)
+      $q.notify({
+        message:
+          "Du har nettopp prøvd å hente engangskode, vent 5 min før du prøver igjen ✋",
+      });
+    else if (error?.response?.status === 400)
+      $q.notify({
+        message: "Sjekk at telefonnummeret er riktig ✋",
+      });
+    else
+      $q.notify({
+        message: "Klarte ikke å lage engangskode 😳",
+      });
   } finally {
     creatingOtp.value = false;
   }
