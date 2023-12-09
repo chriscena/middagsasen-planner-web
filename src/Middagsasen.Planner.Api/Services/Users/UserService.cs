@@ -51,17 +51,17 @@ namespace Middagsasen.Planner.Api.Services.Users
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id);
             if (user == null) return null;
 
-            if (request.FirstName != null)
+            if (!string.IsNullOrWhiteSpace(request.FirstName))
                 user.FirstName = request.FirstName;
-            if (request.LastName != null)
+            if (!string.IsNullOrWhiteSpace(request.LastName))
                 user.LastName = request.LastName;
-            if (request.PhoneNo != null)
+            if (!string.IsNullOrWhiteSpace(request.PhoneNo))
                 user.UserName = request.PhoneNo;
             if (request.IsAdmin.HasValue)
                 user.IsAdmin = request.IsAdmin.Value;
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
-            if (request.Password != null)
+            if (!string.IsNullOrWhiteSpace(request.Password))
             {
                 var salt = PasswordHasher.CreateSalt();
                 var password = PasswordHasher.HashPassword(request.Password, salt);
