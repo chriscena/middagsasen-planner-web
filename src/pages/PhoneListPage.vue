@@ -54,7 +54,7 @@
               :href="'tel:' + user.phoneNo"
               flat
               round
-              text-color="green"
+              text-color="primary"
               icon="call"
             ></q-btn>
           </div>
