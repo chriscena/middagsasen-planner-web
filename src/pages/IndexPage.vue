@@ -362,6 +362,7 @@ import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import { api } from "boot/axios";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -405,6 +406,28 @@ async function onNext() {
 }
 function dateClicked() {}
 
+// const events = ref([]);
+// async function onChange(event) {
+//   try {
+//     loading.value = true;
+
+//     var startDate = encodeURIComponent(
+//       formatISO(parseISO(event.start), { representation: "date" })
+//     );
+//     var endDate = encodeURI(
+//       formatISO(addDays(parseISO(event.end), 1), { representation: "date" })
+//     );
+//     const response = await api.get(
+//       `/api/events?start=${startDate}&end=${endDate}`
+//     );
+//     events.value = response.data;
+//   } catch (error) {
+//     $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
+//   } finally {
+//     loading.value = false;
+//   }
+// }
+
 async function onChange(event) {
   try {
     loading.value = true;
@@ -417,14 +440,18 @@ async function onChange(event) {
 }
 
 function getEventsForDate(timestamp) {
-  const start = new Date(timestamp.date);
-  const end = addDays(start, 1);
-  return eventStore.events.filter(
-    (e) =>
-      isAfter(new Date(e.startTime), start) &&
-      isBefore(new Date(e.startTime), end)
-  );
+  return eventStore.getEventsForDate(timestamp);
 }
+
+// function getEventsForDate(timestamp) {
+//   const start = new Date(timestamp.date);
+//   const end = addDays(start, 1);
+//   return events.value.filter(
+//     (e) =>
+//       isAfter(new Date(e.startTime), start) &&
+//       isBefore(new Date(e.startTime), end)
+//   );
+// }
 
 function setNow(value) {
   selectedDay.value = value;

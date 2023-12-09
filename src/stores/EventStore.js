@@ -17,18 +17,19 @@ export const useEventStore = defineStore("events", {
     events: [],
     resourceTypes: [],
   }),
-  // getters: {
-  //   doubleCount: (state) => state.counter * 2,
-  // },
+  getters: {
+    getEventsForDate: (state) => (timestamp) => {
+      console.log(state.events);
+      const start = new Date(timestamp.date);
+      const end = addDays(start, 1);
+      return state.events.filter(
+        (e) =>
+          isAfter(new Date(e.startTime), start) &&
+          isBefore(new Date(e.startTime), end)
+      );
+    },
+  },
   actions: {
-    async addEvent(event) {
-      const response = await api.post("/api/events", event);
-    },
-    getEvents() {
-      //this.events.splice(0, this.events.length);
-      if (this.events.length) return;
-      this.events.push(...events);
-    },
     async getEventsForDates(start, end) {
       var startDate = encodeURIComponent(
         formatISO(parseISO(start), { representation: "date" })
@@ -40,6 +41,22 @@ export const useEventStore = defineStore("events", {
         `/api/events?start=${startDate}&end=${endDate}`
       );
       this.events = response.data;
+    },
+    async addEvent(event) {
+      const response = await api.post("/api/events", event);
+    },
+    async getEvent(id) {
+      const response = await api.get(`/api/events/${id}`);
+      this.selectedEvent = response.data;
+    },
+    async deleteEvent(id) {
+      await api.delete(`/api/events/${id}`);
+      this.selectedEvent = null;
+      this.events = this.events.filter((e) => e.id !== id);
+    },
+    async updateEvent(id, event) {
+      const response = await api.put(`/api/events/${id}`, event);
+      this.selectedEvent = response.data;
     },
 
     async createResourceType(resourceType) {
@@ -122,21 +139,6 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
-    },
-    async getEvent(id) {
-      const response = await api.get(`/api/events/${id}`);
-      this.selectedEvent = response.data;
-    },
-
-    async deleteEvent(id) {
-      await api.delete(`/api/events/${id}`);
-      this.selectedEvent = null;
-      this.events = this.events.filter((e) => e.id !== id);
-    },
-
-    async updateEvent(id, event) {
-      const response = await api.put(`/api/events/${id}`, event);
-      this.selectedEvent = response.data;
     },
   },
 });
