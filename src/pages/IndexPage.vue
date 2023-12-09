@@ -117,6 +117,8 @@
                     flat
                     round
                     icon="call"
+                    type="a"
+                    :href="'tel:' + shift?.user?.phoneNumber"
                     v-if="
                       (shift?.user?.id ?? 0) > 1 &&
                       (shift?.user?.id ?? 0) !== currentUser?.id
