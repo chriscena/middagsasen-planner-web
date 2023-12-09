@@ -43,7 +43,7 @@
           <div class="row q-gutter-md">
             <q-btn
               type="a"
-              :href="'sms:' + user.Phone"
+              :href="'sms:' + user.phoneNo"
               flat
               round
               text-color="primary"
@@ -51,7 +51,7 @@
             ></q-btn>
             <q-btn
               type="a"
-              :href="'tel:' + user.Phone"
+              :href="'tel:' + user.phoneNo"
               flat
               round
               text-color="green"
