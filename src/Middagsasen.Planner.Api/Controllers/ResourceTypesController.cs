@@ -30,6 +30,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Create(ResourceTypeRequest request)
         {
             var resourceType = await ResourceTypesService.CreateResourceType(request);
@@ -37,6 +38,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Update(int id, [FromBody]ResourceTypeRequest request)
         {
             var resourceType = await ResourceTypesService.UpdateResourceType(id, request);
@@ -44,6 +46,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Delete(int id)
         {
             var resourceType = await ResourceTypesService.DeleteResourceType(id);

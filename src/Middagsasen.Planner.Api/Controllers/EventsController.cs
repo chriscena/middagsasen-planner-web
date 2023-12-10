@@ -31,6 +31,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost("api/events")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Create([FromBody] EventRequest request)
         {
             var response = await EventsService.CreateEvent(request);
@@ -38,6 +39,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("api/events/{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Update(int id, [FromBody] EventRequest request)
         {
             var resourceType = await EventsService.UpdateEvent(id, request);
@@ -45,6 +47,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("api/events/{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> Delete(int id)
         {
             var resourceType = await EventsService.DeleteEvent(id);

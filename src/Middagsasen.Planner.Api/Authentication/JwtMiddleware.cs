@@ -62,7 +62,7 @@ namespace Middagsasen.Planner.Api.Authentication
                         new Claim(ClaimTypes.Name, user.FullName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.GivenName, user.FirstName ?? "", ClaimValueTypes.String),
                         new Claim(ClaimTypes.Surname, user.LastName ?? "", ClaimValueTypes.String),
-                        new Claim(ClaimTypes.Role, user.IsAdmin ? "Administrator" : "User", ClaimValueTypes.String),
+                        new Claim(ClaimTypes.Role, user.IsAdmin ? Roles.Administrator : Roles.User, ClaimValueTypes.String),
                         new Claim(ClaimTypes.Authentication, sessionIdString, ClaimValueTypes.String)
                     },
                     "Password", ClaimTypes.Name, ClaimTypes.Role)); ;

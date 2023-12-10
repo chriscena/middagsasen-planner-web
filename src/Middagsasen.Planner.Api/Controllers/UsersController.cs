@@ -45,16 +45,15 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/users")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> GetUsers()
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
-
             var response = await UserService.GetUsers();
             return Ok(response);
         }
 
         [HttpGet("api/users/{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> GetUser(int id)
         {
             var response = await UserService.GetUserById(id);
@@ -64,6 +63,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost("api/users")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> CreateUser(UserRequest user)
         {
             var response = await UserService.Create(user);
@@ -71,6 +71,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("api/users/{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> UpdateUser(int id, UserRequest user)
         {
             var response = await UserService.Update(id, user);
@@ -79,6 +80,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("api/users/{id}")]
+        [Authorize(Role = Roles.Administrator)]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var response = await UserService.Delete(id);
