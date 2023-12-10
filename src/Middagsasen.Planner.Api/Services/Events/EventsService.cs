@@ -3,7 +3,7 @@ using Middagsasen.Planner.Api.Data;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
-    public class EventsService : IResourceTypesService, IEventsService
+    public class EventsService : IResourceTypesService, IEventsService, IEventTemplatesService
     {
         public EventsService(PlannerDbContext dbContext)
         {
@@ -217,15 +217,184 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(shift);
         }
 
-        public async Task<ShiftResponse?> DeleteShift(int id)
+        public async Task<ShiftResponse?> DeleteShift(int id, int userId, bool isAdmin)
         {
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
+            if (shift.UserId != userId && !isAdmin) return null;
+
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();
 
             return Map(shift);
         }
+
+        public async Task<IEnumerable<EventTemplateResponse>> GetEventTemplates()
+        {
+            var templates = await DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                .ThenInclude(r => r.ResourceType)
+                .AsNoTracking()
+                .ToListAsync();
+            return templates.Select(Map).ToList();
+        }
+
+        public async Task<EventTemplateResponse?> GetEventTemplateById(int id)
+        {
+            var template = await DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                .ThenInclude(r => r.ResourceType)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(e => e.EventTemplateId == id);
+            return template != null ? Map(template) : null;
+        }
+
+        public async Task<EventTemplateResponse?> CreateEventTemplate(EventTemplateRequest request)
+        {
+            var newEvent = new EventTemplate
+            {
+                Name = request.Name,
+                EventName = request.EventName,
+                StartTime = DateTime.Parse(request.StartTime),
+                EndTime = DateTime.Parse(request.EndTime),
+                ResourceTemplates = request.ResourceTemplates.Select(Map).ToList(),
+            };
+
+            DbContext.EventTemplates.Add(newEvent);
+            await DbContext.SaveChangesAsync();
+
+            return await GetEventTemplateById(newEvent.EventTemplateId);
+        }
+
+        public async Task<EventTemplateResponse?> UpdateEventTemplate(int id, EventTemplateRequest request)
+        {
+            var existingEvent = await DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                    .ThenInclude(r => r.ResourceType)
+            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
+
+            if (existingEvent == null) return null;
+
+            existingEvent.Name = request.Name;
+            existingEvent.EventName = request.EventName;
+            existingEvent.StartTime = DateTime.Parse(request.StartTime);
+            existingEvent.EndTime = DateTime.Parse(request.EndTime);
+
+            foreach (var resource in request.ResourceTemplates)
+            {
+                if (resource.IsDeleted)
+                {
+                    var resourceToDelete = existingEvent.ResourceTemplates.FirstOrDefault(r => r.ResourceTemplateId == resource.Id);
+                    if (resourceToDelete == null) continue;
+                    existingEvent.ResourceTemplates.Remove(resourceToDelete);
+                }
+                else if (!resource.Id.HasValue)
+                {
+                    existingEvent.ResourceTemplates.Add(Map(resource));
+                }
+                else
+                {
+                    var resourceToUpdate = existingEvent.ResourceTemplates.FirstOrDefault(r => r.ResourceTemplateId == resource.Id);
+                    if (resourceToUpdate == null) continue;
+                    resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
+                    resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
+                    resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
+                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
+                }
+            }
+            await DbContext.SaveChangesAsync();
+
+            var response = await DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                    .ThenInclude(r => r.ResourceType)
+            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
+
+            return response != null ? Map(response) : null;
+        }
+
+        public async Task<EventTemplateResponse?> DeleteEventTemplate(int id)
+        {
+            var existingTemplate = await DbContext.EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id);
+
+            if (existingTemplate == null) return null;
+
+            DbContext.EventTemplates.Remove(existingTemplate);
+
+            await DbContext.SaveChangesAsync();
+            return Map(existingTemplate);
+        }
+
+        public async Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
+        {
+            var startDate = DateTime.Parse(request.StartDate);
+
+            var template = await DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(e => e.EventTemplateId == templateId);
+
+            if (template == null) return null;
+
+            var startTime = startDate.Date + template.StartTime.TimeOfDay;
+            var endTime = startDate.Date + template.EndTime.TimeOfDay;
+            if (startTime > endTime) endTime = endTime.AddDays(1);
+
+            var newEvent = new Event
+            {
+                Name = template.EventName,
+                StartTime = startTime,
+                EndTime = endTime,
+                Resources = template.ResourceTemplates.Select(r => 
+                {
+                    var resourceStartTime = startDate.Date + r.StartTime.TimeOfDay;
+                    var resourceEndTime = startDate.Date + r.EndTime.TimeOfDay;
+                    if (resourceStartTime > resourceEndTime) resourceEndTime = resourceEndTime.AddDays(1);
+                    return new EventResource
+                    {
+                        ResourceTypeId = r.ResourceTypeId,
+                        StartTime = resourceStartTime,
+                        EndTime = resourceEndTime,
+                        MinimumStaff = r.MinimumStaff,
+                    };
+                }).ToList(),
+            };
+
+            DbContext.Events.Add(newEvent);
+            await DbContext.SaveChangesAsync();
+
+            return await GetEventById(newEvent.EventId);
+        }
+
+        public async Task<EventTemplateResponse?> CreateTemplateFromEvent(int id, TemplateFromEventRequest request)
+        {
+            var existingEvent = await DbContext.Events
+                .Include(e => e.Resources)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(e => e.EventId == id);
+
+            if (existingEvent == null) return null;
+
+            var template = new EventTemplate
+            {
+                Name = request.Name,
+                EventName = existingEvent.Name,
+                StartTime = existingEvent.StartTime,
+                EndTime = existingEvent.EndTime,
+                ResourceTemplates = existingEvent.Resources.Select(r => new ResourceTemplate
+                {
+                    ResourceTypeId = r.ResourceTypeId,
+                    StartTime = r.StartTime,
+                    EndTime = r.EndTime,
+                    MinimumStaff = r.MinimumStaff,
+                }).ToList(),
+            };
+
+            DbContext.EventTemplates.Add(template);
+            await DbContext.SaveChangesAsync();
+
+            return await GetEventTemplateById(template.EventTemplateId);
+        }
+
 
         private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
         {
@@ -287,6 +456,41 @@ namespace Middagsasen.Planner.Api.Services.Events
                 resource.EventResourceId = request.Id.Value;
             }
             return resource;
+        }
+
+        private EventTemplateResponse Map(EventTemplate template) => new EventTemplateResponse
+        {
+            Id = template.EventTemplateId,
+            Name = template.Name,
+            EventName = template.EventName,
+            StartTime = template.StartTime.ToSimpleIsoString(),
+            EndTime = template.EndTime.ToSimpleIsoString(),
+            ResourceTemplates = template.ResourceTemplates?.Select(Map),
+        };
+
+        private ResourceTemplateResponse Map(ResourceTemplate template) => new ResourceTemplateResponse
+        {
+            Id = template.EventTemplateId,
+            ResourceType = Map(template.ResourceType),
+            StartTime = template.StartTime.ToSimpleIsoString(),
+            EndTime = template.EndTime.ToSimpleIsoString(),
+            MinimumStaff = template.MinimumStaff,
+        };
+
+        private ResourceTemplate Map(ResourceTemplateRequest resource)
+        {
+            var template = new ResourceTemplate
+            {
+                ResourceTypeId = resource.ResourceTypeId,
+                StartTime = DateTime.Parse(resource.StartTime),
+                EndTime = DateTime.Parse(resource.EndTime),
+                MinimumStaff = resource.MinimumStaff,
+            };
+            if (resource.Id.HasValue)
+            {
+                template.EventTemplateId = resource.Id.Value;
+            }
+            return template;
         }
     }
 }

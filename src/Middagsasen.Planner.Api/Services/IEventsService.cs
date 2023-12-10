@@ -11,7 +11,8 @@ namespace Middagsasen.Planner.Api.Services
         Task<EventResponse?> UpdateEvent(int eventId, EventRequest request);
         Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request);
         Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request);
-        Task<ShiftResponse?> DeleteShift(int id);
+        Task<ShiftResponse?> DeleteShift(int id, int userId, bool isAdmin);
         Task<EventResponse?> DeleteEvent(int id);
+        Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request);
     }
 }
