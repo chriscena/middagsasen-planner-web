@@ -8,5 +8,6 @@
         public bool Inactive { get; set; }
 
         public ICollection<EventResource> Resources { get; set; } = new HashSet<EventResource>();
+        public ICollection<ResourceTemplate> ResourceTemplates { get; set; } = new HashSet<ResourceTemplate>();
     }
 }

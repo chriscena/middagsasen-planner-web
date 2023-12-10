@@ -1,8 +1,8 @@
-﻿using Microsoft.AspNetCore.Http.HttpResults;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
-using System.Security.Principal;
 
 namespace Middagsasen.Planner.Api.Data
 {
@@ -23,6 +23,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<ResourceType> ResourceTypes { get; set; } = null!;
         public virtual DbSet<Event> Events { get; set; } = null!;
         public virtual DbSet<EventResourceUser> Shifts { get; set; } = null!;
+        public virtual DbSet<EventTemplate> EventTemplates { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -104,6 +105,35 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_EventResourceUsers_Users");
+            });
+
+            modelBuilder.Entity<EventTemplate>(entity =>
+            {
+                entity.HasKey(e => e.EventTemplateId);
+                entity.Property(e => e.Name).HasMaxLength(400);
+                entity.Property(e => e.EventName).HasMaxLength(400);
+                entity.Property(e => e.StartTime).HasColumnType("datetime");
+                entity.Property(e => e.EndTime).HasColumnType("datetime");
+            });
+
+            modelBuilder.Entity<ResourceTemplate>(entity =>
+            {
+                entity.ToTable("ResourceTemplates");
+                entity.HasKey(e => e.ResourceTemplateId);
+                entity.Property(e => e.StartTime).HasColumnType("datetime");
+                entity.Property(e => e.EndTime).HasColumnType("datetime");
+
+                entity.HasOne(e => e.EventTemplate)
+                    .WithMany(c => c.ResourceTemplates)
+                    .HasForeignKey(d => d.EventTemplateId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTemplates_EventTemplates");
+
+                entity.HasOne(e => e.ResourceType)
+                    .WithMany(c => c.ResourceTemplates)
+                    .HasForeignKey(d => d.ResourceTypeId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTemplates_ResourceTypes");
             });
         }
     }
