@@ -1,14 +1,5 @@
 import { defineStore } from "pinia";
-import {
-  parseISO,
-  format,
-  addHours,
-  addMinutes,
-  formatISO,
-  addDays,
-  isBefore,
-  isAfter,
-} from "date-fns";
+import { parseISO, formatISO, addDays, isBefore, isAfter } from "date-fns";
 import { api } from "boot/axios";
 
 export const useEventStore = defineStore("events", {
@@ -19,7 +10,6 @@ export const useEventStore = defineStore("events", {
   }),
   getters: {
     getEventsForDate: (state) => (timestamp) => {
-      console.log(state.events);
       const start = new Date(timestamp.date);
       const end = addDays(start, 1);
       return state.events.filter(
@@ -133,6 +123,7 @@ export const useEventStore = defineStore("events", {
           const shiftToUpdate = resource.shifts.find(
             (s) => s.id === updatedShift.id
           );
+          shiftToUpdate.user = updatedShift.user;
           shiftToUpdate.startTime = updatedShift.startTime;
           shiftToUpdate.endTime = updatedShift.endTime;
           shiftToUpdate.comment = updatedShift.comment;

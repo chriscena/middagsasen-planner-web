@@ -26,7 +26,6 @@
       :weekdays="[1, 2, 3, 4, 5, 6, 0]"
       @change="onChange"
       animated
-      @click-date="dateClicked"
       ref="calendar"
     >
       <template #head-days-events>
@@ -215,6 +214,9 @@
             option-label="fullName"
             option-value="id"
             v-model="selectedShift.user"
+            @update:model-value="
+              selectedShift.userId = selectedShift?.user?.id ?? 0
+            "
           >
             <template v-slot:option="scope">
               <q-item v-bind="scope.itemProps">
@@ -404,29 +406,6 @@ async function onNext() {
   await calendar.value.next();
   $router.replace(`/day/${selectedDay.value}`);
 }
-function dateClicked() {}
-
-// const events = ref([]);
-// async function onChange(event) {
-//   try {
-//     loading.value = true;
-
-//     var startDate = encodeURIComponent(
-//       formatISO(parseISO(event.start), { representation: "date" })
-//     );
-//     var endDate = encodeURI(
-//       formatISO(addDays(parseISO(event.end), 1), { representation: "date" })
-//     );
-//     const response = await api.get(
-//       `/api/events?start=${startDate}&end=${endDate}`
-//     );
-//     events.value = response.data;
-//   } catch (error) {
-//     $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
-//   } finally {
-//     loading.value = false;
-//   }
-// }
 
 async function onChange(event) {
   try {
@@ -442,16 +421,6 @@ async function onChange(event) {
 function getEventsForDate(timestamp) {
   return eventStore.getEventsForDate(timestamp);
 }
-
-// function getEventsForDate(timestamp) {
-//   const start = new Date(timestamp.date);
-//   const end = addDays(start, 1);
-//   return events.value.filter(
-//     (e) =>
-//       isAfter(new Date(e.startTime), start) &&
-//       isBefore(new Date(e.startTime), end)
-//   );
-// }
 
 function setNow(value) {
   selectedDay.value = value;
@@ -556,7 +525,7 @@ async function deleteShift() {
 const selectedResource = ref(null);
 const showingAdminEdit = ref(false);
 async function editShift(resource, shift) {
-  selectedShift.value = Object.assign({}, shift);
+  selectedShift.value = Object.assign({ userId: 0 }, shift);
   selectedResource.value = resource;
   showingAdminEdit.value = true;
   await getUsers();
