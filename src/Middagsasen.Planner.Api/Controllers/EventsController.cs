@@ -83,6 +83,8 @@ namespace Middagsasen.Planner.Api.Controllers
             var user = (UserResponse?)HttpContext.Items["User"];
             if (user == null) return Unauthorized();
 
+            if (request.UserId == 0) request.UserId = user.Id;
+
             if (!user.IsAdmin && request.UserId != user.Id)
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
 

@@ -211,10 +211,13 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.EndTime.HasValue)
                 shift.EndTime = request.EndTime;
 
+            shift.UserId = request.UserId;
             shift.Comment = request.Comment;
 
             await DbContext.SaveChangesAsync();
-            return Map(shift);
+
+            var responseShift = await DbContext.Shifts.Include(s => s.User).AsNoTracking().SingleOrDefaultAsync(s => s.EventResourceUserId == shift.EventResourceUserId);
+            return responseShift == null ? null : Map(responseShift);
         }
 
         public async Task<ShiftResponse?> DeleteShift(int id, int userId, bool isAdmin)
