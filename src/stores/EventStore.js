@@ -7,6 +7,7 @@ export const useEventStore = defineStore("events", {
     selectedEvent: null,
     events: [],
     resourceTypes: [],
+    templates: [],
   }),
   getters: {
     getEventsForDate: (state) => (timestamp) => {
@@ -130,6 +131,24 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
+    },
+    async getTemplates() {
+      const response = await api.get("/api/templates");
+      this.templates = response.data;
+    },
+    async addTemplate(template) {
+      const response = await api.post("/api/templates", template);
+    },
+    async createTemplateFromEvent(eventId, name) {
+      const response = await api.post(`/api/events/${eventId}/template`, {
+        name: name,
+      });
+    },
+    async createEventFromTemplate(templateId, date) {
+      const response = await api.post(`/api/events/template/${templateId}`, {
+        startDate: date,
+      });
+      this.events.push(response.data);
     },
   },
 });

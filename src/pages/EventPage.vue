@@ -118,11 +118,21 @@
           ></q-card-actions>
         </q-card></div
     ></q-form>
-    <div class="text-center">
+    <div class="q-mt-lg text-center">
+      <q-btn
+        v-if="props.id"
+        @click="showCreateTemplate"
+        icon="file_copy"
+        no-caps
+        unelevated
+        color="primary"
+        label="Opprett mal"
+      ></q-btn>
+    </div>
+    <div class="q-mt-xl text-center">
       <q-btn
         v-if="props.id"
         @click="confirmDeleteEvent"
-        class="q-mt-xl"
         icon="delete"
         no-caps
         unelevated
@@ -149,6 +159,34 @@
             @click="deleteEvent(props.id)"
           ></q-btn>
         </q-card-actions>
+      </q-card>
+    </q-dialog>
+    <q-dialog v-model="showingCreateTemplate">
+      <q-card>
+        <q-card-section class="text-h6"> Opprette mal </q-card-section>
+        <q-card-section>
+          <q-input outlined label="Navn på mal" v-model="templateName"></q-input
+        ></q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            no-caps
+            flat
+            label="Avbryt"
+            color="primary"
+            @click="showingCreateTemplate = false"
+          ></q-btn>
+          <q-btn
+            no-caps
+            unelevated
+            label="Lagre"
+            color="primary"
+            :disable="!templateName"
+            @click="createTemplate(props.id)"
+          ></q-btn>
+        </q-card-actions>
+        <q-inner-loading :showing="savingTemplate">
+          <q-spinner size="3em" color="primary"></q-spinner>
+        </q-inner-loading>
       </q-card>
     </q-dialog>
     <q-dialog v-model="showingEdit" persistent>
@@ -264,7 +302,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
 import {
@@ -277,7 +315,6 @@ import {
   isBefore,
   addDays,
 } from "date-fns";
-import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
 const emit = defineEmits(["toggle-right"]);
@@ -519,5 +556,25 @@ async function deleteEvent() {
 
 function formatDateTime(date) {
   return format(date, "yyyy'-'MM'-'dd'T'HH':'mm", new Date());
+}
+
+const showingCreateTemplate = ref(false);
+const templateName = ref(null);
+function showCreateTemplate() {
+  templateName.value = null;
+  showingCreateTemplate.value = true;
+}
+
+const savingTemplate = ref(false);
+async function createTemplate(id) {
+  try {
+    savingTemplate.value = true;
+    await eventStore.createTemplateFromEvent(id, templateName.value);
+    $q.notify({ message: "Ny mal opprettet." });
+  } catch (error) {
+    $q.notify({ message: "Noe feilet mens malen skulle lagres." });
+  } finally {
+    savingTemplate.value = false;
+  }
 }
 </script>

@@ -23,10 +23,13 @@
       locale="no"
       :view="mode"
       v-model="selectedDay"
+      date-type="rounded"
       :weekdays="[1, 2, 3, 4, 5, 6, 0]"
       @change="onChange"
+      @click-head-day="showMenu"
       animated
       ref="calendar"
+      id="calendar"
     >
       <template #head-days-events>
         <q-linear-progress
@@ -148,6 +151,23 @@
         ></template>
       </template>
     </q-calendar-agenda>
+    <q-menu v-model="showingMenu" :target="dateElement" auto-close>
+      <q-list>
+        <q-item-label header>
+          Velg mal for {{ formattedDateContext }}
+        </q-item-label>
+        <q-item
+          v-for="template in templates"
+          :key="template.id"
+          clickable
+          @click="applyTemplate(template.id)"
+        >
+          <q-item-section>
+            <q-item-label>{{ template.name }}</q-item-label>
+          </q-item-section>
+        </q-item>
+      </q-list>
+    </q-menu>
     <q-dialog v-model="showingEdit" persistent>
       <q-card class="full-width">
         <q-card-section class="text-h6 row"
@@ -342,29 +362,14 @@
 </template>
 
 <script setup>
-import { computed, inject, onMounted, ref, reactive } from "vue";
+import { computed, onMounted, ref, nextTick } from "vue";
 import { useQuasar } from "quasar";
-import {
-  QCalendarAgenda,
-  today,
-  createNativeLocaleFormatter,
-  parseTimestamp,
-} from "@quasar/quasar-ui-qcalendar";
-import {
-  parseISO,
-  format,
-  isValid,
-  formatISO,
-  addDays,
-  isBefore,
-  isAfter,
-} from "date-fns";
-import { useI18n } from "vue-i18n";
+import { QCalendarAgenda, today } from "@quasar/quasar-ui-qcalendar";
+import { parseISO, format, isValid, parse } from "date-fns";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
-import { api } from "boot/axios";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -387,9 +392,9 @@ const authStore = useAuthStore();
 const userStore = useUserStore();
 onMounted(async () => {
   userStore.getUser();
+  if (isAdmin.value) eventStore.getTemplates();
   if (isValid(new Date(props.date))) selectedDay.value = props.date;
   else await $router.replace(`/day/${today()}`);
-  //eventStore.getEventsForDates(event.start, event.end);
 });
 
 const calendar = ref(null);
@@ -550,5 +555,32 @@ function toCreate() {
 
 function editEvent(event) {
   $router.push(`/edit/${event.id}`);
+}
+
+const templates = computed(() => eventStore.templates);
+const showingMenu = ref(false);
+const dateContext = ref(null);
+const formattedDateContext = computed(() =>
+  dateContext.value
+    ? format(parse(dateContext.value, "yyyy-MM-dd", new Date()), "dd.MM")
+    : ""
+);
+const dateElement = ref("#calendar");
+function showMenu(data) {
+  if (!isAdmin.value || !templates.value.length) return;
+  dateContext.value = data?.scope?.timestamp?.date;
+  dateElement.value = data?.event?.target;
+  showingMenu.value = true;
+}
+
+async function applyTemplate(id) {
+  try {
+    loading.value = true;
+    await eventStore.createEventFromTemplate(id, dateContext.value);
+    $q.notify({ message: "Vaktliste opprettet." });
+  } catch (error) {
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
