@@ -571,6 +571,7 @@ async function createTemplate(id) {
     savingTemplate.value = true;
     await eventStore.createTemplateFromEvent(id, templateName.value);
     $q.notify({ message: "Ny mal opprettet." });
+    showingCreateTemplate.value = false;
   } catch (error) {
     $q.notify({ message: "Noe feilet mens malen skulle lagres." });
   } finally {
