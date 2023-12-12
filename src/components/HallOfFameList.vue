@@ -7,6 +7,7 @@
     <q-separator></q-separator>
     <q-list separator>
       <q-item dense>
+        <q-item-section avatar>#</q-item-section>
         <q-item-section
           ><q-item-label caption>Navn</q-item-label></q-item-section
         >
@@ -14,7 +15,13 @@
           ><q-item-label caption>Vakter</q-item-label></q-item-section
         >
       </q-item>
-      <q-item v-for="hallOfFamer in hallOfFamers" :key="hallOfFamer.id">
+      <q-item
+        v-for="(hallOfFamer, index) in hallOfFamers"
+        :key="hallOfFamer.id"
+      >
+        <q-item-section avatar class="text-subtitle1">
+          {{ rank(hallOfFamer.shifts, index) }}
+        </q-item-section>
         <q-item-section
           :class="currentUser?.id === hallOfFamer.id ? 'text-bold' : ''"
           >{{ hallOfFamer.fullName }}</q-item-section
@@ -47,6 +54,7 @@ const loading = ref(false);
 onMounted(async () => {
   try {
     loading.value = true;
+    lastRank = 0;
     const response = await api.get("/api/halloffame");
     hallOfFamers.value = response.data?.hallOfFamers;
   } catch (error) {
@@ -54,4 +62,16 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+let lastRank = 0;
+function rank(shifts, index) {
+  if (shifts !== lastRank) {
+    lastRank = shifts;
+    if (index === 0) return "🥇";
+    if (index === 1) return "🥈";
+    if (index === 2) return "🥉";
+    return index + 1;
+  }
+  return "";
+}
 </script>
