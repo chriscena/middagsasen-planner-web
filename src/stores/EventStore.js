@@ -136,11 +136,27 @@ export const useEventStore = defineStore("events", {
       const response = await api.get("/api/templates");
       this.templates = response.data;
     },
-    async addTemplate(template) {
-      const response = await api.post("/api/templates", template);
+    async createTemplate(template) {
+      const request = {
+        name: template.name,
+        eventName: template.eventName,
+        startTime: template.startTime,
+        endTime: template.endTime,
+        resourceTemplates: [...template.resourceTemplates],
+      };
+      await api.post("/api/templates", request);
+      await this.getTemplates();
+    },
+    async updateTemplate(template) {
+      await api.put(`/api/templates/${template.id}`, template);
+      await this.getTemplates();
+    },
+    async deleteTemplate(template) {
+      await api.delete(`/api/templates/${template.id}`);
+      await this.getTemplates();
     },
     async createTemplateFromEvent(eventId, name) {
-      const response = await api.post(`/api/events/${eventId}/template`, {
+      await api.post(`/api/events/${eventId}/template`, {
         name: name,
       });
     },
