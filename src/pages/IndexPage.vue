@@ -321,9 +321,11 @@
               @update:model-value="setNow"
               @blur="(evt) => emit('blur', evt)"
               mask="YYYY-MM-DD"
-              event-color="green"
               today-btn
               no-unset
+              :events="eventStatusDates"
+              :event-color="getEventColor"
+              @navigation="getEventStatuses"
             >
               <div class="row items-center justify-end">
                 <q-btn v-close-popup label="Lukk" color="primary" flat></q-btn>
@@ -398,11 +400,16 @@ const currentUser = computed(() => authStore.user);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
+
 onMounted(async () => {
   userStore.getUser();
   if (isAdmin.value) eventStore.getTemplates();
   if (isValid(new Date(props.date))) selectedDay.value = props.date;
   else await $router.replace(`/day/${today()}`);
+  const date = parse(selectedDay.value, "yyyy-MM-dd", new Date());
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  eventStore.getEventStatuses(month, year);
 });
 
 const calendar = ref(null);
@@ -433,6 +440,22 @@ async function onChange(event) {
 
 function getEventsForDate(timestamp) {
   return eventStore.getEventsForDate(timestamp);
+}
+
+async function getEventStatuses(view) {
+  await eventStore.getEventStatuses(view.month, view.year);
+}
+
+const eventStatusDates = computed(() => eventStore.eventStatusDates);
+
+function getEventColor(date) {
+  const dateString = format(
+    parse(date, "yyyy/MM/dd", new Date()),
+    "yyyy-MM-dd"
+  );
+  if (dateString < today()) return "grey-5";
+  const status = eventStore.eventStatuses[date];
+  return status ? "red-4" : "green-4";
 }
 
 function setNow(value) {

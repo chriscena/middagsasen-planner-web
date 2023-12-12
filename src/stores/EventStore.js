@@ -8,6 +8,7 @@ export const useEventStore = defineStore("events", {
     events: [],
     resourceTypes: [],
     templates: [],
+    eventStatuses: {},
   }),
   getters: {
     getEventsForDate: (state) => (timestamp) => {
@@ -19,8 +20,19 @@ export const useEventStore = defineStore("events", {
           isBefore(new Date(e.startTime), end)
       );
     },
+    eventStatusDates: (state) => [...Object.keys(state.eventStatuses)],
   },
   actions: {
+    async getEventStatuses(month, year) {
+      const response = await api.get(
+        `/api/eventstatus?month=${month}&year=${year}`
+      );
+      const statuses = response.data;
+      for (let index = 0; index < statuses.length; index++) {
+        const status = statuses[index];
+        this.eventStatuses[status.date] = status.isMissingStaff;
+      }
+    },
     async getEventsForDates(start, end) {
       var startDate = encodeURIComponent(
         formatISO(parseISO(start), { representation: "date" })
