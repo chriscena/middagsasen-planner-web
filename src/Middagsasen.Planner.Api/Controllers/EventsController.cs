@@ -15,6 +15,14 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IEventsService EventsService { get; }
 
+        [HttpGet("api/eventstatus")]
+        [ProducesResponseType(typeof(IEnumerable<EventStatusResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Get([FromQuery] int month, [FromQuery] int year)
+        {
+            var statuses = await EventsService.GetEventStatuses(month, year);
+            return Ok(statuses);
+        }
+
         [HttpGet("api/events")]
         [ProducesResponseType(typeof(IEnumerable<EventResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get([FromQuery] DateTime start, [FromQuery] DateTime end)

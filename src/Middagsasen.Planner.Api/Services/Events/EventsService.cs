@@ -12,6 +12,26 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public PlannerDbContext DbContext { get; }
 
+        public async Task<IEnumerable<EventStatusResponse>> GetEventStatuses(int month, int year)
+        {
+            var startDate = new DateTime(year, month, 1);
+            var endDate = startDate.AddMonths(1);
+            var eventStatuses = await DbContext.EventStatuses.Where(e => e.StartTime >= startDate && e.StartTime < endDate).ToListAsync();
+
+            var response = eventStatuses.Select(e => new
+                {
+                    Date = e.StartTime.ToString("yyyy'/'MM'/'dd"),
+                    IsMissingStaff = e.MissingStaff == 1,
+                })
+                .GroupBy(r => r.Date)
+                .Select(g => new EventStatusResponse
+                {
+                    Date = g.Key,
+                    IsMissingStaff = g.Any(e => e.IsMissingStaff),
+                });
+            return response;
+        }
+
         public async Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes()
         {
             var resourceTypes = await DbContext.ResourceTypes.AsNoTracking().Where(r => !r.Inactive).ToListAsync();
@@ -145,10 +165,11 @@ namespace Middagsasen.Planner.Api.Services.Events
                     var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
                     if (resourceToDelete == null) continue;
                     existingEvent.Resources.Remove(resourceToDelete);
-                } else if (!resource.Id.HasValue)
+                }
+                else if (!resource.Id.HasValue)
                 {
                     existingEvent.Resources.Add(Map(resource));
-                } 
+                }
                 else
                 {
                     var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
@@ -156,7 +177,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
                     resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
                     resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
-                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;  
+                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
                 }
             }
             await DbContext.SaveChangesAsync();
@@ -347,7 +368,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 Name = template.EventName,
                 StartTime = startTime,
                 EndTime = endTime,
-                Resources = template.ResourceTemplates.Select(r => 
+                Resources = template.ResourceTemplates.Select(r =>
                 {
                     var resourceStartTime = startDate.Date + r.StartTime.TimeOfDay;
                     var resourceEndTime = startDate.Date + r.EndTime.TimeOfDay;

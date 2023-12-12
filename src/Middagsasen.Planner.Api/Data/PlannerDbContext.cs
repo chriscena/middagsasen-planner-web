@@ -25,6 +25,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<EventResourceUser> Shifts { get; set; } = null!;
         public virtual DbSet<EventTemplate> EventTemplates { get; set; } = null!;
         public virtual DbSet<HallOfFamer> HallOfFamers { get; set; } = null!;
+        public virtual DbSet<EventStatus> EventStatuses { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -141,6 +142,13 @@ namespace Middagsasen.Planner.Api.Data
             {
                 entity.ToView("HallOfFame");
                 entity.HasKey(e => e.UserId);
+            });
+
+            modelBuilder.Entity<EventStatus>(entity =>
+            {
+                entity.ToView("EventStatuses");
+                entity.HasNoKey();
+                entity.Property(e => e.StartTime).HasColumnType("datetime");
             });
         }
     }

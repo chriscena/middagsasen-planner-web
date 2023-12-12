@@ -2,6 +2,7 @@
 {
     public interface IEventsService
     {
+        Task<IEnumerable<EventStatusResponse>> GetEventStatuses(int month, int year);
         Task<EventResponse?> CreateEvent(EventRequest request);
         Task<EventResponse?> GetEventById(int id);
         Task<IEnumerable<EventResponse?>> GetEvents();
