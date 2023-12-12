@@ -473,7 +473,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         private ResourceTemplateResponse Map(ResourceTemplate template) => new ResourceTemplateResponse
         {
-            Id = template.EventTemplateId,
+            Id = template.ResourceTemplateId,
             ResourceType = Map(template.ResourceType),
             StartTime = template.StartTime.ToSimpleIsoString(),
             EndTime = template.EndTime.ToSimpleIsoString(),
