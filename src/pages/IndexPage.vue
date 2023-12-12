@@ -122,7 +122,10 @@
                     flat
                     round
                     icon="edit"
-                    v-if="(shift?.user?.id ?? 0) === currentUser?.id"
+                    v-if="
+                      timestamp.date >= today() &&
+                      (shift?.user?.id ?? 0) === currentUser?.id
+                    "
                     @click="edit(shift)"
                   ></q-btn>
                   <q-btn
@@ -141,12 +144,19 @@
                     round
                     icon="add"
                     :disable="adding"
-                    v-if="(shift?.user?.id ?? 0) === 0"
+                    v-if="
+                      timestamp.date >= today() && (shift?.user?.id ?? 0) === 0
+                    "
                     @click="addUserAsResource(resource)"
                   ></q-btn>
                 </q-item-section>
               </q-item>
-              <q-item v-if="resource.shifts.length >= resource.minimumStaff">
+              <q-item
+                v-if="
+                  timestamp.date >= today() &&
+                  resource.shifts.length >= resource.minimumStaff
+                "
+              >
                 <q-item-section> </q-item-section>
                 <q-item-section side>
                   <q-btn
