@@ -362,7 +362,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, nextTick } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { QCalendarAgenda, today } from "@quasar/quasar-ui-qcalendar";
 import { parseISO, format, isValid, parse } from "date-fns";

@@ -102,13 +102,10 @@
 
 <script setup>
 import { onMounted, ref } from "vue";
-import { useQuasar } from "quasar";
-import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
-import { useUserStore } from "stores/UserStore";
 
-const router = useRouter();
+const $router = useRouter();
 const eventStore = useEventStore();
 
 const showingEdit = ref(false);

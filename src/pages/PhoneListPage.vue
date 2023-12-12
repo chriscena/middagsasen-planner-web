@@ -71,7 +71,6 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useUserStore } from "stores/UserStore";
-import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 
 const emit = defineEmits(["toggle-right"]);
