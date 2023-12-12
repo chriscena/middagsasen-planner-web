@@ -3,6 +3,7 @@
     <q-header>
       <q-toolbar>
         <q-btn
+          title="Meny"
           dense
           flat
           round
@@ -11,6 +12,7 @@
         ></q-btn>
         <q-space></q-space>
         <q-btn
+          title="Supervakter"
           class="q-mr-sm"
           dense
           flat
@@ -21,6 +23,7 @@
           v-if="isAdmin"
         ></q-btn>
         <q-btn
+          title="Din brukerinfo"
           dense
           flat
           round
@@ -56,6 +59,7 @@
                 <q-btn
                   flat
                   round
+                  title="Redigere vaktliste"
                   icon="edit"
                   v-if="isAdmin"
                   size="sm"
@@ -87,7 +91,7 @@
               }}</span></q-card-section
             >
             <q-separator> </q-separator>
-            <q-list separator>
+            <q-list role="list" separator>
               <q-item v-for="shift in createUserList(resource)" :key="shift.id">
                 <q-item-section v-if="isAdmin" avatar>
                   <q-btn
@@ -95,6 +99,7 @@
                     round
                     icon="edit"
                     size="sm"
+                    title="Endre vakt"
                     @click="editShift(resource, shift)"
                   ></q-btn>
                 </q-item-section>
@@ -114,12 +119,14 @@
                     flat
                     round
                     icon="edit"
+                    title="Endre vakt"
                     v-if="showEditButton(timestamp, shift)"
                     @click="edit(shift)"
                   ></q-btn>
                   <q-btn
                     flat
                     round
+                    :aria-label="`Ring til ${shift?.user?.fullName}`"
                     icon="call"
                     type="a"
                     :href="'tel:' + shift?.user?.phoneNumber"
@@ -130,6 +137,7 @@
                     round
                     icon="add"
                     :disable="adding"
+                    title="Ta vakt"
                     v-if="showAddButton(timestamp, shift)"
                     @click="addUserAsResource(resource)"
                   ></q-btn>
@@ -143,6 +151,7 @@
                     flat
                     round
                     icon="add"
+                    title="Ta vakt"
                     @click="addUserAsResource(resource)"
                   ></q-btn>
                 </q-item-section>
@@ -152,7 +161,7 @@
     </q-calendar-agenda>
     <span id="dummy"></span>
     <q-menu v-model="showingMenu" :target="dateElement" auto-close>
-      <q-list>
+      <q-list role="list">
         <q-item-label header>
           Velg mal for {{ formattedDateContext }}
         </q-item-label>
@@ -285,6 +294,7 @@
     <q-footer>
       <q-toolbar>
         <q-btn
+          title="Gå til firrige"
           no-caps
           flat
           :round="$q.platform.is.mobile"
@@ -294,6 +304,7 @@
           @click="onPrev"
         ></q-btn>
         <q-btn
+          title="Gå til idag"
           no-caps
           flat
           :round="$q.platform.is.mobile"
@@ -303,6 +314,7 @@
           @click="onToday"
         ></q-btn>
         <q-btn
+          title="Vis kalender"
           no-caps
           class="q-mr-sm"
           flat
@@ -340,6 +352,7 @@
           round
           icon="navigate_next"
           @click="onNext"
+          title="Gå til neste"
         ></q-btn>
         <!-- Blei dobbel knapp pga problem med icon-right-->
         <q-btn
@@ -349,9 +362,11 @@
           icon-right="navigate_next"
           label="Neste"
           @click="onNext"
+          title="Gå til neste"
         ></q-btn
         ><q-space></q-space>
         <q-btn
+          title="Opprett ny vaktliste"
           v-if="isAdmin"
           fab
           unelevated

@@ -5,7 +5,7 @@
       <div>Supervakter! 🏆</div></q-card-section
     >
     <q-separator></q-separator>
-    <q-list separator>
+    <q-list role="list" separator>
       <q-item dense>
         <q-item-section avatar>#</q-item-section>
         <q-item-section
