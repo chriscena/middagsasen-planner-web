@@ -11,6 +11,16 @@
         ></q-btn>
         <q-space></q-space>
         <q-btn
+          class="q-mr-sm"
+          dense
+          flat
+          round
+          icon="emoji_events"
+          @click="showHallOfFame"
+          color="amber"
+          v-if="isAdmin"
+        ></q-btn>
+        <q-btn
           dense
           flat
           round
@@ -275,6 +285,13 @@
         </q-inner-loading>
       </q-card>
     </q-dialog>
+    <q-dialog v-model="showingHallOfFame">
+      <HallOfFameList
+        class="full-width full-height"
+        @close="showingHallOfFame = false"
+        :currentUser="currentUser"
+      ></HallOfFameList>
+    </q-dialog>
     <q-footer>
       <q-toolbar>
         <q-btn
@@ -370,6 +387,7 @@ import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import HallOfFameList from "components/HallOfFameList.vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -582,5 +600,10 @@ async function applyTemplate(id) {
   } finally {
     loading.value = false;
   }
+}
+
+const showingHallOfFame = ref(false);
+async function showHallOfFame() {
+  showingHallOfFame.value = true;
 }
 </script>
