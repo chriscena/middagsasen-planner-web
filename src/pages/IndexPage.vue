@@ -39,7 +39,6 @@
       @click-head-day="showMenu"
       animated
       ref="calendar"
-      id="calendar"
     >
       <template #head-days-events>
         <q-linear-progress
@@ -72,12 +71,7 @@
           <q-card
             v-for="resource in event.resources"
             :key="resource.id"
-            :class="
-              'q-mt-sm q-mx-sm ' +
-              (resource.minimumStaff <= resource.shifts.length
-                ? 'bg-green-1'
-                : 'bg-red-1')
-            "
+            :class="resourceClasses(timestamp, resource)"
             flat
           >
             <q-card-section class="q-py-sm text-bold row"
@@ -105,15 +99,13 @@
                   ></q-btn>
                 </q-item-section>
                 <q-item-section>
-                  <q-item-label
-                    overline
-                    v-if="(shift?.user?.id ?? 0) === 0 ?? false"
+                  <q-item-label overline v-if="isVacant(shift)"
                     >Ledig</q-item-label
                   >
-                  <q-item-label v-if="shift?.user?.id > 0">{{
+                  <q-item-label v-if="isTaken(shift)">{{
                     shift.user.fullName
                   }}</q-item-label>
-                  <q-item-label caption v-if="shift?.user?.id > 0">{{
+                  <q-item-label caption v-if="isTaken(shift)">{{
                     shift.comment
                   }}</q-item-label>
                 </q-item-section>
@@ -122,10 +114,7 @@
                     flat
                     round
                     icon="edit"
-                    v-if="
-                      timestamp.date >= today() &&
-                      (shift?.user?.id ?? 0) === currentUser?.id
-                    "
+                    v-if="showEditButton(timestamp, shift)"
                     @click="edit(shift)"
                   ></q-btn>
                   <q-btn
@@ -134,29 +123,19 @@
                     icon="call"
                     type="a"
                     :href="'tel:' + shift?.user?.phoneNumber"
-                    v-if="
-                      (shift?.user?.id ?? 0) > 1 &&
-                      (shift?.user?.id ?? 0) !== currentUser?.id
-                    "
+                    v-if="showCallButton(shift)"
                   ></q-btn>
                   <q-btn
                     flat
                     round
                     icon="add"
                     :disable="adding"
-                    v-if="
-                      timestamp.date >= today() && (shift?.user?.id ?? 0) === 0
-                    "
+                    v-if="showAddButton(timestamp, shift)"
                     @click="addUserAsResource(resource)"
                   ></q-btn>
                 </q-item-section>
               </q-item>
-              <q-item
-                v-if="
-                  timestamp.date >= today() &&
-                  resource.shifts.length >= resource.minimumStaff
-                "
-              >
+              <q-item v-if="showAddAdditionalRow(timestamp, resource)">
                 <q-item-section> </q-item-section>
                 <q-item-section side>
                   <q-btn
@@ -171,6 +150,7 @@
         ></template>
       </template>
     </q-calendar-agenda>
+    <span id="dummy"></span>
     <q-menu v-model="showingMenu" :target="dateElement" auto-close>
       <q-list>
         <q-item-label header>
@@ -487,6 +467,49 @@ function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
 
+function resourceClasses(timestamp, resource) {
+  return (
+    "q-mt-sm q-mx-sm " +
+    (timestamp.date < today()
+      ? "bg-grey-3"
+      : resource.minimumStaff <= resource.shifts.length
+      ? "bg-green-1"
+      : "bg-red-1")
+  );
+}
+
+function isVacant(shift) {
+  return (shift?.user?.id ?? 0) === 0 ?? false;
+}
+
+function isTaken(shift) {
+  return shift?.user?.id > 0 ?? false;
+}
+
+function showEditButton(timestamp, shift) {
+  return (
+    timestamp.date >= today() &&
+    (shift?.user?.id ?? 0) === currentUser.value?.id
+  );
+}
+
+function showCallButton(shift) {
+  return (
+    (shift?.user?.id ?? 0) > 1 &&
+    (shift?.user?.id ?? 0) !== currentUser.value?.id
+  );
+}
+
+function showAddButton(timestamp, shift) {
+  return timestamp.date >= today() && (shift?.user?.id ?? 0) === 0;
+}
+
+function showAddAdditionalRow(timestamp, resource) {
+  return (
+    timestamp.date >= today() && resource.shifts.length >= resource.minimumStaff
+  );
+}
+
 const adding = ref(false);
 async function addUserAsResource(resource) {
   try {
@@ -593,7 +616,7 @@ const formattedDateContext = computed(() =>
     ? format(parse(dateContext.value, "yyyy-MM-dd", new Date()), "dd.MM")
     : ""
 );
-const dateElement = ref("#calendar");
+const dateElement = ref("#dummy");
 function showMenu(data) {
   if (!isAdmin.value || !templates.value.length) return;
   dateContext.value = data?.scope?.timestamp?.date;
