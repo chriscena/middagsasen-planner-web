@@ -35,7 +35,7 @@
           </q-item-section>
         </q-item>
 
-        <q-item v-if="isAdmin" v-ripple>
+        <q-item v-if="isAdmin" to="/templates" v-ripple>
           <q-item-section avatar>
             <q-icon name="edit_calendar"></q-icon>
           </q-item-section>
