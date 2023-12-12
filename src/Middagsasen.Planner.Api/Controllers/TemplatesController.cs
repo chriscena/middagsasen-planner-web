@@ -1,5 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
 
@@ -16,6 +15,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/templates")]
+        [ProducesResponseType(typeof(IEnumerable<EventTemplateResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get()
         {
             var templates
@@ -24,6 +24,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/templates/{id}")]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(int id)
         {
             var template
@@ -32,6 +33,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost("api/templates")]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create([FromBody] EventTemplateRequest request)
         {
             var response = await TemplatesService.CreateEventTemplate(request);
@@ -39,6 +41,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("api/templates/{id}")]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Update(int id, [FromBody] EventTemplateRequest request)
         {
             var template = await TemplatesService.UpdateEventTemplate(id, request);
@@ -46,6 +49,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("api/templates/{id}")]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Delete(int id)
         {
             var template = await TemplatesService.DeleteEventTemplate(id);
@@ -54,6 +58,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/events/{id}/template")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateTemplateFromEvent(int id, [FromBody] TemplateFromEventRequest request)
         {
             var response = await TemplatesService.CreateTemplateFromEvent(id, request);

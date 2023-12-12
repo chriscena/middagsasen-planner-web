@@ -20,7 +20,7 @@ namespace Middagsasen.Planner.Api.Controllers
         public ISmsSenderSettings Settings { get; }
 
         [HttpGet]
-        public ActionResult Get()
+        public IActionResult Get()
         {
             Logger.LogInformation("Checking configuration");
             var dbTest = DbContext.Users.Count() > 0 ? "OK" : "Failed";

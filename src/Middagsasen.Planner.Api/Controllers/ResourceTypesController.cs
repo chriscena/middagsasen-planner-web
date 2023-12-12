@@ -16,12 +16,14 @@ namespace Middagsasen.Planner.Api.Controllers
         public IResourceTypesService ResourceTypesService { get; }
 
         [HttpGet]
+        [ProducesResponseType(typeof(IEnumerable<ResourceTypeResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetAll()
         {
             return Ok(await ResourceTypesService.GetResourceTypes());
         }
 
         [HttpGet("{id}")]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(int id)
         {
             var resourceType = await ResourceTypesService.GetResourceTypeById(id);
@@ -30,6 +32,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create(ResourceTypeRequest request)
         {
             var resourceType = await ResourceTypesService.CreateResourceType(request);
@@ -38,6 +41,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Update(int id, [FromBody]ResourceTypeRequest request)
         {
             var resourceType = await ResourceTypesService.UpdateResourceType(id, request);
@@ -46,6 +50,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpDelete("{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Delete(int id)
         {
             var resourceType = await ResourceTypesService.DeleteResourceType(id);

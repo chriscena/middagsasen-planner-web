@@ -16,6 +16,7 @@ namespace Middagsasen.Planner.Api.Controllers
         public IEventsService EventsService { get; }
 
         [HttpGet("api/events")]
+        [ProducesResponseType(typeof(IEnumerable<EventResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get([FromQuery] DateTime start, [FromQuery] DateTime end)
         {
             var events = await EventsService.GetEvents(start, end);
@@ -23,6 +24,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/events/{id}")]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(int id)
         {
             var existingEvent
@@ -32,6 +34,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/events")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> Create([FromBody] EventRequest request)
         {
             var response = await EventsService.CreateEvent(request);
@@ -40,6 +43,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/events/template/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateFromTemplate(int id, [FromBody] EventFromTemplateRequest request)
         {
             var response = await EventsService.CreateEventFromTemplate(id, request);
@@ -48,21 +52,24 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/events/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Update(int id, [FromBody] EventRequest request)
         {
-            var resourceType = await EventsService.UpdateEvent(id, request);
-            return (resourceType == null) ? NotFound() : Ok(resourceType);
+            var response = await EventsService.UpdateEvent(id, request);
+            return (response == null) ? NotFound() : Ok(response);
         }
 
         [HttpDelete("api/events/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Delete(int id)
         {
-            var resourceType = await EventsService.DeleteEvent(id);
-            return (resourceType == null) ? NotFound() : Ok(resourceType);
+            var response = await EventsService.DeleteEvent(id);
+            return (response == null) ? NotFound() : Ok(response);
         }
 
         [HttpPost("api/resources/{id}/shifts")]
+        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
             var user = (UserResponse?)HttpContext.Items["User"];
@@ -77,6 +84,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("api/shifts/{id}")]
+        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)
         {
             var user = (UserResponse?)HttpContext.Items["User"];
@@ -92,6 +100,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("api/shifts/{id}")]
+        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> DeleteShift(int id)
         {
             var user = (UserResponse?)HttpContext.Items["User"];

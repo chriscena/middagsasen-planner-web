@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services.Authentication;
+using Middagsasen.Planner.Api.Services.Events;
 using System.Security.Claims;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -18,6 +19,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
 
         [HttpPost("authenticate")]
+        [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Authenticate(AuthRequest request)
         {
             var response = await AuthService.Authenticate(request);
@@ -34,6 +36,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost("otp")]
+        [ProducesResponseType(typeof(OtpResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> CreateOneTimePassword(OtpRequest request)
         {
             var response = await AuthService.GenerateOtpForUser(request);

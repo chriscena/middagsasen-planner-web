@@ -15,6 +15,7 @@ namespace Middagsasen.Planner.Api.Controllers
         public IUserService UserService { get; }
 
         [HttpGet("api/me")]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Me()
         {
             var user = (UserResponse?)HttpContext.Items["User"];
@@ -25,6 +26,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("api/me")]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateMe([FromBody]UserRequest request)
         {
             var user = (UserResponse?)HttpContext.Items["User"];
@@ -37,6 +39,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/users/phone")]
+        [ProducesResponseType(typeof(PhoneResponse), 200)]
         public async Task<IActionResult> GetPhoneList()
         {
             var response = await UserService.GetPhoneList();
@@ -45,6 +48,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("api/users")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(IEnumerable<UserResponse>), 200)]
         public async Task<IActionResult> GetUsers()
         {
             var response = await UserService.GetUsers();
@@ -53,6 +57,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetUser(int id)
         {
             var response = await UserService.GetUserById(id);
@@ -63,6 +68,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/users")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateUser(UserRequest user)
         {
             var response = await UserService.Create(user);
@@ -71,6 +77,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateUser(int id, UserRequest user)
         {
             var response = await UserService.Update(id, user);
@@ -80,6 +87,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpDelete("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var response = await UserService.Delete(id);
@@ -88,6 +96,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("api/halloffame")]
+        [ProducesResponseType(typeof(HallOfFameResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetHallOfFame()
         {
             var response = await UserService.GetHallOfFame();
