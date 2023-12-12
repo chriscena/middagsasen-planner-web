@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.SmsSender;

@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
-using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Users;
 

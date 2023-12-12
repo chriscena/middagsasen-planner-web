@@ -1,6 +1,4 @@
-﻿using Middagsasen.Planner.Api.Services.Users;
-
-namespace Middagsasen.Planner.Api.Services
+﻿namespace Middagsasen.Planner.Api.Services.Users
 {
     public interface IUserService
     {

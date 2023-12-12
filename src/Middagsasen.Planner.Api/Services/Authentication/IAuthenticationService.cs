@@ -1,7 +1,6 @@
-﻿using Middagsasen.Planner.Api.Services.Authentication;
-using Middagsasen.Planner.Api.Services.Users;
+﻿using Middagsasen.Planner.Api.Services.Users;
 
-namespace Middagsasen.Planner.Api.Services
+namespace Middagsasen.Planner.Api.Services.Authentication
 {
     public interface IAuthenticationService
     {

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Authentication;
 using System.Security.Claims;
 
