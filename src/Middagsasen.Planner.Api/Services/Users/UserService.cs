@@ -85,6 +85,12 @@ namespace Middagsasen.Planner.Api.Services.Users
             return Map(user);
         }
 
+        public async Task<HallOfFameResponse> GetHallOfFame()
+        {
+            var hallOfFamers = await DbContext.HallOfFamers.ToListAsync();
+            return Map(hallOfFamers);
+        }
+
         public async Task<IEnumerable<PhoneResponse>> GetPhoneList()
         {
             var users = await DbContext.Users.Where(u => !u.Inactive && !u.IsHidden).AsNoTracking().ToListAsync();
@@ -99,7 +105,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
+                FullName = MapFullName(user.FirstName, user.LastName),
             };
         }
         private UserResponse Map(User user)
@@ -110,10 +116,29 @@ namespace Middagsasen.Planner.Api.Services.Users
                 PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
+                FullName = MapFullName(user.FirstName, user.LastName),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
             };
+        }
+
+        private HallOfFameResponse Map(IEnumerable<HallOfFamer> hallOfFamers)
+        {
+            var response = new HallOfFameResponse
+            {
+                HallOfFamers = hallOfFamers.Select(hof => new HallOfFamerResponse
+                {
+                    Id = hof.UserId,
+                    FullName = MapFullName(hof.FirstName, hof.LastName),
+                    Shifts = hof.Shifts,
+                }).ToList(),
+            };
+            return response;
+        }
+
+        private string MapFullName(string? firstName, string? lastName)
+        {
+            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
         }
     }
 

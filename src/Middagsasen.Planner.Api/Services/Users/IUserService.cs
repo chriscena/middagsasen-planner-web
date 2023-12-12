@@ -8,5 +8,6 @@
         Task<UserResponse> Create(UserRequest request);
         Task<UserResponse?> Update(int id, UserRequest request);
         Task<UserResponse?> Delete(int id);
+        Task<HallOfFameResponse> GetHallOfFame();
     }
 }

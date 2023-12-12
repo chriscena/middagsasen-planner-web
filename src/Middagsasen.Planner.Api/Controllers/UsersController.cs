@@ -86,6 +86,13 @@ namespace Middagsasen.Planner.Api.Controllers
             if (response == null) return NotFound($"Fant ikke bruker med ID {id}");
             return Ok(response);
         }
+
+        [HttpGet("api/halloffame")]
+        public async Task<IActionResult> GetHallOfFame()
+        {
+            var response = await UserService.GetHallOfFame();
+            return Ok(response);
+        }
     }
 }
 

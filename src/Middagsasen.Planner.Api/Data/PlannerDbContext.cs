@@ -24,6 +24,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<Event> Events { get; set; } = null!;
         public virtual DbSet<EventResourceUser> Shifts { get; set; } = null!;
         public virtual DbSet<EventTemplate> EventTemplates { get; set; } = null!;
+        public virtual DbSet<HallOfFamer> HallOfFamers { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -134,6 +135,12 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.ResourceTypeId)
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_ResourceTemplates_ResourceTypes");
+            });
+
+            modelBuilder.Entity<HallOfFamer>(entity =>
+            {
+                entity.ToView("HallOfFame");
+                entity.HasKey(e => e.UserId);
             });
         }
     }
