@@ -8,6 +8,7 @@
           round
           icon="arrow_back"
           @click="$router.go(-1)"
+          title="Tilbake"
         ></q-btn>
         <q-toolbar-title>Maler</q-toolbar-title>
         <q-space></q-space>
@@ -17,6 +18,7 @@
           round
           icon="person"
           @click="emit('toggle-right')"
+          title="Din brukerinfo"
         ></q-btn>
       </q-toolbar>
     </q-header>
@@ -32,7 +34,13 @@
         </q-item-section>
 
         <q-item-section side>
-          <q-btn flat round icon="edit" @click="editTemplate(template)"></q-btn>
+          <q-btn
+            flat
+            round
+            icon="edit"
+            @click="editTemplate(template)"
+            title="Endre mal"
+          ></q-btn>
         </q-item-section>
       </q-item>
     </q-list>
@@ -50,6 +58,7 @@
           color="accent"
           text-color="blue-grey-9"
           @click="newTemplate"
+          title="Legg til ny mal"
       /></q-toolbar>
     </q-footer>
     <q-dialog v-model="showingEditDialog" persistent maximized>

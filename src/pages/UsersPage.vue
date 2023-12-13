@@ -8,6 +8,7 @@
           round
           icon="arrow_back"
           @click="$router.go(-1)"
+          title="Tilbake"
         ></q-btn>
         <q-toolbar-title>Brukere</q-toolbar-title>
         <q-space></q-space>
@@ -17,6 +18,7 @@
           round
           icon="person"
           @click="emit('toggle-right')"
+          title="Din brukerinfo"
         ></q-btn>
       </q-toolbar>
     </q-header>
@@ -32,7 +34,7 @@
       </template>
     </q-input>
 
-    <q-list separator>
+    <q-list role="list" separator>
       <q-item separator v-for="user in users" :key="user.id">
         <q-item-section>
           <q-item-label lines="1"
@@ -43,7 +45,13 @@
         </q-item-section>
 
         <q-item-section side>
-          <q-btn flat round icon="edit" @click="editUser(user)"></q-btn>
+          <q-btn
+            flat
+            round
+            icon="edit"
+            @click="editUser(user)"
+            title="Endre bruker"
+          ></q-btn>
         </q-item-section>
       </q-item>
     </q-list>
@@ -61,17 +69,21 @@
           color="accent"
           text-color="blue-grey-9"
           @click="newUser"
+          title="Legg til ny bruker"
       /></q-toolbar>
     </q-footer>
     <q-dialog v-model="showingEditDialog" persistent>
       <q-card class="full-width">
         <q-card-section class="row"
-          ><span>{{ selectedUser.id ? "Endre" : "Legg til" }}</span
+          ><span class="text-h6">{{
+            selectedUser.id ? "Endre bruker" : "Legg til bruker"
+          }}</span
           ><q-space></q-space
           ><q-btn
             v-if="selectedUser.id"
             flat
             round
+            dense
             icon="delete"
             @click="deleteUser"
             color="negative"
@@ -97,6 +109,7 @@
           <q-checkbox
             label="Administrator"
             v-model="selectedUser.isAdmin"
+            :disable="currentUser.id === selectedUser.id"
           ></q-checkbox
           ><q-checkbox
             label="Skjul fra telefonlista"
@@ -127,6 +140,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import { useUserStore } from "stores/UserStore";
+import { useAuthStore } from "stores/AuthStore";
 import { useRouter } from "vue-router";
 
 const emit = defineEmits(["toggle-right"]);
@@ -134,8 +148,11 @@ const loading = ref(false);
 const $q = useQuasar();
 const router = useRouter();
 const userStore = useUserStore();
+const authStore = useAuthStore();
 
 const filter = ref(null);
+
+const currentUser = computed(() => authStore.user);
 
 const users = computed(() =>
   !!filter.value

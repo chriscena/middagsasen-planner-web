@@ -13,6 +13,7 @@
           flat
           round
           icon="close"
+          title="Lukk"
           @click="leftDrawerOpen = false"
         ></q-btn
       ></q-toolbar>
@@ -71,6 +72,7 @@
           flat
           round
           icon="close"
+          title="Lukk"
           @click="rightDrawerOpen = false"
         ></q-btn
       ></q-toolbar>

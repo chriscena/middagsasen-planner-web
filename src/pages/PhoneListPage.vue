@@ -8,6 +8,7 @@
           round
           icon="arrow_back"
           @click="$router.go(-1)"
+          title="Tilbake"
         ></q-btn>
         <q-toolbar-title>Telefonliste</q-toolbar-title>
         <q-space></q-space>
@@ -17,6 +18,7 @@
           round
           icon="person"
           @click="emit('toggle-right')"
+          title="Din brukerinfo"
         ></q-btn>
       </q-toolbar>
     </q-header>
@@ -32,7 +34,7 @@
       </template>
     </q-input>
 
-    <q-list separator>
+    <q-list role="list" separator>
       <q-item separator v-for="user in phoneList" :key="user.id">
         <q-item-section>
           <q-item-label lines="1">{{ user.fullName }}</q-item-label>
@@ -48,6 +50,7 @@
               round
               text-color="primary"
               icon="sms"
+              :title="`Send SMS til ${user.fullName}`"
             ></q-btn>
             <q-btn
               type="a"
@@ -56,6 +59,7 @@
               round
               text-color="primary"
               icon="call"
+              :title="`Ring til ${user.fullName}`"
             ></q-btn>
           </div>
         </q-item-section>

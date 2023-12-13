@@ -8,6 +8,7 @@
           round
           icon="arrow_back"
           @click="$router.go(-1)"
+          title="Tilbake"
         ></q-btn>
         <q-toolbar-title>Vakttype</q-toolbar-title>
         <q-space></q-space>
@@ -17,10 +18,11 @@
           round
           icon="person"
           @click="emit('toggle-right')"
+          title="Din brukerinfo"
         ></q-btn>
       </q-toolbar>
     </q-header>
-    <q-list separator>
+    <q-list role="list" separator>
       <q-item
         v-for="resourceType in eventStore.resourceTypes"
         :key="resourceType.id"
@@ -38,6 +40,7 @@
             flat
             icon="edit"
             @click="editResourceType(resourceType)"
+            title="Endre vakttype"
           ></q-btn>
         </q-item-section>
       </q-item> </q-list
@@ -53,12 +56,13 @@
           color="accent"
           text-color="blue-grey-9"
           @click="newResourceType"
+          title="Legg til ny vakttype"
       /></q-toolbar>
     </q-footer>
     <q-dialog v-model="showingEdit">
       <q-card class="full-width">
         <q-card-section class="row"
-          ><span>{{
+          ><span class="text-h6">{{
             !selectedResource.id ? "Ny vakttype" : "Endre vakttype"
           }}</span
           ><q-space></q-space>
@@ -67,6 +71,7 @@
             color="negative"
             round
             flat
+            dense
             icon="delete"
           ></q-btn
         ></q-card-section>
@@ -105,6 +110,7 @@ import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 
+const emit = defineEmits(["toggle-right"]);
 const $router = useRouter();
 const eventStore = useEventStore();
 
