@@ -2,11 +2,18 @@
   <q-card>
     <q-card-section class="row text-h6"
       ><q-btn icon="close" round flat dense @click="emit('close')"></q-btn>
-      <div>Supervakter! 🏆</div></q-card-section
+      <div>Superfrivillige! 🏆</div></q-card-section
     >
     <q-separator></q-separator>
     <q-list role="list" separator>
-      <q-item dense>
+      <q-item v-if="!hallOfFamers.length && !loading">
+        <q-item-section class="text-center"
+          ><q-item-label caption
+            >Ingen vakter gjennomført ennå</q-item-label
+          ></q-item-section
+        >
+      </q-item>
+      <q-item dense v-if="hallOfFamers.length">
         <q-item-section avatar>#</q-item-section>
         <q-item-section
           ><q-item-label caption>Navn</q-item-label></q-item-section
