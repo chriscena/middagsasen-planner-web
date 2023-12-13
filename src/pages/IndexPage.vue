@@ -12,7 +12,7 @@
         ></q-btn>
         <q-space></q-space>
         <q-btn
-          title="Supervakter"
+          title="Superfrivillige!"
           class="q-mr-sm"
           dense
           flat
@@ -20,7 +20,6 @@
           icon="emoji_events"
           @click="showHallOfFame"
           color="amber"
-          v-if="isAdmin"
         ></q-btn>
         <q-btn
           title="Din brukerinfo"
