@@ -4,7 +4,12 @@
     <div class="text-center" style="width: 100%; max-width: 800px">
       <q-form @submit="login">
         <q-card bordered flat>
-          <q-card-section class="text-h6">Middagsåsen bemanning</q-card-section>
+          <q-card-section class="text-h6"
+            ><img
+              src="~assets/middagsasen-logo.svg"
+              alt="Middagsåsen bemanning"
+              style="max-width: 75vw; max-height: 200px"
+          /></q-card-section>
           <q-card-section class="q-col-gutter-sm row">
             <q-input
               class="col-12"
