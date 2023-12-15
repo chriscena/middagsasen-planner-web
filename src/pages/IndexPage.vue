@@ -162,7 +162,7 @@
     <q-menu v-model="showingMenu" :target="dateElement" auto-close>
       <q-list role="list">
         <q-item-label header>
-          Velg mal for {{ formattedDateContext }}
+          Velg mal for {{ formattedSelectedDay }}
         </q-item-label>
         <q-item
           v-for="template in templates"
@@ -176,6 +176,15 @@
         </q-item>
       </q-list>
     </q-menu>
+    <q-dialog v-model="showingEventForm" persistent maximized>
+      <EventForm
+        :id="selectedEventId"
+        :date="selectedDay"
+        @cancel="showingEventForm = false"
+        @saved="onEventSaved"
+        @deleted="onEventSaved"
+      ></EventForm>
+    </q-dialog>
     <q-dialog v-model="showingEdit" persistent>
       <q-card class="full-width">
         <q-card-section class="text-h6 row"
@@ -374,7 +383,7 @@
           icon="add"
           color="accent"
           text-color="blue-grey-9"
-          @click="toCreate()"
+          @click="addEvent"
       /></q-toolbar>
     </q-footer>
 
@@ -393,6 +402,7 @@ import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import EventForm from "components/EventForm.vue";
 import HallOfFameList from "components/HallOfFameList.vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
@@ -414,6 +424,8 @@ const currentUser = computed(() => authStore.user);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
+
+const showingEventForm = ref(false);
 
 onMounted(async () => {
   userStore.getUser();
@@ -637,26 +649,39 @@ async function getUsers() {
   }
 }
 
-function toCreate() {
-  $router.push(`/create/${selectedDay.value}`);
+function onEventSaved() {
+  showingEventForm.value = false;
+  calendar.value.updateCurrent();
+  const date = formatISO(startDateTime.value, {
+    representation: "date",
+  });
+  $router.push(`/day/${date}`);
 }
 
+const selectedEventId = ref(null);
 function editEvent(event) {
-  $router.push(`/edit/${event.id}`);
+  if (!isAdmin.value) return;
+  selectedEventId.value = event.id;
+  showingEventForm.value = true;
+}
+
+function addEvent() {
+  if (!isAdmin.value) return;
+  selectedEventId.value = null;
+  showingEventForm.value = true;
 }
 
 const templates = computed(() => eventStore.templates);
 const showingMenu = ref(false);
-const dateContext = ref(null);
-const formattedDateContext = computed(() =>
-  dateContext.value
-    ? format(parse(dateContext.value, "yyyy-MM-dd", new Date()), "dd.MM")
+const formattedSelectedDay = computed(() =>
+  selectedDay.value
+    ? format(parse(selectedDay.value, "yyyy-MM-dd", new Date()), "dd.MM")
     : ""
 );
 const dateElement = ref("#dummy");
 function showMenu(data) {
   if (!isAdmin.value || !templates.value.length) return;
-  dateContext.value = data?.scope?.timestamp?.date;
+  selectedDay.value = data?.scope?.timestamp?.date;
   dateElement.value = data?.event?.target;
   showingMenu.value = true;
 }
@@ -664,8 +689,8 @@ function showMenu(data) {
 async function applyTemplate(id) {
   try {
     loading.value = true;
-    await eventStore.createEventFromTemplate(id, dateContext.value);
-    $q.notify({ message: "Vaktliste opprettet." });
+    await eventStore.createEventFromTemplate(id, selectedDay.value);
+    $q.notify({ message: "Vaktlista er lagt til." });
   } catch (error) {
   } finally {
     loading.value = false;

@@ -47,6 +47,7 @@ export const useEventStore = defineStore("events", {
     },
     async addEvent(event) {
       const response = await api.post("/api/events", event);
+      this.events.push(response.data);
     },
     async getEvent(id) {
       const response = await api.get(`/api/events/${id}`);
@@ -59,7 +60,11 @@ export const useEventStore = defineStore("events", {
     },
     async updateEvent(id, event) {
       const response = await api.put(`/api/events/${id}`, event);
-      this.selectedEvent = response.data;
+      const updatedEvent = response.data;
+      const replaceIndex = this.events.indexOf(
+        this.events.find((event) => event.id === updatedEvent.id)
+      );
+      if (replaceIndex > -1) this.events[replaceIndex] = updatedEvent;
     },
 
     async createResourceType(resourceType) {
@@ -171,6 +176,7 @@ export const useEventStore = defineStore("events", {
       await api.post(`/api/events/${eventId}/template`, {
         name: name,
       });
+      await this.getTemplates();
     },
     async createEventFromTemplate(templateId, date) {
       const response = await api.post(`/api/events/template/${templateId}`, {
