@@ -124,112 +124,7 @@
         </q-inner-loading>
       </q-card>
     </q-dialog>
-    <q-dialog v-model="showingEdit" persistent>
-      <q-card class="full-width">
-        <q-card-section class="row">
-          <div>Vakt</div>
-          <q-space></q-space>
-          <q-btn
-            v-if="selectedResource.id"
-            color="negative"
-            flat
-            round
-            icon="delete"
-            @click="deleteResource(selectedResource)"
-          ></q-btn>
-        </q-card-section>
-        <q-card-section class="q-gutter-md">
-          <q-select
-            autofocus
-            label="Vakt"
-            outlined
-            :options="resourceTypes"
-            option-label="name"
-            option-value="resourceTypeId"
-            v-model="selectedResource.resourceType"
-            @update:model-value="resourceTypeChanged"
-          ></q-select>
-          <q-input
-            outlined
-            @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
-            "
-            label="Minste bemanning"
-            suffix="stk"
-            step="1"
-            type="number"
-            v-model="selectedResource.minimumStaff"
-          ></q-input>
-
-          <q-input
-            outlined
-            label="Start"
-            mask="##:##"
-            placeholder="TT:MM"
-            @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
-            "
-            v-model="selectedResource.startTime"
-          >
-            <template v-slot:append>
-              <q-icon name="access_time" class="cursor-pointer">
-                <q-popup-proxy transition-show="scale" transition-hide="scale">
-                  <q-time
-                    v-model="selectedResource.startTime"
-                    format24h
-                    mask="HH:mm"
-                  >
-                    <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Lukk" color="primary" flat />
-                    </div>
-                  </q-time>
-                </q-popup-proxy>
-              </q-icon> </template
-          ></q-input>
-          <q-input
-            outlined
-            label="Slutt"
-            mask="##:##"
-            placeholder="TT:MM"
-            v-model="selectedResource.endTime"
-            @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
-            "
-          >
-            <template v-slot:append>
-              <q-icon name="access_time" class="cursor-pointer">
-                <q-popup-proxy transition-show="scale" transition-hide="scale">
-                  <q-time
-                    v-model="selectedResource.endTime"
-                    format24h
-                    mask="HH:mm"
-                  >
-                    <div class="row items-center justify-end">
-                      <q-btn v-close-popup label="Lukk" color="primary" flat />
-                    </div>
-                  </q-time>
-                </q-popup-proxy>
-              </q-icon> </template></q-input
-        ></q-card-section>
-        <q-card-actions align="right">
-          <q-btn
-            no-caps
-            flat
-            color="primary"
-            label="Avbryt"
-            @click="showingEdit = false"
-          ></q-btn>
-          <q-btn
-            no-caps
-            unelevated
-            color="primary"
-            label="Lagre"
-            :disable="!canAdd"
-            @click="saveResource"
-          ></q-btn>
-        </q-card-actions>
-      </q-card> </q-dialog
-    ><q-inner-loading :showing="loading">
+    <q-inner-loading :showing="loading">
       <q-spinner size="3em" color="primary"></q-spinner>
     </q-inner-loading>
   </q-card>
@@ -350,35 +245,11 @@ const endTime = ref("17:00");
 const resources = ref([]);
 
 const canSave = computed(() => {
-  return !!(
-    name.value &&
-    // startDateTime.value &&
-    // endDateTime.value &&
-    resources.value.length
-  );
+  return !!(name.value && startDate.value && startTime.value && endTime.value);
 });
 
 const selectedResource = ref(null);
 const showingEdit = ref(false);
-
-function resourceTypeChanged(newValue) {
-  if (newValue && newValue.defaultStaff) {
-    selectedResource.value.minimumStaff = newValue.defaultStaff;
-  }
-}
-
-function saveResource() {
-  if (selectedResource.value?.isNew) {
-    resources.value.push({
-      resourceType: selectedResource.value.resourceType,
-      startTime: selectedResource.value.startTime,
-      endTime: selectedResource.value.endTime,
-      minimumStaff: selectedResource.value.minimumStaff,
-      isDeleted: false,
-    });
-  }
-  showingEdit.value = false;
-}
 
 function formatTime(isoDateTime) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
