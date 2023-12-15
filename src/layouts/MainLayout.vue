@@ -12,6 +12,7 @@
           text-color="blue-grey-8 "
           flat
           round
+          dense
           icon="close"
           title="Lukk"
           @click="leftDrawerOpen = false"
@@ -70,6 +71,7 @@
         ><q-btn
           text-color="blue-grey-8 "
           flat
+          dense
           round
           icon="close"
           title="Lukk"
