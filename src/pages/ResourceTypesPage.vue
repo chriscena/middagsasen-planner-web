@@ -26,6 +26,10 @@
       <q-item
         v-for="resourceType in eventStore.resourceTypes"
         :key="resourceType.id"
+        clickable
+        @click="editResourceType(resourceType)"
+        v-ripple
+        title="Endre vakttype"
       >
         <q-item-section>
           <q-item-label>{{ resourceType.name }} </q-item-label
@@ -33,15 +37,6 @@
             >{{ resourceType.defaultStaff }}
             {{ resourceType.defaultStaff === 1 ? "vakt" : "vakter" }}
           </q-item-label>
-        </q-item-section>
-        <q-item-section side>
-          <q-btn
-            round
-            flat
-            icon="edit"
-            @click="editResourceType(resourceType)"
-            title="Endre vakttype"
-          ></q-btn>
         </q-item-section>
       </q-item> </q-list
     ><q-footer>

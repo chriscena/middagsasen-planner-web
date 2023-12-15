@@ -28,6 +28,7 @@
       v-model="filter"
       debounce="500"
       placeholder="Søk"
+      class="q-mb-sm"
     >
       <template v-slot:prepend>
         <q-icon name="search"></q-icon>

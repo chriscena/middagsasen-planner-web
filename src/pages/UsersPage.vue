@@ -28,6 +28,7 @@
       v-model="filter"
       debounce="500"
       placeholder="Søk"
+      class="q-mb-sm"
     >
       <template v-slot:prepend>
         <q-icon name="search"></q-icon>
@@ -35,23 +36,21 @@
     </q-input>
 
     <q-list role="list" separator>
-      <q-item separator v-for="user in users" :key="user.id">
+      <q-item
+        separator
+        v-for="user in users"
+        :key="user.id"
+        clickable
+        @click="editUser(user)"
+        v-ripple
+        title="Endre bruker"
+      >
         <q-item-section>
           <q-item-label lines="1"
             >{{ user.fullName }}
             <q-icon v-if="user.isAdmin" color="primary" name="shield"></q-icon
           ></q-item-label>
           <q-item-label caption lines="1">{{ user.phoneNo }}</q-item-label>
-        </q-item-section>
-
-        <q-item-section side>
-          <q-btn
-            flat
-            round
-            icon="edit"
-            @click="editUser(user)"
-            title="Endre bruker"
-          ></q-btn>
         </q-item-section>
       </q-item>
     </q-list>

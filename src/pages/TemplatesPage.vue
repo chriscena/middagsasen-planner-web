@@ -24,23 +24,20 @@
     </q-header>
 
     <q-list separator>
-      <q-item v-for="template in templates" :key="template.id">
+      <q-item
+        v-for="template in templates"
+        :key="template.id"
+        clickable
+        v-ripple
+        @click="editTemplate(template)"
+        title="Endre mal"
+      >
         <q-item-section>
           <q-item-label lines="1">{{ template.name }}</q-item-label>
           <q-item-label caption lines="1"
             >{{ template.eventName }}
             {{ formatStartEndTime(template) }}</q-item-label
           >
-        </q-item-section>
-
-        <q-item-section side>
-          <q-btn
-            flat
-            round
-            icon="edit"
-            @click="editTemplate(template)"
-            title="Endre mal"
-          ></q-btn>
         </q-item-section>
       </q-item>
     </q-list>

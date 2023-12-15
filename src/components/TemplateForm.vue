@@ -29,111 +29,37 @@
           v-model="eventName"
           @focus="(event) => (event.target?.select ? event.target.select() : _)"
         ></q-input>
-        <q-input
-          hide-bottom-space
-          outlined
+        <TimePickerInput
           :error="!isValidStartTime"
           label="Start"
-          mask="##:##"
-          placeholder="TT:MM"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
           v-model="startTime"
-        >
-          <template v-slot:append>
-            <q-icon name="access_time" class="cursor-pointer">
-              <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-time v-model="startTime" format24h mask="HH:mm">
-                  <div class="row items-center justify-end">
-                    <q-btn v-close-popup label="Lukk" color="primary" flat />
-                  </div>
-                </q-time>
-              </q-popup-proxy>
-            </q-icon> </template
-        ></q-input>
-        <q-input
-          outlined
-          label="Slutt"
-          mask="##:##"
-          placeholder="TT:MM"
-          v-model="endTime"
+        ></TimePickerInput>
+        <TimePickerInput
           :error="!isValidEndTime"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
-        >
-          <template v-slot:append>
-            <q-icon name="access_time" class="cursor-pointer">
-              <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-time v-model="endTime" format24h mask="HH:mm">
-                  <div class="row items-center justify-end">
-                    <q-btn v-close-popup label="Lukk" color="primary" flat />
-                  </div>
-                </q-time>
-              </q-popup-proxy>
-            </q-icon> </template
-        ></q-input>
-        <q-card bordered flat>
-          <q-list separator>
-            <q-item v-if="!visibleResources.length">
-              <q-item-section>
-                <q-item-label>Ingen vakter</q-item-label></q-item-section
-              >
-            </q-item>
-            <q-item v-for="(resource, index) in visibleResources" :key="index">
-              <q-item-section>
-                <q-item-label
-                  >{{ resource.resourceType.name }}
-                  <q-badge> {{ resource.minimumStaff }}</q-badge></q-item-label
-                ></q-item-section
-              >
-              <q-item-section side>
-                <q-item-label
-                  >{{ resource.startTime }}-{{ resource.endTime }}</q-item-label
-                ></q-item-section
-              >
-              <q-item-section side
-                ><q-btn
-                  flat
-                  round
-                  icon="edit"
-                  @click="editResource(resource)"
-                ></q-btn
-              ></q-item-section> </q-item
-          ></q-list>
-          <q-separator></q-separator>
-          <q-card-actions align="right">
-            <q-btn
-              no-caps
-              dense
-              flat
-              label="Legg til vakt"
-              color="primary"
-              icon="add"
-              @click="addResource"
-            ></q-btn
-          ></q-card-actions>
-        </q-card>
+          label="Slutt"
+          v-model="endTime"
+        ></TimePickerInput>
+        <ResourceList
+          v-model="resources"
+          :resource-types="resourceTypes"
+          :startTime="startTime"
+          :endTime="endTime"
+        ></ResourceList>
+      </q-card-section>
 
-        <div class="q-mt-xl text-center">
-          <q-btn
-            v-if="modelValue.id"
-            @click="confirmDeleteEvent"
-            icon="delete"
-            no-caps
-            unelevated
-            color="negative"
-            label="Slett mal"
-          ></q-btn>
-        </div>
+      <q-card-section class="q-mt-xl text-center">
+        <q-btn
+          v-if="modelValue.id"
+          @click="confirmDeleteEvent"
+          icon="delete"
+          no-caps
+          unelevated
+          color="negative"
+          label="Slett mal"
+        ></q-btn>
       </q-card-section>
       ></q-form
     >
-    <q-dialog v-model="showingEdit">
-      <ResourceForm
-        :model-value="selectedResource"
-        :resource-types="props.resourceTypes"
-        @cancel="showingEdit = false"
-        @save="saveResource"
-      ></ResourceForm>
-    </q-dialog>
     <q-dialog v-model="showingDelete">
       <q-card>
         <q-card-section> Vil du slette denne malen? </q-card-section>
@@ -163,14 +89,11 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useQuasar } from "quasar";
-import { parseISO, format, isValid, addMinutes, parse } from "date-fns";
-import { useRouter } from "vue-router";
-import ResourceForm from "components/ResourceForm.vue";
+import { parseISO, format, isValid, parse } from "date-fns";
+import TimePickerInput from "components/TimePickerInput.vue";
+import ResourceList from "components/ResourceList.vue";
 
 const emit = defineEmits(["cancel", "save", "delete"]);
-const $q = useQuasar();
-const $router = useRouter();
 
 const props = defineProps({
   modelValue: {
@@ -232,53 +155,6 @@ const canSave = computed(() => {
     resources.value.length
   );
 });
-
-const visibleResources = computed(() =>
-  resources.value.filter((r) => !r.isDeleted)
-);
-
-const selectedResource = ref(null);
-const showingEdit = ref(false);
-
-function addResource() {
-  selectedResource.value = {
-    resourceType: null,
-    startTime: startTime.value
-      ? format(addMinutes(toDateTime(startTime.value), -30), "HH:mm")
-      : null,
-    endTime: endTime.value
-      ? format(addMinutes(toDateTime(endTime.value), 30), "HH:mm")
-      : null,
-    minimumStaff: 1,
-    isNew: true,
-  };
-  showingEdit.value = true;
-}
-
-function editResource(resource) {
-  selectedResource.value = resource;
-  showingEdit.value = true;
-}
-
-function saveResource(model) {
-  if (model?.isNew) {
-    resources.value.push({
-      resourceType: model.resourceType,
-      startTime: model.startTime,
-      endTime: model.endTime,
-      minimumStaff: model.minimumStaff,
-      isDeleted: false,
-    });
-  } else {
-    selectedResource.value.resourceType = model.resourceType;
-    selectedResource.value.resourceType = model.resourceType;
-    selectedResource.value.startTime = model.startTime;
-    selectedResource.value.endTime = model.endTime;
-    selectedResource.value.minimumStaff = model.minimumStaff;
-    selectedResource.value.isDeleted = model.isDeleted;
-  }
-  showingEdit.value = false;
-}
 
 function formatTime(isoDateTime) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
