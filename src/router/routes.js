@@ -50,6 +50,10 @@ const routes = [
         path: "templates",
         component: () => import("pages/TemplatesPage.vue"),
       },
+      {
+        path: "shifts",
+        component: () => import("pages/MyShiftsPage.vue"),
+      },
     ],
   },
 

@@ -79,8 +79,8 @@
         ></q-btn
       ></q-toolbar>
       <q-separator></q-separator>
-      <q-list separator>
-        <q-item>
+      <q-list role="list" separator>
+        <q-item clickable @click="editUser" v-ripple>
           <q-item-section avatar
             ><q-icon name="person"></q-icon
           ></q-item-section>
@@ -88,9 +88,6 @@
             <q-item-label>{{ user?.fullName }}</q-item-label>
             <q-item-label caption>{{ user?.phoneNo }}</q-item-label>
           </q-item-section>
-          <q-item-section side
-            ><q-btn flat round icon="edit" @click="editUser"></q-btn
-          ></q-item-section>
         </q-item>
         <q-item>
           <q-item-section>
@@ -101,6 +98,12 @@
               :model-value="user?.isHidden"
               @update:model-value="updateHidden"
             ></q-toggle>
+          </q-item-section>
+        </q-item>
+        <q-item clickable to="/shifts">
+          <q-item-section avatar><q-icon name="list"></q-icon></q-item-section>
+          <q-item-section>
+            <q-item-label>Mine vakter</q-item-label>
           </q-item-section>
         </q-item>
         <q-item clickable @click="logout">
