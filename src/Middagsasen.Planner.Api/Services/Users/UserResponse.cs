@@ -1,4 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Services.Users
+﻿using Middagsasen.Planner.Api.Data;
+
+namespace Middagsasen.Planner.Api.Services.Users
 {
     public class UserResponse
     {
@@ -9,5 +11,6 @@
         public string? FullName { get; internal set; }
         public bool IsAdmin { get; internal set; }
         public bool IsHidden { get; internal set; }
+        public IEnumerable<TrainingResponse>? Trainings { get; internal set; }
     }
 }

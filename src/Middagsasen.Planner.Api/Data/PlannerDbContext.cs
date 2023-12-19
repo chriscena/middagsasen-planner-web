@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
+using System.Security.Principal;
 
 namespace Middagsasen.Planner.Api.Data
 {
@@ -26,6 +28,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<EventTemplate> EventTemplates { get; set; } = null!;
         public virtual DbSet<HallOfFamer> HallOfFamers { get; set; } = null!;
         public virtual DbSet<EventStatus> EventStatuses { get; set; } = null!;
+        public virtual DbSet<ResourceTypeTrainer> ResourceTypeTrainers { get;set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -149,6 +152,58 @@ namespace Middagsasen.Planner.Api.Data
                 entity.ToView("EventStatuses");
                 entity.HasNoKey();
                 entity.Property(e => e.StartTime).HasColumnType("datetime");
+            });
+
+            modelBuilder.Entity<ResourceTypeTrainer>(entity =>
+            {
+                entity.ToTable("ResourceTypeTrainers");
+                entity.HasKey(e => e.ResourceTypeTrainerId);
+
+                entity.HasOne(e => e.ResourceType)
+                    .WithMany(c => c.Trainers)
+                    .HasForeignKey(d => d.ResourceTypeId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeTrainers_ResourceTypes");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.ResourceTypeTrainers)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeTrainers_Users");
+
+                entity.HasIndex(e => new { e.ResourceTypeId, e.UserId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_ResourceTypeTrainers_ResourceTypeId_UserId");
+            });
+
+            modelBuilder.Entity<ResourceTypeTraining>(entity =>
+            {
+                entity.ToTable("ResourceTypeTrainings");
+                entity.HasKey(e => e.ResourceTypeTrainingId);
+                entity.Property(e => e.Confirmed).HasColumnType("datetime");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.Trainings)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeTrainings_Users");
+
+                entity.HasOne(e => e.ResourceType)
+                    .WithMany(c => c.Trainings)
+                    .HasForeignKey(d => d.ResourceTypeId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeTrainings_ResourceTypes");
+
+                entity.HasIndex(e => new { e.UserId, e.ResourceTypeId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_ResourceTypeTrainings_UserId_ResourceTypeId");
+
+
+                entity.HasOne(e => e.ConfirmedByUser)
+                    .WithMany(c => c.ConfirmedTrainings)
+                    .HasForeignKey(d => d.ConfirmedBy)
+                    .OnDelete(DeleteBehavior.SetNull)
+                    .HasConstraintName("FK_ResourceTypeTrainings_Users_ConfirmedBy");
             });
         }
     }

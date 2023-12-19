@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.SmsSender;
 
@@ -18,15 +19,27 @@ namespace Middagsasen.Planner.Api.Services.Users
         public ISmsSender SmsSender { get; }
         public IAuthSettings AuthSettings { get; }
 
+        private IQueryable<User> Users => DbContext.Users
+                .Include(u => u.Trainings)
+                    .ThenInclude(t => t.ResourceType)
+                .Include(u => u.Trainings)
+                    .ThenInclude(t => t.ConfirmedByUser);
+
         public async Task<IEnumerable<UserResponse>> GetUsers()
         {
-            var users = await DbContext.Users.Where(u => !u.Inactive).AsNoTracking().ToListAsync();
+            var users = await Users
+                .AsNoTracking()
+                .Where(u => !u.Inactive)
+                .AsNoTracking()
+                .ToListAsync();
             return users.Select(Map).OrderBy(u => u.FullName).ToList();
         }
 
         public async Task<UserResponse?> GetUserById(int id)
         {
-            var user = await DbContext.Users.AsNoTracking().SingleOrDefaultAsync(u => u.UserId == id);
+            var user = await Users
+                .AsNoTracking()
+                .SingleOrDefaultAsync(u => u.UserId == id);
             return user != null ? Map(user) : null;
         }
 
@@ -108,9 +121,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 FullName = MapFullName(user.FirstName, user.LastName),
             };
         }
-        private UserResponse Map(User user)
-        {
-            return new UserResponse
+        private UserResponse Map(User user) => new UserResponse
             {
                 Id = user.UserId,
                 PhoneNo = user.UserName,
@@ -119,9 +130,19 @@ namespace Middagsasen.Planner.Api.Services.Users
                 FullName = MapFullName(user.FirstName, user.LastName),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
+                Trainings = user.Trainings?.Select(Map).ToList() ?? new List<TrainingResponse>(),
             };
-        }
 
+        private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
+        {
+            Id = training.ResourceTypeTrainingId,
+            ResourceTypeId = training.ResourceTypeId,
+            ResourceTypeName = training.ResourceType?.Name,
+            TrainingComplete = training.TrainingComplete,
+            Confirmed = training.Confirmed?.ToSimpleIsoString(),
+            ConfirmedById = training.ConfirmedBy,
+            ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
+        };
         private HallOfFameResponse Map(IEnumerable<HallOfFamer> hallOfFamers)
         {
             var response = new HallOfFameResponse

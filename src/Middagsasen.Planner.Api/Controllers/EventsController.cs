@@ -23,6 +23,17 @@ namespace Middagsasen.Planner.Api.Controllers
             return Ok(statuses);
         }
 
+        [HttpGet("api/me/shifts")]
+        [ProducesResponseType(typeof(IEnumerable<UserShiftResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetMyShifts()
+        {
+            var user = (UserResponse?)HttpContext.Items["User"];
+            if (user == null) return Unauthorized();
+
+            var shifts = await EventsService.GetShiftsByUserId(user.Id);
+            return Ok(shifts);
+        }
+
         [HttpGet("api/events")]
         [ProducesResponseType(typeof(IEnumerable<EventResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Get([FromQuery] DateTime start, [FromQuery] DateTime end)

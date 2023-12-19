@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 
 namespace Middagsasen.Planner.Api.Services.Events
@@ -19,10 +20,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             var eventStatuses = await DbContext.EventStatuses.Where(e => e.StartTime >= startDate && e.StartTime < endDate).ToListAsync();
 
             var response = eventStatuses.Select(e => new
-                {
-                    Date = e.StartTime.ToString("yyyy'/'MM'/'dd"),
-                    IsMissingStaff = e.MissingStaff == 1,
-                })
+            {
+                Date = e.StartTime.ToString("yyyy'/'MM'/'dd"),
+                IsMissingStaff = e.MissingStaff == 1,
+            })
                 .GroupBy(r => r.Date)
                 .Select(g => new EventStatusResponse
                 {
@@ -32,43 +33,74 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
+        private IQueryable<ResourceType> ResourceTypes => DbContext.ResourceTypes
+                .Include(r => r.Trainers)
+                    .ThenInclude(t => t.User);
+
         public async Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes()
         {
-            var resourceTypes = await DbContext.ResourceTypes.AsNoTracking().Where(r => !r.Inactive).ToListAsync();
+            var resourceTypes = await ResourceTypes
+                .AsNoTracking()
+                .Where(r => !r.Inactive)
+                .ToListAsync();
             return resourceTypes.Select(Map).ToList();
         }
 
         public async Task<ResourceTypeResponse?> GetResourceTypeById(int id)
         {
-            var resourceType = await DbContext.ResourceTypes.AsNoTracking().SingleOrDefaultAsync(r => r.ResourceTypeId == id);
+            var resourceType = await ResourceTypes
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
             return (resourceType == null) ? null : Map(resourceType);
         }
 
-        public async Task<ResourceTypeResponse> CreateResourceType(ResourceTypeRequest request)
+        public async Task<ResourceTypeResponse?> CreateResourceType(ResourceTypeRequest request)
         {
             var resourceType = new ResourceType
             {
                 Name = request.Name,
                 DefaultStaff = request.DefaultStaff,
+                Trainers = request.Trainers?.Select(t => new ResourceTypeTrainer { UserId = t.UserId }).ToList() ?? new List<ResourceTypeTrainer>(),
             };
 
             DbContext.ResourceTypes.Add(resourceType);
             await DbContext.SaveChangesAsync();
 
-            return Map(resourceType);
+            return await GetResourceTypeById(resourceType.ResourceTypeId);
         }
 
         public async Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request)
         {
-            var resourceType = await DbContext.ResourceTypes.SingleOrDefaultAsync(r => r.ResourceTypeId == id);
+            var resourceType = await DbContext.ResourceTypes
+                .Include(r => r.Trainers)
+                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
             if (resourceType == null) { return null; }
 
             resourceType.Name = request.Name;
             resourceType.DefaultStaff = request.DefaultStaff;
 
+            if (request.Trainers != null)
+            {
+                foreach (var trainer in request.Trainers)
+                {
+                    if (trainer.Id > 0 && trainer.IsDeleted)
+                    {
+                        var trainerToDelete = resourceType.Trainers.SingleOrDefault(t => t.ResourceTypeTrainerId == trainer.Id);
+                        if (trainerToDelete == null) continue;
+                        resourceType.Trainers.Remove(trainerToDelete);
+                    }
+                    else if (trainer.Id == 0 && !trainer.IsDeleted)
+                    {
+                        resourceType.Trainers.Add(new ResourceTypeTrainer
+                        {
+                            UserId = trainer.UserId,
+                        });
+                    }
+                }
+            }
             await DbContext.SaveChangesAsync();
 
-            return Map(resourceType);
+            return await GetResourceTypeById(resourceType.ResourceTypeId);
         }
 
         public async Task<ResourceTypeResponse?> DeleteResourceType(int id)
@@ -82,14 +114,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(resourceType);
         }
 
-        public async Task<IEnumerable<EventResponse?>> GetEvents()
-        {
-            var events = await DbContext.Events
+        private IQueryable<Event> Events => DbContext.Events
                 .Include(e => e.Resources)
                     .ThenInclude(r => r.Shifts)
                         .ThenInclude(s => s.User)
                 .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
+                    .ThenInclude(r => r.ResourceType);
+
+        public async Task<IEnumerable<EventResponse?>> GetEvents()
+        {
+            var events = await Events
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -98,12 +132,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<IEnumerable<EventResponse?>> GetEvents(DateTime start, DateTime end)
         {
-            var events = await DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
+            var events = await Events
                 .AsNoTracking()
                 .Where(e => e.StartTime >= start && e.StartTime < end)
                 .AsSplitQuery()
@@ -114,16 +143,36 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse?> GetEventById(int id)
         {
-            var existingEvent = await DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
+            var existingEvent = await Events
                 .AsNoTracking()
                 .SingleOrDefaultAsync(e => e.EventId == id);
 
             return (existingEvent == null) ? null : Map(existingEvent);
+        }
+
+        public async Task<IEnumerable<UserShiftResponse>> GetShiftsByUserId(int id)
+        {
+            var shifts = await DbContext.Shifts
+                .Include(e => e.Resource)
+                    .ThenInclude(e => e.ResourceType)
+                .AsNoTracking()
+                .Where(s => s.UserId == id)
+                .ToListAsync();
+
+            var response = shifts
+                .Select(s => new UserShiftResponse
+                {
+                    Id = s.EventResourceUserId,
+                    StartDate = s.StartTime?.ToString("yyyy'-'MM'-'dd"),
+                    StartTime = s.StartTime.ToSimpleIsoString(),
+                    EndTime = s.EndTime.ToSimpleIsoString(),
+                    ResourceName = s.Resource?.ResourceType?.Name,
+                    Comment = s.Comment,
+                })
+                .OrderByDescending(s => s.StartTime)
+                .ToList();
+
+            return response;
         }
 
         public async Task<EventResponse?> CreateEvent(EventRequest request)
@@ -144,12 +193,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse?> UpdateEvent(int eventId, EventRequest request)
         {
-            var existingEvent = await DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
+            var existingEvent = await Events
             .SingleOrDefaultAsync(e => e.EventId == eventId);
 
             if (existingEvent == null) return null;
@@ -182,12 +226,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
             await DbContext.SaveChangesAsync();
 
-            var response = await DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
+            var response = await Events
             .SingleOrDefaultAsync(e => e.EventId == eventId);
 
             return response != null ? Map(response) : null;
@@ -217,7 +256,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             DbContext.Shifts.Add(newShift);
             await DbContext.SaveChangesAsync();
 
-            var responseShift = await DbContext.Shifts.Include(s => s.User).AsNoTracking().SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId);
+            var responseShift = await DbContext.Shifts
+                .Include(s => s.User)
+                .AsNoTracking()
+                .SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId);
             return responseShift == null ? null : Map(responseShift);
         }
 
@@ -253,11 +295,13 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(shift);
         }
 
+        private IQueryable<EventTemplate> EventTemplates => DbContext.EventTemplates
+                .Include(e => e.ResourceTemplates)
+                .ThenInclude(r => r.ResourceType);
+
         public async Task<IEnumerable<EventTemplateResponse>> GetEventTemplates()
         {
-            var templates = await DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                .ThenInclude(r => r.ResourceType)
+            var templates = await EventTemplates
                 .AsNoTracking()
                 .ToListAsync();
             return templates.Select(Map).ToList();
@@ -265,9 +309,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventTemplateResponse?> GetEventTemplateById(int id)
         {
-            var template = await DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                .ThenInclude(r => r.ResourceType)
+            var template = await EventTemplates
                 .AsNoTracking()
                 .SingleOrDefaultAsync(e => e.EventTemplateId == id);
             return template != null ? Map(template) : null;
@@ -292,9 +334,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventTemplateResponse?> UpdateEventTemplate(int id, EventTemplateRequest request)
         {
-            var existingEvent = await DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                    .ThenInclude(r => r.ResourceType)
+            var existingEvent = await EventTemplates
             .SingleOrDefaultAsync(e => e.EventTemplateId == id);
 
             if (existingEvent == null) return null;
@@ -328,9 +368,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
             await DbContext.SaveChangesAsync();
 
-            var response = await DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                    .ThenInclude(r => r.ResourceType)
+            var response = await EventTemplates
             .SingleOrDefaultAsync(e => e.EventTemplateId == id);
 
             return response != null ? Map(response) : null;
@@ -425,7 +463,21 @@ namespace Middagsasen.Planner.Api.Services.Events
             Id = resourceType.ResourceTypeId,
             Name = resourceType.Name,
             DefaultStaff = resourceType.DefaultStaff,
+            Trainers = resourceType.Trainers.Select(Map).ToList(),
         };
+
+        private ResourceTypeTrainerResponse Map(ResourceTypeTrainer resourceTypeTrainer) => new ResourceTypeTrainerResponse
+        {
+            Id = resourceTypeTrainer.ResourceTypeTrainerId,
+            UserId = resourceTypeTrainer.UserId,
+            FullName = MapFullName(resourceTypeTrainer.User.FirstName, resourceTypeTrainer.User.LastName),
+            PhoneNo = resourceTypeTrainer.User.UserName,
+        };
+
+        private string MapFullName(string? firstName, string? lastName)
+        {
+            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
+        }
 
         private EventResponse Map(Event evnt) => new EventResponse
         {

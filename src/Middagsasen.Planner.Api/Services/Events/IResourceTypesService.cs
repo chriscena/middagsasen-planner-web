@@ -2,7 +2,7 @@
 {
     public interface IResourceTypesService
     {
-        Task<ResourceTypeResponse> CreateResourceType(ResourceTypeRequest request);
+        Task<ResourceTypeResponse?> CreateResourceType(ResourceTypeRequest request);
         Task<ResourceTypeResponse?> DeleteResourceType(int id);
         Task<ResourceTypeResponse?> GetResourceTypeById(int id);
         Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes();
