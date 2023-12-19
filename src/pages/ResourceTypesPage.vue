@@ -152,7 +152,7 @@
               </template>
             </q-select></q-card-section
           >
-          <q-card-actions>
+          <q-card-actions align="right">
             <q-btn
               label="Avbryt"
               no-caps
