@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays, isBefore, isAfter } from "date-fns";
 import { api } from "boot/axios";
+import { useUserStore } from "src/stores/UserStore";
 
 export const useEventStore = defineStore("events", {
   state: () => ({
@@ -91,8 +92,21 @@ export const useEventStore = defineStore("events", {
       const response = await api.get("/api/resourcetypes");
       this.resourceTypes = response.data;
     },
+    async addTraining(resource, user, needTraining) {
+      const model = {
+        userId: user.id,
+        startTime: resource.startTime,
+        needTraining: needTraining,
+      };
+      const response = await api.post(
+        `/api/resourcetypes/${resource.resourceType.id}/training`,
+        model
+      );
+      const userStore = useUserStore();
+      userStore.getUser();
+    },
 
-    async addShift(parentResource, user) {
+    async addShift(parentResource, user, needTraining) {
       const model = {
         startTime: parentResource.startTime,
         endTime: parentResource.endTime,
@@ -114,6 +128,9 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
+      if (needTraining != null) {
+        await this.addTraining(parentResource, user, needTraining);
+      }
     },
     async deleteShift(shift) {
       const response = await api.delete(`/api/shifts/${shift.id}`);

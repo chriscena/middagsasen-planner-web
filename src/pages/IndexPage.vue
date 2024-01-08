@@ -83,7 +83,9 @@
             flat
           >
             <q-card-section class="q-py-sm text-bold row"
-              ><span class="col"
+              ><span
+                class="col"
+                style="overflow: hidden; text-overflow: ellipsis"
                 >{{ resource.resourceType.name }}
                 <q-icon
                   color="negative"
@@ -97,7 +99,13 @@
             <q-separator> </q-separator>
             <q-list role="list" separator>
               <q-item v-for="shift in createUserList(resource)" :key="shift.id">
-                <q-item-section v-if="isAdmin" avatar>
+                <q-item-section
+                  v-if="
+                    isAdmin ||
+                    (isTrainer(resource.resourceType) && isTaken(shift))
+                  "
+                  avatar
+                >
                   <q-btn
                     flat
                     round
@@ -111,9 +119,16 @@
                   <q-item-label overline v-if="isVacant(shift)"
                     >Ledig</q-item-label
                   >
-                  <q-item-label v-if="isTaken(shift)">{{
-                    shift.user.fullName
-                  }}</q-item-label>
+                  <q-item-label v-if="isTaken(shift)"
+                    ><q-icon
+                      v-if="
+                        !isMissingTrainingInfo(resource) &&
+                        !hasCompletedTraining(resource, shift)
+                      "
+                      name="school"
+                    ></q-icon>
+                    {{ shift.user.fullName }}</q-item-label
+                  >
                   <q-item-label caption v-if="isTaken(shift)">{{
                     shift.comment
                   }}</q-item-label>
@@ -125,7 +140,7 @@
                     icon="edit"
                     title="Endre vakt"
                     v-if="showEditButton(timestamp, shift)"
-                    @click="edit(shift)"
+                    @click="edit(shift, resource)"
                   ></q-btn>
                   <q-btn
                     flat
@@ -143,7 +158,7 @@
                     :disable="adding"
                     title="Ta vakt"
                     v-if="showAddButton(timestamp, shift)"
-                    @click="addUserAsResource(resource)"
+                    @click="checkTraining(resource)"
                   ></q-btn>
                 </q-item-section>
               </q-item>
@@ -204,14 +219,50 @@
             @click="deleteShift"
           ></q-btn>
         </q-card-section>
-        <q-card-section>
+        <q-card-section class="text-center" v-if="isMissingTrainingInfo()"
+          >Vi har ikke registrert at du har fått opplæring til denne type
+          vakter, trenger du det?</q-card-section
+        >
+        <q-card-section
+          class="row text-center q-gutter-sm"
+          v-if="isMissingTrainingInfo()"
+          ><div class="col-12">
+            <q-btn @click="setTraining(true)" unelevated color="primary" no-caps
+              >Yes! Jeg trenger opplæring! 🙋‍♂️</q-btn
+            >
+          </div>
+          <div class="col-12">
+            <q-btn flat no-caps @click="setTraining(false)"
+              >Allerede fått opplæring, full kontroll! ✌️</q-btn
+            >
+          </div>
+
+          <q-inner-loading :showing="savingTraining">
+            <q-spinner size="3em" color="primary"></q-spinner> </q-inner-loading
+        ></q-card-section>
+        <q-card-section class="row q-gutter-sm">
           <q-input
+            class="col-12"
             autofocus
             outlined
             label="Kommentar"
             v-model="selectedShift.comment"
           ></q-input>
-        </q-card-section>
+          <div
+            class="col-12 row items-right items-center"
+            v-if="!isMissingTrainingInfo()"
+          >
+            <div class="q-mr-md">Fått opplæring</div>
+            <q-btn-toggle
+              disable
+              v-model="selectedUserTraining.trainingComplete"
+              toggle-color="primary"
+              :options="[
+                { label: 'Ja', value: true },
+                { label: 'Nei', value: false },
+              ]"
+            /></div
+        ></q-card-section>
         <q-card-actions align="right">
           <q-btn
             flat
@@ -236,6 +287,7 @@
         <q-card-section class="text-h6 row"
           ><span> Endre vakt</span><q-space></q-space
           ><q-btn
+            :disable="!isAdmin"
             size="md"
             flat
             dense
@@ -248,6 +300,7 @@
         </q-card-section>
         <q-card-section class="q-gutter-sm">
           <q-select
+            :disable="!isAdmin"
             label="Navn"
             autofocus
             outlined
@@ -256,9 +309,7 @@
             option-label="fullName"
             option-value="id"
             v-model="selectedShift.user"
-            @update:model-value="
-              selectedShift.userId = selectedShift?.user?.id ?? 0
-            "
+            @update:model-value="onUserUpdated"
           >
             <template v-slot:option="scope">
               <q-item v-bind="scope.itemProps">
@@ -272,11 +323,26 @@
             </template>
           </q-select>
           <q-input
+            :disable="!isAdmin"
             outlined
             label="Kommentar"
             v-model="selectedShift.comment"
           ></q-input>
-        </q-card-section>
+          <div
+            class="row items-right items-center"
+            v-if="selectedResource.resourceType?.hasTraining"
+          >
+            <div class="q-mr-md">Fått opplæring</div>
+            <q-btn-toggle
+              v-model="selectedUserTraining.trainingComplete"
+              :disable="!selectedShift.user"
+              toggle-color="primary"
+              :options="[
+                { label: 'Ja', value: true },
+                { label: 'Nei', value: false },
+              ]"
+            /></div
+        ></q-card-section>
         <q-card-actions align="right">
           <q-btn
             flat
@@ -304,10 +370,32 @@
         :currentUser="currentUser"
       ></HallOfFameList>
     </q-dialog>
+    <q-dialog v-model="showingTrainingDialog" persistent>
+      <q-card class="text-center">
+        <q-card-section
+          >Vi har ikke registrert at du har fått opplæring til denne type
+          vakter, trenger du det?</q-card-section
+        >
+        <q-card-section class="q-gutter-md"
+          ><q-btn
+            @click="addUserAsResourceWithTraining"
+            unelevated
+            color="primary"
+            no-caps
+            >Yes! Jeg trenger opplæring! 🙋‍♂️</q-btn
+          ></q-card-section
+        >
+        <q-card-section
+          ><q-btn flat no-caps @click="addUserAsResourceWithoutTraining"
+            >Allerede fått opplæring, full kontroll! ✌️</q-btn
+          ></q-card-section
+        >
+      </q-card>
+    </q-dialog>
     <q-footer>
       <q-toolbar>
         <q-btn
-          title="Gå til firrige"
+          title="Gå til forrige"
           no-caps
           flat
           :round="$q.platform.is.mobile"
@@ -426,6 +514,9 @@ const mode = computed(() => {
 const isAdmin = computed(() => authStore.isAdmin);
 
 const currentUser = computed(() => authStore.user);
+const currentUserTrainings = computed(() =>
+  currentUser.value.trainings.map((t) => t.resourceTypeId)
+);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
@@ -549,7 +640,7 @@ function showEditButton(timestamp, shift) {
 
 function showCallButton(shift) {
   return (
-    (shift?.user?.id ?? 0) > 1 &&
+    (shift?.user?.id ?? 0) > 0 &&
     (shift?.user?.id ?? 0) !== currentUser.value?.id
   );
 }
@@ -567,10 +658,79 @@ function showAddAdditionalRow(timestamp, resource) {
 }
 
 const adding = ref(false);
-async function addUserAsResource(resource) {
+const showingTrainingDialog = ref(false);
+async function checkTraining(resource) {
   try {
     adding.value = true;
-    await eventStore.addShift(resource, currentUser.value);
+    selectedResource.value = resource;
+    if (isMissingTrainingInfo(resource)) {
+      showingTrainingDialog.value = true;
+    } else {
+      await addUserAsResource(resource);
+    }
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: "Oh no! Noe tryna da du skulle ta vakta! 🙈",
+    });
+  } finally {
+    adding.value = false;
+  }
+}
+
+function isMissingTrainingInfo(resource) {
+  const resourceType =
+    resource?.resourceType ?? selectedResource.value?.resourceType;
+  return (
+    resourceType.hasTraining &&
+    !currentUserTrainings.value.includes(resourceType.id)
+  );
+}
+
+function hasCompletedTraining(resource, shift) {}
+
+const savingTraining = ref(false);
+async function setTraining(needTraining) {
+  try {
+    savingTraining.value = true;
+    await eventStore.addTraining(
+      selectedResource.value,
+      currentUser.value,
+      needTraining
+    );
+  } catch (error) {
+  } finally {
+    savingTraining.value = false;
+  }
+}
+
+function onUserUpdated() {
+  selectedShift.value.userId = selectedShift.value?.user?.id ?? 0;
+  const resourceTypeId = selectedResource.value?.resourceType.id;
+  const training = selectedShift.value?.user.trainings.find(
+    (t) => t.resourceTypeId === resourceTypeId
+  );
+  selectedUserTraining.value = training ?? {
+    resourceTypeId: resourceTypeId,
+    userId: selectedShift.value.userId,
+    trainingComplete: null,
+  };
+}
+
+async function addUserAsResourceWithTraining() {
+  showingTrainingDialog.value = false;
+  await addUserAsResource(selectedResource.value, true);
+}
+
+async function addUserAsResourceWithoutTraining() {
+  showingTrainingDialog.value = false;
+  await addUserAsResource(selectedResource.value, false);
+}
+
+async function addUserAsResource(resource, needTraining) {
+  try {
+    adding.value = true;
+    await eventStore.addShift(resource, currentUser.value, needTraining);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
@@ -585,8 +745,23 @@ async function addUserAsResource(resource) {
 
 const showingEdit = ref(false);
 const selectedShift = ref(null);
-function edit(shift) {
+const emptyUserTraining = () => {
+  return {
+    resourceTypeId: 0,
+    userId: 0,
+    trainingComplete: null,
+  };
+};
+const selectedUserTraining = ref(emptyUserTraining());
+function edit(shift, resource) {
+  selectedResource.value = resource;
   selectedShift.value = Object.assign({}, shift);
+  const resourceTypeId = resource?.resourceType.id;
+  const training =
+    selectedShift.value?.user.trainings.find(
+      (t) => t.resourceTypeId === resourceTypeId
+    ) ?? emptyUserTraining();
+  selectedUserTraining.value = training;
   showingEdit.value = true;
 }
 
@@ -634,13 +809,18 @@ async function deleteShift() {
   }
 }
 
+function isTrainer(resourceType) {
+  const trainerIds = resourceType.trainers.map((t) => t.id);
+  return trainerIds.includes(currentUser.value.id);
+}
+
 const selectedResource = ref(null);
 const showingAdminEdit = ref(false);
 async function editShift(resource, shift) {
   selectedShift.value = Object.assign({ userId: 0 }, shift);
   selectedResource.value = resource;
   showingAdminEdit.value = true;
-  await getUsers();
+  if (isAdmin.value) await getUsers();
 }
 
 const loadingUsers = ref(false);
