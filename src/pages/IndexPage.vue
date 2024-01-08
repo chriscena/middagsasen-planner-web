@@ -560,7 +560,9 @@ function showAddButton(timestamp, shift) {
 
 function showAddAdditionalRow(timestamp, resource) {
   return (
-    timestamp.date >= today() && resource.shifts.length >= resource.minimumStaff
+    isAdmin.value &&
+    timestamp.date >= today() &&
+    resource.shifts.length >= resource.minimumStaff
   );
 }
 
