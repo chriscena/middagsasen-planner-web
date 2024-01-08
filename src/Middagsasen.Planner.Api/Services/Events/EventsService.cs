@@ -485,7 +485,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             Name = evnt.Name,
             StartTime = evnt.StartTime.ToSimpleIsoString(),
             EndTime = evnt.EndTime.ToSimpleIsoString(),
-            Resources = evnt.Resources.Select(Map).ToList()
+            Resources = evnt.Resources.Select(Map).OrderBy(r => r.ResourceType.Id).ThenBy(r => r.StartTime).ToList()
         };
 
         private ResourceResponse Map(EventResource resource) => new ResourceResponse
