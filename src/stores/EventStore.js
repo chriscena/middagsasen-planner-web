@@ -105,8 +105,19 @@ export const useEventStore = defineStore("events", {
       const userStore = useUserStore();
       userStore.getUser();
     },
+    async updateTraining(resource, training) {
+      const model = {
+        needTraining: !training.trainingComplete,
+      };
+      const response = await api.put(
+        `/api/resourcetypes/${resource.resourceType.id}/training/${training.id}`,
+        model
+      );
+      const userStore = useUserStore();
+      userStore.getUser();
+    },
 
-    async addShift(parentResource, user, needTraining) {
+    async addShift(parentResource, user, training) {
       const model = {
         startTime: parentResource.startTime,
         endTime: parentResource.endTime,
@@ -128,8 +139,15 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
-      if (needTraining != null) {
-        await this.addTraining(parentResource, user, needTraining);
+      if (training?.id) {
+        await updateTraining(training);
+      }
+      if (training?.trainingComplete != null) {
+        await this.addTraining(
+          parentResource,
+          user,
+          !training?.trainingComplete
+        );
       }
     },
     async deleteShift(shift) {
