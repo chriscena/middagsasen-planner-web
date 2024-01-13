@@ -1,5 +1,5 @@
 <template>
-  <q-page padding>
+  <q-page padding v-touch-swipe.mouse.horizontal="handleSwipe">
     <q-header>
       <q-toolbar>
         <q-btn
@@ -123,9 +123,10 @@
                     ><q-icon
                       v-if="
                         !isMissingTrainingInfo(resource) &&
-                        !hasCompletedTraining(resource, shift)
+                        needsTraining(resource, shift)
                       "
-                      name="school"
+                      size="sm"
+                      name="escalator_warning"
                     ></q-icon>
                     {{ shift.user.fullName }}</q-item-label
                   >
@@ -560,6 +561,11 @@ async function onChange(event) {
   }
 }
 
+async function handleSwipe({ evt, ...info }) {
+  if (info.direction === "right") await onPrev();
+  if (info.direction === "left") await onNext();
+}
+
 function getEventsForDate(timestamp) {
   return eventStore.getEventsForDate(timestamp);
 }
@@ -687,7 +693,14 @@ function isMissingTrainingInfo(resource) {
   );
 }
 
-function hasCompletedTraining(resource, shift) {}
+function needsTraining(resource, shift) {
+  return (
+    resource.resourceType.hasTraining &&
+    shift?.user?.trainings.find(
+      (t) => t.resourceTypeId === resource.resourceType.id
+    )?.trainingComplete === false
+  );
+}
 
 const savingTraining = ref(false);
 async function setTraining(needTraining) {
@@ -747,6 +760,7 @@ const showingEdit = ref(false);
 const selectedShift = ref(null);
 const emptyUserTraining = () => {
   return {
+    id: 0,
     resourceTypeId: 0,
     userId: 0,
     trainingComplete: null,
@@ -772,10 +786,14 @@ async function updateShift() {
     if (isAdmin.value && selectedShift.value.id === 0) {
       await eventStore.addShift(
         selectedResource.value,
-        selectedShift.value.user
+        selectedShift.value.user,
+        selectedUserTraining.value
       );
     } else {
-      await eventStore.updateShift(selectedShift.value);
+      await eventStore.updateShift(
+        selectedShift.value,
+        selectedUserTraining.value
+      );
     }
     showingEdit.value = false;
     showingAdminEdit.value = false;
