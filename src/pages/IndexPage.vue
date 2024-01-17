@@ -121,10 +121,7 @@
                   >
                   <q-item-label v-if="isTaken(shift)"
                     ><q-icon
-                      v-if="
-                        !isMissingTrainingInfo(resource) &&
-                        needsTraining(resource, shift)
-                      "
+                      v-if="shift.needsTraining"
                       size="sm"
                       name="escalator_warning"
                     ></q-icon>
@@ -657,7 +654,7 @@ function showAddButton(timestamp, shift) {
 
 function showAddAdditionalRow(timestamp, resource) {
   return (
-    isAdmin.value &&
+    (isTrainer(resource.resourceType) || isAdmin.value) &&
     timestamp.date >= today() &&
     resource.shifts.length >= resource.minimumStaff
   );
@@ -672,7 +669,16 @@ async function checkTraining(resource) {
     if (isMissingTrainingInfo(resource)) {
       showingTrainingDialog.value = true;
     } else {
-      await addUserAsResource(resource);
+      const resourceType =
+        resource?.resourceType ?? selectedResource.value?.resourceType;
+      if (resourceType.hasTraining) {
+        const training = currentUser.value?.trainings?.find(
+          (t) => t.resourceTypeId === resourceType.id
+        );
+        await addUserAsResource(resource, training);
+      } else {
+        await addUserAsResource(resource);
+      }
     }
   } catch (error) {
     console.log(error);
@@ -690,15 +696,6 @@ function isMissingTrainingInfo(resource) {
   return (
     resourceType.hasTraining &&
     !currentUserTrainings.value.includes(resourceType.id)
-  );
-}
-
-function needsTraining(resource, shift) {
-  return (
-    resource.resourceType.hasTraining &&
-    shift?.user?.trainings.find(
-      (t) => t.resourceTypeId === resource.resourceType.id
-    )?.trainingComplete === false
   );
 }
 
@@ -724,6 +721,7 @@ function onUserUpdated() {
     (t) => t.resourceTypeId === resourceTypeId
   );
   selectedUserTraining.value = training ?? {
+    id: 0,
     resourceTypeId: resourceTypeId,
     userId: selectedShift.value.userId,
     trainingComplete: null,
@@ -732,22 +730,28 @@ function onUserUpdated() {
 
 async function addUserAsResourceWithTraining() {
   showingTrainingDialog.value = false;
-  await addUserAsResource(selectedResource.value, true);
+  let training = emptyUserTraining();
+  training.trainingComplete = false;
+  await addUserAsResource(selectedResource.value, training);
 }
 
 async function addUserAsResourceWithoutTraining() {
   showingTrainingDialog.value = false;
-  await addUserAsResource(selectedResource.value, false);
+  let training = emptyUserTraining();
+  training.trainingComplete = true;
+  await addUserAsResource(selectedResource.value, training);
 }
 
-async function addUserAsResource(resource, needTraining) {
+async function addUserAsResource(resource, training) {
   try {
     adding.value = true;
-    await eventStore.addShift(resource, currentUser.value, needTraining);
+
+    await eventStore.addShift(resource, currentUser.value, null, training);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
   } catch (error) {
+    console.log(error);
     $q.notify({
       message: "Oh no! Noe tryna da du skulle ta vakta! 🙈",
     });
@@ -783,24 +787,32 @@ const saving = ref(false);
 async function updateShift() {
   try {
     saving.value = true;
+    console.log(selectedShift.value);
     if (isAdmin.value && selectedShift.value.id === 0) {
       await eventStore.addShift(
         selectedResource.value,
         selectedShift.value.user,
+        selectedShift.value.comment,
         selectedUserTraining.value
       );
     } else {
       await eventStore.updateShift(
+        selectedResource.value,
         selectedShift.value,
         selectedUserTraining.value
       );
     }
+
+    selectedResource.value = null;
+    selectedShift.value = null;
+    selectedUserTraining.value = null;
     showingEdit.value = false;
     showingAdminEdit.value = false;
     $q.notify({
       message: "Endringer er lagret 👍",
     });
   } catch (error) {
+    console.log(error);
     $q.notify({
       message: "Oh no! Noe tryna da vi skulle lagre endringene! 🙈",
     });
@@ -837,6 +849,12 @@ const showingAdminEdit = ref(false);
 async function editShift(resource, shift) {
   selectedShift.value = Object.assign({ userId: 0 }, shift);
   selectedResource.value = resource;
+  const resourceTypeId = resource?.resourceType.id;
+  const training =
+    selectedShift.value?.user?.trainings.find(
+      (t) => t.resourceTypeId === resourceTypeId
+    ) ?? emptyUserTraining();
+  selectedUserTraining.value = training;
   showingAdminEdit.value = true;
   if (isAdmin.value) await getUsers();
 }
