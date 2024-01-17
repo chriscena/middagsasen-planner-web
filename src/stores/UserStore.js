@@ -9,7 +9,7 @@ api.interceptors.response.use(
     return response;
   },
   function (error) {
-    if (error.response.status === 401) {
+    if (error.response?.status === 401) {
       authStore.removeUserSession();
       window.location("/login");
       return Promise.reject("Unauthorized");

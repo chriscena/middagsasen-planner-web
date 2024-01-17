@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays, isBefore, isAfter } from "date-fns";
 import { api } from "boot/axios";
+import { useUserStore } from "src/stores/UserStore";
 
 export const useEventStore = defineStore("events", {
   state: () => ({
@@ -91,12 +92,48 @@ export const useEventStore = defineStore("events", {
       const response = await api.get("/api/resourcetypes");
       this.resourceTypes = response.data;
     },
+    async addTraining(resource, user, needTraining) {
+      const model = {
+        userId: user.id,
+        resourceTypeId: resource.resourceType.id,
+        startTime: resource.startTime,
+        trainingCompleted: !needTraining,
+      };
+      const response = await api.post(
+        `/api/resourcetypes/${resource.resourceType.id}/training`,
+        model
+      );
+      const userStore = useUserStore();
+      userStore.getUser();
+    },
+    async updateTraining(resource, training) {
+      const model = {
+        needTraining: !training.trainingComplete,
+      };
+      const response = await api.put(
+        `/api/resourcetypes/${resource.resourceType.id}/training/${training.id}`,
+        model
+      );
+      const userStore = useUserStore();
+      userStore.getUser();
+    },
 
-    async addShift(parentResource, user) {
+    async addShift(parentResource, user, comment, training) {
       const model = {
         startTime: parentResource.startTime,
         endTime: parentResource.endTime,
         userId: user.id,
+        comment: comment,
+        training:
+          training?.trainingComplete == null
+            ? null
+            : {
+                id: training.id,
+                resourceTypeId: parentResource.resourceType.id,
+                userId: user.id,
+                startTime: parentResource.startTime,
+                trainingCompleted: training.trainingComplete,
+              },
       };
       const response = await api.post(
         `/api/resources/${parentResource.id}/shifts`,
@@ -114,6 +151,14 @@ export const useEventStore = defineStore("events", {
           return;
         }
       });
+
+      if (training.trainingComplete != null) {
+        const userStore = useUserStore();
+        userStore.getUser();
+      }
+      // if (training?.id) {
+      //   await updateTraining(training);
+      // }
     },
     async deleteShift(shift) {
       const response = await api.delete(`/api/shifts/${shift.id}`);
@@ -130,8 +175,25 @@ export const useEventStore = defineStore("events", {
         }
       });
     },
-    async updateShift(shift) {
-      const response = await api.put(`/api/shifts/${shift.id}`, shift);
+    async updateShift(parentResource, shift, training) {
+      console.log(shift);
+      const model = {
+        startTime: shift.startTime,
+        endTime: shift.endTime,
+        userId: shift.user.id,
+        comment: shift.comment,
+        training:
+          training?.trainingComplete == null
+            ? null
+            : {
+                id: training.id,
+                resourceTypeId: parentResource.resourceType.id,
+                userId: shift.user.id,
+                startTime: parentResource.startTime,
+                trainingCompleted: training.trainingComplete,
+              },
+      };
+      const response = await api.put(`/api/shifts/${shift.id}`, model);
       const updatedShift = response.data;
       this.events.forEach((e) => {
         const resource = e.resources.find(
@@ -145,9 +207,15 @@ export const useEventStore = defineStore("events", {
           shiftToUpdate.startTime = updatedShift.startTime;
           shiftToUpdate.endTime = updatedShift.endTime;
           shiftToUpdate.comment = updatedShift.comment;
+          shiftToUpdate.needsTraining = updatedShift.needsTraining;
           return;
         }
       });
+
+      if (training?.trainingComplete != null) {
+        const userStore = useUserStore();
+        userStore.getUser();
+      }
     },
     async getTemplates() {
       const response = await api.get("/api/templates");
