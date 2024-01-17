@@ -11,6 +11,6 @@ namespace Middagsasen.Planner.Api.Services.Users
         public string? FullName { get; internal set; }
         public bool IsAdmin { get; internal set; }
         public bool IsHidden { get; internal set; }
-        public IEnumerable<TrainingResponse>? Trainings { get; internal set; }
+        public IEnumerable<UserTrainingResponse>? Trainings { get; internal set; }
     }
 }

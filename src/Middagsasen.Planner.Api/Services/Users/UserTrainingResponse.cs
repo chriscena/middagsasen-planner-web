@@ -1,6 +1,6 @@
 ﻿namespace Middagsasen.Planner.Api.Services.Users
 {
-    public class TrainingResponse
+    public class UserTrainingResponse
     {
         public int Id { get; set; }
         public int ResourceTypeId { get; set; }

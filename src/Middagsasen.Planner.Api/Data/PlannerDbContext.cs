@@ -29,6 +29,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<HallOfFamer> HallOfFamers { get; set; } = null!;
         public virtual DbSet<EventStatus> EventStatuses { get; set; } = null!;
         public virtual DbSet<ResourceTypeTrainer> ResourceTypeTrainers { get;set; } = null!;
+        public virtual DbSet<ResourceTypeTraining> ResourceTypeTrainings { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

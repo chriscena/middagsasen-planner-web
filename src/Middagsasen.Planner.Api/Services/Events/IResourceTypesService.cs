@@ -7,5 +7,6 @@
         Task<ResourceTypeResponse?> GetResourceTypeById(int id);
         Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes();
         Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request);
+        Task<TrainingResponse> CreateTraining(int id, TrainingRequest request);
     }
 }

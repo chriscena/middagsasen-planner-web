@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -56,5 +57,21 @@ namespace Middagsasen.Planner.Api.Controllers
             var resourceType = await ResourceTypesService.DeleteResourceType(id);
             return (resourceType == null) ? NotFound() : Ok(resourceType);
         }
+
+        [HttpPost("{id}/training")]
+        [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
+        public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
+        {
+            var user = (UserResponse?)HttpContext.Items["User"];
+            if (user == null) return Unauthorized();
+
+            if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
+            {
+                request.ConfirmedBy = user.Id;
+            }
+            var training = await ResourceTypesService.CreateTraining(id, request);
+            return Created($"{training.ResourceTypeId}/training/{training.Id}", training);
+        }
     }
+
 }

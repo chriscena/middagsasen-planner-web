@@ -7,5 +7,6 @@
         public int DefaultStaff { get; internal set; }
 
         public IEnumerable<ResourceTypeTrainerResponse> Trainers { get; set; } = null!;
+        public bool HasTraining { get; internal set; }
     }
 }

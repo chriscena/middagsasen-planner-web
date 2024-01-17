@@ -130,10 +130,10 @@ namespace Middagsasen.Planner.Api.Services.Users
                 FullName = MapFullName(user.FirstName, user.LastName),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
-                Trainings = user.Trainings?.Select(Map).ToList() ?? new List<TrainingResponse>(),
+                Trainings = user.Trainings?.Select(Map).ToList() ?? new List<UserTrainingResponse>(),
             };
 
-        private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
+        private UserTrainingResponse Map(ResourceTypeTraining training) => new UserTrainingResponse
         {
             Id = training.ResourceTypeTrainingId,
             ResourceTypeId = training.ResourceTypeId,

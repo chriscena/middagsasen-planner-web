@@ -97,6 +97,11 @@ namespace Middagsasen.Planner.Api.Controllers
             if (!user.IsAdmin && request.UserId != user.Id)
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = user.Id;
+            }
+
             var response = await EventsService.AddShift(id, request);
             if (response == null) return NotFound();
             return Created($"/api/shifts/{response.Id}", response);
@@ -113,6 +118,11 @@ namespace Middagsasen.Planner.Api.Controllers
 
             if (!user.IsAdmin && request.UserId != user.Id)
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
+
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = user.Id; 
+            }
 
             var shift = await EventsService.UpdateShift(id, request);
             return (shift == null) ? NotFound() : Ok(shift);
