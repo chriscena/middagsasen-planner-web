@@ -85,7 +85,7 @@
             @focus="(event) => event.target.select()"
           ></q-input>
           <q-card bordered flat>
-            <q-card-section class="text-caption"
+            <q-card-section class="q-py-sm text-subtitle2"
               >Opplæringsansvarlig</q-card-section
             ><q-separator></q-separator>
             <q-list role="list" separator>
@@ -111,6 +111,49 @@
                 flat
                 color="primary"
                 @click="showAddTrainer"
+              ></q-btn>
+            </q-card-actions>
+          </q-card>
+          <q-card bordered flat>
+            <q-card-section class="q-py-sm text-subtitle2">Filer</q-card-section
+            ><q-separator></q-separator>
+            <q-list role="list" separator>
+              <q-item v-for="file in selectedResource.files" :key="file.id">
+                <q-item-section
+                  ><q-item-label>{{ file.description }}</q-item-label>
+                  <q-item-label caption>{{
+                    file.fileName
+                  }}</q-item-label></q-item-section
+                >
+                <q-item-section side
+                  ><q-btn
+                    flat
+                    round
+                    icon="download"
+                    title="Last ned fil"
+                    type="a"
+                    :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+                  ></q-btn> </q-item-section
+                ><q-item-section side>
+                  <q-btn
+                    flat
+                    round
+                    icon="delete"
+                    title="Slette fil"
+                    @click="deleteFile(file)"
+                  ></q-btn
+                ></q-item-section>
+              </q-item>
+            </q-list>
+            <q-separator></q-separator>
+            <q-card-actions align="right">
+              <q-btn
+                icon="add"
+                label="Legg til fil"
+                no-caps
+                flat
+                color="primary"
+                @click="showAddFile"
               ></q-btn>
             </q-card-actions>
           </q-card>
@@ -160,11 +203,53 @@
               @click="showingAddTrainer = false"
             ></q-btn>
             <q-btn
-              label="Lagre"
+              label="Legg til"
               no-caps
               unelevated
               color="primary"
               @click="addTrainer"
+              :disable="!canAddTrainer"
+            ></q-btn>
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+      <q-dialog v-model="showingAddFile">
+        <q-card class="full-width">
+          <q-card-section class="row q-gutter-sm">
+            <q-file
+              class="col-12"
+              label="Fil"
+              placeholder="Velg fil"
+              autofocus
+              outlined
+              clearable
+              v-model="fileInfo.file"
+              accept="application/pdf, .jpg, .jpeg, .gif, .png"
+            >
+            </q-file>
+
+            <q-input
+              class="col-12"
+              label="Beskrivelse"
+              outlined
+              v-model="fileInfo.description"
+            >
+            </q-input
+          ></q-card-section>
+          <q-card-actions align="right">
+            <q-btn
+              label="Avbryt"
+              no-caps
+              flat
+              @click="showingAddFile = false"
+            ></q-btn>
+            <q-btn
+              label="Legg til"
+              no-caps
+              unelevated
+              color="primary"
+              @click="addFile"
+              :disable="!canAddFile"
             ></q-btn>
           </q-card-actions>
         </q-card>
@@ -252,7 +337,45 @@ function showAddTrainer() {
   showingAddTrainer.value = true;
 }
 
+const canAddTrainer = computed(() => !!user.value);
+
 function deleteTrainer(trainer) {
   trainer.isDeleted = true;
+}
+
+const fileInfo = ref(null);
+const showingAddFile = ref(false);
+function showAddFile() {
+  fileInfo.value = { file: null, description: null };
+  showingAddFile.value = true;
+}
+
+const canAddFile = computed(
+  () => !!(fileInfo.value.file && fileInfo.value.description)
+);
+
+async function addFile() {
+  try {
+    const response = await eventStore.addResourceTypeFile(
+      selectedResource.value,
+      fileInfo.value
+    );
+    selectedResource.value.files.push(response);
+    showingAddFile.value = false;
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function deleteFile(fileInfo) {
+  try {
+    await eventStore.deleteResourceTypeFile(fileInfo);
+    selectedResource.value.files = selectedResource.value.files.filter(
+      (f) => f.id !== fileInfo.id
+    );
+    showingAddFile.value = false;
+  } catch (error) {
+    console.log(error);
+  }
 }
 </script>
