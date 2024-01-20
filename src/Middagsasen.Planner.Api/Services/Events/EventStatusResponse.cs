@@ -2,7 +2,7 @@
 {
     public class EventStatusResponse
     {
-        public string Date { get; set; }
+        public string Date { get; set; } = null!;
         public bool IsMissingStaff { get; set; }
     }
 }

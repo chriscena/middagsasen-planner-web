@@ -1,4 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Services.Events
+﻿using Middagsasen.Planner.Api.Services.ResourceTypes;
+
+namespace Middagsasen.Planner.Api.Services.Events
 {
     public class ResourceResponse
     {

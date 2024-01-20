@@ -20,6 +20,7 @@
         public virtual ICollection<ResourceTypeTrainer> ResourceTypeTrainers { get; set; } = new HashSet<ResourceTypeTrainer>();
         public virtual ICollection<ResourceTypeTraining> Trainings { get; set; } = new HashSet<ResourceTypeTraining>();
         public virtual ICollection<ResourceTypeTraining> ConfirmedTrainings { get; set; } = new HashSet<ResourceTypeTraining>();
-
+        public virtual ICollection<ResourceTypeFile> CreatedResourceTypeFiles { get; set; } = new HashSet<ResourceTypeFile>();
+        public virtual ICollection<ResourceTypeFile> UpdatedResourceTypeFiles { get; set; } = new HashSet<ResourceTypeFile>();
     }
 }

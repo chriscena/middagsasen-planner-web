@@ -11,5 +11,6 @@
         public virtual ICollection<ResourceTemplate> ResourceTemplates { get; set; } = new HashSet<ResourceTemplate>();
         public virtual ICollection<ResourceTypeTrainer> Trainers { get; set; } = new HashSet<ResourceTypeTrainer>();
         public virtual ICollection<ResourceTypeTraining> Trainings { get; set; } = new HashSet<ResourceTypeTraining>();
+        public virtual ICollection<ResourceTypeFile> Files { get; set; } = new HashSet<ResourceTypeFile>();
     }
 }

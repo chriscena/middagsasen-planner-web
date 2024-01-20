@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Services.Events
+﻿namespace Middagsasen.Planner.Api.Services.ResourceTypes
 {
     public interface IResourceTypesService
     {
@@ -7,6 +7,9 @@
         Task<ResourceTypeResponse?> GetResourceTypeById(int id);
         Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes();
         Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request);
-        Task<TrainingResponse> CreateTraining(int id, TrainingRequest request);
+        Task<TrainingResponse?> CreateTraining(int id, TrainingRequest request);
+        Task<FileInfoResponse> AddFile(int id, FileUploadRequest request);
+        Task<FileResponse> GetFile(int id, int resourceTypeId);
+        Task DeleteFile(int id, int resourceTypeId);
     }
 }

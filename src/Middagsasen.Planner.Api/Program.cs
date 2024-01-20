@@ -6,7 +6,9 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
 
 
@@ -28,11 +30,15 @@ builder.Services.Configure<InfrastructureSettings>(settings =>
     settings.SmsUsername = builder.Configuration["Infrastructure:SmsUsername"];
     settings.SmsPassword = builder.Configuration["Infrastructure:SmsPassword"];
     settings.SmsSenderName = builder.Configuration["Infrastructure:SmsSenderName"];
+    settings.ConnectionString = builder.Configuration["Infrastructure:StorageConnectionString"];
+    settings.Container = builder.Configuration["Infrastructure:StorageContainer"];
 });
 builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
+builder.Services.AddTransient<IBlobStorageSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 builder.Services.AddTransient<ISmsSender, SmsSenderService>();
+builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();

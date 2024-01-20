@@ -30,6 +30,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<EventStatus> EventStatuses { get; set; } = null!;
         public virtual DbSet<ResourceTypeTrainer> ResourceTypeTrainers { get;set; } = null!;
         public virtual DbSet<ResourceTypeTraining> ResourceTypeTrainings { get; set; } = null!;
+        public virtual DbSet<ResourceTypeFile> ResourceTypeFiles { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -205,6 +206,31 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.ConfirmedBy)
                     .OnDelete(DeleteBehavior.SetNull)
                     .HasConstraintName("FK_ResourceTypeTrainings_Users_ConfirmedBy");
+            });
+
+            modelBuilder.Entity<ResourceTypeFile>(entity =>
+            {
+                entity.ToTable("ResourceTypeFiles");
+                entity.HasKey(e => e.ResourceTypeFileId);
+
+                entity.HasOne(e => e.ResourceType)
+                    .WithMany(c => c.Files)
+                    .HasForeignKey(d => d.ResourceTypeId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeFiles_ResourceTypes");
+
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany(c => c.CreatedResourceTypeFiles)
+                    .HasForeignKey(d => d.CreatedBy)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeFiles_Users_CreatedBy");
+
+                entity.HasOne(e => e.UpdatedByUser)
+                    .WithMany(c => c.UpdatedResourceTypeFiles)
+                    .HasForeignKey(d => d.UpdatedBy)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeFiles_Users_UpdatedBy");
+
             });
         }
     }
