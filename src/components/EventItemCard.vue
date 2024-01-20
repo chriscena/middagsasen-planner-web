@@ -5,20 +5,25 @@
     :class="resourceClasses(timestamp, resource)"
     flat
   >
-    <q-card-section class="q-py-sm text-bold row"
-      ><span class="col" style="overflow: hidden; text-overflow: ellipsis"
-        >{{ resource.resourceType.name }}
-        <q-icon
-          color="negative"
-          name="warning"
-          v-if="!(resource.minimumStaff <= resource.shifts.length)"
-        ></q-icon></span
-      ><span class="col text-right">{{
-        formatStartEndTime(resource)
-      }}</span></q-card-section
-    >
-    <q-separator> </q-separator>
     <q-list role="list" separator>
+      <q-item
+        clickable
+        dense
+        class="q-py-sm text-bold"
+        @click="showResourceInfo(resource)"
+        ><q-item-section
+          ><q-item-label lines="1">{{
+            resource.resourceType.name
+          }}</q-item-label>
+          <q-icon
+            color="negative"
+            name="warning"
+            v-if="!(resource.minimumStaff <= resource.shifts.length)"
+          ></q-icon></q-item-section
+        ><q-item-section side>{{
+          formatStartEndTime(resource)
+        }}</q-item-section></q-item
+      >
       <q-item v-for="shift in createUserList(resource)" :key="shift.id">
         <q-item-section
           v-if="isAdmin || (isTrainer(resource.resourceType) && isTaken(shift))"
@@ -98,9 +103,13 @@
             @click="addUserAsResource(resource)"
           ></q-btn>
         </q-item-section>
-      </q-item> </q-list
-  ></q-card>
+      </q-item>
+    </q-list>
+  </q-card>
 
+  <q-inner-loading :showing="adding">
+    <q-spinner size="3em" color="primary"></q-spinner>
+  </q-inner-loading>
   <q-dialog v-model="showingEdit" persistent>
     <q-card class="full-width">
       <q-card-section class="text-h6 row"
@@ -274,6 +283,65 @@
           >Allerede fått opplæring, full kontroll! ✌️</q-btn
         ></q-card-section
       >
+    </q-card>
+  </q-dialog>
+
+  <q-dialog v-model="showingResourceInfo" :maximized="$q.platform.is.mobile">
+    <q-card
+      :style="
+        $q.platform.is.desktop
+          ? 'max-width: 600px;min-width: 400px;width: 80vw;height: 80vw;'
+          : ''
+      "
+    >
+      <q-card-section class="row">
+        <q-btn
+          flat
+          dense
+          round
+          icon="close"
+          @click="showingResourceInfo = false"
+          title="Lukk"
+        ></q-btn>
+        <div class="text-h6">
+          {{ selectedResource.resourceType.name }}
+        </div>
+      </q-card-section>
+      <q-separator></q-separator>
+      <q-card-section>
+        <q-card
+          flat
+          bordered
+          v-if="selectedResource.resourceType.files?.length"
+        >
+          <q-card-section class="q-py-sm text-subtitle2">
+            Nyttig info
+          </q-card-section>
+          <q-separator></q-separator>
+          <q-list>
+            <q-item
+              v-for="file in selectedResource.resourceType.files"
+              :key="file.id"
+              clickable
+              :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+            >
+              <q-item-section
+                ><q-item-label lines="1">{{
+                  file.description
+                }}</q-item-label></q-item-section
+              >
+              <q-item-section side
+                ><q-icon name="download"></q-icon> </q-item-section
+            ></q-item> </q-list></q-card
+      ></q-card-section>
+      <!-- <q-card-section>
+        <q-card flat class="bg-grey-2">
+          <q-card-section class="text-caption">Ingen meldinger </q-card-section>
+        </q-card>
+        <q-card flat class="bg-yellow-2">
+          <q-card-section> Ingen meldinger </q-card-section>
+        </q-card>
+      </q-card-section> -->
     </q-card>
   </q-dialog>
 </template>
@@ -585,5 +653,11 @@ async function getUsers() {
   } finally {
     loadingUsers.value = false;
   }
+}
+
+const showingResourceInfo = ref(false);
+function showResourceInfo(resource) {
+  selectedResource.value = resource;
+  showingResourceInfo.value = true;
 }
 </script>

@@ -224,7 +224,7 @@
               outlined
               clearable
               v-model="fileInfo.file"
-              accept=".pdf, application/pdf"
+              accept="application/pdf, .jpg, .jpeg, .gif, .png"
             >
             </q-file>
 

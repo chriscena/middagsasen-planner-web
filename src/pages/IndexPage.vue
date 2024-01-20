@@ -205,10 +205,6 @@
           @click="addEvent"
       /></q-toolbar>
     </q-footer>
-
-    <q-inner-loading :showing="adding">
-      <q-spinner size="3em" color="primary"></q-spinner>
-    </q-inner-loading>
   </q-page>
 </template>
 
