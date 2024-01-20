@@ -129,6 +129,15 @@
                   ><q-btn
                     flat
                     round
+                    icon="download"
+                    title="Last ned fil"
+                    type="a"
+                    :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+                  ></q-btn> </q-item-section
+                ><q-item-section side>
+                  <q-btn
+                    flat
+                    round
                     icon="delete"
                     title="Slette fil"
                     @click="deleteFile(file)"
