@@ -252,5 +252,22 @@ export const useEventStore = defineStore("events", {
       });
       this.events.push(response.data);
     },
+    async addResourceTypeFile(resourcetype, fileInfo) {
+      const formData = new FormData();
+      formData.append("file", fileInfo.file);
+      formData.append("description", fileInfo.description);
+      const response = await api.post(
+        `/api/resourcetypes/${resourcetype.id}/files`,
+        formData
+      );
+      await this.getResourceTypes();
+      return response.data;
+    },
+    async deleteResourceTypeFile(fileInfo) {
+      await api.delete(
+        `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
+      );
+      await this.getResourceTypes();
+    },
   },
 });
