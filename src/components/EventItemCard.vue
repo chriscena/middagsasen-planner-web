@@ -12,14 +12,24 @@
         class="q-py-sm text-bold"
         @click="showResourceInfo(resource)"
         ><q-item-section
-          ><q-item-label lines="1">{{
-            resource.resourceType.name
-          }}</q-item-label>
-          <q-icon
-            color="negative"
-            name="warning"
-            v-if="!(resource.minimumStaff <= resource.shifts.length)"
-          ></q-icon></q-item-section
+          ><q-item-label lines="1"
+            >{{ resource.resourceType.name }}
+            <q-icon
+              class="q-mr-xs"
+              color="negative"
+              name="warning"
+              v-if="!(resource.minimumStaff <= resource.shifts.length)"
+            ></q-icon
+            ><q-icon
+              v-if="resource.resourceType.files.length"
+              color="blue-6"
+              name="info"
+              class="q-mr-xs"
+            ></q-icon>
+            <q-badge rounded color="yellow-8" v-if="resource.messages.length">
+              {{ resource.messages.length }}</q-badge
+            ></q-item-label
+          > </q-item-section
         ><q-item-section side>{{
           formatStartEndTime(resource)
         }}</q-item-section></q-item
@@ -334,14 +344,72 @@
                 ><q-icon name="download"></q-icon> </q-item-section
             ></q-item> </q-list></q-card
       ></q-card-section>
-      <!-- <q-card-section>
-        <q-card flat class="bg-grey-2">
-          <q-card-section class="text-caption">Ingen meldinger </q-card-section>
-        </q-card>
+      <q-card-section>
         <q-card flat class="bg-yellow-2">
-          <q-card-section> Ingen meldinger </q-card-section>
+          <q-card-section class="q-py-sm text-subtitle2">
+            Beskjed til vakta</q-card-section
+          >
+          <q-separator></q-separator>
+          <q-list separator>
+            <q-item
+              v-for="message in selectedResource.messages"
+              :key="message.id"
+            >
+              <q-item-section>
+                <q-item-label overline>{{
+                  format(parseISO(message.created), "EEE d. LLL")
+                }}</q-item-label>
+                <q-item-label class="q-py-sm">{{
+                  message.message
+                }}</q-item-label>
+                <q-item-label caption>{{
+                  message.createdBy.fullName
+                }}</q-item-label>
+              </q-item-section>
+
+              <q-item-section side top>
+                <q-btn
+                  flat
+                  round
+                  size="sm"
+                  icon="delete"
+                  @click="deleteMessage(message)"
+                  :disable="!canDeleteMessage(message)"
+                  :loading="deletingMessage"
+                ></q-btn>
+              </q-item-section>
+            </q-item>
+          </q-list>
+          <template v-if="!isPast">
+            <q-card-section>
+              <q-input
+                outlined
+                label="Ny beskjed"
+                autogrow
+                type="textarea"
+                v-model="newMessage"
+              ></q-input>
+            </q-card-section>
+            <q-card-actions
+              ><q-btn
+                label="Nullstill"
+                @click="newMessage = null"
+                no-caps
+                flat
+                :disable="savingMessage"
+              ></q-btn
+              ><q-space></q-space>
+              <q-btn
+                label="Lagre"
+                @click="saveMessage"
+                color="primary"
+                no-caps
+                unelevated
+                :loading="savingMessage"
+              ></q-btn> </q-card-actions
+          ></template>
         </q-card>
-      </q-card-section> -->
+      </q-card-section>
     </q-card>
   </q-dialog>
 </template>
@@ -396,6 +464,8 @@ function formatTime(isoDateTime) {
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }
+
+const isPast = computed(() => props.timestamp.date < today());
 
 function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
@@ -659,5 +729,53 @@ const showingResourceInfo = ref(false);
 function showResourceInfo(resource) {
   selectedResource.value = resource;
   showingResourceInfo.value = true;
+}
+
+const newMessage = ref(null);
+const savingMessage = ref(false);
+async function saveMessage() {
+  try {
+    savingMessage.value = true;
+    const model = {
+      message: newMessage.value,
+    };
+    const response = await eventStore.addMessage(
+      selectedResource.value.id,
+      model
+    );
+    selectedResource.value.messages.push(response);
+    newMessage.value = null;
+    $q.notify({ message: "Beskjeden er lagret. 📨" });
+  } catch (error) {
+    $q.notify({ message: "Klarte ikke å lagre beskjed. 😿" });
+    console.log(error);
+  } finally {
+    savingMessage.value = false;
+  }
+}
+
+const deletingMessage = ref(false);
+async function deleteMessage(message) {
+  try {
+    deletingMessage.value = true;
+    await eventStore.deleteMessage(message);
+    selectedResource.value.messages = selectedResource.value.messages.filter(
+      (m) => m.id !== message.id
+    );
+    newMessage.value = null;
+    $q.notify({ message: "Beskjeden er slettet. 📤" });
+  } catch (error) {
+    $q.notify({ message: "Klarte ikke å slette beskjed. 😿" });
+    console.log(error);
+  } finally {
+    deletingMessage.value = false;
+  }
+}
+
+function canDeleteMessage(message) {
+  return (
+    !isPast.value &&
+    (isAdmin.value || message.createdBy.id === currentUser.value.id)
+  );
 }
 </script>

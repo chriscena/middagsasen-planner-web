@@ -141,6 +141,7 @@
                     icon="delete"
                     title="Slette fil"
                     @click="deleteFile(file)"
+                    :loading="deletingFile"
                   ></q-btn
                 ></q-item-section>
               </q-item>
@@ -242,6 +243,7 @@
               no-caps
               flat
               @click="showingAddFile = false"
+              :disable="savingFile"
             ></q-btn>
             <q-btn
               label="Legg til"
@@ -250,6 +252,7 @@
               color="primary"
               @click="addFile"
               :disable="!canAddFile"
+              :loading="savingFile"
             ></q-btn>
           </q-card-actions>
         </q-card>
@@ -261,6 +264,7 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { computed } from "vue";
@@ -269,6 +273,7 @@ const emit = defineEmits(["toggle-right"]);
 const $router = useRouter();
 const eventStore = useEventStore();
 const userStore = useUserStore();
+const $q = useQuasar();
 
 const showingEdit = ref(false);
 const user = ref(null);
@@ -354,28 +359,40 @@ const canAddFile = computed(
   () => !!(fileInfo.value.file && fileInfo.value.description)
 );
 
+const savingFile = ref(false);
 async function addFile() {
   try {
+    savingFile.value = true;
     const response = await eventStore.addResourceTypeFile(
       selectedResource.value,
       fileInfo.value
     );
     selectedResource.value.files.push(response);
     showingAddFile.value = false;
+    $q.notify({ message: "Filen er lagret." });
   } catch (error) {
+    $q.notify({ message: "Klarte ikke å lagre filen." });
     console.log(error);
+  } finally {
+    savingFile.value = false;
   }
 }
 
+const deletingFile = ref(false);
 async function deleteFile(fileInfo) {
   try {
+    deletingFile.value = true;
     await eventStore.deleteResourceTypeFile(fileInfo);
     selectedResource.value.files = selectedResource.value.files.filter(
       (f) => f.id !== fileInfo.id
     );
     showingAddFile.value = false;
+    $q.notify({ message: "Filen er slettet." });
   } catch (error) {
     console.log(error);
+    $q.notify({ message: "Klarte ikke å slette filen." });
+  } finally {
+    deletingFile.value = false;
   }
 }
 </script>
