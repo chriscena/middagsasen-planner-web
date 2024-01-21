@@ -269,5 +269,17 @@ export const useEventStore = defineStore("events", {
       );
       await this.getResourceTypes();
     },
+    async addMessage(eventResourceId, message) {
+      const response = await api.post(
+        `/api/resources/${eventResourceId}/messages`,
+        message
+      );
+      return response.data;
+    },
+    async deleteMessage(message) {
+      await api.delete(
+        `/api/resources/${message.eventResourceId}/messages/${message.id}`
+      );
+    },
   },
 });
