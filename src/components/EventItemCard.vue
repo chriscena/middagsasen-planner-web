@@ -380,33 +380,34 @@
               </q-item-section>
             </q-item>
           </q-list>
-          <q-card-section>
-            <q-input
-              outlined
-              label="Ny beskjed"
-              autogrow
-              type="textarea"
-              v-model="newMessage"
-            ></q-input>
-          </q-card-section>
-          <q-card-actions
-            ><q-btn
-              label="Nullstill"
-              @click="newMessage = null"
-              no-caps
-              flat
-              :disable="savingMessage"
-            ></q-btn
-            ><q-space></q-space>
-            <q-btn
-              label="Lagre"
-              @click="saveMessage"
-              color="primary"
-              no-caps
-              unelevated
-              :loading="savingMessage"
-            ></q-btn>
-          </q-card-actions>
+          <template v-if="!isPast">
+            <q-card-section>
+              <q-input
+                outlined
+                label="Ny beskjed"
+                autogrow
+                type="textarea"
+                v-model="newMessage"
+              ></q-input>
+            </q-card-section>
+            <q-card-actions
+              ><q-btn
+                label="Nullstill"
+                @click="newMessage = null"
+                no-caps
+                flat
+                :disable="savingMessage"
+              ></q-btn
+              ><q-space></q-space>
+              <q-btn
+                label="Lagre"
+                @click="saveMessage"
+                color="primary"
+                no-caps
+                unelevated
+                :loading="savingMessage"
+              ></q-btn> </q-card-actions
+          ></template>
         </q-card>
       </q-card-section>
     </q-card>
@@ -463,6 +464,8 @@ function formatTime(isoDateTime) {
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }
+
+const isPast = computed(() => props.timestamp.date < today());
 
 function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
@@ -770,6 +773,9 @@ async function deleteMessage(message) {
 }
 
 function canDeleteMessage(message) {
-  return isAdmin.value || message.createdBy.id === currentUser.value.id;
+  return (
+    !isPast.value &&
+    (isAdmin.value || message.createdBy.id === currentUser.value.id)
+  );
 }
 </script>
