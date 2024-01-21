@@ -11,5 +11,6 @@ namespace Middagsasen.Planner.Api.Services.Events
         public int MinimumStaff { get; set; }
         public IEnumerable<ShiftResponse> Shifts { get; set; } = new List<ShiftResponse>();
         public int EventId { get; internal set; }
+        public IEnumerable<MessageResponse> Messages { get; set; } = new List<MessageResponse>();
     }
 }

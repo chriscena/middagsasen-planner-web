@@ -25,6 +25,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<ResourceType> ResourceTypes { get; set; } = null!;
         public virtual DbSet<Event> Events { get; set; } = null!;
         public virtual DbSet<EventResourceUser> Shifts { get; set; } = null!;
+        public virtual DbSet<EventResourceMessage> Messages { get; set; } = null!;
         public virtual DbSet<EventTemplate> EventTemplates { get; set; } = null!;
         public virtual DbSet<HallOfFamer> HallOfFamers { get; set; } = null!;
         public virtual DbSet<EventStatus> EventStatuses { get; set; } = null!;
@@ -112,6 +113,25 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_EventResourceUsers_Users");
+            });
+
+            modelBuilder.Entity<EventResourceMessage>(entity =>
+            {
+                entity.ToTable("EventResourceMessages");
+                entity.HasKey(e => e.EventResourceMessageId);
+                entity.Property(e => e.Created).HasColumnType("datetime");
+
+                entity.HasOne(e => e.Resource)
+                    .WithMany(c => c.Messages)
+                    .HasForeignKey(d => d.EventResourceId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventResourceMessages_EventResources");
+
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany(c => c.CreatedMessages)
+                    .HasForeignKey(d => d.CreatedBy)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventResourceMessages_Users_Created");
             });
 
             modelBuilder.Entity<EventTemplate>(entity =>

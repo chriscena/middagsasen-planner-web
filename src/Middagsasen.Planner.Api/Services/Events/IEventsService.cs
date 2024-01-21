@@ -14,5 +14,8 @@
         Task<IEnumerable<UserShiftResponse>> GetShiftsByUserId(int id);
         Task<EventResponse?> DeleteEvent(int id);
         Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request);
+        Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId);
+        Task<MessageResponse?> AddMessage(int id, MessageRequest request);
+        Task<MessageResponse?> DeleteMessage(int id, int eventResourceId);
     }
 }

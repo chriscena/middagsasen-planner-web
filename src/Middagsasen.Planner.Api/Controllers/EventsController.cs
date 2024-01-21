@@ -107,6 +107,29 @@ namespace Middagsasen.Planner.Api.Controllers
             return Created($"/api/shifts/{response.Id}", response);
         }
 
+        [HttpPost("api/resources/{id}/messages")]
+        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
+        public async Task<IActionResult> AddMessage(int id, [FromBody] MessageRequest request)
+        {
+            var user = (UserResponse?)HttpContext.Items["User"];
+            if (user == null) return Unauthorized();
+
+            request.CreatedBy = user.Id;
+
+            var response = await EventsService.AddMessage(id, request);
+            if (response == null) return NotFound();
+            return Created($"/api/resources/{response.EventResourceId}/messages/{response.Id}", response);
+        }
+
+        [HttpDelete("api/resources/{eventResourceId}/messages/{id}")]
+        [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> DeleteMessage(int id, int eventResourceId)
+        {
+            var response = await EventsService.DeleteMessage(id, eventResourceId);
+            if (response == null) return NotFound();
+            return Ok(response);
+        }
+
         [HttpPut("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)

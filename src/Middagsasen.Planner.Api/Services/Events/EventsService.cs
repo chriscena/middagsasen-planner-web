@@ -133,7 +133,10 @@ namespace Middagsasen.Planner.Api.Services.Events
                             .ThenInclude(t => t.User)
                 .Include(e => e.Resources)
                     .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.Files);
+                        .ThenInclude(rt => rt.Files)
+                .Include(e => e.Resources)
+                    .ThenInclude(r => r.Messages)
+                        .ThenInclude(t => t.CreatedByUser);
 
         public async Task<IEnumerable<EventResponse?>> GetEvents()
         {
@@ -629,9 +632,9 @@ namespace Middagsasen.Planner.Api.Services.Events
             FileName = file.FileName,
             Description = file.Description,
             MimeType = file.MimeType,
-            Created = file.Created.ToSimpleIsoString(),
+            Created = file.Created.AsUtc().ToIsoString(),
             CreatedBy = MapFullName(file.CreatedByUser?.FirstName, file.CreatedByUser?.LastName),
-            Updated = file.Updated.ToSimpleIsoString(),
+            Updated = file.Updated.AsUtc().ToIsoString(),
             UpdatedBy = MapFullName(file.UpdatedByUser?.FirstName, file.UpdatedByUser?.LastName),
         };
 
@@ -657,7 +660,8 @@ namespace Middagsasen.Planner.Api.Services.Events
             StartTime = resource.StartTime.ToSimpleIsoString(),
             EndTime = resource.EndTime.ToSimpleIsoString(),
             MinimumStaff = resource.MinimumStaff,
-            Shifts = resource.Shifts.Select(Map).ToList()
+            Shifts = resource.Shifts.Select(Map).ToList(),
+            Messages = resource.Messages.Select(Map).ToList()
         };
 
         private ShiftResponse Map(EventResourceUser shift) => new ShiftResponse
@@ -671,6 +675,15 @@ namespace Middagsasen.Planner.Api.Services.Events
             Comment = shift.Comment,
         };
 
+        private MessageResponse Map(EventResourceMessage message) => new MessageResponse
+        {
+            Id = message.EventResourceMessageId,
+            EventResourceId = message.EventResourceId,
+            CreatedBy = Map(message.CreatedByUser),
+            Created = message.Created.AsUtc().ToIsoString(),
+            Message = message.Message,
+        };
+
         private ShiftUserResponse Map(User user) => new ShiftUserResponse
         {
             Id = user.UserId,
@@ -678,7 +691,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             FirstName = user.FirstName,
             LastName = user.LastName,
             FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
-            Trainings = user.Trainings.Select(Map).ToList(),
+            Trainings = user.Trainings?.Select(Map).ToList(),
         };
 
         private EventResource Map(ResourceRequest request)
@@ -793,6 +806,50 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             var responseFile = DbContext.Remove(fileToDelete);
             await DbContext.SaveChangesAsync();
+        }
+
+        public async Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId)
+        {
+            var messages = await DbContext.Messages
+                .Include(m => m.CreatedByUser)
+                .AsNoTracking()
+                .Where(m => m.EventResourceId == eventResourceId)
+                .ToListAsync();
+
+            return messages.Select(Map).ToList();
+        }
+
+        public async Task<MessageResponse?> AddMessage(int id, MessageRequest request)
+        {
+            var message = new EventResourceMessage
+            {
+                Message = request.Message,
+                EventResourceId = id,
+                Created = DateTime.UtcNow,
+                CreatedBy = request.CreatedBy,
+            };
+            DbContext.Messages.Add(message);
+            await DbContext.SaveChangesAsync();
+
+            var response = await DbContext.Messages
+                .Include(m => m.CreatedByUser)
+                .AsNoTracking()
+                .SingleAsync(m => m.EventResourceMessageId == message.EventResourceMessageId);
+            return Map(response);
+        }
+
+        public async Task<MessageResponse?> DeleteMessage(int id, int eventResourceId)
+        {
+            var message = await DbContext.Messages
+                .Include(m => m.CreatedByUser)
+                .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id);
+
+            if (message == null) return null;
+
+            DbContext.Remove(message);
+            await DbContext.SaveChangesAsync();
+
+            return Map(message);
         }
     }
 }

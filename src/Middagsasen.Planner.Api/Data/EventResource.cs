@@ -13,5 +13,6 @@
         public ResourceType ResourceType { get; set; } = null!;
 
         public ICollection<EventResourceUser> Shifts { get; set; } = new HashSet<EventResourceUser>();
+        public ICollection<EventResourceMessage> Messages { get; set; } = new HashSet<EventResourceMessage>();
     }
 }

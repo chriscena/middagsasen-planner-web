@@ -27,6 +27,21 @@
         public static string ToSimpleIsoString(this DateTime dateTime)
         {
             return dateTime.ToString(IsoSimpleDateTime);
+        }        
+        
+        /// <summary>
+        /// Returns the DateTime value as UTC DateTime if unspecified. If the value is Local it is converted to UTC.
+        /// </summary>
+        /// <param name="dateTime"></param>
+        /// <returns>DateTime with <seealso cref="DateTimeKind.Utc" /></returns>
+        public static DateTime AsUtc(this DateTime dateTime)
+        {
+            if (dateTime.Kind == DateTimeKind.Unspecified)
+                return DateTime.SpecifyKind(dateTime, DateTimeKind.Utc);
+            if (dateTime.Kind == DateTimeKind.Local)
+                return dateTime.ToUniversalTime();
+            //if (dateTime.Kind == DateTimeKind.Utc)
+            return dateTime;
         }
     }
 }

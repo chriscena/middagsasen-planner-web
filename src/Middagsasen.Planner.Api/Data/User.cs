@@ -17,6 +17,7 @@
 
         public virtual ICollection<UserSession> Sessions { get; set; } = new HashSet<UserSession>();
         public virtual ICollection<EventResourceUser> Shifts { get; set; } = new HashSet<EventResourceUser>();
+        public virtual ICollection<EventResourceMessage> CreatedMessages { get; set; } = new HashSet<EventResourceMessage>();
         public virtual ICollection<ResourceTypeTrainer> ResourceTypeTrainers { get; set; } = new HashSet<ResourceTypeTrainer>();
         public virtual ICollection<ResourceTypeTraining> Trainings { get; set; } = new HashSet<ResourceTypeTraining>();
         public virtual ICollection<ResourceTypeTraining> ConfirmedTrainings { get; set; } = new HashSet<ResourceTypeTraining>();
