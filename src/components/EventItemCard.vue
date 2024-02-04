@@ -197,7 +197,7 @@
       <q-card-section class="text-h6 row"
         ><span> Endre vakt</span><q-space></q-space
         ><q-btn
-          :disable="!isAdmin"
+          v-if="isAdmin && selectedShift.id"
           size="md"
           flat
           dense
@@ -205,7 +205,6 @@
           icon="delete"
           color="negative"
           @click="deleteShift"
-          v-if="selectedShift.id"
         ></q-btn>
       </q-card-section>
       <q-card-section class="q-gutter-sm">
@@ -693,7 +692,7 @@ async function deleteShift() {
 }
 
 function isTrainer(resourceType) {
-  const trainerIds = resourceType.trainers.map((t) => t.id);
+  const trainerIds = resourceType.trainers.map((t) => t.userId);
   return trainerIds.includes(currentUser.value.id);
 }
 
