@@ -341,7 +341,8 @@
               >
               <q-item-section side
                 ><q-icon name="download"></q-icon> </q-item-section
-            ></q-item> </q-list></q-card
+            ></q-item>
+          </q-list> </q-card
       ></q-card-section>
       <q-card-section>
         <q-card flat class="bg-yellow-2">
