@@ -4,4 +4,5 @@ create table Events (
     Name nvarchar(400) not null,
     StartTime datetime not null,
     EndTime datetime not null,
+    Description nvarchar(max) null,
 )
