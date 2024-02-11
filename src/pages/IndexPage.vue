@@ -58,22 +58,25 @@
       <template #day="{ scope: { timestamp } }">
         <template v-for="event in getEventsForDate(timestamp)" :key="event.id">
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
-            <q-card-section class="q-py-sm text-bold row">
-              <span class="col">
-                <q-btn
-                  flat
-                  round
-                  title="Redigere vaktliste"
-                  icon="edit"
-                  v-if="isAdmin"
-                  size="sm"
-                  @click="editEvent(event)"
-                ></q-btn>
-                {{ event.name }}</span
-              ><span class="col text-right">{{
-                formatStartEndTime(event)
-              }}</span></q-card-section
-            >
+            <q-card-section class="q-py-sm text-bold">
+              <div class="row">
+                <span class="col">
+                  <q-btn
+                    flat
+                    round
+                    title="Redigere vaktliste"
+                    icon="edit"
+                    v-if="isAdmin"
+                    size="sm"
+                    @click="editEvent(event)"
+                  ></q-btn>
+                  {{ event.name }}</span
+                ><span class="col text-right">{{
+                  formatStartEndTime(event)
+                }}</span>
+              </div>
+              <div class="row text-caption">{{ event.description }}</div>
+            </q-card-section>
           </q-card>
 
           <EventItemCard

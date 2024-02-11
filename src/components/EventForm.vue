@@ -29,6 +29,14 @@
           v-model="name"
           @focus="(event) => (event.target?.select ? event.target.select() : _)"
         ></q-input>
+        <q-input
+          outlined
+          label="Beskrivelse"
+          v-model="description"
+          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          type="textarea"
+          autogrow
+        ></q-input>
         <DatePickerInput
           label="Dato"
           autofocus
@@ -174,6 +182,7 @@ onMounted(async () => {
       await eventStore.getEvent(props.id);
       const event = eventStore.selectedEvent;
       name.value = event.name;
+      description.value = event.description;
       startDate.value = formatDate(new Date(event.startTime));
       startTime.value = formatTime(new Date(event.startTime));
       endTime.value = formatTime(new Date(event.endTime));
@@ -204,6 +213,7 @@ onMounted(async () => {
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
 const name = ref(null);
+const description = ref(null);
 
 const isValidDate = computed(() =>
   isValid(parse(startDate.value, "dd.MM.yyyy", new Date()))
@@ -266,6 +276,7 @@ async function saveEvent() {
     loading.value = true;
     const model = {
       name: name.value,
+      description: description.value,
       startTime: formatDateTime(startDateTime.value),
       endTime: formatDateTime(endDateTime.value),
       resources: resources.value.map((r) => {
