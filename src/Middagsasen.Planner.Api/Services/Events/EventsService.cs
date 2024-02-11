@@ -197,6 +197,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             var newEvent = new Event
             {
                 Name = request.Name,
+                Description = request.Description,
                 StartTime = DateTime.Parse(request.StartTime),
                 EndTime = DateTime.Parse(request.EndTime),
                 Resources = request.Resources.Select(Map).ToList(),
@@ -216,6 +217,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (existingEvent == null) return null;
 
             existingEvent.Name = request.Name;
+            existingEvent.Description = request.Description;
             existingEvent.StartTime = DateTime.Parse(request.StartTime);
             existingEvent.EndTime = DateTime.Parse(request.EndTime);
 
@@ -647,6 +649,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         {
             Id = evnt.EventId,
             Name = evnt.Name,
+            Description = evnt.Description,
             StartTime = evnt.StartTime.ToSimpleIsoString(),
             EndTime = evnt.EndTime.ToSimpleIsoString(),
             Resources = evnt.Resources.Select(Map).OrderBy(r => r.ResourceType.Id).ThenBy(r => r.StartTime).ToList()
