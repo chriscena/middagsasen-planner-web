@@ -31,9 +31,8 @@
         ></q-input>
         <q-input
           outlined
-          label="Beskrivelse"
+          label="Kommentar"
           v-model="description"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
           type="textarea"
           autogrow
         ></q-input>
