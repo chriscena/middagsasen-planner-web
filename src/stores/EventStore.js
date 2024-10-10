@@ -1,5 +1,12 @@
 import { defineStore } from "pinia";
-import { parseISO, formatISO, addDays, isBefore, isAfter } from "date-fns";
+import {
+  parseISO,
+  formatISO,
+  addDays,
+  isBefore,
+  isAfter,
+  isEqual,
+} from "date-fns";
 import { api } from "boot/axios";
 import { useUserStore } from "src/stores/UserStore";
 
@@ -17,7 +24,8 @@ export const useEventStore = defineStore("events", {
       const end = addDays(start, 1);
       return state.events.filter(
         (e) =>
-          isAfter(new Date(e.startTime), start) &&
+          (isEqual(new Date(e.startTime), start) ||
+            isAfter(new Date(e.startTime), start)) &&
           isBefore(new Date(e.startTime), end)
       );
     },
