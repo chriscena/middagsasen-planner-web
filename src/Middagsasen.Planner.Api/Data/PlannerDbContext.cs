@@ -32,6 +32,9 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<ResourceTypeTrainer> ResourceTypeTrainers { get;set; } = null!;
         public virtual DbSet<ResourceTypeTraining> ResourceTypeTrainings { get; set; } = null!;
         public virtual DbSet<ResourceTypeFile> ResourceTypeFiles { get; set; } = null!;
+        public virtual DbSet<WeatherLocation> WeatherLocations { get; set; } = null!;
+        public virtual DbSet<WeatherMeasurement> WeatherMeasurements { get; set; } = null!;
+        public virtual DbSet<WeatherMeasurementValue> WeatherMeasurementValues { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -251,6 +254,42 @@ namespace Middagsasen.Planner.Api.Data
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_ResourceTypeFiles_Users_UpdatedBy");
 
+            });
+
+            modelBuilder.Entity<WeatherLocation>(entity =>
+            {
+                entity.ToTable("WeatherLocations");
+                entity.HasKey(e => e.WeatherLocationId);
+
+                entity.Property(e => e.LocationName).HasMaxLength(400);
+            });
+
+            modelBuilder.Entity<WeatherMeasurement>(entity =>
+            {
+                entity.ToTable("WeatherMeasurements");
+                entity.HasKey(e => e.WeatherMeasurementId);
+
+                entity.Property(e => e.MeasurementLabel).HasMaxLength(400);
+            });
+
+            modelBuilder.Entity<WeatherMeasurementValue>(entity =>
+            {
+                entity.ToTable("WeatherMeasurementValues");
+                entity.HasKey(e => e.WeatherMeasurementValueId);
+                entity.Property(e => e.MeasuredValue).HasColumnType("decimal(15, 5)");
+                entity.Property(e => e.MeasuredTime).HasColumnType("datetime");
+
+                entity.HasOne(e => e.WeatherMeasurement)
+                    .WithMany(c => c.Values)
+                    .HasForeignKey(d => d.WeatherMeasurementId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_WeatherMeasurementValues_WeatherMeasurements");
+
+                entity.HasOne(e => e.WeatherLocation)
+                    .WithMany(c => c.Values)
+                    .HasForeignKey(d => d.WeatherLocationId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_WeatherMeasurementValues_WeatherLocations");
             });
         }
     }

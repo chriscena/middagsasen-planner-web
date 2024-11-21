@@ -10,6 +10,7 @@ using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
+using Middagsasen.Planner.Api.Services.Weather;
 
 
 
@@ -45,6 +46,9 @@ builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, EventsService>();
 builder.Services.AddScoped<IEventTemplatesService, EventsService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<WeatherService>();
+
+builder.Services.AddHostedService<WeatherDataCollector>();
 
 
 var app = builder.Build();
