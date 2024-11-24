@@ -66,7 +66,7 @@ builder.Services.AddScoped<IEventTemplatesService, EventsService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<WeatherService>();
 
-//builder.Services.AddHostedService<WeatherDataCollector>();
+builder.Services.AddHostedService<WeatherDataCollector>();
 
 
 var app = builder.Build();
