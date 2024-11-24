@@ -77,7 +77,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("{id}/files")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status201Created)]
-        public async Task<IActionResult> UploadFile(int id, [FromForm]IFormFile file, [FromForm] string description)
+        public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromForm] string description)
         {
             var user = (UserResponse?)HttpContext.Items["User"];
             if (user == null) return Unauthorized();

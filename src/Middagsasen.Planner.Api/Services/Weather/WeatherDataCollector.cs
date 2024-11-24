@@ -94,10 +94,9 @@ internal class WeatherDataCollector(IServiceScopeFactory scopeFactory, ILogger<W
                     await weatherService.SaveMeasurementValues(valuesToSave);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-
-            throw;
+            logger.LogError(ex, "Error fetching weather data.");
         }
         finally
         {
