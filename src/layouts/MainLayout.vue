@@ -36,6 +36,14 @@
             <q-item-label>Telefonliste</q-item-label>
           </q-item-section>
         </q-item>
+        <q-item clickable to="/weather" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="ac_unit"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Værdata</q-item-label>
+          </q-item-section>
+        </q-item>
 
         <q-item v-if="isAdmin" to="/templates" v-ripple>
           <q-item-section avatar>

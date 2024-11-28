@@ -36,8 +36,10 @@ export default route(function (/* { store, ssrContext } */) {
     history: createHistory(process.env.VUE_ROUTER_BASE),
   });
 
+  const openRoutes = ["/login", "/vaer", "/weather"];
   Router.beforeEach((to, from, next) => {
-    if (to.path !== "/login" && !authStore.user) next({ path: "/login" });
+    if (!openRoutes.includes(to.path) && !authStore.user)
+      next({ path: "/login" });
     else if (to.path === "/login" && authStore.user) next({ path: "/" });
     else next();
   });

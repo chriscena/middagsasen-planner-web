@@ -75,6 +75,14 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+    <q-btn
+      class="absolute-top-right"
+      flat
+      round
+      icon="ac_unit"
+      to="/weather"
+      size="lg"
+    ></q-btn>
   </q-page>
 </template>
 
