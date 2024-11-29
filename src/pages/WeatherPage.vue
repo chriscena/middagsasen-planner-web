@@ -20,6 +20,15 @@
           @click="emit('toggle-right')"
           title="Din brukerinfo"
         ></q-btn> -->
+        <q-btn
+          dense
+          flat
+          round
+          icon="refresh"
+          @click="getWeatherData"
+          title="Oppfrisk værdata"
+          :loading="loading"
+        ></q-btn>
       </q-toolbar>
     </q-header>
     <q-card
@@ -47,6 +56,8 @@
           }"
           :options="{
             responsive: true,
+            maintainAspectRatio: false,
+            resizeDelay: 200,
             scales: {
               x: {
                 type: 'time',
@@ -103,7 +114,7 @@ var weatherStore = useWeatherStore();
 
 const locations = computed(() => weatherStore.locations);
 
-onMounted(async () => {
+async function getWeatherData() {
   try {
     loading.value = true;
     await weatherStore.getLocations();
@@ -112,5 +123,9 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+}
+
+onMounted(async () => {
+  await getWeatherData();
 });
 </script>
