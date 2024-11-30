@@ -42,8 +42,9 @@ namespace Middagsasen.Planner.Api.Services.Weather
 
                 foreach (var group in groupedValues)
                 {
-                    var measurementName = group.First().WeatherMeasurement.MeasurementLabel;
-                    var measurementResponse = new MeasurementResponse { MeasurementName = measurementName };
+                    var measurement = group.First().WeatherMeasurement;
+
+                    var measurementResponse = new MeasurementResponse { MeasurementName = measurement.MeasurementLabel, Unit = measurement.MeasurementUnit  };
                     var values = group
                         .OrderBy(v => v.MeasuredTime)
                         .Select(value => new MeasurementValueResponse
@@ -53,6 +54,7 @@ namespace Middagsasen.Planner.Api.Services.Weather
                         })
                         .ToList();
                     measurementResponse.Values = values;
+                    measurementResponse.LastValue = values.Last();
                     measurements.Add(measurementResponse);
                 }
                 var locationResponse = new LocationMeasurementResponse

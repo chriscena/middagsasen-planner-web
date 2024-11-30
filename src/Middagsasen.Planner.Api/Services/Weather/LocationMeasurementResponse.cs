@@ -11,6 +11,7 @@
         public string MeasurementName { get; set; } = null!;
         public string? Unit { get; set; }
         public IEnumerable<MeasurementValueResponse> Values { get; set; } = [];
+        public MeasurementValueResponse? LastValue { get; internal set; }
     }
 
     public class MeasurementValueResponse

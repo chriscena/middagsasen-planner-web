@@ -11,6 +11,7 @@
     {
         public int WeatherMeasurementId { get; set; }
         public string MeasurementLabel { get; set; } = null!;
+        public string? MeasurementUnit { get; set; }
         public ICollection<WeatherMeasurementValue> Values { get; set; } = new HashSet<WeatherMeasurementValue>();
     }
 
