@@ -14,7 +14,6 @@ export const useWeatherStore = defineStore("weather", {
     async getLocations() {
       try {
         const now = new UTCDate();
-        console.log(now);
         const start = formatISO(subHours(now, 2));
         const end = formatISO(now);
         const response = await api.get(
