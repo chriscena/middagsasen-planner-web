@@ -113,12 +113,12 @@ const locations = computed(() =>
                   },
                 },
               },
-              y: {
-                title: {
-                  display: true,
-                  text: m.unit,
-                },
-              },
+              // y: {
+              //   title: {
+              //     display: true,
+              //     text: m.unit,
+              //   },
+              // },
             },
             plugins: {
               legend: {
