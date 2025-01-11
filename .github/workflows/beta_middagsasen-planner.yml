@@ -58,4 +58,4 @@ jobs:
           app-name: 'middagsasen-planner'
           slot-name: 'beta'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_B4216C76977D4B9D885C1F0F154D9293 }}
+          publish-profile: ${{ secrets.MIDDAGSASEN_PLANNER_API_BETA }}
