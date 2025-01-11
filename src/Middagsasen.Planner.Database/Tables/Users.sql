@@ -1,0 +1,15 @@
+create table Users (
+    UserId int not null IDENTITY,
+    CONSTRAINT PK_Users PRIMARY key (UserId),
+    UserName NVARCHAR(100) not null,
+    OneTimePassword nvarchar(400) null,
+    OtpCreated DATETIME null,
+    EncryptedPassword varbinary(400) null,
+    Salt varbinary(400) null,
+    FirstName nvarchar(400) null,
+    LastName nvarchar(400) null,
+    IsHidden bit not null CONSTRAINT DF_Users_IsHidden DEFAULT 0,
+    IsAdmin bit not null CONSTRAINT DF_Users_IsAdmin DEFAULT 0,
+    Created datetime not null CONSTRAINT DF_Users_Created default GETUTCDATE(),
+    Inactive bit not null CONSTRAINT DF_Users_Inactive DEFAULT 0,
+)
