@@ -8,6 +8,9 @@ on:
     branches:
       - '**'
       - '!main'
+    paths:
+      - 'src/Middagsasen.Planner.Api/**/*'
+      - 'beta_middagsasen-planner.yml'
   workflow_dispatch:
 
 jobs:

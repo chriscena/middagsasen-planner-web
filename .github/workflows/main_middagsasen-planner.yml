@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/Middagsasen.Planner.Api/**/*'
+      - 'main_middagsasen-planner.yml'
   workflow_dispatch:
 
 jobs:
