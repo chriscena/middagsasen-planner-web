@@ -10,6 +10,13 @@ on:
     paths:
       - 'src/Middagsasen.Planner.Api/**/*'
       - 'main_middagsasen-planner.yml'
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches:
+      - main
+    paths:
+      - 'src/Middagsasen.Planner.Api/**/*'
+      - 'main_middagsasen-planner.yml'
   workflow_dispatch:
 
 jobs:
