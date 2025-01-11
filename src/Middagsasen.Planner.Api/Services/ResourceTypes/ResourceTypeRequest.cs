@@ -4,6 +4,7 @@
     {
         public string Name { get; set; } = null!;
         public int DefaultStaff { get; set; }
+        public string? NotificationMessage { get; set; }
         public IEnumerable<ResourceTypeTrainerRequest>? Trainers { get; set; }
     }
 }
