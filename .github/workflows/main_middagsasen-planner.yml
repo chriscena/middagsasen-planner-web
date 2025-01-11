@@ -56,5 +56,5 @@ jobs:
         with:
           app-name: 'middagsasen-planner'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_E558EF6DB2DD4CE1A48C01F8EB62AF5D }}
+          publish-profile: ${{ secrets.AZUREWEBAPP_PUBLISHPROFILE_MAIN }}
           package: .
