@@ -6,6 +6,7 @@
         public string Name { get; set; } = null!;
         public int DefaultStaff { get; set; } = 1;
         public bool Inactive { get; set; }
+        public string? NotificationMessage { get; set; }
 
         public virtual ICollection<EventResource> Resources { get; set; } = new HashSet<EventResource>();
         public virtual ICollection<ResourceTemplate> ResourceTemplates { get; set; } = new HashSet<ResourceTemplate>();

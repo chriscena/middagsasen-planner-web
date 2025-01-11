@@ -68,6 +68,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             {
                 Name = request.Name,
                 DefaultStaff = request.DefaultStaff,
+                NotificationMessage = request.NotificationMessage,
                 Trainers = request.Trainers?.Select(t => new ResourceTypeTrainer { UserId = t.UserId }).ToList() ?? new List<ResourceTypeTrainer>(),
             };
 
@@ -86,6 +87,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             resourceType.Name = request.Name;
             resourceType.DefaultStaff = request.DefaultStaff;
+            resourceType.NotificationMessage = request.NotificationMessage;
 
             if (request.Trainers != null)
             {
@@ -614,6 +616,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             Id = resourceType.ResourceTypeId,
             Name = resourceType.Name,
             DefaultStaff = resourceType.DefaultStaff,
+            NotificationMessage = resourceType.NotificationMessage,
             HasTraining = resourceType.Trainers.Any(),
             Trainers = resourceType.Trainers.Select(Map).ToList(),
             Files = resourceType.Files.Select(Map).ToList(),

@@ -598,7 +598,15 @@ async function addUserAsResourceWithoutTraining() {
 async function addUserAsResource(resource, training) {
   try {
     adding.value = true;
-
+    if (resource.resourceType.notificationMessage) {
+      $q.notify({
+        icon: "campaign",
+        iconColor: "primary",
+        message: resource.resourceType.notificationMessage,
+        position: "center",
+        multiline: true,
+      });
+    }
     await eventStore.addShift(resource, currentUser.value, null, training);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",

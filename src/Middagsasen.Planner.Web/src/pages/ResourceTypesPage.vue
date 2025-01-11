@@ -84,6 +84,15 @@
             suffix="stk"
             @focus="(event) => event.target.select()"
           ></q-input>
+
+          <q-input
+            outlined
+            label="Varsel"
+            v-model="selectedResource.notificationMessage"
+            type="textarea"
+            autogrow
+            clearable
+          ></q-input>
           <q-card bordered flat>
             <q-card-section class="q-py-sm text-subtitle2"
               >Opplæringsansvarlig</q-card-section
@@ -320,6 +329,7 @@ function emptyResource() {
     id: null,
     name: null,
     defaultStaff: 1,
+    notificationMessage: null,
     trainers: [],
   };
 }
