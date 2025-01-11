@@ -6,4 +6,5 @@
   "editor.codeActionsOnSave": ["source.fixAll.eslint"],
   "eslint.validate": ["javascript", "javascriptreact", "typescript", "vue"],
   "prettier.singleQuote": true
+  "dotnet.defaultSolution": "Middagsasen.Planner.sln"
 }
