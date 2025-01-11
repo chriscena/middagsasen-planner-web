@@ -4,10 +4,16 @@ on:
   push:
     branches:
       - "**"
+    paths:
+      - "src/Middagsasen.Planner.Web/**/*"
+      - "azure-static-web-apps-orange-hill-0d3da3203.yml"
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - main
+    paths:
+      - "src/Middagsasen.Planner.Web/**/*"
+      - "azure-static-web-apps-orange-hill-0d3da3203.yml"
 
 jobs:
   build_and_deploy_job:
