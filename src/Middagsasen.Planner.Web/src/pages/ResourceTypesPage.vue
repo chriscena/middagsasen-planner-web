@@ -91,6 +91,7 @@
             v-model="selectedResource.notificationMessage"
             type="textarea"
             autogrow
+            clearable
           ></q-input>
           <q-card bordered flat>
             <q-card-section class="q-py-sm text-subtitle2"
