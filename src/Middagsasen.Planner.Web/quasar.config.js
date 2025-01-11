@@ -1,17 +1,6 @@
-/* eslint-env node */
-
-/*
- * This file runs in a Node context (it's NOT transpiled by Babel), so use only
- * the ES6 features that are supported by your Node version. https://node.green/
- */
-
-// Configuration for your app
-// https://v2.quasar.dev/quasar-cli-vite/quasar-config-js
-
-const { configure } = require("quasar/wrappers");
-const path = require("path");
-
-module.exports = configure(function (/* ctx */) {
+import { configure } from 'quasar/wrappers'
+import { fileURLToPath } from 'node:url'
+export default configure((/* ctx */) => {
   return {
     eslint: {
       // fix: true,
@@ -75,7 +64,7 @@ module.exports = configure(function (/* ctx */) {
 
       vitePlugins: [
         [
-          "@intlify/vite-plugin-vue-i18n",
+          '@intlify/unplugin-vue-i18n/vite',
           {
             // if you want to use Vue I18n Legacy API, you need to set `compositionOnly: false`
             // compositionOnly: false,
@@ -85,7 +74,7 @@ module.exports = configure(function (/* ctx */) {
             // runtimeOnly: false,
 
             // you need to set i18n resource including paths !
-            include: path.resolve(__dirname, "./src/i18n/**"),
+            include: [ fileURLToPath(new URL('./src/i18n', import.meta.url)) ],
           },
         ],
       ],
