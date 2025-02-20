@@ -4,11 +4,17 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "src/Middagsasen.Planner.Web/**/*"
+      - "azure-static-web-apps-wonderful-river-0859e4403.yml"
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - main
-
+    paths:
+      - "src/Middagsasen.Planner.Web/**/*"
+      - "azure-static-web-apps-wonderful-river-0859e4403.yml"
+      
 jobs:
   build_and_deploy_job:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
