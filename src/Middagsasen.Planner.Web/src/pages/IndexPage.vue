@@ -17,16 +17,6 @@
         />
         <q-space></q-space>
         <q-btn
-          title="Superfrivillige!"
-          class="q-mr-sm"
-          dense
-          flat
-          round
-          icon="emoji_events"
-          @click="showHallOfFame"
-          color="amber"
-        ></q-btn>
-        <q-btn
           title="Din brukerinfo"
           dense
           flat
@@ -113,13 +103,6 @@
         @saved="onEventSaved"
         @deleted="onEventSaved"
       ></EventForm>
-    </q-dialog>
-    <q-dialog v-model="showingHallOfFame">
-      <HallOfFameList
-        class="full-width full-height"
-        @close="showingHallOfFame = false"
-        :currentUser="currentUser"
-      ></HallOfFameList>
     </q-dialog>
     <q-footer>
       <q-toolbar>
@@ -370,10 +353,5 @@ async function applyTemplate(id) {
   } finally {
     loading.value = false;
   }
-}
-
-const showingHallOfFame = ref(false);
-async function showHallOfFame() {
-  showingHallOfFame.value = true;
 }
 </script>
