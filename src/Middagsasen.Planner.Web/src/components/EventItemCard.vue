@@ -91,30 +91,35 @@
           ></q-btn>
         </q-item-section>
       </q-item>
-      <q-item v-if="showAddAdditionalRow(timestamp, resource)">
-        <q-item-section v-if="isAdmin" avatar>
-          <q-btn
-            flat
-            round
-            icon="edit"
-            size="sm"
-            title="Legge til vakt"
-            @click="editShift(resource, shift)"
-          ></q-btn>
-        </q-item-section>
-        <q-item-section> </q-item-section>
-        <q-item-section side>
-          <q-btn
-            dense
-            flat
-            round
-            icon="add"
-            title="Ta vakt"
-            @click="addUserAsResource(resource)"
-          ></q-btn>
-        </q-item-section>
-      </q-item>
     </q-list>
+    <q-separator></q-separator>
+    <span class="row">
+      <q-item
+        clickable
+        v-ripple
+        dense
+        icon="add"
+        class="q-pa-sm row"
+        style="width: 50%; font-size: small"
+        @click="addEmptyShift(resource)"
+      >
+        <q-icon name="add" size="sm" class="q-px-sm" />
+        <q-item-section class="text-bold"> Legg til tom vakt </q-item-section>
+      </q-item>
+      <q-separator vertical></q-separator>
+      <q-item
+        clickable
+        v-ripple
+        dense
+        icon="remove"
+        class="q-pa-sm row"
+        style="width: 49.5%; font-size: small"
+        @click="deleteEmptyShift(resource)"
+      >
+        <q-icon name="remove" size="sm" class="q-px-sm" />
+        <q-item-section class="text-bold"> Fjern tom vakt </q-item-section>
+      </q-item>
+    </span>
   </q-card>
 
   <q-inner-loading :showing="adding">
@@ -197,7 +202,7 @@
       <q-card-section class="text-h6 row"
         ><span> Endre vakt</span><q-space></q-space
         ><q-btn
-          v-if="isAdmin && selectedShift.id"
+          v-if="isAdmin"
           size="md"
           flat
           dense
@@ -422,23 +427,57 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 
+// props and emits
 const props = defineProps({
   modelValue: { type: Object, require: true },
   isAdmin: { type: Boolean, default: false },
   timestamp: { type: Object, require: true },
 });
 
+// Storeinit
 const $q = useQuasar();
 const isAdmin = computed(() => props.isAdmin);
-
-const currentUser = computed(() => authStore.user);
-const currentUserTrainings = computed(() =>
-  currentUser.value.trainings.map((t) => t.resourceTypeId)
-);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
 
+//Const
+const emptyUserTraining = () => {
+  return {
+    id: 0,
+    resourceTypeId: 0,
+    userId: 0,
+    trainingComplete: null,
+  };
+};
+
+//Refs
+const adding = ref(false);
+const deletingMessage = ref(false);
+const loading = ref(false);
+const loadingUsers = ref(false);
+const newMessage = ref(null);
+const saving = ref(false);
+const savingMessage = ref(false);
+const savingTraining = ref(false);
+const selectedResource = ref(null);
+const selectedShift = ref(null);
+const selectedUserTraining = ref(emptyUserTraining());
+const showingAdminEdit = ref(false);
+const showingEdit = ref(false);
+const showingResourceInfo = ref(false);
+const showingTrainingDialog = ref(false);
+
+// Computed
+const users = computed(() => userStore.users);
+const isPast = computed(() => props.timestamp.date < today());
+const event = computed(() => props.modelValue);
+const currentUser = computed(() => authStore.user);
+const currentUserTrainings = computed(() =>
+  currentUser.value.trainings.map((t) => t.resourceTypeId)
+);
+
+// Methods
 function createUserList(resource) {
   const list = [];
   list.push(...resource.shifts);
@@ -456,15 +495,11 @@ function createUserList(resource) {
   return list;
 }
 
-const event = computed(() => props.modelValue);
-
 function formatTime(isoDateTime) {
   if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }
-
-const isPast = computed(() => props.timestamp.date < today());
 
 function formatStartEndTime(event) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
@@ -513,8 +548,6 @@ function showAddAdditionalRow(timestamp, resource) {
   );
 }
 
-const adding = ref(false);
-const showingTrainingDialog = ref(false);
 async function checkTraining(resource) {
   try {
     adding.value = true;
@@ -552,7 +585,6 @@ function isMissingTrainingInfo(resource) {
   );
 }
 
-const savingTraining = ref(false);
 async function setTraining(needTraining) {
   try {
     savingTraining.value = true;
@@ -621,17 +653,6 @@ async function addUserAsResource(resource, training) {
   }
 }
 
-const showingEdit = ref(false);
-const selectedShift = ref(null);
-const emptyUserTraining = () => {
-  return {
-    id: 0,
-    resourceTypeId: 0,
-    userId: 0,
-    trainingComplete: null,
-  };
-};
-const selectedUserTraining = ref(emptyUserTraining());
 function edit(shift, resource) {
   selectedResource.value = resource;
   selectedShift.value = Object.assign({}, shift);
@@ -644,7 +665,6 @@ function edit(shift, resource) {
   showingEdit.value = true;
 }
 
-const saving = ref(false);
 async function updateShift() {
   try {
     saving.value = true;
@@ -704,8 +724,6 @@ function isTrainer(resourceType) {
   return trainerIds.includes(currentUser.value.id);
 }
 
-const selectedResource = ref(null);
-const showingAdminEdit = ref(false);
 async function editShift(resource, shift) {
   selectedShift.value = Object.assign({ userId: 0 }, shift);
   selectedResource.value = resource;
@@ -719,8 +737,6 @@ async function editShift(resource, shift) {
   if (isAdmin.value) await getUsers();
 }
 
-const loadingUsers = ref(false);
-const users = computed(() => userStore.users);
 async function getUsers() {
   try {
     loadingUsers.value = true;
@@ -732,14 +748,11 @@ async function getUsers() {
   }
 }
 
-const showingResourceInfo = ref(false);
 function showResourceInfo(resource) {
   selectedResource.value = resource;
   showingResourceInfo.value = true;
 }
 
-const newMessage = ref(null);
-const savingMessage = ref(false);
 async function saveMessage() {
   try {
     savingMessage.value = true;
@@ -761,7 +774,6 @@ async function saveMessage() {
   }
 }
 
-const deletingMessage = ref(false);
 async function deleteMessage(message) {
   try {
     deletingMessage.value = true;
@@ -784,5 +796,62 @@ function canDeleteMessage(message) {
     !isPast.value &&
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
+}
+async function addEmptyShift(resource) {
+  console.log(resource);
+  try {
+    loading.value = true;
+
+    if (resource.minimumStaff < resource.shifts.length)
+      resource.minimumStaff = resource.shifts.length + 1;
+    else {
+      resource.minimumStaff++;
+    }
+    const model = {
+      eventResourceId: resource.id,
+      minimumStaff: resource.minimumStaff,
+    };
+    console.log(resource);
+    console.log(model);
+    const res = await eventStore.patchMinimumStaff(model);
+    console.log("res", res);
+    resource.minimumStaff = res.data.minimumStaff;
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "errorOccurred",
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+async function deleteEmptyShift(resource) {
+  console.log(resource);
+  try {
+    loading.value = true;
+
+    if (resource.minimumStaff > resource.shifts.length)
+      resource.minimumStaff = resource.minimumStaff - 1;
+    const model = {
+      eventResourceId: resource.id,
+      minimumStaff: resource.minimumStaff,
+    };
+    console.log(resource);
+    console.log(model);
+    const res = await eventStore.patchMinimumStaff(model);
+    console.log("res", res);
+    resource.minimumStaff = res.data.minimumStaff;
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "errorOccurred",
+    });
+  } finally {
+    loading.value = false;
+  }
 }
 </script>

@@ -60,7 +60,14 @@
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
             <q-card-section class="q-py-sm text-bold">
               <div class="row">
-                <span class="col">
+                <span class="col"> {{ event.name }}</span
+                ><span class="col text-right">{{
+                  formatStartEndTime(event)
+                }}</span>
+              </div>
+              <div class="row">
+                <span class="col text-caption">{{ event.description }}</span>
+                <span class="col text-right">
                   <q-btn
                     flat
                     round
@@ -69,13 +76,9 @@
                     v-if="isAdmin"
                     size="sm"
                     @click="editEvent(event)"
-                  ></q-btn>
-                  {{ event.name }}</span
-                ><span class="col text-right">{{
-                  formatStartEndTime(event)
-                }}</span>
+                  ></q-btn
+                ></span>
               </div>
-              <div class="row text-caption">{{ event.description }}</div>
             </q-card-section>
           </q-card>
 
