@@ -827,8 +827,7 @@ async function deleteEmptyShift(resource) {
   try {
     loading.value = true;
 
-    if (resource.minimumStaff > resource.shifts.length)
-      resource.minimumStaff = resource.minimumStaff - 1;
+    if (resource.minimumStaff > resource.shifts.length) resource.minimumStaff--;
     const model = {
       eventResourceId: resource.id,
       minimumStaff: resource.minimumStaff,
