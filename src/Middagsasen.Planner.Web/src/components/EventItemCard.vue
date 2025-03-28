@@ -104,7 +104,7 @@
         @click="addEmptyShift(resource)"
       >
         <q-icon name="add" size="sm" class="q-px-sm" />
-        <q-item-section class="text-bold"> Legg til tom vakt </q-item-section>
+        <q-item-section class="text-bold"> Legg til</q-item-section>
       </q-item>
       <q-separator vertical></q-separator>
       <q-item
@@ -117,7 +117,7 @@
         @click="deleteEmptyShift(resource)"
       >
         <q-icon name="remove" size="sm" class="q-px-sm" />
-        <q-item-section class="text-bold"> Fjern tom vakt </q-item-section>
+        <q-item-section class="text-bold"> Fjern</q-item-section>
       </q-item>
     </span>
   </q-card>
@@ -798,7 +798,6 @@ function canDeleteMessage(message) {
   );
 }
 async function addEmptyShift(resource) {
-  console.log(resource);
   try {
     loading.value = true;
 
@@ -811,10 +810,7 @@ async function addEmptyShift(resource) {
       eventResourceId: resource.id,
       minimumStaff: resource.minimumStaff,
     };
-    console.log(resource);
-    console.log(model);
     const res = await eventStore.patchMinimumStaff(model);
-    console.log("res", res);
     resource.minimumStaff = res.data.minimumStaff;
   } catch (e) {
     console.error(e);
@@ -828,7 +824,6 @@ async function addEmptyShift(resource) {
   }
 }
 async function deleteEmptyShift(resource) {
-  console.log(resource);
   try {
     loading.value = true;
 
@@ -838,10 +833,7 @@ async function deleteEmptyShift(resource) {
       eventResourceId: resource.id,
       minimumStaff: resource.minimumStaff,
     };
-    console.log(resource);
-    console.log(model);
     const res = await eventStore.patchMinimumStaff(model);
-    console.log("res", res);
     resource.minimumStaff = res.data.minimumStaff;
   } catch (e) {
     console.error(e);
