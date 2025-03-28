@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.ComponentModel.Design;
+using System.Data;
+using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Users;
@@ -160,6 +162,28 @@ namespace Middagsasen.Planner.Api.Controllers
 
             var shift = await EventsService.DeleteShift(id, user.Id, user.IsAdmin);
             return (shift == null) ? NotFound() : Ok(shift);
+        }
+
+        [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(MinimumStaffResponse), StatusCodes.Status200OK)]
+        public async Task<IActionResult> Update(int eventResourceId, MinimumStaffRequest request)
+        {
+            try
+            {
+                if (request == null)
+                    return BadRequest();
+
+                var response = await EventsService.PatchMinimumStaff(eventResourceId, request);
+
+                return response == null
+                    ? NotFound()
+                    : Ok(response);
+            }
+            catch (Exception)
+            {
+                throw;
+            }
         }
     }
 }

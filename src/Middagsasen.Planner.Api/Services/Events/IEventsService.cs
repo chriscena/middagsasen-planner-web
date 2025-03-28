@@ -1,4 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Services.Events
+﻿using Middagsasen.Planner.Api.Controllers;
+
+namespace Middagsasen.Planner.Api.Services.Events
 {
     public interface IEventsService
     {
@@ -17,5 +19,6 @@
         Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId);
         Task<MessageResponse?> AddMessage(int id, MessageRequest request);
         Task<MessageResponse?> DeleteMessage(int id, int eventResourceId);
+        Task<MinimumStaffResponse?> PatchMinimumStaff(int id, MinimumStaffRequest request);
     }
 }
