@@ -1,19 +1,13 @@
-name: Azure Static Web Apps CI/CD
+name: Azure Static Web Apps PR
 
 on:
-  push:
-    branches:
-      - '**'
-    paths:
-      - 'src/Middagsasen.Planner.Web/**/*'
-      - 'azure-static-web-apps-orange-hill-0d3da3203.yml'
   pull_request:
     types: [opened, synchronize, reopened, closed]
     branches:
       - main
     paths:
       - 'src/Middagsasen.Planner.Web/**/*'
-      - 'azure-static-web-apps-orange-hill-0d3da3203.yml'
+      - 'azure-static-web-apps-orange-hill-0d3da3203-PR.yml'
   workflow_dispatch:
 
 jobs:
