@@ -277,5 +277,12 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${message.eventResourceId}/messages/${message.id}`
       );
     },
+    async patchMinimumStaff(model) {
+      return await api.patch(
+        `/api/resources/${model.eventResourceId}/minimumStaff`,
+        model
+      );
+      
+    }
   },
 });
