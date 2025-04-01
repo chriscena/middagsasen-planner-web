@@ -860,7 +860,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         // This method updates the minimum staff required for an event resource.
-        public async Task<MinimumStaffResponse?> PatchMinimumStaff(int id, MinimumStaffRequest request)
+        public async Task<MinimumStaffResponse?> UpdateMinimumStaff(int id, MinimumStaffRequest request)
         {
             var eventResource = await DbContext.EventResource
                 .SingleOrDefaultAsync(er => er.EventResourceId == id);

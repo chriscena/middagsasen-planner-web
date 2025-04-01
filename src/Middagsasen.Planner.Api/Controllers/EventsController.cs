@@ -174,7 +174,7 @@ namespace Middagsasen.Planner.Api.Controllers
                 if (request == null)
                     return BadRequest();
 
-                var response = await EventsService.PatchMinimumStaff(eventResourceId, request);
+                var response = await EventsService.UpdateMinimumStaff(eventResourceId, request);
 
                 return response == null
                     ? NotFound()

@@ -19,6 +19,6 @@ namespace Middagsasen.Planner.Api.Services.Events
         Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId);
         Task<MessageResponse?> AddMessage(int id, MessageRequest request);
         Task<MessageResponse?> DeleteMessage(int id, int eventResourceId);
-        Task<MinimumStaffResponse?> PatchMinimumStaff(int id, MinimumStaffRequest request);
+        Task<MinimumStaffResponse?> UpdateMinimumStaff(int id, MinimumStaffRequest request);
     }
 }
