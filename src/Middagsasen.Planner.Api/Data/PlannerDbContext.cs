@@ -35,6 +35,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<WeatherLocation> WeatherLocations { get; set; } = null!;
         public virtual DbSet<WeatherMeasurement> WeatherMeasurements { get; set; } = null!;
         public virtual DbSet<WeatherMeasurementValue> WeatherMeasurementValues { get; set; } = null!;
+        public virtual DbSet<EventResource> EventResource { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
