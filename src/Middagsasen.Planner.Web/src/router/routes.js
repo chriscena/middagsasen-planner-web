@@ -58,6 +58,10 @@ const routes = [
         path: "shifts",
         component: () => import("pages/MyShiftsPage.vue"),
       },
+      {
+        path: "hours",
+        component: () => import("pages/HoursLogPage.vue"),
+      },
     ],
   },
 
