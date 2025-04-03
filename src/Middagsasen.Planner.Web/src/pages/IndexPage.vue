@@ -17,16 +17,6 @@
         />
         <q-space></q-space>
         <q-btn
-          title="Superfrivillige!"
-          class="q-mr-sm"
-          dense
-          flat
-          round
-          icon="emoji_events"
-          @click="showHallOfFame"
-          color="amber"
-        ></q-btn>
-        <q-btn
           title="Din brukerinfo"
           dense
           flat
@@ -60,7 +50,14 @@
           <q-card class="q-mt-sm q-mx-sm" flat bordered>
             <q-card-section class="q-py-sm text-bold">
               <div class="row">
-                <span class="col">
+                <span class="col"> {{ event.name }}</span
+                ><span class="col text-right">{{
+                  formatStartEndTime(event)
+                }}</span>
+              </div>
+              <div class="row">
+                <span class="col text-caption">{{ event.description }}</span>
+                <span class="col text-right">
                   <q-btn
                     flat
                     round
@@ -69,13 +66,9 @@
                     v-if="isAdmin"
                     size="sm"
                     @click="editEvent(event)"
-                  ></q-btn>
-                  {{ event.name }}</span
-                ><span class="col text-right">{{
-                  formatStartEndTime(event)
-                }}</span>
+                  ></q-btn
+                ></span>
               </div>
-              <div class="row text-caption">{{ event.description }}</div>
             </q-card-section>
           </q-card>
 
@@ -113,13 +106,6 @@
         @saved="onEventSaved"
         @deleted="onEventSaved"
       ></EventForm>
-    </q-dialog>
-    <q-dialog v-model="showingHallOfFame">
-      <HallOfFameList
-        class="full-width full-height"
-        @close="showingHallOfFame = false"
-        :currentUser="currentUser"
-      ></HallOfFameList>
     </q-dialog>
     <q-footer>
       <q-toolbar>
@@ -370,10 +356,5 @@ async function applyTemplate(id) {
   } finally {
     loading.value = false;
   }
-}
-
-const showingHallOfFame = ref(false);
-async function showHallOfFame() {
-  showingHallOfFame.value = true;
 }
 </script>
