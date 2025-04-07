@@ -3,21 +3,44 @@ import { parseISO, formatISO, addDays } from "date-fns";
 import { api } from "boot/axios";
 import { useUserStore } from "src/stores/UserStore";
 
-
 export const useWorkHourStore = defineStore("workHours", {
   state: () => ({
+    workHours: [],
     userWorkHours: [],
     workHourById: {},
+    activeWorkHour: {},
   }),
   actions: {
     async createWorkHour(model) {
       const response = await api.post(`/api/WorkHours`, model);
-      this.workHours.push(response.data);
+      this.workHours = response.data;
     },
-    async getWorkHoursByUser(userId) {
-      const response = await api.get(`/api/WorkHours/user/${userId}`);
-      console.log('lolololl', this.workHours);
+
+    async getActiveWorkHour(userId) {
+      const response = await api.get(`/api/WorkHours/User/${userId}/EndTime`);
+      this.activeWorkHour = response.data;
+    },
+
+    async getWorkHoursByUser(userId, params) {
+      const response = await api.get(`/api/WorkHours/User/${userId}`, {params});
       this.userWorkHours = response.data;
-    }
-  }
-})
+    },
+
+    async getWorkHourById(workHourId) {
+      const response = await api.get(`/api/WorkHours/${workHourId}`);
+      this.workHourById = response.data;
+    },
+    async updateWorkHourEndTime(model) {
+      const response = await api.patch(
+        `/api/WorkHours/${model.workHourId}/EndTime`,
+        model
+      );
+    },
+    async updateWorkHour(model) {
+      const response = await api.put(
+        `/api/WorkHours/${model.workHourId}`,
+        model
+      );
+    },
+  },
+});

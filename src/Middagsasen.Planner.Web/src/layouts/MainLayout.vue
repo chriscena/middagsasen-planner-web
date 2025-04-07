@@ -77,7 +77,7 @@
             <q-icon name="hourglass_empty"></q-icon>
           </q-item-section>
           <q-item-section>
-            <q-item-label>Timelogg</q-item-label>
+            <q-item-label>Timelogging</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>
