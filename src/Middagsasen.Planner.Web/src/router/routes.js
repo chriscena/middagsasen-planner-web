@@ -62,6 +62,10 @@ const routes = [
         path: "hours",
         component: () => import("pages/HoursLogPage.vue"),
       },
+      {
+        path: "approveHours",
+        component: () => import("pages/HoursApprovalPage.vue"),
+      },
     ],
   },
 

@@ -6,8 +6,8 @@
           dense
           flat
           round
-          icon="arrow_back"
-          @click="$router.go(-1)"
+          icon="menu"
+          @click="emit('toggle-left')"
           title="Tilbake"
         ></q-btn>
         <q-toolbar-title>Timeføring</q-toolbar-title>
@@ -22,7 +22,7 @@
         ></q-btn>
       </q-toolbar>
     </q-header>
-    <div class="q-pa-sm row">
+    <div class="q-pb-xl row">
       <q-btn
         v-if="!timerStarted && !showEdit"
         class="col-12"
@@ -31,14 +31,6 @@
         label="start"
         @click="startTimer()"
         :disable="showEdit || loading"
-      />
-      <q-btn
-        v-if="timerStarted && !showEdit"
-        class="col-12"
-        size="lg"
-        label="Rediger"
-        @click="stopTimer()"
-        :disable="showEdit"
       />
     </div>
     <div class="col" v-if="showEdit">
@@ -49,13 +41,7 @@
           filled
           label="Starttid"
           v-model="workHour.startTime"
-        />
-        <DateTimePicker
-          class="q-pa-sm"
-          dense
-          filled
-          label="Sluttid"
-          v-model="workHour.endTime"
+          :disable="loading"
         />
       </div>
       <div class="row">
@@ -65,9 +51,10 @@
           type="textarea"
           label="Kommentar"
           v-model="workHour.description"
+          :disable="loading"
         />
         <div class="row q-pa-sm">
-          <q-btn label="Fortsett" @click="continueTimer()" />
+          <q-btn label="Lagre" @click="saveTimer()" :disable="loading" />
         </div>
         <q-space></q-space>
         <div class="row q-pa-sm">
@@ -75,52 +62,77 @@
             color="primary"
             label="Stopp og lagre"
             @click="saveStoppedTimer()"
+            :disable="loading"
           />
         </div>
       </div>
     </div>
     <div>
-      <q-table
-        flat
-        ref="tableRef"
-        :columns="columns"
-        :loading="loading"
-        :rows="userWorkHours"
-        style="max-height: 85vh"
-        no-data-label="Ingen data"
-        class="sticky-header-table"
-        v-model:pagination="pagination"
-        @request="checkWorkHoursNotEnded"
-      >
-        <template #body-cell-fromTo="props">
-          <q-td :props="props">
-            <span v-if="props.row.startTime">
-              {{ toTimeString(props.row.startTime) }}
-            </span>
-            <br />
-            <span v-if="props.row.endTime">
-              {{ toTimeString(props.row.endTime) }}
-            </span>
-          </q-td>
-        </template>
-        <template #body-cell-dates="props">
-          <q-td :props="props">
-            <span v-if="props.row.startTime">
-              {{ toDateString(props.row.startTime) }}
-            </span>
-            <br />
-            <span
-              v-if="
-                props.row.endTime &&
-                toDateString(props.row.startTime) !=
-                  toDateString(props.row.endTime)
-              "
-            >
-              {{ toDateString(props.row.endTime) }}
-            </span>
-          </q-td>
-        </template>
-      </q-table>
+      <q-list role="list" separator>
+        <!--<q-item clickable class="q-py-sm text-bold"
+          ><q-item-section class="col-1">Godkjent</q-item-section>
+          <q-item-section class="col-2">Bruker</q-item-section>
+          <q-item-section class="col-2">Godkjent av</q-item-section>
+          <q-item-section class="col-3"> Beskrivelse </q-item-section>
+          <q-item-section class="col-1">Fra</q-item-section>
+          <q-item-section class="col-1">-</q-item-section>
+          <q-item-section class="col-1">Til</q-item-section>
+          <q-item-section class="col-1">Timer</q-item-section>
+        </q-item>-->
+        <q-item
+          v-for="workHour in userWorkHours"
+          :key="workHour.workHourId"
+          clickable
+          class="q-py-sm row"
+          ><q-item-section avatar>
+            <q-icon
+              size="md"
+              name="check_circle"
+              class="green-text"
+              v-if="workHour.approvedBy != null"
+            />
+            <q-icon
+              size="md"
+              name="cancel"
+              class="red-text"
+              v-if="workHour.approvedBy == null"
+            />
+          </q-item-section>
+          <q-item-section>
+            <q-item-label caption
+              ><span v-if="$q.screen.lt.md">
+                {{ toDateString(workHour.startTime) }}
+              </span>
+              |
+              <span>
+                {{ toTimeString(workHour.startTime) }} -
+                {{ toTimeString(workHour.endTime) }}
+              </span>
+            </q-item-label>
+            <q-item-label :lines="2" class="q-pr-xl">
+              {{ workHour.description }}
+            </q-item-label>
+          </q-item-section>
+          <q-item-section v-if="$q.screen.gt.sm" class="col-1">
+            <q-item-label>
+              <span>
+                {{ toDateString(workHour.startTime) }}
+              </span>
+              <span
+                v-if="
+                  toDateString(workHour.startTime) !==
+                  toDateString(workHour.endTime)
+                "
+              >
+                - {{ toDateString(workHour.endTime) }}
+              </span>
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            {{ workHour.hours.toFixed(1).toString().replace(".", ",") }} t
+          </q-item-section>
+        </q-item>
+      </q-list>
     </div>
   </q-page>
 </template>
@@ -176,20 +188,27 @@ const pagination = ref({
 // constants
 const columns = [
   {
-    name: "workHourId",
-    label: "Nr.",
-    field: (row) => row.workHourId,
+    name: "approved",
+    label: "Vedtatt",
+    field: (row) => row.approvedBy,
     align: "left",
-    sortable: true,
     headerStyle: "width: 5%",
     style: "width: 5%",
+  },
+  {
+    name: "description",
+    label: "Beskrivelse",
+    field: (row) => row.description,
+    align: "left",
+    headerStyle: "width: 30%",
+    style:
+      "width: 20%; max-width: 30px; text-overflow: ellipsis; overflow: hidden;",
   },
   {
     name: "fromTo",
     label: "Fra - Til",
     format: (val) => toDateTimeString(val),
     align: "left",
-    sortable: true,
     headerStyle: "width: 10%",
     style: "width: 10%",
   },
@@ -198,7 +217,6 @@ const columns = [
     label: "Dato/Datoer",
     format: (val) => toDateTimeString(val),
     align: "left",
-    sortable: true,
     headerStyle: "width: 15%",
     style: "width: 15%",
   },
@@ -208,7 +226,6 @@ const columns = [
     field: (row) => row.hours,
     format: (val) => val.toFixed(2),
     align: "left",
-    sortable: true,
     headerStyle: "width: 5%",
     style: "width: 5%",
   },
@@ -222,8 +239,18 @@ const rowPP = computed(() => {
   return $route.query.rowPP;
 });
 
+const visibleColumns = computed(() => {
+  let cols = [];
+  cols.push("approved");
+  if ($q.screen.gt.md) cols.push("description");
+  cols.push("fromTo");
+  cols.push("dates");
+  cols.push("hours");
+  return cols;
+});
+
 // methods
-function resetTable() {
+async function resetTable() {
   userWorkHours.value = [];
   currentPage.value = 1;
   pagination.value.rowsNumber = undefined;
@@ -232,7 +259,7 @@ function resetTable() {
 async function checkWorkHoursNotEnded(props) {
   loading.value = true;
   try {
-    resetTable();
+    await resetTable();
     await workHourStore.getActiveWorkHour(userId);
     activeWorkHour.value = workHourStore.activeWorkHour;
     const params = {
@@ -272,8 +299,9 @@ async function checkWorkHoursNotEnded(props) {
     if (userWorkHours.value.length > 0) {
       if (activeWorkHour.value) {
         timerStarted.value = true;
-        showEdit.value = false;
+        showEdit.value = true;
         currentWorkHour.value = activeWorkHour.value;
+        await setEditTimer();
       }
     }
     loading.value = false;
@@ -282,7 +310,6 @@ async function checkWorkHoursNotEnded(props) {
 
 async function startTimer() {
   loading.value = true;
-  console.log(new Date());
   // post startTime val
   try {
     const model = {
@@ -301,11 +328,12 @@ async function startTimer() {
   } finally {
     loading.value = false;
     timerStarted.value = true;
+    showEdit.value = true;
     tableRef.value?.requestServerInteraction();
   }
 }
 
-async function continueTimer() {
+async function saveTimer() {
   loading.value = true;
   // save val
   try {
@@ -326,23 +354,16 @@ async function continueTimer() {
   } finally {
     loading.value = false;
     timerStarted.value = true;
-    showEdit.value = false;
   }
 }
 
-async function stopTimer() {
-  timerStarted.value = false;
-  await editStoppedTimer();
-}
-
-async function editStoppedTimer() {
+async function setEditTimer() {
   // get and set values
   loading.value = true;
   try {
     await workHourStore.getWorkHourById(activeWorkHour.value.workHourId);
     currentWorkHour.value = workHourStore.workHourById;
     workHour.value.startTime = currentWorkHour.value.startTime;
-    workHour.value.endTime = formatISO(new Date());
     workHour.value.description = currentWorkHour.value.description;
   } catch (e) {
     console.error(e);
@@ -363,7 +384,7 @@ async function saveStoppedTimer() {
     const model = {
       workHourId: currentWorkHour.value.workHourId,
       startTime: workHour.value.startTime,
-      endTime: workHour.value.endTime,
+      endTime: formatISO(new Date()),
       description: workHour.value.description,
       approvedBy: currentWorkHour.value.approvedBy,
       shiftId: currentWorkHour.value.shiftId,
@@ -400,8 +421,27 @@ function toTimeString(value) {
 function toDateString(value) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
+
+function userNameById(id) {
+  const approvedByNameUser = userStore.users.find((u) => u.id === id);
+  return approvedByNameUser?.fullName ? approvedByNameUser?.fullName : "";
+}
+function userPhoneById(id) {
+  const approvedByNameUser = userStore.users.find((u) => u.id === id);
+  return approvedByNameUser?.phoneNo ? approvedByNameUser?.phoneNo : "";
+}
+
 onMounted(async () => {
+  await userStore.getUsers();
   await userStore.getUser();
   tableRef.value?.requestServerInteraction();
 });
 </script>
+<style lang="scss" scoped>
+.red-text {
+  color: $red-4;
+}
+.green-text {
+  color: $green-4;
+}
+</style>

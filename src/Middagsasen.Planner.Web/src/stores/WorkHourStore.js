@@ -18,11 +18,14 @@ export const useWorkHourStore = defineStore("workHours", {
 
     async getActiveWorkHour(userId) {
       const response = await api.get(`/api/WorkHours/User/${userId}/EndTime`);
-      this.activeWorkHour = response.data;
+      console.log(response)
+      this.activeWorkHour = response.data; 
     },
 
     async getWorkHoursByUser(userId, params) {
-      const response = await api.get(`/api/WorkHours/User/${userId}`, {params});
+      const response = await api.get(`/api/WorkHours/User/${userId}`, {
+        params,
+      });
       this.userWorkHours = response.data;
     },
 
@@ -39,6 +42,12 @@ export const useWorkHourStore = defineStore("workHours", {
     async updateWorkHour(model) {
       const response = await api.put(
         `/api/WorkHours/${model.workHourId}`,
+        model
+      );
+    },
+    async updateApprovedBy(model) {
+      const response = await api.patch(
+        `/api/WorkHours/${model.workHourId}/ApprovedBy`,
         model
       );
     },

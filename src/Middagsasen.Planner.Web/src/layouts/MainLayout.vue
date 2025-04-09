@@ -80,6 +80,14 @@
             <q-item-label>Timelogging</q-item-label>
           </q-item-section>
         </q-item>
+        <q-item clickable to="/approveHours" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="alarm_on"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Godkjenn timer</q-item-label>
+          </q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
