@@ -282,7 +282,6 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${model.eventResourceId}/minimumStaff`,
         model
       );
-      
-    }
+    },
   },
 });
