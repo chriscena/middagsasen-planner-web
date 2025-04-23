@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Controllers
+﻿namespace Middagsasen.Planner.Api.Services.Events
 {
     public class MinimumStaffResponse
     {
