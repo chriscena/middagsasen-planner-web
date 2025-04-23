@@ -39,7 +39,6 @@
         class="sticky-header-table"
         v-model:pagination="pagination"
         @request="getUserWorkHours"
-        :selected-rows-label="getSelectedString"
         selection="multiple"
         v-model:selected="selectedWorkHours"
         :filter="filter"
@@ -147,7 +146,7 @@
                       </span>
                     </span>
                   </q-item-label>
-                  {{ approvedByName(props.row.userId) }}
+                  {{ userNameById(props.row.userId) }}
                 </div>
                 <q-space></q-space>
                 <q-item-label caption class="q-pt-md">
@@ -173,8 +172,8 @@
                   props.row.approvedBy
                     ? props.row.approvalStatus !== null
                       ? props.row.approvalStatus === 1
-                        ? "Godkjent av: " + approvedByName(props.row.approvedBy)
-                        : "Avslått av: " + approvedByName(props.row.approvedBy)
+                        ? "Godkjent av: " + userNameById(props.row.approvedBy)
+                        : "Avslått av: " + userNameById(props.row.approvedBy)
                       : ""
                     : ""
                 }}
@@ -196,7 +195,7 @@
             v-model="props.selected"
           />
         </template>
-        <template #body-cell-approved="props">
+        <template #body-cell-status="props">
           <q-td :props="props">
             <q-icon
               size="md"
@@ -304,7 +303,7 @@
                 </span>
               </span>
             </q-item-label>
-            {{ approvedByName(foundWorkHour.userId) }}
+            {{ userNameById(foundWorkHour.userId) }}
           </div>
           <q-space></q-space>
           <q-item-label caption class="q-pt-md">
@@ -330,8 +329,8 @@
             foundWorkHour.approvedBy
               ? foundWorkHour.approvalStatus !== null
                 ? foundWorkHour.approvalStatus === 1
-                  ? "Godkjent av: " + approvedByName(foundWorkHour.approvedBy)
-                  : "Avslått av: " + approvedByName(foundWorkHour.approvedBy)
+                  ? "Godkjent av: " + userNameById(foundWorkHour.approvedBy)
+                  : "Avslått av: " + userNameById(foundWorkHour.approvedBy)
                 : ""
               : ""
           }}
@@ -367,7 +366,6 @@ const emit = defineEmits(["toggle-right", "toggle-left"]);
 const selectAllBox = ref(false);
 const foundWorkHour = ref({});
 const showWorkHourDialog = ref(false);
-const selected = ref([]);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
 const loading = ref(false);
@@ -393,7 +391,7 @@ const dialogIcon = ref({
 // constants
 const columns = [
   {
-    name: "approved",
+    name: "status",
     label: "Status",
     field: (row) => row.approvalStatus,
     align: "left",
@@ -404,7 +402,7 @@ const columns = [
     name: "user",
     label: "Bruker",
     field: (row) => row.userId,
-    format: (val) => approvedByName(val),
+    format: (val) => userNameById(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -413,7 +411,7 @@ const columns = [
     name: "approvedBy",
     label: "Godkjent av",
     field: (row) => row.approvedBy,
-    format: (val) => approvedByName(val),
+    format: (val) => userNameById(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -458,7 +456,7 @@ const columns = [
 const visibleColumns = computed(() => {
   let cols = [];
   cols.push("user");
-  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approved");
+  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("status");
   if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approvedBy");
   if ($q.screen.gt.sm) cols.push("description");
   cols.push("from");
@@ -633,21 +631,10 @@ function toTimeString(value) {
 function toDateString(value) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
-function getSelectedString() {
-  return selected.value.length === 0
-    ? ""
-    : `${selected.value.length} record${
-        selected.value.length > 1 ? "s" : ""
-      } selected of ${rows.length}`;
-}
 
-function approvedByName(id) {
+function userNameById(id) {
   const approvedByNameUser = userStore.users.find((u) => u.id === id);
-  return (
-    (approvedByNameUser?.firstName ? approvedByNameUser?.firstName : "") +
-    " " +
-    (approvedByNameUser?.lastName ? approvedByNameUser?.lastName : "")
-  );
+  return approvedByNameUser?.fullName ? approvedByNameUser?.fullName : "";
 }
 
 onMounted(async () => {
