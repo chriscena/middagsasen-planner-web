@@ -36,6 +36,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<WeatherMeasurement> WeatherMeasurements { get; set; } = null!;
         public virtual DbSet<WeatherMeasurementValue> WeatherMeasurementValues { get; set; } = null!;
         public virtual DbSet<EventResource> EventResource { get; set; } = null!;
+        public virtual DbSet<WorkHour> WorkHours { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -292,6 +293,7 @@ namespace Middagsasen.Planner.Api.Data
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_WeatherMeasurementValues_WeatherLocations");
             });
+
         }
     }
 }
