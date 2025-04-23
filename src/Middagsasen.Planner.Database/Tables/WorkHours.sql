@@ -11,7 +11,6 @@ CREATE TABLE WorkHours
   Description NVARCHAR(max) null,
   ApprovedBy INT null,
   constraint FK_WorkHours_Users_ApprovedBy foreign key (ApprovedBy) REFERENCES Users(UserId),
+  ApprovalStatus INT null,
   ApprovedTime DATETIME null,
-  IsDeleted BIT constraint DF_WorkHours_IsDeleted DEFAULT 0,
-
 )

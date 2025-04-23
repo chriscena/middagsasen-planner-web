@@ -10,7 +10,7 @@
           @click="emit('toggle-left')"
           title="Tilbake"
         ></q-btn>
-        <q-toolbar-title>Timeføring</q-toolbar-title>
+        <q-toolbar-title>Time-godkjenning</q-toolbar-title>
         <q-space></q-space>
         <q-btn
           dense
@@ -25,6 +25,8 @@
     <div>
       <q-table
         v-if="isAdmin"
+        :grid="$q.screen.lt.md"
+        :bordered="$q.screen.lt.md"
         flat
         row-key="workHourId"
         ref="tableRef"
@@ -41,31 +43,150 @@
         selection="multiple"
         v-model:selected="selectedWorkHours"
         :filter="filter"
+        @row-click="(_, row) => openWorkHours(row)"
       >
-        <template #top-left>
+        <template #top>
           <div class="row q-gutter-sm q-pr-md">
             <q-radio
+              dense
               :disable="loading"
               :model-value="approvedFilter"
-              label="Ikke godkjent"
-              :val="2"
+              label="Ingen status"
+              :val="3"
               @update:model-value="(val) => setFilter({ approved: val })"
             />
             <q-radio
+              dense
               :disable="loading"
               :model-value="approvedFilter"
               label="Godkjent"
               :val="1"
               @update:model-value="(val) => setFilter({ approved: val })"
             />
+            <q-radio
+              dense
+              :disable="loading"
+              :model-value="approvedFilter"
+              label="Avslått"
+              :val="2"
+              @update:model-value="(val) => setFilter({ approved: val })"
+            />
           </div>
+          <q-space></q-space>
+          <span class="q-pa-md row">
+            <span class="q-pa-sm">
+              <q-btn
+                v-if="isAdmin"
+                :disable="!(selectedWorkHours.length > 0)"
+                label="Godkjenn"
+                :size="$q.screen.gt.sm ? 'large' : 'medium'"
+                @click="
+                  showApprovalDialog = true;
+                  approvalType = 1;
+                "
+                color="primary"
+              />
+            </span>
+            <span class="q-pa-sm">
+              <q-btn
+                v-if="isAdmin"
+                :disable="!(selectedWorkHours.length > 0)"
+                label="Avslå"
+                :size="$q.screen.gt.sm ? 'large' : 'medium'"
+                @click="
+                  showApprovalDialog = true;
+                  approvalType = 2;
+                "
+                color="primary"
+              />
+            </span>
+          </span>
+          <q-card v-if="$q.screen.lt.md && approvedFilter === 3" class="col-12">
+            <q-card-section>
+              <q-checkbox
+                v-model="selectAllBox"
+                label="Velg alle"
+                @update:model-value="toggleSelectAll"
+              >
+              </q-checkbox>
+            </q-card-section>
+          </q-card>
         </template>
-        <template #header-selection="props">
+        <template #item="props" v-if="$q.screen.lt.md">
+          <q-card
+            :props="props"
+            class="q-pa-sm q-my-sm col-12 grid-style-transition"
+            :style="props.selected ? 'transform: scale(0.95);' : ''"
+          >
+            <q-card-section>
+              <div class="row">
+                <q-icon
+                  size="lg"
+                  name="check_circle"
+                  class="green-text q-pr-lg"
+                  v-if="props.row.approvalStatus === 1"
+                />
+                <q-icon
+                  size="lg"
+                  name="cancel"
+                  class="red-text q-pr-lg"
+                  v-if="props.row.approvalStatus === 2"
+                />
+                <q-checkbox
+                  v-if="props.row.approvalStatus === null"
+                  v-model="props.selected"
+                  class="q-pr-md"
+                />
+                <div class="text-h6 q-pr-lg">
+                  <q-item-label caption>
+                    <span>
+                      <span> {{ toDateString(props.row.startTime) }} | </span>
+                      <span>
+                        {{ toTimeString(props.row.startTime) }} -
+                        {{ toTimeString(props.row.endTime) }}
+                      </span>
+                    </span>
+                  </q-item-label>
+                  {{ approvedByName(props.row.userId) }}
+                </div>
+                <q-space></q-space>
+                <q-item-label caption class="q-pt-md">
+                  {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+                  t
+                </q-item-label>
+              </div>
+            </q-card-section>
+            <q-separator></q-separator>
+            <q-card-section>
+              <q-item-label
+                style="font-size: 14px"
+                :caption="!props.row.description"
+              >
+                {{ props.row.description ?? "Ingen beskrivelse..." }}
+              </q-item-label>
+            </q-card-section>
+            <q-separator></q-separator>
+            <q-card-section class="row">
+              <q-space></q-space>
+              <q-item-label caption>
+                {{
+                  props.row.approvedBy
+                    ? props.row.approvalStatus !== null
+                      ? props.row.approvalStatus === 1
+                        ? "Godkjent av: " + approvedByName(props.row.approvedBy)
+                        : "Avslått av: " + approvedByName(props.row.approvedBy)
+                      : ""
+                    : ""
+                }}
+              </q-item-label>
+            </q-card-section>
+          </q-card>
+        </template>
+        <template #header-selection="props" v-if="$q.screen.gt.md">
           <q-checkbox
-            v-if="isAdmin && approvedFilter === 2"
+            v-if="isAdmin && approvedFilter === 3"
             :props="props"
             v-model="props.selected"
-            class="selection_width"
           />
         </template>
         <template #body-selection="props">
@@ -81,53 +202,146 @@
               size="md"
               name="check_circle"
               class="green-text"
-              v-if="props.row.approvedBy != null"
+              v-if="props.row.approvalStatus === 1"
             />
             <q-icon
               size="md"
               name="cancel"
               class="red-text"
-              v-if="props.row.approvedBy == null"
+              v-if="props.row.approvalStatus === 2"
             />
           </q-td>
         </template>
         <template #body-cell-from="props">
           <q-td :props="props">
             <span v-if="props.row.startTime">
-              {{ toTimeString(props.row.startTime) }}
+              {{ toDateString(props.row.startTime) }} |
             </span>
-            <q-separator></q-separator>
             <span v-if="props.row.startTime">
-              {{ toDateString(props.row.startTime) }}
+              {{ toTimeString(props.row.startTime) }}
             </span>
           </q-td>
         </template>
         <template #body-cell-to="props">
           <q-td :props="props">
             <span v-if="props.row.endTime">
-              {{ toTimeString(props.row.endTime) }}
+              {{ toDateString(props.row.endTime) }} |
             </span>
-            <q-separator></q-separator>
             <span v-if="props.row.endTime">
-              {{ toDateString(props.row.endTime) }}
+              {{ toTimeString(props.row.endTime) }}
             </span>
           </q-td>
         </template>
+        <template #body-cell-hours="props">
+          <q-td :props="props">
+            {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+            t
+          </q-td>
+        </template>
       </q-table>
-      <span class="q-pr-xl row">
+    </div>
+  </q-page>
+  <q-dialog v-model="showApprovalDialog" maximized
+    ><q-card class="q-pa-md">
+      <q-card-section>
+        <div class="text-h6">Bekreft godkjenning</div>
+        <br />
+        <div style="font-size: large">
+          Er du sikker på at du vil sette {{ selectedWorkHours.length }}
+          {{ selectedWorkHours.length > 1 ? "timer" : "time" }}
+        </div>
+        <div style="font-size: large">
+          til
+          <span :class="approvalType == 1 ? 'green-text' : 'red-text'">{{
+            approvalType == 1 ? "godkjent" : "avslått"
+          }}</span
+          >?
+        </div>
+      </q-card-section>
+      <q-card-section class="q-pr-xl row justify-center">
+        <q-btn
+          v-if="isAdmin"
+          :disable="!(selectedWorkHours.length > 0)"
+          label="Avbryt"
+          size="large"
+          @click="showApprovalDialog = false"
+        />
         <q-space></q-space>
         <q-btn
           v-if="isAdmin"
           :disable="!(selectedWorkHours.length > 0)"
-          label="Approve"
+          label="Lagre"
           size="large"
-          @click="approveUpdateRows"
+          @click="approveUpdateRows(approvalType)"
           color="primary"
         />
+      </q-card-section>
+    </q-card>
+  </q-dialog>
+  <q-dialog v-model="showWorkHourDialog">
+    <q-card class="q-pa-sm" style="width: 100%">
+      <q-card-section>
+        <div class="row">
+          <q-icon
+            size="lg"
+            :name="dialogIcon.name"
+            :class="dialogIcon.class"
+            class="q-pr-lg"
+          />
+
+          <div class="text-h6 q-pr-lg">
+            <q-item-label caption>
+              <span
+                v-if="
+                  toDateString(foundWorkHour.startTime) !=
+                  toDateString(foundWorkHour.endTime)
+                "
+              >
+                <span> {{ toDateString(foundWorkHour.startTime) }} | </span>
+                <span>
+                  {{ toTimeString(foundWorkHour.startTime) }} -
+                  {{ toTimeString(foundWorkHour.endTime) }}
+                </span>
+              </span>
+            </q-item-label>
+            {{ approvedByName(foundWorkHour.userId) }}
+          </div>
+          <q-space></q-space>
+          <q-item-label caption class="q-pt-md">
+            {{ foundWorkHour.hours?.toFixed(1).toString().replace(".", ",") }}
+            t
+          </q-item-label>
+        </div>
+      </q-card-section>
+      <q-separator></q-separator>
+      <q-card-section>
+        <q-item-label
+          style="font-size: medium"
+          :caption="!foundWorkHour.description"
+        >
+          {{ foundWorkHour.description ?? "Ingen beskrivelse..." }}
+        </q-item-label>
+      </q-card-section>
+      <q-separator></q-separator>
+      <q-card-section class="row">
         <q-space></q-space>
-      </span>
-    </div>
-  </q-page>
+        <q-item-label caption>
+          {{
+            foundWorkHour.approvedBy
+              ? foundWorkHour.approvalStatus !== null
+                ? foundWorkHour.approvalStatus === 1
+                  ? "Godkjent av: " + approvedByName(foundWorkHour.approvedBy)
+                  : "Avslått av: " + approvedByName(foundWorkHour.approvedBy)
+                : ""
+              : ""
+          }}
+        </q-item-label>
+      </q-card-section>
+      <q-card-section class="q-px-xl row justify-center">
+        <q-btn label="Lukk" size="large" @click="showWorkHourDialog = false" />
+      </q-card-section>
+    </q-card>
+  </q-dialog>
 </template>
 <script setup>
 import { useQuasar } from "quasar";
@@ -150,10 +364,14 @@ const $q = useQuasar();
 const emit = defineEmits(["toggle-right", "toggle-left"]);
 
 // refs
+const selectAllBox = ref(false);
+const foundWorkHour = ref({});
+const showWorkHourDialog = ref(false);
 const selected = ref([]);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
 const loading = ref(false);
+const showApprovalDialog = ref(false);
 const userWorkHours = ref([]);
 const currentPage = ref(1);
 const currentUser = computed(() => authStore.user);
@@ -167,16 +385,20 @@ const pagination = ref({
     : 1,
   rowsNumber: undefined,
 });
+const dialogIcon = ref({
+  class: "",
+  name: "",
+});
 
 // constants
 const columns = [
   {
     name: "approved",
-    label: "Godkjent",
-    field: (row) => row.approvedBy,
+    label: "Status",
+    field: (row) => row.approvalStatus,
     align: "left",
-    headerStyle: "width: 20%",
-    style: "width: 20%",
+    headerStyle: "width: 10%",
+    style: "width: 10%",
   },
   {
     name: "user",
@@ -184,8 +406,8 @@ const columns = [
     field: (row) => row.userId,
     format: (val) => approvedByName(val),
     align: "left",
-    headerStyle: "width: 20%",
-    style: "width: 20%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
   {
     name: "approvedBy",
@@ -193,39 +415,39 @@ const columns = [
     field: (row) => row.approvedBy,
     format: (val) => approvedByName(val),
     align: "left",
-    headerStyle: "width: 20%",
-    style: "width: 20%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
   {
     name: "description",
     label: "Beskrivelse",
     field: (row) => row.description,
     align: "left",
-    headerStyle: "width: 30%",
+    headerStyle: "width: 50%",
     style:
-      "width: 20%; max-width: 100px; text-overflow: ellipsis; overflow: hidden;",
+      "width: 50%; max-width: 100px; text-overflow: ellipsis; overflow: hidden;",
   },
   {
     name: "from",
     label: "Fra",
     format: (val) => toDateTimeString(val),
     align: "left",
-    headerStyle: "width: 5%",
-    style: "width: 5%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
   {
     name: "to",
     label: "Til",
     format: (val) => toDateTimeString(val),
     align: "left",
-    headerStyle: "width: 5%",
-    style: "width: 5%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
   {
     name: "hours",
     label: "Timer",
     field: (row) => row.hours,
-    format: (val) => val.toFixed(2),
+    format: (val) => val.toFixed(1),
     align: "left",
     headerStyle: "width: 5%",
     style: "width: 5%",
@@ -236,8 +458,8 @@ const columns = [
 const visibleColumns = computed(() => {
   let cols = [];
   cols.push("user");
-  if ($q.screen.gt.xs) cols.push("approved");
-  if ($q.screen.gt.xs && approvedFilter.value === 1) cols.push("approvedBy");
+  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approved");
+  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approvedBy");
   if ($q.screen.gt.sm) cols.push("description");
   cols.push("from");
   cols.push("to");
@@ -255,7 +477,7 @@ const rowPP = computed(() => {
 });
 
 const approvedFilter = computed(() => {
-  return $route.query.a !== undefined ? parseInt($route.query.a) : 2;
+  return $route.query.a !== undefined ? parseInt($route.query.a) : 3;
 });
 
 const filter = computed(() => {
@@ -302,13 +524,14 @@ async function getUserWorkHours(props) {
   }
 }
 
-async function approveUpdateRows() {
-  loading.value = true;
+async function approveUpdateRows(status) {
   try {
+    loading.value = true;
     for (let i = 0; i < selectedWorkHours.value.length; i++) {
       try {
         const model = {
           approvedBy: currentUserId,
+          approvalStatus: status,
           workHourId: selectedWorkHours.value[i].workHourId,
         };
         await workHourStore.updateApprovedBy(model);
@@ -331,12 +554,40 @@ async function approveUpdateRows() {
   } finally {
     loading.value = false;
     selectedWorkHours.value = [];
+    showApprovalDialog.value = false;
     tableRef.value?.requestServerInteraction();
   }
 }
 
+async function openWorkHours(workHourRow) {
+  foundWorkHour.value = userWorkHours.value?.find(
+    (w) => w.workHourId === workHourRow.workHourId
+  );
+  if (!foundWorkHour.value) {
+    return;
+  }
+  if (foundWorkHour.value.approvalStatus === 1) {
+    dialogIcon.value.class = "green-text";
+    dialogIcon.value.name = "check_circle";
+  } else if (foundWorkHour.value.approvalStatus === 2) {
+    dialogIcon.value.class = "red-text";
+    dialogIcon.value.name = "cancel";
+  } else {
+    dialogIcon.value.class = "";
+    dialogIcon.value.name = "";
+  }
+  showWorkHourDialog.value = true;
+}
+
+function toggleSelectAll(val) {
+  if (val) {
+    selectedWorkHours.value = [...userWorkHours.value];
+  } else {
+    selectedWorkHours.value = [];
+  }
+}
+
 async function setFilter(filter) {
-  console.log(filter);
   if (!filter) {
     await $router.push({
       query: {},
@@ -412,8 +663,13 @@ onMounted(async () => {
 .green-text {
   color: $green-4;
 }
+.orange-text {
+  color: $orange-4;
+}
 .selection_width {
   width: 5%;
-  float: left;
+}
+.grid-style-transition {
+  transition: transform 0.28s, background-color 0.28s;
 }
 </style>

@@ -68,72 +68,227 @@
       </div>
     </div>
     <div>
-      <q-list role="list" separator>
-        <!--<q-item clickable class="q-py-sm text-bold"
-          ><q-item-section class="col-1">Godkjent</q-item-section>
-          <q-item-section class="col-2">Bruker</q-item-section>
-          <q-item-section class="col-2">Godkjent av</q-item-section>
-          <q-item-section class="col-3"> Beskrivelse </q-item-section>
-          <q-item-section class="col-1">Fra</q-item-section>
-          <q-item-section class="col-1">-</q-item-section>
-          <q-item-section class="col-1">Til</q-item-section>
-          <q-item-section class="col-1">Timer</q-item-section>
-        </q-item>-->
-        <q-item
-          v-for="workHour in userWorkHours"
-          :key="workHour.workHourId"
-          clickable
-          class="q-py-sm row"
-          ><q-item-section avatar>
+      <q-table
+        v-if="!showEdit"
+        flat
+        row-key="workHourId"
+        ref="tableRef"
+        :columns="columns"
+        :visible-columns="visibleColumns"
+        :loading="loading"
+        :rows="userWorkHours"
+        no-data-label="Ingen data"
+        class="sticky-header-table"
+        style="height: 80vh"
+        @virtual-scroll="getUserWorkhours"
+        virtual-scroll
+        :rows-per-page-options="[0]"
+        :virtual-scroll-slice-size="10"
+        :virtual-scroll-item-size="48"
+        hide-bottom
+        hide-header
+        @row-click="(_, row) => editWorkHours(row)"
+      >
+        <template #top-left>
+          <div class="row q-gutter-sm q-pr-md"></div>
+        </template>
+        <template #body-cell-approved="props">
+          <q-td :props="props">
             <q-icon
               size="md"
               name="check_circle"
               class="green-text"
-              v-if="workHour.approvedBy != null"
+              v-if="props.row.approvalStatus === 1"
             />
             <q-icon
               size="md"
               name="cancel"
               class="red-text"
-              v-if="workHour.approvedBy == null"
+              v-if="props.row.approvalStatus === 2"
             />
-          </q-item-section>
-          <q-item-section>
-            <q-item-label caption
-              ><span v-if="$q.screen.lt.md">
-                {{ toDateString(workHour.startTime) }}
-              </span>
-              |
-              <span>
-                {{ toTimeString(workHour.startTime) }} -
-                {{ toTimeString(workHour.endTime) }}
-              </span>
-            </q-item-label>
-            <q-item-label :lines="2" class="q-pr-xl">
-              {{ workHour.description }}
-            </q-item-label>
-          </q-item-section>
-          <q-item-section v-if="$q.screen.gt.sm" class="col-1">
-            <q-item-label>
-              <span>
-                {{ toDateString(workHour.startTime) }}
-              </span>
-              <span
-                v-if="
-                  toDateString(workHour.startTime) !==
-                  toDateString(workHour.endTime)
+          </q-td>
+        </template>
+        <template #body-cell-timeAndDescription="props">
+          <q-td :props="props">
+            <q-item-section>
+              <q-item-label caption
+                ><span v-if="$q.screen.lt.md"
+                  ><span>
+                    {{ toDateString(props.row.startTime) }}
+                  </span>
+                  <span
+                    v-if="
+                      toDateString(props.row.startTime) !=
+                      toDateString(props.row.endTime)
+                    "
+                  >
+                    <span> - {{ toDateString(props.row.endTime) }}</span>
+                  </span>
+                  <br
+                    v-if="
+                      toDateString(props.row.startTime) !=
+                      toDateString(props.row.endTime)
+                    "
+                  />
+                  <span
+                    v-if="
+                      $q.screen.lt.sm &&
+                      !(
+                        toDateString(props.row.startTime) !=
+                        toDateString(props.row.endTime)
+                      )
+                    "
+                  >
+                    |
+                  </span>
+                </span>
+                <span>
+                  {{ toTimeString(props.row.startTime) }} -
+                  {{ toTimeString(props.row.endTime) }}
+                </span>
+              </q-item-label>
+              <q-item-label
+                :lines="2"
+                class="q-pr-xl"
+                style="
+                  max-width: 60vw;
+                  text-overflow: ellipsis;
+                  overflow: hidden;
                 "
               >
-                - {{ toDateString(workHour.endTime) }}
-              </span>
-            </q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            {{ workHour.hours.toFixed(1).toString().replace(".", ",") }} t
-          </q-item-section>
-        </q-item>
-      </q-list>
+                {{ props.row.description }}
+              </q-item-label>
+            </q-item-section>
+          </q-td>
+        </template>
+        <template #body-cell-dates="props">
+          <q-td :props="props">
+            <q-item-section v-if="$q.screen.gt.sm" class="col-1">
+              <q-item-label>
+                <span>
+                  {{ toDateString(props.row.startTime) }}
+                </span>
+                <span
+                  v-if="
+                    toDateString(props.row.startTime) !==
+                    toDateString(props.row.endTime)
+                  "
+                >
+                  - {{ toDateString(props.row.endTime) }}
+                </span>
+              </q-item-label>
+            </q-item-section>
+          </q-td>
+        </template>
+        <template #body-cell-hours="props">
+          <td :props="props">
+            <q-item-section side>
+              {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }} t
+            </q-item-section>
+          </td>
+        </template>
+      </q-table>
     </div>
+    <q-dialog v-model="showWorkHourDialog" maximized>
+      <q-card class="q-pa-sm">
+        <q-card-section>
+          <div class="row">
+            <q-icon
+              size="lg"
+              :name="dialogIcon.name"
+              :class="dialogIcon.class"
+              class="q-pr-md"
+            />
+            <div class="text-h6">Rediger</div>
+
+            <q-space></q-space>
+
+            <q-icon
+              @click="confirmDeleteDialog = true"
+              size="md"
+              name="delete"
+              class="q-pr-md cursor-pointer"
+              :class="hoverClass"
+              @mouseover="hoverClass = 'text-red'"
+              @mouseleave="hoverClass = ''"
+            />
+          </div>
+
+          <div class="col q-pa-md">
+            <DateTimePicker
+              class="q-pa-sm col-6"
+              dense
+              filled
+              label="Starttid"
+              v-model="workHour.startTime"
+              :disable="loading"
+            />
+            <DateTimePicker
+              class="q-pa-sm col-6"
+              dense
+              filled
+              label="Sluttid"
+              v-model="workHour.endTime"
+              :disable="loading"
+            />
+          </div>
+          <div class="row q-pa-md">
+            <q-input
+              class="col-12 q-pa-sm"
+              filled
+              type="textarea"
+              label="Kommentar"
+              v-model="workHour.description"
+              :disable="loading"
+            />
+          </div>
+        </q-card-section>
+        <q-card-section class="q-px-xl row justify-center">
+          <q-btn
+            label="Avbryt"
+            size="large"
+            @click="showWorkHourDialog = false"
+          />
+          <q-space></q-space>
+          <q-btn
+            label="Lagre"
+            size="large"
+            @click="saveWorkHourForm"
+            color="primary"
+          />
+        </q-card-section>
+      </q-card>
+    </q-dialog>
+    <q-dialog
+      v-model="confirmDeleteDialog"
+      transition-show="scale"
+      transition-hide="scale"
+    >
+      <q-card style="max-width: 300px">
+        <q-card-section>
+          <div class="text-h6">Bekreft sletting</div>
+        </q-card-section>
+
+        <q-card-section class="q-pt-none">
+          Vil du slette denne jobbtimen?
+        </q-card-section>
+
+        <q-card-actions>
+          <q-btn flat label="Avbryt" v-close-popup no-caps :disable="loading" />
+          <q-space />
+          <q-btn
+            flat
+            no-caps
+            label="Slett"
+            @click="deleteWorkHour(foundWorkHour.workHourId)"
+            :disable="loading"
+            :class="hoverClass2"
+            @mouseover="hoverClass2 = 'text-red'"
+            @mouseleave="hoverClass2 = ''"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -160,6 +315,11 @@ const $q = useQuasar();
 const emit = defineEmits(["toggle-right", "toggle-left"]);
 
 // refs
+const hoverClass = ref(null);
+const hoverClass2 = ref(null);
+const confirmDeleteDialog = ref(false);
+const showWorkHourDialog = ref(false);
+const foundWorkHour = ref({});
 const tableRef = useTemplateRef("tableRef");
 const timerStarted = ref(false);
 const showEdit = ref(false);
@@ -176,41 +336,40 @@ const workHour = ref({
   description: null,
 });
 const pagination = ref({
-  rowsPerPage: Number.isInteger(parseInt($route.query.rowPP))
-    ? parseInt($route.query.rowPP)
-    : 20,
-  page: Number.isInteger(parseInt($route.query.page))
-    ? parseInt($route.query.page)
-    : 1,
+  rowsPerPage: 10,
   rowsNumber: undefined,
+});
+const dialogIcon = ref({
+  class: "",
+  name: "",
 });
 
 // constants
 const columns = [
   {
     name: "approved",
-    label: "Vedtatt",
+    label: "Status",
     field: (row) => row.approvedBy,
     align: "left",
     headerStyle: "width: 5%",
     style: "width: 5%",
   },
   {
-    name: "description",
+    name: "timeAndDescription",
     label: "Beskrivelse",
     field: (row) => row.description,
     align: "left",
-    headerStyle: "width: 30%",
+    headerStyle: "width: 80%",
     style:
-      "width: 20%; max-width: 30px; text-overflow: ellipsis; overflow: hidden;",
+      "width: 80%; max-width: 6000px; text-overflow: ellipsis; overflow: hidden;",
   },
   {
-    name: "fromTo",
+    name: "time",
     label: "Fra - Til",
     format: (val) => toDateTimeString(val),
     align: "left",
-    headerStyle: "width: 10%",
-    style: "width: 10%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
   {
     name: "dates",
@@ -226,25 +385,18 @@ const columns = [
     field: (row) => row.hours,
     format: (val) => val.toFixed(2),
     align: "left",
-    headerStyle: "width: 5%",
-    style: "width: 5%",
+    headerStyle: "width: 15%",
+    style: "width: 15%",
   },
 ];
 
 // computed
-const page = computed(() => {
-  return $route.query.page;
-});
-const rowPP = computed(() => {
-  return $route.query.rowPP;
-});
 
 const visibleColumns = computed(() => {
   let cols = [];
   cols.push("approved");
-  if ($q.screen.gt.md) cols.push("description");
-  cols.push("fromTo");
-  cols.push("dates");
+  cols.push("timeAndDescription");
+  if ($q.screen.gt.sm) cols.push("dates");
   cols.push("hours");
   return cols;
 });
@@ -256,38 +408,21 @@ async function resetTable() {
   pagination.value.rowsNumber = undefined;
 }
 
-async function checkWorkHoursNotEnded(props) {
-  loading.value = true;
+async function getUserWorkhours({ to, ref }) {
+  if (
+    to < userWorkHours.value.length - 1 ||
+    userWorkHours.value.length >= pagination.value.rowsNumber
+  )
+    return;
   try {
-    await resetTable();
-    await workHourStore.getActiveWorkHour(userId);
-    activeWorkHour.value = workHourStore.activeWorkHour;
+    loading.value = true;
     const params = {
-      page: props.pagination.page,
-      pageSize: props.pagination.rowsPerPage,
+      size: pagination.value.rowsPerPage,
     };
     await workHourStore.getWorkHoursByUser(userId, params);
     userWorkHours.value = workHourStore.userWorkHours.result;
-    pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
-    pagination.value.page = props.pagination.page;
-    pagination.value.rowsPerPage = props.pagination.rowsPerPage;
-    await $router.push({
-      query: {
-        page:
-          pagination.value.page !== undefined || page.value !== undefined
-            ? pagination.value.page ?? page.value
-              ? pagination.value.page
-              : 1
-            : undefined,
-        rowPP:
-          pagination.value.rowsPerPage !== undefined ||
-          rowPP.value !== undefined
-            ? pagination.value.rowsPerPage ?? rowPP.value
-              ? pagination.value.rowsPerPage
-              : undefined
-            : undefined,
-      },
-    });
+    pagination.value.rowsNumber = userWorkHours.value.length;
+    pagination.value.rowsPerPage = workHourStore.userWorkHours.totalCount;
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -296,13 +431,34 @@ async function checkWorkHoursNotEnded(props) {
       message: ("errorOccurred", { error: e }),
     });
   } finally {
-    if (userWorkHours.value.length > 0) {
-      if (activeWorkHour.value) {
-        timerStarted.value = true;
-        showEdit.value = true;
-        currentWorkHour.value = activeWorkHour.value;
-        await setEditTimer();
-      }
+    loading.value = false;
+    if (pagination.value.rowsNumber == undefined) {
+      pagination.value.rowsNumber = 0;
+      if (ref) ref.refresh();
+      console.group("lol");
+    }
+  }
+}
+
+async function checkWorkHoursNotEnded() {
+  try {
+    loading.value = true;
+    await resetTable();
+    await workHourStore.getActiveWorkHour(userId);
+    activeWorkHour.value = workHourStore.activeWorkHour;
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: ("errorOccurred", { error: e }),
+    });
+  } finally {
+    if (activeWorkHour.value) {
+      timerStarted.value = true;
+      showEdit.value = true;
+      currentWorkHour.value = activeWorkHour.value;
+      await setEditTimer();
     }
     loading.value = false;
   }
@@ -312,11 +468,16 @@ async function startTimer() {
   loading.value = true;
   // post startTime val
   try {
+    workHour.value.startTime = null;
+    workHour.value.endTime = null;
+    workHour.value.description = null;
     const model = {
       userId: currentUser.value?.id,
       startTime: formatISO(new Date()),
     };
     await workHourStore.createWorkHour(model);
+    currentWorkHour.value = workHourStore.workHour;
+    workHour.value.startTime = currentWorkHour.value.startTime;
     $q.notify({ message: "Timer startet." });
   } catch (e) {
     console.error(e);
@@ -329,7 +490,6 @@ async function startTimer() {
     loading.value = false;
     timerStarted.value = true;
     showEdit.value = true;
-    tableRef.value?.requestServerInteraction();
   }
 }
 
@@ -384,14 +544,15 @@ async function saveStoppedTimer() {
     const model = {
       workHourId: currentWorkHour.value.workHourId,
       startTime: workHour.value.startTime,
-      endTime: formatISO(new Date()),
+      endTime: workHour.value.endTime ?? formatISO(new Date()),
       description: workHour.value.description,
       approvedBy: currentWorkHour.value.approvedBy,
       shiftId: currentWorkHour.value.shiftId,
-      isDeleted: currentWorkHour.value.isDeleted,
+      approvalStatus: currentWorkHour.value.approvalStatus,
       userId: currentWorkHour.value.userId,
     };
     await workHourStore.updateWorkHour(model);
+    $q.notify({ message: "Lagret." });
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -402,11 +563,86 @@ async function saveStoppedTimer() {
   } finally {
     timerStarted.value = false;
     showEdit.value = false;
+    await resetTable();
+    workHour.value.endTime = null;
     loading.value = false;
-    tableRef.value?.requestServerInteraction();
   }
 }
 
+async function editWorkHours(workHourRow) {
+  foundWorkHour.value = userWorkHours.value.find(
+    (w) => w.workHourId === workHourRow.workHourId
+  );
+  if (!foundWorkHour.value) {
+    return;
+  }
+  if (foundWorkHour.value.approvalStatus === 1) {
+    dialogIcon.value.class = "green-text";
+    dialogIcon.value.name = "check_circle";
+  } else if (foundWorkHour.value.approvalStatus === 2) {
+    dialogIcon.value.class = "red-text";
+    dialogIcon.value.name = "cancel";
+  }
+
+  showWorkHourDialog.value = true;
+  workHour.value.startTime = foundWorkHour.value.startTime;
+  workHour.value.endTime = foundWorkHour.value.endTime;
+  workHour.value.description = foundWorkHour.value.description;
+}
+
+async function saveWorkHourForm() {
+  try {
+    loading.value = true;
+    const model = {
+      workHourId: foundWorkHour.value.workHourId,
+      startTime: workHour.value.startTime,
+      endTime: workHour.value.endTime,
+      description: workHour.value.description,
+      approvedBy: foundWorkHour.value.approvedBy,
+      shiftId: foundWorkHour.value.shiftId,
+      approvalStatus: foundWorkHour.value.approvalStatus,
+      userId: foundWorkHour.value.userId,
+    };
+    await workHourStore.updateWorkHour(model);
+    $q.notify({ message: "Lagret." });
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "errorOccurred",
+    });
+  } finally {
+    workHour.value.endTime = null;
+    showWorkHourDialog.value = false;
+    await resetTable();
+    loading.value = false;
+  }
+}
+
+async function deleteWorkHour(workHourId) {
+  try {
+    loading.value = true;
+    await workHourStore.deleteWorkHourById(workHourId);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "Slettet",
+    });
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "errorOccurred",
+    });
+  } finally {
+    showWorkHourDialog.value = false;
+    confirmDeleteDialog.value = false;
+    await resetTable();
+    loading.value = false;
+  }
+}
 function toDateTimeString(value, options) {
   let timeFormat = "dd.MM.yyyy HH:mm";
   if (options && options.includeSeconds) timeFormat = "dd.MM.yyyy HH:mm:ss";
@@ -434,7 +670,7 @@ function userPhoneById(id) {
 onMounted(async () => {
   await userStore.getUsers();
   await userStore.getUser();
-  tableRef.value?.requestServerInteraction();
+  await checkWorkHoursNotEnded();
 });
 </script>
 <style lang="scss" scoped>
@@ -443,5 +679,8 @@ onMounted(async () => {
 }
 .green-text {
   color: $green-4;
+}
+.orange-text {
+  color: $orange-4;
 }
 </style>

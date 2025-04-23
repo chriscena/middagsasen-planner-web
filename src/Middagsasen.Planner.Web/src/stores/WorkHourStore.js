@@ -5,7 +5,7 @@ import { useUserStore } from "src/stores/UserStore";
 
 export const useWorkHourStore = defineStore("workHours", {
   state: () => ({
-    workHours: [],
+    workHour: {},
     userWorkHours: [],
     workHourById: {},
     activeWorkHour: {},
@@ -13,12 +13,11 @@ export const useWorkHourStore = defineStore("workHours", {
   actions: {
     async createWorkHour(model) {
       const response = await api.post(`/api/WorkHours`, model);
-      this.workHours = response.data;
+      this.workHour = response.data;
     },
 
     async getActiveWorkHour(userId) {
       const response = await api.get(`/api/WorkHours/User/${userId}/EndTime`);
-      console.log(response)
       this.activeWorkHour = response.data; 
     },
 
@@ -49,6 +48,11 @@ export const useWorkHourStore = defineStore("workHours", {
       const response = await api.patch(
         `/api/WorkHours/${model.workHourId}/ApprovedBy`,
         model
+      );
+    },
+    async deleteWorkHourById(workHourId) {
+        await api.delete(
+        `/api/WorkHours/${workHourId}`,
       );
     },
   },

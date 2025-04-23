@@ -85,7 +85,7 @@
             <q-icon name="alarm_on"></q-icon>
           </q-item-section>
           <q-item-section>
-            <q-item-label>Godkjenn timer</q-item-label>
+            <q-item-label>Time-godkjenning</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>
