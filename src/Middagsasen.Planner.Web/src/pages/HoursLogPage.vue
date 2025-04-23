@@ -132,7 +132,7 @@
                   />
                   <span
                     v-if="
-                      $q.screen.lt.sm &&
+                      $q.screen.lt.md &&
                       !(
                         toDateString(props.row.startTime) !=
                         toDateString(props.row.endTime)
