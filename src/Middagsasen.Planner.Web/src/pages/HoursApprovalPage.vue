@@ -281,18 +281,63 @@
     <q-card class="q-pa-sm" style="width: 100%">
       <q-card-section>
         <div class="row">
-          <q-icon
+          <q-btn-dropdown
             size="lg"
-            :name="dialogIcon.name"
+            :icon="dialogIcon.name"
             :class="dialogIcon.class"
-            class="q-pr-lg"
-          />
-
-          <div class="text-h6 q-pr-lg">
+            class="q-pa-xs q-pl-sm"
+          >
+            <q-list>
+              <q-item
+                v-if="foundWorkHour.approvalStatus !== 1"
+                clickable
+                @click="changeStatus(foundWorkHour.workHourId, 1)"
+              >
+                <q-item-section>
+                  <div>
+                    <q-icon
+                      name="check_circle"
+                      class="green-text q-pr-sm"
+                      size="md"
+                    />Godkjent
+                  </div>
+                </q-item-section>
+              </q-item>
+              <q-item
+                v-if="foundWorkHour.approvalStatus !== 2"
+                clickable
+                @click="changeStatus(foundWorkHour.workHourId, 2)"
+              >
+                <q-item-section>
+                  <div>
+                    <q-icon name="cancel" class="red-text q-pr-sm" size="md" />
+                    Avslått
+                  </div>
+                </q-item-section>
+              </q-item>
+              <q-item
+                v-if="foundWorkHour.approvalStatus !== null"
+                clickable
+                @click="changeStatus(foundWorkHour.workHourId, null)"
+              >
+                <q-item-section>
+                  <div>
+                    <q-icon
+                      size="md"
+                      class="q-pr-sm grey-text"
+                      name="radio_button_unchecked"
+                    />
+                    Ingen status
+                  </div>
+                </q-item-section>
+              </q-item>
+            </q-list>
+          </q-btn-dropdown>
+          <div class="text-h6 q-px-lg q-pt-xs">
             <q-item-label caption>
               <span
                 v-if="
-                  toDateString(foundWorkHour.startTime) !=
+                  toDateString(foundWorkHour.startTime) ==
                   toDateString(foundWorkHour.endTime)
                 "
               >
@@ -301,6 +346,21 @@
                   {{ toTimeString(foundWorkHour.startTime) }} -
                   {{ toTimeString(foundWorkHour.endTime) }}
                 </span>
+              </span>
+              <span
+                v-if="
+                  toDateString(foundWorkHour.startTime) !=
+                  toDateString(foundWorkHour.endTime)
+                "
+              >
+                <div>
+                  Fra: {{ toDateString(foundWorkHour.startTime) }} |
+                  {{ toTimeString(foundWorkHour.startTime) }}
+                </div>
+                <div>
+                  Til: {{ toDateString(foundWorkHour.endTime) }} |
+                  {{ toTimeString(foundWorkHour.endTime) }}
+                </div>
               </span>
             </q-item-label>
             {{ userNameById(foundWorkHour.userId) }}
@@ -377,7 +437,7 @@ const currentUserId = currentUser.value.id;
 const pagination = ref({
   rowsPerPage: Number.isInteger(parseInt($route.query.rowPP))
     ? parseInt($route.query.rowPP)
-    : 20,
+    : 15,
   page: Number.isInteger(parseInt($route.query.page))
     ? parseInt($route.query.page)
     : 1,
@@ -532,7 +592,7 @@ async function approveUpdateRows(status) {
           approvalStatus: status,
           workHourId: selectedWorkHours.value[i].workHourId,
         };
-        await workHourStore.updateApprovedBy(model);
+        await workHourStore.updateApproval(model);
       } catch (e) {
         console.error(e);
         $q.notify({
@@ -557,6 +617,29 @@ async function approveUpdateRows(status) {
   }
 }
 
+async function changeStatus(workHourId, status) {
+  try {
+    loading.value = true;
+    const model = {
+      approvedBy: status === null ? null : currentUserId,
+      approvalStatus: status,
+      workHourId: workHourId,
+    };
+    await workHourStore.updateApproval(model);
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: ("errorOccurred", { error: e }),
+    });
+  } finally {
+    loading.value = false;
+    showWorkHourDialog.value = false;
+    tableRef.value?.requestServerInteraction();
+  }
+}
+
 async function openWorkHours(workHourRow) {
   foundWorkHour.value = userWorkHours.value?.find(
     (w) => w.workHourId === workHourRow.workHourId
@@ -571,8 +654,8 @@ async function openWorkHours(workHourRow) {
     dialogIcon.value.class = "red-text";
     dialogIcon.value.name = "cancel";
   } else {
-    dialogIcon.value.class = "";
-    dialogIcon.value.name = "";
+    dialogIcon.value.class = "grey-text";
+    dialogIcon.value.name = "radio_button_unchecked";
   }
   showWorkHourDialog.value = true;
 }
@@ -586,6 +669,9 @@ function toggleSelectAll(val) {
 }
 
 async function setFilter(filter) {
+  if ((filter.approved || approvedFilter.value) !== 3) {
+    selectedWorkHours.value = [];
+  }
   if (!filter) {
     await $router.push({
       query: {},
@@ -652,6 +738,9 @@ onMounted(async () => {
 }
 .orange-text {
   color: $orange-4;
+}
+.grey-text {
+  color: $grey-7;
 }
 .selection_width {
   width: 5%;

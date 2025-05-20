@@ -7,6 +7,7 @@
     filled
     mask="##.##.#### ##:##"
     :dense="dense"
+    :disable="disable"
   >
     <template #prepend>
       <q-icon name="event" class="cursor-pointer">

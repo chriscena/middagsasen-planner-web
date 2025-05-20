@@ -106,15 +106,30 @@
               class="red-text"
               v-if="props.row.approvalStatus === 2"
             />
+            <q-icon
+              size="md"
+              name="radio_button_unchecked"
+              class="grey-text"
+              v-if="props.row.approvalStatus === null"
+            />
           </q-td>
         </template>
         <template #body-cell-timeAndDescription="props">
           <q-td :props="props">
             <q-item-section>
-              <q-item-label caption
-                ><span v-if="$q.screen.lt.md"
-                  ><span>
-                    {{ toDateString(props.row.startTime) }}
+              <q-item-label caption>
+                <span v-if="$q.screen.lt.md">
+                  <span
+                    v-if="
+                      toDateString(props.row.startTime) ==
+                      toDateString(props.row.endTime)
+                    "
+                  >
+                    <span> {{ toDateString(props.row.startTime) }} | </span>
+                    <span
+                      >{{ toTimeString(props.row.startTime) }} -
+                      {{ toTimeString(props.row.endTime) }}
+                    </span>
                   </span>
                   <span
                     v-if="
@@ -122,29 +137,15 @@
                       toDateString(props.row.endTime)
                     "
                   >
-                    <span> - {{ toDateString(props.row.endTime) }}</span>
+                    <div>
+                      Fra: {{ toDateString(props.row.startTime) }} |
+                      {{ toTimeString(props.row.startTime) }}
+                    </div>
+                    <div>
+                      Til: {{ toDateString(props.row.endTime) }} |
+                      {{ toTimeString(props.row.endTime) }}
+                    </div>
                   </span>
-                  <br
-                    v-if="
-                      toDateString(props.row.startTime) !=
-                      toDateString(props.row.endTime)
-                    "
-                  />
-                  <span
-                    v-if="
-                      $q.screen.lt.md &&
-                      !(
-                        toDateString(props.row.startTime) !=
-                        toDateString(props.row.endTime)
-                      )
-                    "
-                  >
-                    |
-                  </span>
-                </span>
-                <span>
-                  {{ toTimeString(props.row.startTime) }} -
-                  {{ toTimeString(props.row.endTime) }}
                 </span>
               </q-item-label>
               <q-item-label
@@ -199,7 +200,7 @@
               :class="dialogIcon.class"
               class="q-pr-md"
             />
-            <div class="text-h6">Rediger</div>
+            <div class="text-h6 q-pt-xs">Rediger</div>
 
             <q-space></q-space>
 
@@ -221,7 +222,7 @@
               filled
               label="Starttid"
               v-model="workHour.startTime"
-              :disable="loading"
+              :disable="loading || noEdit"
             />
             <DateTimePicker
               class="q-pa-sm col-6"
@@ -229,7 +230,7 @@
               filled
               label="Sluttid"
               v-model="workHour.endTime"
-              :disable="loading"
+              :disable="loading || noEdit"
             />
           </div>
           <div class="row q-pa-md">
@@ -239,18 +240,19 @@
               type="textarea"
               label="Kommentar"
               v-model="workHour.description"
-              :disable="loading"
+              :disable="loading || noEdit"
             />
           </div>
         </q-card-section>
         <q-card-section class="q-px-xl row justify-center">
           <q-btn
-            label="Avbryt"
+            :label="noEdit ? 'Lukk' : 'Avbryt'"
             size="large"
             @click="showWorkHourDialog = false"
           />
           <q-space></q-space>
           <q-btn
+            v-if="!noEdit"
             label="Lagre"
             size="large"
             @click="saveWorkHourForm"
@@ -399,6 +401,10 @@ const visibleColumns = computed(() => {
   if ($q.screen.gt.sm) cols.push("dates");
   cols.push("hours");
   return cols;
+});
+
+const noEdit = computed(() => {
+  return foundWorkHour.value.approvalStatus !== null;
 });
 
 // methods
@@ -582,6 +588,9 @@ async function editWorkHours(workHourRow) {
   } else if (foundWorkHour.value.approvalStatus === 2) {
     dialogIcon.value.class = "red-text";
     dialogIcon.value.name = "cancel";
+  } else {
+    dialogIcon.value.class = "grey-text";
+    dialogIcon.value.name = "radio_button_unchecked";
   }
 
   showWorkHourDialog.value = true;
@@ -658,15 +667,6 @@ function toDateString(value) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
 
-function userNameById(id) {
-  const approvedByNameUser = userStore.users.find((u) => u.id === id);
-  return approvedByNameUser?.fullName ? approvedByNameUser?.fullName : "";
-}
-function userPhoneById(id) {
-  const approvedByNameUser = userStore.users.find((u) => u.id === id);
-  return approvedByNameUser?.phoneNo ? approvedByNameUser?.phoneNo : "";
-}
-
 onMounted(async () => {
   await userStore.getUsers();
   await userStore.getUser();
@@ -682,5 +682,8 @@ onMounted(async () => {
 }
 .orange-text {
   color: $orange-4;
+}
+.grey-text {
+  color: $grey-7;
 }
 </style>

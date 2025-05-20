@@ -44,7 +44,7 @@ export const useWorkHourStore = defineStore("workHours", {
         model
       );
     },
-    async updateApprovedBy(model) {
+    async updateApproval(model) {
       const response = await api.patch(
         `/api/WorkHours/${model.workHourId}/ApprovedBy`,
         model
