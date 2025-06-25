@@ -1,5 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Middagsasen.Planner.Api.Controllers;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
@@ -859,7 +858,6 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(message);
         }
 
-        // This method updates the minimum staff required for an event resource.
         public async Task<MinimumStaffResponse?> UpdateMinimumStaff(int id, MinimumStaffRequest request)
         {
             var eventResource = await DbContext.EventResource

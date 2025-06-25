@@ -92,9 +92,10 @@
         </q-item-section>
       </q-item>
     </q-list>
-    <q-separator></q-separator>
+    <q-separator v-if="timestamp.date > today()"></q-separator>
     <span class="row">
       <q-item
+        v-if="timestamp.date > today()"
         clickable
         v-ripple
         dense
@@ -108,6 +109,7 @@
       </q-item>
       <q-separator vertical></q-separator>
       <q-item
+        v-if="timestamp.date > today()"
         clickable
         v-ripple
         dense

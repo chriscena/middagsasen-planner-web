@@ -1,6 +1,4 @@
-﻿using Middagsasen.Planner.Api.Controllers;
-
-namespace Middagsasen.Planner.Api.Services.Events
+﻿namespace Middagsasen.Planner.Api.Services.Events
 {
     public interface IEventsService
     {

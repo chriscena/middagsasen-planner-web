@@ -71,6 +71,23 @@
             <q-item-label>Vakttyper</q-item-label>
           </q-item-section>
         </q-item>
+
+        <q-item clickable to="/hours" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="hourglass_empty"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Timelogging</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item clickable to="/approveHours" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="alarm_on"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Time-godkjenning</q-item-label>
+          </q-item-section>
+        </q-item>
       </q-list>
     </q-drawer>
 
