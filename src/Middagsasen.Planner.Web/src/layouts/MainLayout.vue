@@ -77,15 +77,15 @@
             <q-icon name="hourglass_empty"></q-icon>
           </q-item-section>
           <q-item-section>
-            <q-item-label>Timelogging</q-item-label>
+            <q-item-label>Timeføring</q-item-label>
           </q-item-section>
         </q-item>
-        <q-item clickable to="/approveHours" v-ripple>
+        <q-item v-if="isAdmin" clickable to="/approveHours" v-ripple>
           <q-item-section avatar>
             <q-icon name="alarm_on"></q-icon>
           </q-item-section>
           <q-item-section>
-            <q-item-label>Time-godkjenning</q-item-label>
+            <q-item-label>Timelister</q-item-label>
           </q-item-section>
         </q-item>
       </q-list>
