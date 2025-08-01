@@ -16,6 +16,7 @@
   "dependencies": {
     "@date-fns/utc": "^2.1.0",
     "@quasar/extras": "^1.16.17",
+    "@quasar/quasar-ui-qcalendar": "^4.1.2",
     "@vuelidate/core": "^2.0.3",
     "@vuelidate/validators": "^2.0.4",
     "axios": "^1.2.1",
@@ -32,7 +33,6 @@
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^5.2.0",
     "@quasar/app-vite": "^2.0.0",
-    "@quasar/quasar-app-extension-qcalendar": "^4.1.0",
     "autoprefixer": "^10.4.2",
     "eslint": "^8.10.0",
     "eslint-config-prettier": "^8.1.0",

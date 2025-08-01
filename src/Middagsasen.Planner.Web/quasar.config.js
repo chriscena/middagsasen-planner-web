@@ -20,7 +20,7 @@ export default configure((/* ctx */) => {
     boot: ["i18n", "axios", "notify-defaults"],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
-    css: ["app.scss"],
+    css: ["app.scss", '~@quasar/quasar-ui-qcalendar/src/index.scss'],
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [
