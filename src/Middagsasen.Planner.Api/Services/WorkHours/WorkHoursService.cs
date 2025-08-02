@@ -33,14 +33,32 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return await GetWorkHourById(newWorkHour.WorkHourId);
         }
 
-        public async Task<IEnumerable<WorkHourResponse>> GetWorkHours()
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? approved, int? page = 1, int? pageSize = 20)
         {
-            var workHours = await DbContext.WorkHours
-               .AsNoTracking()
-               .ToListAsync();
+            var take = pageSize ?? 20;
+            var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
+            var skip = (pageToUse - 1) * take;
 
-            return DbContext.WorkHours.Select(Map).ToList();
+            var query = DbContext.WorkHours
+               .AsNoTracking();
 
+            if (approved == 1)
+                query = query.Where(w => w.ApprovalStatus == 1);
+            if (approved == 2)
+                query = query.Where(w => w.ApprovalStatus == 2);
+            if (approved == 3)
+                query = query.Where(w => !w.ApprovalStatus.HasValue);
+
+            var totalCount = query.Count();
+            var existingWorkHours = await query
+                .OrderByDescending(w => w.StartTime)
+                .Skip(skip)
+                .Take(take)
+                .ToListAsync();
+
+            var result = existingWorkHours.Select(Map).ToList();
+
+            return new PagedResponse<WorkHourResponse> { Result = result, TotalCount = totalCount };
         }
 
         public async Task<WorkHourResponse?> GetWorkHourById(int id)
@@ -97,10 +115,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         private WorkHourResponse Map(WorkHour workHour)
         {
-            double interval = 0;
+            decimal interval = 0;
             if (workHour.EndTime.HasValue && workHour.StartTime.HasValue)
             {
-                interval = (workHour.EndTime.Value - workHour.StartTime.Value).TotalHours;
+                interval = (decimal)Math.Round((workHour.EndTime.Value - workHour.StartTime.Value).TotalHours, 1);
             }
 
             return new WorkHourResponse

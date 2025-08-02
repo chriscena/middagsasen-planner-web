@@ -15,6 +15,14 @@ export const useWorkHourStore = defineStore("workHours", {
       this.workHour = response.data;
     },
 
+    async getWorkHours(params) {
+      const response = await api.get(`/api/WorkHours/`, {
+        params,
+      });
+      this.userWorkHours = response.data;
+      return response.data;
+    },
+
     async getWorkHoursByUser(userId, params) {
       const response = await api.get(`/api/WorkHours/User/${userId}`, {
         params,

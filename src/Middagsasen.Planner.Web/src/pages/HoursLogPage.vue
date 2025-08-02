@@ -31,12 +31,7 @@
       </q-toolbar>
     </q-header>
     <div>
-      <q-infinite-scroll
-        :offset="100"
-        @load="getUserWorkhours"
-        :disabled="loading"
-        :distance="100"
-      >
+      <q-infinite-scroll :offset="100" @load="getUserWorkhours" :distance="100">
         <q-list role="list" separator>
           <q-item
             separator
@@ -44,6 +39,7 @@
             :key="index"
             clickable
             v-ripple
+            @click="editWorkHour(hours)"
           >
             <q-item-section avatar>
               <q-icon
@@ -192,6 +188,11 @@ onMounted(async () => {
   await userStore.getUsers();
   await userStore.getUser();
 });
+
+function editWorkHour(hours) {
+  currentWorkHour.value = { ...hours };
+  showWorkHourDialog.value = true;
+}
 
 const showingTimetrackingForm = ref(false);
 function openTimetrackingForm() {

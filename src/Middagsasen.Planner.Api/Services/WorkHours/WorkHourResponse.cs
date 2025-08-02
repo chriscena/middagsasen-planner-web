@@ -7,7 +7,7 @@
         public int? ShiftId { get; set; }
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
-        public double? Hours { get; set; }
+        public decimal? Hours { get; set; }
         public string? Description { get; set; }
         public int? ApprovedBy { get; set; }
         public int? ApprovalStatus { get; set; }

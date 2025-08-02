@@ -38,9 +38,9 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet]
         [ProducesResponseType(typeof(IEnumerable<WorkHourResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)
         {
-            var workHours = await WorkHoursService.GetWorkHours();
+            var workHours = await WorkHoursService.GetWorkHours(approved, page, pageSize);
             return Ok(workHours);
         }
 
