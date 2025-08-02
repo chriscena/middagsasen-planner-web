@@ -72,14 +72,6 @@
           </q-item-section>
         </q-item>
 
-        <q-item clickable to="/hours" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="hourglass_empty"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Timeføring</q-item-label>
-          </q-item-section>
-        </q-item>
         <q-item v-if="isAdmin" clickable to="/approveHours" v-ripple>
           <q-item-section avatar>
             <q-icon name="alarm_on"></q-icon>
@@ -129,6 +121,14 @@
           <q-item-section avatar><q-icon name="list"></q-icon></q-item-section>
           <q-item-section>
             <q-item-label>Mine vakter</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item clickable to="/hours">
+          <q-item-section avatar
+            ><q-icon name="history"></q-icon
+          ></q-item-section>
+          <q-item-section>
+            <q-item-label>Mine timer</q-item-label>
           </q-item-section>
         </q-item>
         <q-item clickable @click="logout">

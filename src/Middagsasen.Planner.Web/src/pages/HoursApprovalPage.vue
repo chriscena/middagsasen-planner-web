@@ -50,7 +50,7 @@
               dense
               :disable="loading"
               :model-value="approvedFilter"
-              label="Ingen status"
+              label="Ubehandlet"
               :val="3"
               @update:model-value="(val) => setFilter({ approved: val })"
             />
@@ -139,7 +139,7 @@
                 <div class="text-h6 q-pr-lg">
                   <q-item-label caption>
                     <span>
-                      <span> {{ toDateString(props.row.startTime) }} | </span>
+                      <span> {{ toDateString(props.row.startTime) }} </span>
                       <span>
                         {{ toTimeString(props.row.startTime) }} -
                         {{ toTimeString(props.row.endTime) }}
@@ -190,7 +190,7 @@
         </template>
         <template #body-selection="props">
           <q-checkbox
-            v-if="props.row.approvedBy == null && isAdmin"
+            v-if="!props.row.approvalStatus && isAdmin"
             :props="props"
             v-model="props.selected"
           />
@@ -213,22 +213,14 @@
         </template>
         <template #body-cell-from="props">
           <q-td :props="props">
-            <span v-if="props.row.startTime">
-              {{ toDateString(props.row.startTime) }} |
-            </span>
-            <span v-if="props.row.startTime">
-              {{ toTimeString(props.row.startTime) }}
-            </span>
+            {{ toDateString(props.row.startTime) }}
+            {{ toTimeString(props.row.startTime) }}
           </q-td>
         </template>
         <template #body-cell-to="props">
           <q-td :props="props">
-            <span v-if="props.row.endTime">
-              {{ toDateString(props.row.endTime) }} |
-            </span>
-            <span v-if="props.row.endTime">
-              {{ toTimeString(props.row.endTime) }}
-            </span>
+            {{ toDateString(props.row.endTime) }}
+            {{ toTimeString(props.row.endTime) }}
           </q-td>
         </template>
         <template #body-cell-hours="props">
@@ -240,41 +232,42 @@
       </q-table>
     </div>
   </q-page>
-  <q-dialog v-model="showApprovalDialog" maximized
-    ><q-card class="q-pa-md">
+  <q-dialog v-model="showApprovalDialog">
+    <q-card>
+      <q-card-section class="text-h6">
+        Bekreft {{ approvalType == 1 ? "godkjenning" : "avslag" }}
+      </q-card-section>
       <q-card-section>
-        <div class="text-h6">Bekreft godkjenning</div>
-        <br />
-        <div style="font-size: large">
+        <div>
           Er du sikker på at du vil sette {{ selectedWorkHours.length }}
-          {{ selectedWorkHours.length > 1 ? "timer" : "time" }}
-        </div>
-        <div style="font-size: large">
+          {{ selectedWorkHours.length > 1 ? "timeføringer" : "timeføring" }}
           til
-          <span :class="approvalType == 1 ? 'green-text' : 'red-text'">{{
-            approvalType == 1 ? "godkjent" : "avslått"
-          }}</span
+          <span
+            :class="
+              approvalType == 1 ? 'green-text text-bold ' : 'red-text text-bold'
+            "
+            >{{ approvalType == 1 ? "godkjent" : "avslått" }}</span
           >?
         </div>
       </q-card-section>
-      <q-card-section class="q-pr-xl row justify-center">
+      <q-card-actions align="right">
         <q-btn
           v-if="isAdmin"
           :disable="!(selectedWorkHours.length > 0)"
           label="Avbryt"
-          size="large"
+          no-caps
+          flat
           @click="showApprovalDialog = false"
         />
-        <q-space></q-space>
         <q-btn
           v-if="isAdmin"
           :disable="!(selectedWorkHours.length > 0)"
           label="Lagre"
-          size="large"
+          no-caps
           @click="approveUpdateRows(approvalType)"
           color="primary"
         />
-      </q-card-section>
+      </q-card-actions>
     </q-card>
   </q-dialog>
   <q-dialog v-model="showWorkHourDialog">
@@ -506,7 +499,7 @@ const columns = [
     label: "Timer",
     field: (row) => row.hours,
     format: (val) => val.toFixed(1),
-    align: "left",
+    align: "right",
     headerStyle: "width: 5%",
     style: "width: 5%",
   },
@@ -561,8 +554,10 @@ async function getUserWorkHours(props) {
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
     };
-    await workHourStore.getWorkHoursByUser(currentUserId, params);
-    userWorkHours.value = workHourStore.userWorkHours.result;
+    const response = await workHourStore.getWorkHours(params);
+
+    console.log("userWorkHours", response);
+    userWorkHours.value = response.result;
     pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
