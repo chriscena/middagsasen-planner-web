@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays } from "date-fns";
 import { api } from "boot/axios";
-import { useUserStore } from "src/stores/UserStore";
 
 export const useWorkHourStore = defineStore("workHours", {
   state: () => ({
@@ -16,16 +15,12 @@ export const useWorkHourStore = defineStore("workHours", {
       this.workHour = response.data;
     },
 
-    async getActiveWorkHour(userId) {
-      const response = await api.get(`/api/WorkHours/User/${userId}/EndTime`);
-      this.activeWorkHour = response.data; 
-    },
-
     async getWorkHoursByUser(userId, params) {
       const response = await api.get(`/api/WorkHours/User/${userId}`, {
         params,
       });
       this.userWorkHours = response.data;
+      return response.data;
     },
 
     async getWorkHourById(workHourId) {

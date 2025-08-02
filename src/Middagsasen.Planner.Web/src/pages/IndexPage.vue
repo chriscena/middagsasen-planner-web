@@ -9,7 +9,7 @@
           round
           icon="menu"
           @click="emit('toggle-left')"
-        ></q-btn>
+        />
         <img
           src="~assets/middagsasen-banner-white.svg"
           class="q-ml-sm"
@@ -17,13 +17,21 @@
         />
         <q-space></q-space>
         <q-btn
+          title="Timeføring"
+          dense
+          flat
+          round
+          icon="more_time"
+          @click="openTimetrackingForm"
+        />
+        <q-btn
           title="Din brukerinfo"
           dense
           flat
           round
           icon="person"
           @click="emit('toggle-right')"
-        ></q-btn>
+        />
       </q-toolbar>
     </q-header>
     <q-calendar-agenda
@@ -106,6 +114,12 @@
         @saved="onEventSaved"
         @deleted="onEventSaved"
       ></EventForm>
+    </q-dialog>
+    <q-dialog v-model="showingTimetrackingForm" persistent>
+      <TimeTrackingForm
+        @cancel="showingTimetrackingForm = false"
+        @saved="showingTimetrackingForm = false"
+      ></TimeTrackingForm>
     </q-dialog>
     <q-footer>
       <q-toolbar>
@@ -208,7 +222,7 @@ import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import EventItemCard from "components/EventItemCard.vue";
 import EventForm from "components/EventForm.vue";
-import HallOfFameList from "components/HallOfFameList.vue";
+import TimeTrackingForm from "components/TimeTrackingForm.vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -356,5 +370,10 @@ async function applyTemplate(id) {
   } finally {
     loading.value = false;
   }
+}
+
+const showingTimetrackingForm = ref(false);
+function openTimetrackingForm() {
+  showingTimetrackingForm.value = true;
 }
 </script>

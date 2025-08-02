@@ -7,7 +7,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         Task<WorkHourResponse?> CreateWorkHour(WorkHourRequest request);//
         Task<WorkHourResponse?> UpdateWorkHourById(int workHourId, WorkHourRequest request);//
         Task<IEnumerable<WorkHourResponse>> GetWorkHours();//
-        Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? page, int? pageSize, int? size, int? from, int? approved);//
+        Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20);//
         Task<WorkHourResponse> GetWorkHourById(int userId);//
         Task<WorkHourResponse?> GetActiveWorkHour(int userId);//
         Task<EndTimeResponse?> UpdateEndTime(int workHourId, EndTimeRequest request);//

@@ -1,8 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Middagsasen.Planner.Api.Authentication;
-using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.WorkHours;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -28,7 +25,7 @@ namespace Middagsasen.Planner.Api.Controllers
             {
                 return BadRequest("Failed to create work timer.");
             }
-            return Created($"/{response.WorkHourId}", response);
+            return Created($"/workhours/{response.WorkHourId}", response);
         }
 
         [HttpPut("{workHourId}")]
@@ -57,9 +54,9 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("User/{userId}")]
         [ProducesResponseType(typeof(PagedResponse<WorkHourResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? size, int? from, int? approved)
+        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved)
         {
-            var existingWorkHour = await WorkHoursService.GetWorkHoursByUser(userId, page, pageSize, size, from, approved);
+            var existingWorkHour = await WorkHoursService.GetWorkHoursByUser(userId, approved, page, pageSize);
             return existingWorkHour != null ? Ok(existingWorkHour) : NotFound();
         }
 

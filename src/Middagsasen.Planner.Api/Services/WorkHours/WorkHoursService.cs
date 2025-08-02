@@ -1,16 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Core;
-using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
-using Middagsasen.Planner.Api.Services.Events;
-using Azure.Core;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
-using Middagsasen.Planner.Api.Services.Users;
-using Azure.Storage.Blobs.Models;
-using Microsoft.IdentityModel.Tokens;
-using System.Security.AccessControl;
 
 namespace Middagsasen.Planner.Api.Services.WorkHours
 {
@@ -61,62 +52,32 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return (existingWorkHour == null) ? null : Map(existingWorkHour);
         }
 
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? page, int? pageSize, int? size, int? from, int? approved)
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20)
         {
-            var tableType = 0;//1 = pagination, 2 = vScroll
-            var skip = 0;
-            var someSize = 0;
-
-            if (!(page ==null ) || !(pageSize == null)) {
-                skip = (int)(page > 0 ? (page - 1) * pageSize : 0);
-                someSize = (int)pageSize;
-                tableType = 1;
-            }
-            else if (!(size == null) || !(from == null)) {
-                someSize = (int)size;
-                tableType = 2;
-            }
+            var take = pageSize ?? 20;
+            var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
+            var skip = (pageToUse - 1) * take;
 
             var query = DbContext.WorkHours
                 .AsNoTracking()
                 .Where(w => w.UserId == userId);
 
-            var approvedFilter = approved;
-
-            if (approvedFilter == 1)
+            if (approved == 1)
                 query = query.Where(w => w.ApprovalStatus == 1);
-            if (approvedFilter == 2)
+            if (approved == 2)
                 query = query.Where(w => w.ApprovalStatus == 2);
-            if (approvedFilter == 3)
+            if (approved == 3)
                 query = query.Where(w => !w.ApprovalStatus.HasValue);
 
             var totalCount = query.Count();
 
             List<WorkHour> existingWorkHours;
 
-            if (tableType == 1)
-            {
-                 existingWorkHours = await query
+            existingWorkHours = await query
                 .OrderByDescending(w => w.StartTime)
                 .Skip(skip)
-                .Take(someSize)
+                .Take(take)
                 .ToListAsync();
-            }
-            else if (tableType == 2)
-            {
-                existingWorkHours = await query
-                .OrderByDescending(w => w.StartTime)
-                .Take(someSize)
-                .ToListAsync();
-            }
-            else
-            {
-                existingWorkHours = new List<WorkHour>(); // fallback
-            }
-
-
-
-
 
             var result = existingWorkHours.Select(Map).ToList();
 
@@ -139,7 +100,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             double interval = 0;
             if (workHour.EndTime.HasValue && workHour.StartTime.HasValue)
             {
-               interval = (workHour.EndTime.Value - workHour.StartTime.Value).TotalHours;
+                interval = (workHour.EndTime.Value - workHour.StartTime.Value).TotalHours;
             }
 
             return new WorkHourResponse
