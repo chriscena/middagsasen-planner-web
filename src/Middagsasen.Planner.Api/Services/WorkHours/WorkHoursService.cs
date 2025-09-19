@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
@@ -125,8 +126,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             {
                 WorkHourId = workHour.WorkHourId,
                 UserId = workHour.UserId,
-                StartTime = workHour.StartTime,
-                EndTime = workHour.EndTime,
+                StartTime = workHour.StartTime.AsUtc(),
+                EndTime = workHour.EndTime.AsUtc(),
                 Hours = interval,
                 Description = workHour.Description,
                 ApprovedBy = workHour.ApprovedBy,
