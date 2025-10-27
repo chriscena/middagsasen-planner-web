@@ -159,6 +159,7 @@ async function getUserWorkhours(index, done) {
       response.result.length === 0;
   } catch (e) {
     console.error(e);
+    stop = true;
     $q.notify({
       type: "negative",
       closeBtn: "close",
