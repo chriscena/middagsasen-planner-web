@@ -1,12 +1,17 @@
 <template>
   <q-card class="full-width">
-    <q-card-section class="text-h6">Timeføring</q-card-section>
+    <q-card-section class="text-h6"
+      >Timeføring
+      <q-badge v-if="viewModel.status === 1" color="positive">Godkjent</q-badge>
+      <q-badge v-if="viewModel.status === 2" color="negative">Avvist</q-badge>
+    </q-card-section>
     <q-card-section class="q-gutter-sm">
       <DatePickerInput
         v-model="viewModel.startDate"
         @blur="setStartDate"
         label="Startdato"
         :disable="loading"
+        :readonly="!canSave"
       />
       <TimePickerInput
         autofocus
@@ -15,6 +20,7 @@
         label="Starttid"
         :disable="loading"
         :error="!viewModel.startTimeValid"
+        :readonly="!canSave"
       />
       <TimePickerInput
         v-model="viewModel.endTime"
@@ -23,6 +29,7 @@
         :error="!viewModel.endTimeValid"
         :disable="loading"
         :hint="endDate"
+        :readonly="!canSave"
       />
       <q-input
         outlined
@@ -37,6 +44,7 @@
         label="Kommentar"
         v-model="viewModel.description"
         :disable="loading"
+        :readonly="!canSave"
       />
     </q-card-section>
     <q-card-actions align="right">
@@ -74,13 +82,12 @@
 
 <script setup>
 import { computed, ref, reactive, onMounted } from "vue";
-import { addDays, parse, format, isValid } from "date-fns";
+import { addDays, parse, format } from "date-fns";
 import { useWorkHourStore } from "stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
 import DatePickerInput from "./DatePickerInput.vue";
 import { useQuasar } from "quasar";
-import { vi } from "date-fns/locale";
 
 const props = defineProps({
   modelValue: {
@@ -171,7 +178,7 @@ async function saveHours() {
     });
     return;
   }
-  if (!calculatedHours.value || calculatedHours.value < 0) {
+  if (!calculatedHours.value || calculatedHours.value === "0:00") {
     $q.notify({
       message: "Null timer gidder vi ikke å lagre vel. 😝",
       color: "negative",

@@ -31,13 +31,14 @@
       </q-toolbar>
     </q-header>
     <div>
-      <q-infinite-scroll
-        :offset="100"
-        @load="getUserWorkhours"
-        :distance="100"
-        ref="infiniteScroll"
-      >
-        <q-list role="list" separator>
+      <q-list role="list" separator ref="workHoursList">
+        <q-infinite-scroll
+          :offset="100"
+          @load="getUserWorkhours"
+          :distance="100"
+          ref="infiniteScroll"
+          :scroll-target="workHoursList"
+        >
           <q-item
             separator
             v-for="(hours, index) in viewModel.userWorkHours"
@@ -78,11 +79,13 @@
               </q-item-label></q-item-section
             >
           </q-item>
-        </q-list>
-        <q-inner-loading :showing="viewModel.loading">
-          <q-spinner size="3em" color="primary"></q-spinner>
-        </q-inner-loading>
-      </q-infinite-scroll>
+          <template #loading>
+            <div class="row justify-center q-my-md">
+              <q-spinner size="3em" color="primary"></q-spinner>
+            </div>
+          </template>
+        </q-infinite-scroll>
+      </q-list>
     </div>
     <q-dialog
       v-model="viewModel.showForm"
@@ -174,13 +177,13 @@ function editWorkHour(hours) {
 
 function onTimeTrackingFormClosed() {
   viewModel.selectedWorkHours = null;
+  viewModel.userWorkHours = [];
   infiniteScroll.value.reset();
-  infiniteScroll.value.trigger();
+  infiniteScroll.value.resume();
 }
 
-const showingTimetrackingForm = ref(false);
 function openTimetrackingForm() {
-  showingTimetrackingForm.value = true;
+  viewModel.showForm = true;
 }
 </script>
 <style lang="scss" scoped>
