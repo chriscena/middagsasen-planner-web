@@ -15,6 +15,7 @@
             :model-value="props.modelValue"
             @update:model-value="(val) => emit('update:model-value', val)"
             mask="DD.MM.YYYY"
+            today-btn
           >
             <div class="row items-center justify-end">
               <q-btn v-close-popup label="Lukk" color="primary" flat />

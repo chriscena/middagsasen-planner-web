@@ -1,4 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Core
+﻿using System.Runtime.CompilerServices;
+
+namespace Middagsasen.Planner.Api.Core
 {
     public static class DateTimeExtensions
     {
@@ -43,5 +45,11 @@
             //if (dateTime.Kind == DateTimeKind.Utc)
             return dateTime;
         }
+        public static DateTime? AsUtc(this DateTime? dateTime)
+        {
+            if (!dateTime.HasValue) return null;
+            return dateTime.Value.AsUtc();
+        }
+
     }
 }
