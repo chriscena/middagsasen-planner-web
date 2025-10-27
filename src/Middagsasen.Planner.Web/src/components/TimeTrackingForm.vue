@@ -41,18 +41,31 @@
     </q-card-section>
     <q-card-actions align="right">
       <q-btn
+        v-if="canDelete"
+        no-caps
+        flat
+        color="negative"
+        label="Slett"
+        @click="deleteHours"
+        :disable="viewModel.saving"
+        :loading="viewModel.deleting"
+      ></q-btn>
+      <q-space></q-space>
+      <q-btn
         no-caps
         flat
         label="Avbryt"
         @click="emit('cancel')"
-        :disable="viewModel.saving"
+        :disable="viewModel.saving || viewModel.deleting"
       ></q-btn>
       <q-btn
+        v-if="canSave"
         no-caps
         unelevated
         color="primary"
         label="Lagre"
         @click="saveHours"
+        :disable="viewModel.deleting"
         :loading="viewModel.saving"
       ></q-btn>
     </q-card-actions>
@@ -60,13 +73,21 @@
 </template>
 
 <script setup>
-import { computed, ref, reactive } from "vue";
+import { computed, ref, reactive, onMounted } from "vue";
 import { addDays, parse, format, isValid } from "date-fns";
 import { useWorkHourStore } from "stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
 import DatePickerInput from "./DatePickerInput.vue";
 import { useQuasar } from "quasar";
+import { vi } from "date-fns/locale";
+
+const props = defineProps({
+  modelValue: {
+    type: Object,
+    default: undefined,
+  },
+});
 
 const emit = defineEmits(["cancel", "saved"]);
 const $q = useQuasar();
@@ -76,6 +97,7 @@ const user = computed(() => authStore.user);
 const loading = ref(false);
 
 const viewModel = reactive({
+  id: null,
   startDateTime: null,
   endDateTime: null,
   startDate: format(new Date(), "dd.MM.yyyy"),
@@ -84,13 +106,12 @@ const viewModel = reactive({
   endTime: format(new Date(), "HH:mm"),
   endTimeValid: true,
   description: null,
+  status: 0,
   saving: false,
+  deleting: false,
   loading: false,
 });
 
-const startDate = computed(() => {
-  return format(new Date(workHour.value.startTime), "dd.MM.yyyy");
-});
 function setStartDate() {
   calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
 }
@@ -143,7 +164,31 @@ const calculatedHours = computed(() => {
 });
 
 async function saveHours() {
+  if (!viewModel.startTimeValid || !viewModel.endTimeValid) {
+    $q.notify({
+      message: "Vennligst sjekk at tidspunktene er gyldige",
+      color: "negative",
+    });
+    return;
+  }
+  if (!calculatedHours.value || calculatedHours.value < 0) {
+    $q.notify({
+      message: "Null timer gidder vi ikke å lagre vel. 😝",
+      color: "negative",
+    });
+    return;
+  }
+
+  if (props.modelValue) {
+    await updateHours();
+  } else {
+    await createHours();
+  }
+}
+
+async function createHours() {
   try {
+    viewModel.saving = true;
     const payload = {
       startTime: viewModel.startDateTime,
       endTime: viewModel.endDateTime,
@@ -153,9 +198,83 @@ async function saveHours() {
     const result = await workHourStore.createWorkHour(payload);
     emit("saved", result);
     $q.notify({
-      message: "Timer lagret",
+      message: "Timer lagret, bra jobba! 🙌",
       color: "positive",
     });
-  } catch (error) {}
+  } catch (error) {
+    $q.notify({
+      message: "Klarte ikke å lagre timer",
+      color: "negative",
+    });
+  } finally {
+    viewModel.saving = false;
+  }
 }
+
+async function updateHours() {
+  try {
+    viewModel.saving = true;
+    const payload = {
+      workHourId: viewModel.id,
+      startTime: viewModel.startDateTime,
+      endTime: viewModel.endDateTime,
+      description: viewModel.description,
+      userId: user.value.id,
+    };
+    const result = await workHourStore.updateWorkHour(payload);
+    emit("saved", result);
+    $q.notify({
+      message: "Endringer lagret",
+      color: "positive",
+    });
+  } catch (error) {
+    $q.notify({
+      message: "Klarte ikke å lagre endringer",
+      color: "negative",
+    });
+  } finally {
+    viewModel.saving = false;
+  }
+}
+
+async function deleteHours() {
+  try {
+    viewModel.deleting = true;
+    await workHourStore.deleteWorkHourById(viewModel.id);
+    emit("saved", null);
+    $q.notify({
+      message: "Timeføring slettet",
+      color: "positive",
+    });
+  } catch (error) {
+    $q.notify({
+      message: "Klarte ikke å slette timeføring",
+      color: "negative",
+    });
+  } finally {
+    viewModel.deleting = false;
+  }
+}
+
+const canDelete = computed(() => viewModel.status !== 1 && viewModel.id);
+
+const canSave = computed(
+  () => viewModel.status !== 1 && viewModel.status !== 2
+);
+
+onMounted(() => {
+  if (props.modelValue) {
+    const start = new Date(props.modelValue.startTime);
+    const end = new Date(props.modelValue.endTime);
+    viewModel.startDate = format(start, "dd.MM.yyyy");
+    viewModel.startTime = format(start, "HH:mm");
+    viewModel.endTime = format(end, "HH:mm");
+    viewModel.description = props.modelValue.description;
+    viewModel.id = props.modelValue.workHourId;
+    viewModel.status = props.modelValue.approvalStatus;
+    calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
+  } else {
+    calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
+  }
+});
 </script>
