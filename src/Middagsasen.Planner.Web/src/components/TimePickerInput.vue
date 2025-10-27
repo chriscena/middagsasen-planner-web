@@ -17,6 +17,7 @@
             @update:model-value="(val) => emit('update:model-value', val)"
             format24h
             mask="HH:mm"
+            now-btn
           >
             <div class="row items-center justify-end">
               <q-btn v-close-popup label="Lukk" color="primary" flat />
