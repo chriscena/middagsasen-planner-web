@@ -12,6 +12,8 @@
         label="Startdato"
         :disable="loading"
         :readonly="!canSave"
+        :error="!viewModel.startDateValid"
+        required
       />
       <TimePickerInput
         autofocus
@@ -45,6 +47,8 @@
         v-model="viewModel.description"
         :disable="loading"
         :readonly="!canSave"
+        @blur="validateDescription"
+        :error="!viewModel.descriptionValid"
       />
     </q-card-section>
     <q-card-actions align="right">
@@ -73,7 +77,7 @@
         color="primary"
         label="Lagre"
         @click="saveHours"
-        :disable="viewModel.deleting"
+        :disable="!validForm || viewModel.deleting"
         :loading="viewModel.saving"
       ></q-btn>
     </q-card-actions>
@@ -108,11 +112,13 @@ const viewModel = reactive({
   startDateTime: null,
   endDateTime: null,
   startDate: format(new Date(), "dd.MM.yyyy"),
+  startDateValid: true,
   startTime: format(new Date(), "HH:mm"),
   startTimeValid: true,
   endTime: format(new Date(), "HH:mm"),
   endTimeValid: true,
   description: null,
+  descriptionValid: true,
   status: 0,
   saving: false,
   deleting: false,
@@ -120,12 +126,15 @@ const viewModel = reactive({
 });
 
 function setStartDate() {
+  viewModel.startDateValid = viewModel.startDate;
   calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
 }
 function setStartTime() {
+  viewModel.startTimeValid = viewModel.startTime;
   calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
 }
 function setEndTime() {
+  viewModel.endTimeValid = viewModel.endTime;
   calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
 }
 
@@ -218,6 +227,14 @@ async function createHours() {
   }
 }
 
+const validForm = computed(() => {
+  return (
+    viewModel.startTimeValid &&
+    viewModel.endTimeValid &&
+    descriptionIsValid.value
+  );
+});
+
 async function updateHours() {
   try {
     viewModel.saving = true;
@@ -263,11 +280,19 @@ async function deleteHours() {
   }
 }
 
+const descriptionIsValid = computed(
+  () => viewModel.description && viewModel.description.trim() !== ""
+);
+
 const canDelete = computed(() => viewModel.status !== 1 && viewModel.id);
 
 const canSave = computed(
   () => viewModel.status !== 1 && viewModel.status !== 2
 );
+
+const validateDescription = () => {
+  viewModel.descriptionValid = descriptionIsValid.value;
+};
 
 onMounted(() => {
   if (props.modelValue) {
