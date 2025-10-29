@@ -24,16 +24,16 @@
     </q-header>
     <q-list role="list" separator>
       <template v-for="season in viewModel.shifts" :key="season.label">
-        <q-item inset-level="1" dense>
+        <q-item dense>
           <q-item-section>
-            <q-item-label header>{{ season.label }}</q-item-label>
-          </q-item-section>
-          <q-item-section side>
-            <q-badge
-              :label="season.shifts.length"
-              color="primary"
-              align="top"
-            ></q-badge>
+            <q-item-label header
+              >{{ season.label }}
+              <q-badge
+                :label="season.shifts.length"
+                color="primary"
+                align="top"
+              ></q-badge
+            ></q-item-label>
           </q-item-section>
         </q-item>
         <q-item
