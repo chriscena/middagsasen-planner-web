@@ -5,10 +5,11 @@
     hide-bottom-space
     mask="##.##.####"
     placeholder="DD.MM.ÅÅÅÅ"
+    :readonly="props.readonly"
     @focus="(event) => (event.target?.select ? event.target.select() : _)"
     :model-value="props.modelValue"
     @update:model-value="(val) => emit('update:model-value', val)"
-    ><template v-slot:append>
+    ><template v-slot:append v-if="!props.readonly">
       <q-icon name="event" class="cursor-pointer">
         <q-popup-proxy transition-show="scale" transition-hide="scale">
           <q-date
@@ -31,6 +32,10 @@ const props = defineProps({
   modelValue: {
     type: String,
     default: undefined,
+  },
+  readonly: {
+    type: Boolean,
+    default: false,
   },
 });
 const emit = defineEmits(["update:model-value"]);
