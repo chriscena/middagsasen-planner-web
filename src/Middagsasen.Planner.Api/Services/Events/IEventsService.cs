@@ -11,7 +11,7 @@
         Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request);
         Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request);
         Task<ShiftResponse?> DeleteShift(int id, int userId, bool isAdmin);
-        Task<IEnumerable<UserShiftResponse>> GetShiftsByUserId(int id);
+        Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id);
         Task<EventResponse?> DeleteEvent(int id);
         Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request);
         Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId);
