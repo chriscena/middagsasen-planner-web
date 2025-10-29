@@ -169,7 +169,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             return (existingEvent == null) ? null : Map(existingEvent);
         }
 
-        public async Task<IEnumerable<UserShiftResponse>> GetShiftsByUserId(int id)
+        public async Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id)
         {
             var shifts = await DbContext.Shifts
                 .Include(e => e.Resource)
@@ -186,12 +186,26 @@ namespace Middagsasen.Planner.Api.Services.Events
                     StartTime = s.StartTime.ToSimpleIsoString(),
                     EndTime = s.EndTime.ToSimpleIsoString(),
                     ResourceName = s.Resource?.ResourceType?.Name,
+                    Season = MapSeason(s.StartTime),
                     Comment = s.Comment,
                 })
                 .OrderByDescending(s => s.StartTime)
+                .GroupBy(s => s.Season)
+                .Select(s => new ShiftSeasonResponse { Label = s.Key, Shifts = [..s] })
                 .ToList();
 
             return response;
+        }
+
+        private string MapSeason(DateTime? startTime)
+        {
+            if (!startTime.HasValue) return "";
+
+            var month = startTime.Value.Month;
+            var year = startTime.Value.Year;
+            return (month < 7) 
+                ? $"{year - 1}/{year}"
+                : $"{year}/{year + 1}";
         }
 
         public async Task<EventResponse?> CreateEvent(EventRequest request)
