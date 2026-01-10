@@ -117,5 +117,14 @@ namespace Middagsasen.Planner.Api.Controllers
             var response = await WorkHoursService.DeleteWorkHour(workHourId);
             return (response == null) ? NotFound() : Ok(response);
         }
+
+        [HttpGet("sum")]
+        [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        public async Task<IActionResult> GetSum(int? userId = null)
+        {
+            var response = await WorkHoursService.GetWorkHoursSum(userId);
+            return (response == null) ? NoContent() : Ok(response);
+        }
     }
 }
