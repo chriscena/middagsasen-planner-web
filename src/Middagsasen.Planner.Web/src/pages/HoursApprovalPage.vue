@@ -575,8 +575,8 @@ async function getUserWorkHours(props) {
     };
 
     const [response, sumResponse] = await Promise.all([
-      await workHourStore.getWorkHours(params),
-      await workHourStore.getWorkHoursSums(),
+      workHourStore.getWorkHours(params),
+      workHourStore.getWorkHoursSums(),
     ]);
 
     console.log("userWorkHours", response);
