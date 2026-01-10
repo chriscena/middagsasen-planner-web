@@ -120,11 +120,10 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("sum")]
         [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        public async Task<IActionResult> GetSum(int? userId = null)
+        public async Task<WorkHourSumResponse> GetSum(int? userId = null)
         {
             var response = await WorkHoursService.GetWorkHoursSum(userId);
-            return (response == null) ? NoContent() : Ok(response);
+            return response;
         }
     }
 }
