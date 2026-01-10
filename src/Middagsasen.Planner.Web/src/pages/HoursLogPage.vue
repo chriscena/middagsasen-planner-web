@@ -49,12 +49,7 @@
             </q-item-section>
             <q-item-section side>
               <q-item-label overline>
-                {{
-                  viewModel.pendingHoursSum
-                    .toFixed(1)
-                    .toString()
-                    .replace(".", ",")
-                }}
+                {{ formatNumber(viewModel.pendingHoursSum) }}
                 t
               </q-item-label></q-item-section
             >
@@ -70,12 +65,7 @@
             </q-item-section>
             <q-item-section side>
               <q-item-label overline>
-                {{
-                  viewModel.approvedHoursSum
-                    .toFixed(1)
-                    .toString()
-                    .replace(".", ",")
-                }}
+                {{ formatNumber(viewModel.approvedHoursSum) }}
                 t
               </q-item-label></q-item-section
             >
@@ -91,12 +81,7 @@
             </q-item-section>
             <q-item-section side>
               <q-item-label overline>
-                {{
-                  viewModel.rejectedHoursSum
-                    .toFixed(1)
-                    .toString()
-                    .replace(".", ",")
-                }}
+                {{ formatNumber(viewModel.rejectedHoursSum) }}
                 t
               </q-item-label></q-item-section
             >
@@ -138,7 +123,7 @@
             </q-item-section>
             <q-item-section side>
               <q-item-label>
-                {{ hours.hours?.toFixed(1).toString().replace(".", ",") }} t
+                {{ formatNumber(hours.hours) }} t
               </q-item-label></q-item-section
             >
           </q-item>
@@ -172,6 +157,7 @@ import { useAuthStore } from "src/stores/AuthStore";
 import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
+import { formatNumber } from "src/shared/formatter.js";
 
 // store init
 const $router = useRouter();

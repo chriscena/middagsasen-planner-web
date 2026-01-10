@@ -54,10 +54,7 @@
               :val="3"
               @update:model-value="(val) => setFilter({ approved: val })"
               ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
-                >{{
-                  pendingHours.toFixed(1).toString().replace(".", ",")
-                }}
-                t</q-badge
+                >{{ formatNumber(pendingHours) }} t</q-badge
               ></q-radio
             >
             <q-radio
@@ -71,10 +68,7 @@
                 color="positive"
                 class="q-ml-xs"
                 v-show="approvedHours > 0"
-                >{{
-                  approvedHours.toFixed(1).toString().replace(".", ",")
-                }}
-                t</q-badge
+                >{{ formatNumber(approvedHours) }} t</q-badge
               ></q-radio
             >
             <q-radio
@@ -88,10 +82,7 @@
                 color="warning"
                 class="q-ml-xs"
                 v-show="rejectedHours > 0"
-                >{{
-                  rejectedHours.toFixed(1).toString().replace(".", ",")
-                }}
-                t</q-badge
+                >{{ formatNumber(rejectedHours) }} t</q-badge
               ></q-radio
             >
           </div>
@@ -174,7 +165,7 @@
                 </div>
                 <q-space></q-space>
                 <q-item-label caption class="q-pt-md">
-                  {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+                  {{ formatNumber(props.row.hours) }}
                   t
                 </q-item-label>
               </div>
@@ -249,7 +240,7 @@
         </template>
         <template #body-cell-hours="props">
           <q-td :props="props">
-            {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+            {{ formatNumber(props.row.hours) }}
             t
           </q-td>
         </template>
@@ -384,7 +375,7 @@
           </div>
           <q-space></q-space>
           <q-item-label caption class="q-pt-md">
-            {{ foundWorkHour.hours?.toFixed(1).toString().replace(".", ",") }}
+            {{ formatNumber(foundWorkHour.hours) }}
             t
           </q-item-label>
         </div>
@@ -427,6 +418,7 @@ import { useUserStore } from "src/stores/UserStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
+import { formatNumber } from "src/shared/formatter.js";
 
 // store init
 const $router = useRouter();
@@ -525,7 +517,7 @@ const columns = [
     name: "hours",
     label: "Timer",
     field: (row) => row.hours,
-    format: (val) => val.toFixed(1),
+    format: (val) => formatNumber(val),
     align: "right",
     headerStyle: "width: 5%",
     style: "width: 5%",
