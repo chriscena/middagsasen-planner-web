@@ -52,7 +52,9 @@
           </q-item-section>
 
           <q-item-section>
-            <q-item-label>{{ shift.resourceName }}</q-item-label>
+            <q-item-label class="ellipsis">{{
+              shift.resourceName
+            }}</q-item-label>
             <q-item-label caption>{{ shift.comment }}</q-item-label>
           </q-item-section>
           <q-item-section side>

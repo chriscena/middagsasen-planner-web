@@ -53,7 +53,10 @@
               label="Ubehandlet"
               :val="3"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
+                >{{ formatNumber(pendingHours) }} t</q-badge
+              ></q-radio
+            >
             <q-radio
               dense
               :disable="loading"
@@ -61,7 +64,13 @@
               label="Godkjent"
               :val="1"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge
+                color="positive"
+                class="q-ml-xs"
+                v-show="approvedHours > 0"
+                >{{ formatNumber(approvedHours) }} t</q-badge
+              ></q-radio
+            >
             <q-radio
               dense
               :disable="loading"
@@ -69,7 +78,13 @@
               label="Avslått"
               :val="2"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge
+                color="warning"
+                class="q-ml-xs"
+                v-show="rejectedHours > 0"
+                >{{ formatNumber(rejectedHours) }} t</q-badge
+              ></q-radio
+            >
           </div>
           <q-space></q-space>
           <span class="q-pa-md row">
@@ -150,7 +165,7 @@
                 </div>
                 <q-space></q-space>
                 <q-item-label caption class="q-pt-md">
-                  {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+                  {{ formatNumber(props.row.hours) }}
                   t
                 </q-item-label>
               </div>
@@ -225,7 +240,7 @@
         </template>
         <template #body-cell-hours="props">
           <q-td :props="props">
-            {{ props.row.hours?.toFixed(1).toString().replace(".", ",") }}
+            {{ formatNumber(props.row.hours) }}
             t
           </q-td>
         </template>
@@ -360,7 +375,7 @@
           </div>
           <q-space></q-space>
           <q-item-label caption class="q-pt-md">
-            {{ foundWorkHour.hours?.toFixed(1).toString().replace(".", ",") }}
+            {{ formatNumber(foundWorkHour.hours) }}
             t
           </q-item-label>
         </div>
@@ -403,6 +418,7 @@ import { useUserStore } from "src/stores/UserStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
+import { formatNumber } from "src/shared/formatter.js";
 
 // store init
 const $router = useRouter();
@@ -417,6 +433,9 @@ const emit = defineEmits(["toggle-right", "toggle-left"]);
 
 // refs
 const selectAllBox = ref(false);
+const approvedHours = ref(0);
+const pendingHours = ref(0);
+const rejectedHours = ref(0);
 const foundWorkHour = ref({});
 const showWorkHourDialog = ref(false);
 const selectedWorkHours = ref([]);
@@ -498,7 +517,7 @@ const columns = [
     name: "hours",
     label: "Timer",
     field: (row) => row.hours,
-    format: (val) => val.toFixed(1),
+    format: (val) => formatNumber(val),
     align: "right",
     headerStyle: "width: 5%",
     style: "width: 5%",
@@ -554,13 +573,21 @@ async function getUserWorkHours(props) {
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
     };
-    const response = await workHourStore.getWorkHours(params);
+
+    const [response, sumResponse] = await Promise.all([
+      workHourStore.getWorkHours(params),
+      workHourStore.getWorkHoursSums(),
+    ]);
 
     console.log("userWorkHours", response);
     userWorkHours.value = response.result;
     pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
+
+    approvedHours.value = sumResponse.approvedHours;
+    pendingHours.value = sumResponse.pendingHours;
+    rejectedHours.value = sumResponse.rejectedHours;
   } catch (e) {
     console.error(e);
     $q.notify({

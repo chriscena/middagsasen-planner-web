@@ -62,6 +62,30 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return new PagedResponse<WorkHourResponse> { Result = result, TotalCount = totalCount };
         }
 
+        public async Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null)
+        {
+            var query = DbContext.WorkHours
+               .AsNoTracking();
+
+            if (userId.HasValue)
+                query = query.Where(w => w.UserId == userId.Value);
+
+            var existingWorkHours = (await query
+                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue)
+                .Select(h => new { Status = h.ApprovalStatus ?? 0, Hours = (h.EndTime!.Value - h.StartTime!.Value).TotalHours })
+                .ToListAsync())
+                .GroupBy(h => h.Status)
+                .Select(h => new { Status = h.Key, TotalHours = h.Sum(t => t.Hours)})
+                .ToDictionary(h => h.Status, h => h.TotalHours);
+
+            return new WorkHourSumResponse
+            {
+                PendingHours = existingWorkHours.TryGetValue(0, out double pendingHours) ? Math.Round(pendingHours, 1) : 0,
+                ApprovedHours = existingWorkHours.TryGetValue(1, out double approvedHours) ? Math.Round(approvedHours, 1) : 0,
+                RejectedHours = existingWorkHours.TryGetValue(2, out double rejectedHours) ? Math.Round(rejectedHours, 1) : 0,
+            };
+        }
+
         public async Task<WorkHourResponse?> GetWorkHourById(int id)
         {
             var existingWorkHour = await DbContext.WorkHours

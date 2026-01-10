@@ -51,5 +51,15 @@ namespace Middagsasen.Planner.Api.Core
             return dateTime.Value.AsUtc();
         }
 
+        public static string ToSeason(this DateTime? startTime)
+        {
+            if (!startTime.HasValue) return "";
+
+            var month = startTime.Value.Month;
+            var year = startTime.Value.Year;
+            return (month < 7)
+                ? $"{year - 1}/{year}"
+                : $"{year}/{year + 1}";
+        }
     }
 }

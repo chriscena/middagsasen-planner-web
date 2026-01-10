@@ -17,7 +17,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
 
         [HttpPost]
-        [ProducesResponseType(typeof(WorkHourResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status201Created)]
         public async Task<IActionResult> Create([FromBody] WorkHourRequest request)
         {
             var response = await WorkHoursService.CreateWorkHour(request);
@@ -29,7 +29,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPut("{workHourId}")]
-        [ProducesResponseType(typeof(WorkHourResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> Update(int workHourId, [FromBody] WorkHourRequest request)
         {
             var response = await WorkHoursService.UpdateWorkHourById(workHourId, request);
@@ -37,7 +37,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet]
-        [ProducesResponseType(typeof(IEnumerable<WorkHourResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType<IEnumerable<WorkHourResponse>>(StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)
         {
             var workHours = await WorkHoursService.GetWorkHours(approved, page, pageSize);
@@ -45,7 +45,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("{workHourId}")]
-        [ProducesResponseType(typeof(WorkHourResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetById(int workHourId)
         {
             var existingWorkHour = await WorkHoursService.GetWorkHourById(workHourId);
@@ -53,7 +53,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("User/{userId}")]
-        [ProducesResponseType(typeof(PagedResponse<WorkHourResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved)
         {
             var existingWorkHour = await WorkHoursService.GetWorkHoursByUser(userId, approved, page, pageSize);
@@ -61,7 +61,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("User/{userId}/EndTime")]
-        [ProducesResponseType(typeof(WorkHourResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetActive(int userId)
         {
             var existingWorkHour = await WorkHoursService.GetActiveWorkHour(userId);
@@ -69,7 +69,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPatch("{workHourId}/EndTime")]
-        [ProducesResponseType(typeof(EndTimeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<EndTimeResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateEndTime(int workHourId, EndTimeRequest request)
         {
             try
@@ -90,7 +90,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPatch("{workHourId}/ApprovedBy")]
-        [ProducesResponseType(typeof(ApprovedByResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<ApprovedByResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateApprovedBy(int workHourId, ApprovedByRequest request)
         {
             try
@@ -111,11 +111,19 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpDelete("{workHourId}")]
-        [ProducesResponseType(typeof(WorkHourResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> Delete(int workHourId)
         {
             var response = await WorkHoursService.DeleteWorkHour(workHourId);
             return (response == null) ? NotFound() : Ok(response);
+        }
+
+        [HttpGet("Sum")]
+        [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
+        public async Task<WorkHourSumResponse> GetSum(int? userId = null)
+        {
+            var response = await WorkHoursService.GetWorkHoursSum(userId);
+            return response;
         }
     }
 }
