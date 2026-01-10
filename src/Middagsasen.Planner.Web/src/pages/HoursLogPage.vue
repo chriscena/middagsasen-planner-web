@@ -39,6 +39,69 @@
           ref="infiniteScroll"
           :scroll-target="workHoursList"
         >
+          <q-item dense v-if="viewModel.pendingHoursSum > 0">
+            <q-item-section avatar>
+              <q-icon name="radio_button_unchecked" class="grey-text" />
+            </q-item-section>
+
+            <q-item-section>
+              <q-item-label overline>Ubehandlede timer </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-item-label overline>
+                {{
+                  viewModel.pendingHoursSum
+                    .toFixed(1)
+                    .toString()
+                    .replace(".", ",")
+                }}
+                t
+              </q-item-label></q-item-section
+            >
+          </q-item>
+          <q-separator v-if="viewModel.pendingHoursSum > 0" />
+          <q-item dense v-if="viewModel.approvedHoursSum > 0">
+            <q-item-section avatar>
+              <q-icon name="check_circle" class="green-text" />
+            </q-item-section>
+
+            <q-item-section>
+              <q-item-label overline>Godkjente timer </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-item-label overline>
+                {{
+                  viewModel.approvedHoursSum
+                    .toFixed(1)
+                    .toString()
+                    .replace(".", ",")
+                }}
+                t
+              </q-item-label></q-item-section
+            >
+          </q-item>
+          <q-separator v-if="viewModel.approvedHoursSum > 0" />
+          <q-item dense v-if="viewModel.rejectedHoursSum > 0">
+            <q-item-section avatar>
+              <q-icon name="cancel" class="red-text" />
+            </q-item-section>
+
+            <q-item-section>
+              <q-item-label overline>Avviste timer </q-item-label>
+            </q-item-section>
+            <q-item-section side>
+              <q-item-label overline>
+                {{
+                  viewModel.rejectedHoursSum
+                    .toFixed(1)
+                    .toString()
+                    .replace(".", ",")
+                }}
+                t
+              </q-item-label></q-item-section
+            >
+          </q-item>
+          <q-separator v-if="viewModel.rejectedHoursSum > 0" />
           <q-item
             separator
             v-for="(hours, index) in viewModel.userWorkHours"
@@ -103,7 +166,7 @@
 
 <script setup>
 import { useQuasar } from "quasar";
-import { ref, computed, useTemplateRef, reactive } from "vue";
+import { ref, computed, useTemplateRef, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { format } from "date-fns";
@@ -124,6 +187,9 @@ const viewModel = reactive({
   userWorkHours: [],
   showForm: false,
   selectedWorkHours: null,
+  approvedHoursSum: 0,
+  pendingHoursSum: 0,
+  rejectedHoursSum: 0,
 });
 
 const infiniteScroll = useTemplateRef("infiniteScroll");
@@ -160,6 +226,13 @@ async function getUserWorkhours(index, done) {
   }
 }
 
+async function getWorkHoursSums() {
+  const response = await workHourStore.getWorkHoursSums(userId);
+  viewModel.approvedHoursSum = response.approvedHours;
+  viewModel.pendingHoursSum = response.pendingHours;
+  viewModel.rejectedHoursSum = response.rejectedHours;
+}
+
 function ensureIsDate(value) {
   return value instanceof Date ? value : new Date(value);
 }
@@ -175,12 +248,17 @@ function editWorkHour(hours) {
   viewModel.showForm = true;
 }
 
-function onTimeTrackingFormClosed() {
+async function onTimeTrackingFormClosed() {
   viewModel.selectedWorkHours = null;
   viewModel.userWorkHours = [];
   infiniteScroll.value.reset();
   infiniteScroll.value.resume();
+  await getWorkHoursSums();
 }
+
+onMounted(async () => {
+  await getWorkHoursSums();
+});
 
 function openTimetrackingForm() {
   viewModel.showForm = true;

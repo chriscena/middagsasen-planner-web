@@ -23,6 +23,12 @@ export const useWorkHourStore = defineStore("workHours", {
       return response.data;
     },
 
+    async getWorkHoursSums(userId = null) {
+      const params = userId ? `?userId=${userId}` : '';
+      const response = await api.get(`/api/WorkHours/Sum${params}`);
+      return response.data;
+    },
+
     async getWorkHoursByUser(userId, params) {
       const response = await api.get(`/api/WorkHours/User/${userId}`, {
         params,

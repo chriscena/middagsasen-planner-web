@@ -53,7 +53,13 @@
               label="Ubehandlet"
               :val="3"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
+                >{{
+                  pendingHours.toFixed(1).toString().replace(".", ",")
+                }}
+                t</q-badge
+              ></q-radio
+            >
             <q-radio
               dense
               :disable="loading"
@@ -61,7 +67,16 @@
               label="Godkjent"
               :val="1"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge
+                color="positive"
+                class="q-ml-xs"
+                v-show="approvedHours > 0"
+                >{{
+                  approvedHours.toFixed(1).toString().replace(".", ",")
+                }}
+                t</q-badge
+              ></q-radio
+            >
             <q-radio
               dense
               :disable="loading"
@@ -69,7 +84,16 @@
               label="Avslått"
               :val="2"
               @update:model-value="(val) => setFilter({ approved: val })"
-            />
+              ><q-badge
+                color="warning"
+                class="q-ml-xs"
+                v-show="rejectedHours > 0"
+                >{{
+                  rejectedHours.toFixed(1).toString().replace(".", ",")
+                }}
+                t</q-badge
+              ></q-radio
+            >
           </div>
           <q-space></q-space>
           <span class="q-pa-md row">
@@ -417,6 +441,9 @@ const emit = defineEmits(["toggle-right", "toggle-left"]);
 
 // refs
 const selectAllBox = ref(false);
+const approvedHours = ref(0);
+const pendingHours = ref(0);
+const rejectedHours = ref(0);
 const foundWorkHour = ref({});
 const showWorkHourDialog = ref(false);
 const selectedWorkHours = ref([]);
@@ -554,13 +581,21 @@ async function getUserWorkHours(props) {
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
     };
-    const response = await workHourStore.getWorkHours(params);
+
+    const [response, sumResponse] = await Promise.all([
+      await workHourStore.getWorkHours(params),
+      await workHourStore.getWorkHoursSums(),
+    ]);
 
     console.log("userWorkHours", response);
     userWorkHours.value = response.result;
     pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
+
+    approvedHours.value = sumResponse.approvedHours;
+    pendingHours.value = sumResponse.pendingHours;
+    rejectedHours.value = sumResponse.rejectedHours;
   } catch (e) {
     console.error(e);
     $q.notify({
