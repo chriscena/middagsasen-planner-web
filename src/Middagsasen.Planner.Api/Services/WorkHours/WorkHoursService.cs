@@ -80,9 +80,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             return new WorkHourSumResponse
             {
-                PendingHours = existingWorkHours.TryGetValue(0, out double value) ? Math.Round(value, 1) : 0,
-                ApprovedHours = existingWorkHours.TryGetValue(1, out double value1) ? Math.Round(value1, 1) : 0,
-                RejectedHours = existingWorkHours.TryGetValue(2, out double value2) ? Math.Round(value2, 1) : 0,
+                PendingHours = existingWorkHours.TryGetValue(0, out double pendingHours) ? Math.Round(pendingHours, 1) : 0,
+                ApprovedHours = existingWorkHours.TryGetValue(1, out double approvedHours) ? Math.Round(approvedHours, 1) : 0,
+                RejectedHours = existingWorkHours.TryGetValue(2, out double rejectedHours) ? Math.Round(rejectedHours, 1) : 0,
             };
         }
 
