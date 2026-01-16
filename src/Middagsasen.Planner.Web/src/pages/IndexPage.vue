@@ -32,8 +32,14 @@
           icon="person"
           @click="emit('toggle-right')"
         />
-      </q-toolbar>
-    </q-header>
+      </q-toolbar> </q-header
+    ><q-badge
+      outline
+      color="primary"
+      class="q-ma-md"
+      style="position: absolute; top: 0px; left: 0px; z-index: 1000"
+      >Uke {{ weekNumber }}</q-badge
+    >
     <q-calendar-agenda
       locale="no"
       :view="mode"
@@ -43,6 +49,7 @@
       @change="onChange"
       @click-head-day="showMenu"
       animated
+      column-header-before
       ref="calendar"
     >
       <template #head-days-events>
@@ -216,6 +223,7 @@ import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { QCalendarAgenda, today } from "@quasar/quasar-ui-qcalendar";
 import { parseISO, format, isValid, parse } from "date-fns";
+import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
@@ -244,6 +252,11 @@ const currentUser = computed(() => authStore.user);
 const eventStore = useEventStore();
 const authStore = useAuthStore();
 const userStore = useUserStore();
+
+const weekNumber = computed(() => {
+  const date = parseISO(props.date);
+  return format(date, "w", { locale: nb });
+});
 
 const showingEventForm = ref(false);
 
