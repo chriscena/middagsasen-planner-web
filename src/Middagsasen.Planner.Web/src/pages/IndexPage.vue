@@ -304,7 +304,13 @@ function getEventsForDate(timestamp) {
 }
 
 async function getEventStatuses(view) {
-  if (!view || !view.year || !view.month)
+  if (
+    !view ||
+    view.year === undefined ||
+    view.year === null ||
+    view.month === undefined ||
+    view.month === null
+  )
     await eventStore.getEventStatuses(
       parseISO(selectedDay.value).getMonth() + 1,
       parseISO(selectedDay.value).getFullYear()
