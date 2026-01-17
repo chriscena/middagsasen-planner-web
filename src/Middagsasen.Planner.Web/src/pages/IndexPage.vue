@@ -163,23 +163,20 @@
             ref="qDateProxy"
             transition-show="scale"
             transition-hide="scale"
+            @before-show="getEventStatuses"
           >
-            <q-date
-              :first-day-of-week="1"
-              :model-value="selectedDay"
+            <VueDatePicker
+              inline
+              model-type="yyyy-MM-dd"
+              v-model="selectedDay"
+              week-numbers
+              auto-apply
+              :locale="nb"
+              :time-config="{ enableTimePicker: false }"
+              :markers="markers"
               @update:model-value="setNow"
-              @blur="(evt) => emit('blur', evt)"
-              mask="YYYY-MM-DD"
-              today-btn
-              no-unset
-              :events="eventStatusDates"
-              :event-color="getEventColor"
-              @navigation="getEventStatuses"
-            >
-              <div class="row items-center justify-end">
-                <q-btn v-close-popup label="Lukk" color="primary" flat></q-btn>
-              </div>
-            </q-date>
+              @update-month-year="getEventStatuses"
+            ></VueDatePicker>
           </q-popup-proxy>
         </q-btn>
         <q-btn
@@ -307,7 +304,12 @@ function getEventsForDate(timestamp) {
 }
 
 async function getEventStatuses(view) {
-  await eventStore.getEventStatuses(view.month, view.year);
+  if (!view || !view.year || !view.month)
+    await eventStore.getEventStatuses(
+      parseISO(selectedDay.value).getMonth() + 1,
+      parseISO(selectedDay.value).getFullYear()
+    );
+  else await eventStore.getEventStatuses(view.month + 1, view.year);
 }
 
 const eventStatusDates = computed(() => eventStore.eventStatusDates);
@@ -317,10 +319,20 @@ function getEventColor(date) {
     parse(date, "yyyy/MM/dd", new Date()),
     "yyyy-MM-dd"
   );
-  if (dateString < today()) return "grey-5";
+  if (dateString < today()) return "#bdbdbd"; // grey-5
   const status = eventStore.eventStatuses[date];
-  return status ? "red-4" : "green-4";
+  return status ? "#e57373" /* red-4 */ : "#81c784" /* green-4 */;
 }
+
+const markers = computed(() => {
+  return eventStore.eventStatusDates.map((date) => {
+    return {
+      date: date,
+      type: "dot",
+      color: getEventColor(date),
+    };
+  });
+});
 
 function setNow(value) {
   selectedDay.value = value;
