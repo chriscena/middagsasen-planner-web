@@ -41,8 +41,8 @@
     "postcss": "^8.4.14",
     "prettier": "^2.5.1"
   },
-  "equasngines": {
-    "node": "^20 || ^18",
+  "engines": {
+    "node": "^22 || ^20",
     "npm": ">= 10.8.2"
   }
 }
