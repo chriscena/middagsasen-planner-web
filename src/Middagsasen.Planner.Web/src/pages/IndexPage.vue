@@ -17,6 +17,15 @@
         />
         <q-space></q-space>
         <q-btn
+          v-if="isAdmin"
+          title="Hall of Fame"
+          dense
+          flat
+          round
+          icon="emoji_events"
+          @click="openHallOfFame"
+        />
+        <q-btn
           title="Timeføring"
           dense
           flat
@@ -128,6 +137,9 @@
         @saved="showingTimetrackingForm = false"
       ></TimeTrackingForm>
     </q-dialog>
+    <q-dialog v-model="showingHallOfFame">
+      <HallOfFameList @close="showingHallOfFame = false"></HallOfFameList>
+    </q-dialog>
     <q-footer>
       <q-toolbar>
         <q-btn
@@ -228,6 +240,7 @@ import { useAuthStore } from "stores/AuthStore";
 import EventItemCard from "components/EventItemCard.vue";
 import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
+import HallOfFameList from "src/components/HallOfFameList.vue";
 
 const emit = defineEmits(["toggle-left", "toggle-right"]);
 const props = defineProps({
@@ -256,6 +269,7 @@ const weekNumber = computed(() => {
 });
 
 const showingEventForm = ref(false);
+const showingHallOfFame = ref(false);
 
 onMounted(async () => {
   userStore.getUser();
@@ -401,6 +415,10 @@ async function applyTemplate(id) {
   } finally {
     loading.value = false;
   }
+}
+
+function openHallOfFame() {
+  showingHallOfFame.value = true;
 }
 
 const showingTimetrackingForm = ref(false);
