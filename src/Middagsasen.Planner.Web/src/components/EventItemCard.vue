@@ -92,8 +92,8 @@
         </q-item-section>
       </q-item>
     </q-list>
-    <q-separator v-if="timestamp.date > today()"></q-separator>
-    <span class="row">
+    <q-separator v-if="isAdmin && timestamp.date > today()"></q-separator>
+    <span v-if="isAdmin" class="row">
       <q-item
         v-if="timestamp.date > today()"
         clickable
