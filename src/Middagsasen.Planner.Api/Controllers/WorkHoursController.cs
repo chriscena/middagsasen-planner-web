@@ -1,5 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.WorkHours;
 
