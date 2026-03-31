@@ -285,7 +285,7 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-  <q-dialog v-model="showWorkHourDialog">
+  <q-dialog v-model="showWorkHourDialog" @hide="onCloseWorkHourDialog">
     <q-card class="q-pa-sm" style="width: 100%">
       <q-card-section>
         <div class="row">
@@ -406,7 +406,7 @@
       <q-separator></q-separator>
       <q-card-actions>
         <q-space></q-space>
-        <q-btn label="Lukk" @click="showWorkHourDialog = false" />
+        <q-btn label="Lukk" @click="closeWorkHourDialog" />
       </q-card-actions>
       <q-card-section v-if="foundWorkHour.approvalStatus !== null" class="row">
         <q-space></q-space>
@@ -452,6 +452,7 @@ const approvedHours = ref(0);
 const pendingHours = ref(0);
 const rejectedHours = ref(0);
 const foundWorkHour = ref({});
+const originalDescription = ref("");
 const showWorkHourDialog = ref(false);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
@@ -618,6 +619,14 @@ async function getUserWorkHours(props) {
   }
 }
 
+function onCloseWorkHourDialog() {
+  foundWorkHour.value.description = originalDescription.value;
+}
+
+function closeWorkHourDialog() {
+  showWorkHourDialog.value = false;
+}
+
 const updating = ref(false);
 async function updateDescription(workHourId, description) {
   try {
@@ -627,6 +636,7 @@ async function updateDescription(workHourId, description) {
       description: description,
     };
     const result = await workHourStore.updateWorkHourDescription(payload);
+    originalDescription.value = description;
     emit("saved", result);
     $q.notify({
       message: "Beskrivelse oppdatert.",
@@ -712,6 +722,7 @@ async function openWorkHours(workHourRow) {
   if (!foundWorkHour.value) {
     return;
   }
+  originalDescription.value = foundWorkHour.value.description ?? "";
   if (foundWorkHour.value.approvalStatus === 1) {
     dialogIcon.value.class = "green-text";
     dialogIcon.value.name = "check_circle";
