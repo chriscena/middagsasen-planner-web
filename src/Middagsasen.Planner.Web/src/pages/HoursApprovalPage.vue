@@ -381,16 +381,34 @@
         </div>
       </q-card-section>
       <q-separator></q-separator>
-      <q-card-section>
-        <q-item-label
-          style="font-size: medium"
-          :caption="!foundWorkHour.description"
-        >
-          {{ foundWorkHour.description ?? "Ingen beskrivelse..." }}
-        </q-item-label>
+      <q-card-section class="row q-gutter-sm">
+        <q-input
+          class="col-9"
+          outlined
+          label="Beskrivelse"
+          :model-value="foundWorkHour.description"
+          :disable="updating"
+          placeholder="Ingen beskrivelse..."
+        />
+        <div class="col self-center">
+          <q-btn
+            label="Lagre"
+            :loading="updating"
+            @click="
+              updateDescription(
+                foundWorkHour.workHourId,
+                foundWorkHour.description
+              )
+            "
+          />
+        </div>
       </q-card-section>
       <q-separator></q-separator>
-      <q-card-section class="row">
+      <q-card-actions>
+        <q-space></q-space>
+        <q-btn label="Lukk" @click="showWorkHourDialog = false" />
+      </q-card-actions>
+      <q-card-section v-if="foundWorkHour.approvalStatus !== null" class="row">
         <q-space></q-space>
         <q-item-label caption>
           {{
@@ -403,9 +421,6 @@
               : ""
           }}
         </q-item-label>
-      </q-card-section>
-      <q-card-section class="q-px-xl row justify-center">
-        <q-btn label="Lukk" size="large" @click="showWorkHourDialog = false" />
       </q-card-section>
     </q-card>
   </q-dialog>
@@ -579,7 +594,6 @@ async function getUserWorkHours(props) {
       workHourStore.getWorkHoursSums(),
     ]);
 
-    console.log("userWorkHours", response);
     userWorkHours.value = response.result;
     pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
     pagination.value.page = props.pagination.page;
@@ -601,6 +615,30 @@ async function getUserWorkHours(props) {
       rowsPP: pagination.value.rowsPerPage,
     });
     loading.value = false;
+  }
+}
+
+const updating = ref(false);
+async function updateDescription(workHourId, description) {
+  try {
+    updating.value = true;
+    const payload = {
+      workHourId: workHourId,
+      description: description,
+    };
+    const result = await workHourStore.updateDescription(payload);
+    emit("saved", result);
+    $q.notify({
+      message: "Beskrivelse oppdatert.",
+      color: "positive",
+    });
+  } catch (error) {
+    $q.notify({
+      message: "Klarte ikke å oppdatere beskrivelse",
+      color: "negative",
+    });
+  } finally {
+    updating.value = false;
   }
 }
 
@@ -648,6 +686,10 @@ async function changeStatus(workHourId, status) {
       workHourId: workHourId,
     };
     await workHourStore.updateApproval(model);
+    $q.notify({
+      message: "Status oppdatert",
+      color: "positive",
+    });
   } catch (e) {
     console.error(e);
     $q.notify({

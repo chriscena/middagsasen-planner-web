@@ -36,6 +36,14 @@ namespace Middagsasen.Planner.Api.Controllers
             return (response == null) ? NotFound() : Ok(response);
         }
 
+        [HttpPatch("{workHourId}")]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateComment(int workHourId, [FromBody] WorkHourCommentRequest request)
+        {
+            var response = await WorkHoursService.UpdateWorkHourCommentById(workHourId, request);
+            return (response == null) ? NotFound() : Ok(response);
+        }
+
         [HttpGet]
         [ProducesResponseType<IEnumerable<WorkHourResponse>>(StatusCodes.Status200OK)]
         public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)

@@ -59,6 +59,12 @@ export const useWorkHourStore = defineStore("workHours", {
         model
       );
     },
+    async updateWorkHourDescription(model) {
+      const response = await api.patch(
+        `/api/WorkHours/${model.workHourId}`,
+        model
+      );
+    },
     async deleteWorkHourById(workHourId) {
         await api.delete(
         `/api/WorkHours/${workHourId}`,
