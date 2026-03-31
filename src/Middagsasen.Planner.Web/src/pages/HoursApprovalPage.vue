@@ -381,18 +381,41 @@
         </div>
       </q-card-section>
       <q-separator></q-separator>
-      <q-card-section class="row q-gutter-sm">
-        <q-input
-          class="col-9"
-          outlined
-          label="Beskrivelse"
-          v-model="foundWorkHour.description"
-          :disable="updating"
-          placeholder="Ingen beskrivelse..."
-        />
-        <div class="col self-center">
+      <q-card-section>
+        <div v-if="!editingDescription" class="row items-center q-gutter-sm">
+          <q-item-label
+            class="col cursor-pointer"
+            :caption="!foundWorkHour.description"
+            @click="editingDescription = true"
+          >
+            {{ foundWorkHour.description || "Ingen beskrivelse..." }}
+          </q-item-label>
           <q-btn
-            label="Lagre"
+            flat
+            round
+            dense
+            icon="edit"
+            size="sm"
+            @click="editingDescription = true"
+            title="Rediger beskrivelse"
+          />
+        </div>
+        <div v-else class="row items-center q-gutter-sm">
+          <q-input
+            class="col"
+            outlined
+            dense
+            label="Beskrivelse"
+            v-model="foundWorkHour.description"
+            :disable="updating"
+            autofocus
+          />
+          <q-btn
+            flat
+            round
+            dense
+            icon="check"
+            color="positive"
             :loading="updating"
             @click="
               updateDescription(
@@ -400,6 +423,17 @@
                 foundWorkHour.description
               )
             "
+            title="Lagre"
+          />
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            color="negative"
+            :disable="updating"
+            @click="cancelEditDescription"
+            title="Avbryt"
           />
         </div>
       </q-card-section>
@@ -621,6 +655,12 @@ async function getUserWorkHours(props) {
 
 function onCloseWorkHourDialog() {
   foundWorkHour.value.description = originalDescription.value;
+  editingDescription.value = false;
+}
+
+function cancelEditDescription() {
+  foundWorkHour.value.description = originalDescription.value;
+  editingDescription.value = false;
 }
 
 function closeWorkHourDialog() {
@@ -628,6 +668,7 @@ function closeWorkHourDialog() {
 }
 
 const updating = ref(false);
+const editingDescription = ref(false);
 async function updateDescription(workHourId, description) {
   try {
     updating.value = true;
@@ -637,6 +678,7 @@ async function updateDescription(workHourId, description) {
     };
     const result = await workHourStore.updateWorkHourDescription(payload);
     originalDescription.value = description;
+    editingDescription.value = false;
     emit("saved", result);
     $q.notify({
       message: "Beskrivelse oppdatert.",
