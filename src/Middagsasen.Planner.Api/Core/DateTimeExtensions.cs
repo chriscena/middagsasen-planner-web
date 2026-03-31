@@ -4,6 +4,7 @@ namespace Middagsasen.Planner.Api.Core
 {
     public static class DateTimeExtensions
     {
+        public const int SeasonStartMonth = 7;
         public const string IsoDateTime = "yyyy'-'MM'-'dd'T'HH':'mm':'ssK";
         public const string IsoSimpleDateTime = "yyyy'-'MM'-'dd'T'HH':'mm";
 
@@ -57,7 +58,7 @@ namespace Middagsasen.Planner.Api.Core
 
             var month = startTime.Value.Month;
             var year = startTime.Value.Year;
-            return (month < 7)
+            return (month < SeasonStartMonth)
                 ? $"{year - 1}/{year}"
                 : $"{year}/{year + 1}";
         }

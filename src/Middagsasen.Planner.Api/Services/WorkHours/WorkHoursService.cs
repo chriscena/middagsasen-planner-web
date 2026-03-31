@@ -88,9 +88,15 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         public async Task<IEnumerable<UserWorkHourSumResponse>> GetWorkHoursSumPerUser()
         {
+            var now = DateTime.UtcNow;
+            var m = DateTimeExtensions.SeasonStartMonth;
+            var seasonStart = now.Month < m
+                ? new DateTime(now.Year - 1, m, 1)
+                : new DateTime(now.Year, m, 1);
+
             var workHours = await DbContext.WorkHours
                 .AsNoTracking()
-                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue)
+                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue && w.StartTime >= seasonStart)
                 .Select(h => new { h.UserId, Status = h.ApprovalStatus ?? 0, Hours = (h.EndTime!.Value - h.StartTime!.Value).TotalHours })
                 .ToListAsync();
 
