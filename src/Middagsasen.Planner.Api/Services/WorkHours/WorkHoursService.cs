@@ -86,6 +86,36 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             };
         }
 
+        public async Task<IEnumerable<UserWorkHourSumResponse>> GetWorkHoursSumPerUser()
+        {
+            var now = DateTime.UtcNow;
+            var m = DateTimeExtensions.SeasonStartMonth;
+            var seasonStart = now.Month < m
+                ? new DateTime(now.Year - 1, m, 1)
+                : new DateTime(now.Year, m, 1);
+
+            var workHours = await DbContext.WorkHours
+                .AsNoTracking()
+                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue && w.StartTime >= seasonStart)
+                .Select(h => new { h.UserId, Status = h.ApprovalStatus ?? 0, Hours = (h.EndTime!.Value - h.StartTime!.Value).TotalHours })
+                .ToListAsync();
+
+            return workHours
+                .GroupBy(h => h.UserId)
+                .Select(g =>
+                {
+                    var byStatus = g.GroupBy(h => h.Status).ToDictionary(s => s.Key, s => s.Sum(t => t.Hours));
+                    return new UserWorkHourSumResponse
+                    {
+                        UserId = g.Key,
+                        PendingHours = byStatus.TryGetValue(0, out double pending) ? Math.Round(pending, 1) : 0,
+                        ApprovedHours = byStatus.TryGetValue(1, out double approved) ? Math.Round(approved, 1) : 0,
+                        RejectedHours = byStatus.TryGetValue(2, out double rejected) ? Math.Round(rejected, 1) : 0,
+                    };
+                })
+                .ToList();
+        }
+
         public async Task<WorkHourResponse?> GetWorkHourById(int id)
         {
             var existingWorkHour = await DbContext.WorkHours

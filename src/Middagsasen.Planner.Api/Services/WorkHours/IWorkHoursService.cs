@@ -14,5 +14,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         Task<ApprovedByResponse?> UpdateApprovedBy(int workHourId, ApprovedByRequest request);//
         Task<WorkHourResponse?> DeleteWorkHour(int workhourId);//
         Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null);
+        Task<IEnumerable<UserWorkHourSumResponse>> GetWorkHoursSumPerUser();
     }
 }
