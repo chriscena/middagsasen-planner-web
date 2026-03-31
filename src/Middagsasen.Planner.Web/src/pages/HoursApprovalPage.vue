@@ -679,7 +679,6 @@ async function updateDescription(workHourId, description) {
     const result = await workHourStore.updateWorkHourDescription(payload);
     originalDescription.value = description;
     editingDescription.value = false;
-    emit("saved", result);
     $q.notify({
       message: "Beskrivelse oppdatert.",
       color: "positive",
