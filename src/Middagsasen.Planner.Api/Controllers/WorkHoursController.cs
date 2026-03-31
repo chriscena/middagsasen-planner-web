@@ -125,5 +125,12 @@ namespace Middagsasen.Planner.Api.Controllers
             var response = await WorkHoursService.GetWorkHoursSum(userId);
             return response;
         }
+
+        [HttpGet("Sum/All")]
+        [ProducesResponseType<IEnumerable<UserWorkHourSumResponse>>(StatusCodes.Status200OK)]
+        public async Task<IEnumerable<UserWorkHourSumResponse>> GetSumPerUser()
+        {
+            return await WorkHoursService.GetWorkHoursSumPerUser();
+        }
     }
 }

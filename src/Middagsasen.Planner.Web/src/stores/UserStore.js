@@ -24,6 +24,7 @@ export const useUserStore = defineStore("users", {
   state: () => ({
     users: [],
     phoneList: [],
+    workHourSums: [],
   }),
   // getters: {
   //   doubleCount: (state) => state.counter * 2,
@@ -60,6 +61,10 @@ export const useUserStore = defineStore("users", {
     async saveUser(user) {
       const response = await api.put("/api/me", user);
       authStore.setUser(response.data);
+    },
+    async getWorkHourSums() {
+      const response = await api.get("/api/WorkHours/Sum/All");
+      this.workHourSums = response.data;
     },
     async getPhoneList() {
       const response = await api.get("/api/users/phone");

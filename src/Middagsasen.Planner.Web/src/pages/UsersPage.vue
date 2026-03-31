@@ -52,6 +52,11 @@
           ></q-item-label>
           <q-item-label caption lines="1">{{ user.phoneNo }}</q-item-label>
         </q-item-section>
+        <q-item-section side v-if="getApprovedHours(user.id) > 0">
+          <q-item-label class="text-weight-medium"
+            >{{ formatNumber(getApprovedHours(user.id)) }} t</q-item-label
+          >
+        </q-item-section>
       </q-item>
     </q-list>
     <q-inner-loading :showing="loading">
@@ -141,6 +146,7 @@ import { useQuasar } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useRouter } from "vue-router";
+import { formatNumber } from "src/shared/formatter";
 
 const emit = defineEmits(["toggle-right"]);
 const loading = ref(false);
@@ -165,12 +171,17 @@ const users = computed(() =>
 onMounted(async () => {
   try {
     loading.value = true;
-    await userStore.getUsers();
+    await Promise.all([userStore.getUsers(), userStore.getWorkHourSums()]);
   } catch (error) {
   } finally {
     loading.value = false;
   }
 });
+
+function getApprovedHours(userId) {
+  const sum = userStore.workHourSums.find((s) => s.userId === userId);
+  return sum ? sum.approvedHours : 0;
+}
 
 const selectedUser = ref(null);
 function emptyUser() {
