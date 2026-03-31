@@ -64,6 +64,7 @@ export const useWorkHourStore = defineStore("workHours", {
         `/api/WorkHours/${model.workHourId}`,
         model
       );
+      return response.data;
     },
     async deleteWorkHourById(workHourId) {
         await api.delete(
