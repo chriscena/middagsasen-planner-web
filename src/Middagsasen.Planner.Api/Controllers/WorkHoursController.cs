@@ -1,11 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.WorkHours;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
+    [ApiController, Authorize]
     public class WorkHoursController : ControllerBase
     {
         public WorkHoursController(IWorkHoursService workHoursService)
