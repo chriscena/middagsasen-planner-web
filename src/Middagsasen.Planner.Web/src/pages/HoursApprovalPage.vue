@@ -386,7 +386,7 @@
           class="col-9"
           outlined
           label="Beskrivelse"
-          :model-value="foundWorkHour.description"
+          v-model="foundWorkHour.description"
           :disable="updating"
           placeholder="Ingen beskrivelse..."
         />
@@ -626,13 +626,14 @@ async function updateDescription(workHourId, description) {
       workHourId: workHourId,
       description: description,
     };
-    const result = await workHourStore.updateDescription(payload);
+    const result = await workHourStore.updateWorkHourDescription(payload);
     emit("saved", result);
     $q.notify({
       message: "Beskrivelse oppdatert.",
       color: "positive",
     });
   } catch (error) {
+    console.error(error);
     $q.notify({
       message: "Klarte ikke å oppdatere beskrivelse",
       color: "negative",
