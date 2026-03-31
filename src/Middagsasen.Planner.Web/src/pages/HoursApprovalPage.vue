@@ -285,7 +285,7 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-  <q-dialog v-model="showWorkHourDialog">
+  <q-dialog v-model="showWorkHourDialog" @hide="onCloseWorkHourDialog">
     <q-card class="q-pa-sm" style="width: 100%">
       <q-card-section>
         <div class="row">
@@ -382,15 +382,67 @@
       </q-card-section>
       <q-separator></q-separator>
       <q-card-section>
-        <q-item-label
-          style="font-size: medium"
-          :caption="!foundWorkHour.description"
-        >
-          {{ foundWorkHour.description ?? "Ingen beskrivelse..." }}
-        </q-item-label>
+        <div v-if="!editingDescription" class="row items-center q-gutter-sm">
+          <q-item-label
+            class="col cursor-pointer"
+            :caption="!foundWorkHour.description"
+            @click="editingDescription = true"
+          >
+            {{ foundWorkHour.description || "Ingen beskrivelse..." }}
+          </q-item-label>
+          <q-btn
+            flat
+            round
+            dense
+            icon="edit"
+            size="sm"
+            @click="editingDescription = true"
+            title="Rediger beskrivelse"
+          />
+        </div>
+        <div v-else class="row items-center q-gutter-sm">
+          <q-input
+            class="col"
+            outlined
+            dense
+            label="Beskrivelse"
+            v-model="foundWorkHour.description"
+            :disable="updating"
+            autofocus
+          />
+          <q-btn
+            flat
+            round
+            dense
+            icon="check"
+            color="positive"
+            :loading="updating"
+            @click="
+              updateDescription(
+                foundWorkHour.workHourId,
+                foundWorkHour.description
+              )
+            "
+            title="Lagre"
+          />
+          <q-btn
+            flat
+            round
+            dense
+            icon="close"
+            color="negative"
+            :disable="updating"
+            @click="cancelEditDescription"
+            title="Avbryt"
+          />
+        </div>
       </q-card-section>
       <q-separator></q-separator>
-      <q-card-section class="row">
+      <q-card-actions>
+        <q-space></q-space>
+        <q-btn label="Lukk" @click="closeWorkHourDialog" />
+      </q-card-actions>
+      <q-card-section v-if="foundWorkHour.approvalStatus !== null" class="row">
         <q-space></q-space>
         <q-item-label caption>
           {{
@@ -403,9 +455,6 @@
               : ""
           }}
         </q-item-label>
-      </q-card-section>
-      <q-card-section class="q-px-xl row justify-center">
-        <q-btn label="Lukk" size="large" @click="showWorkHourDialog = false" />
       </q-card-section>
     </q-card>
   </q-dialog>
@@ -437,6 +486,7 @@ const approvedHours = ref(0);
 const pendingHours = ref(0);
 const rejectedHours = ref(0);
 const foundWorkHour = ref({});
+const originalDescription = ref("");
 const showWorkHourDialog = ref(false);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
@@ -579,7 +629,6 @@ async function getUserWorkHours(props) {
       workHourStore.getWorkHoursSums(),
     ]);
 
-    console.log("userWorkHours", response);
     userWorkHours.value = response.result;
     pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
     pagination.value.page = props.pagination.page;
@@ -601,6 +650,47 @@ async function getUserWorkHours(props) {
       rowsPP: pagination.value.rowsPerPage,
     });
     loading.value = false;
+  }
+}
+
+function onCloseWorkHourDialog() {
+  foundWorkHour.value.description = originalDescription.value;
+  editingDescription.value = false;
+}
+
+function cancelEditDescription() {
+  foundWorkHour.value.description = originalDescription.value;
+  editingDescription.value = false;
+}
+
+function closeWorkHourDialog() {
+  showWorkHourDialog.value = false;
+}
+
+const updating = ref(false);
+const editingDescription = ref(false);
+async function updateDescription(workHourId, description) {
+  try {
+    updating.value = true;
+    const payload = {
+      workHourId: workHourId,
+      description: description,
+    };
+    const result = await workHourStore.updateWorkHourDescription(payload);
+    originalDescription.value = description;
+    editingDescription.value = false;
+    $q.notify({
+      message: "Beskrivelse oppdatert.",
+      color: "positive",
+    });
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      message: "Klarte ikke å oppdatere beskrivelse",
+      color: "negative",
+    });
+  } finally {
+    updating.value = false;
   }
 }
 
@@ -648,6 +738,10 @@ async function changeStatus(workHourId, status) {
       workHourId: workHourId,
     };
     await workHourStore.updateApproval(model);
+    $q.notify({
+      message: "Status oppdatert",
+      color: "positive",
+    });
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -669,6 +763,7 @@ async function openWorkHours(workHourRow) {
   if (!foundWorkHour.value) {
     return;
   }
+  originalDescription.value = foundWorkHour.value.description ?? "";
   if (foundWorkHour.value.approvalStatus === 1) {
     dialogIcon.value.class = "green-text";
     dialogIcon.value.name = "check_circle";

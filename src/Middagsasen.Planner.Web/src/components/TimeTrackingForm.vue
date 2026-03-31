@@ -105,10 +105,12 @@ const $q = useQuasar();
 const workHourStore = useWorkHourStore();
 const authStore = useAuthStore();
 const user = computed(() => authStore.user);
+const isAdmin = computed(() => authStore.isAdmin);
 const loading = ref(false);
 
 const viewModel = reactive({
   id: null,
+  userId: null,
   startDateTime: null,
   endDateTime: null,
   startDate: format(new Date(), "dd.MM.yyyy"),
@@ -243,7 +245,10 @@ async function updateHours() {
       startTime: viewModel.startDateTime,
       endTime: viewModel.endDateTime,
       description: viewModel.description,
-      userId: user.value.id,
+      userId:
+        isAdmin.value && viewModel.userId !== user.value.id
+          ? viewModel.userId
+          : user.value.id,
     };
     const result = await workHourStore.updateWorkHour(payload);
     emit("saved", result);

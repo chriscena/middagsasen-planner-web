@@ -210,6 +210,19 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return Map(workHour);
         }
 
+        public async Task<WorkHourResponse?> UpdateWorkHourCommentById(int workHourId, WorkHourCommentRequest request)
+        {
+            var workHour = await DbContext.WorkHours.SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
+            if (workHour == null) return null;
+
+            if (!string.IsNullOrWhiteSpace(request.Description))
+                workHour.Description = request.Description;
+            
+            await DbContext.SaveChangesAsync();
+
+            return Map(workHour);
+        }
+
         public async Task<EndTimeResponse?> UpdateEndTime(int workHourId, EndTimeRequest request)
         {
             var workHour = await DbContext.WorkHours

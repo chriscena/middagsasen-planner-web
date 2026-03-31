@@ -1,11 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.WorkHours;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
     [Route("api/[controller]")]
-    [ApiController]
+    [ApiController, Authorize]
     public class WorkHoursController : ControllerBase
     {
         public WorkHoursController(IWorkHoursService workHoursService)
@@ -33,6 +34,14 @@ namespace Middagsasen.Planner.Api.Controllers
         public async Task<IActionResult> Update(int workHourId, [FromBody] WorkHourRequest request)
         {
             var response = await WorkHoursService.UpdateWorkHourById(workHourId, request);
+            return (response == null) ? NotFound() : Ok(response);
+        }
+
+        [HttpPatch("{workHourId}")]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
+        public async Task<IActionResult> UpdateComment(int workHourId, [FromBody] WorkHourCommentRequest request)
+        {
+            var response = await WorkHoursService.UpdateWorkHourCommentById(workHourId, request);
             return (response == null) ? NotFound() : Ok(response);
         }
 
