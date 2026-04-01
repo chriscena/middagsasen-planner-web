@@ -32,7 +32,6 @@ namespace Middagsasen.Planner.Api.Services.Competencies
                     .ThenInclude(rtc => rtc.ResourceType)
                 .Include(c => c.CompetencyApprovers)
                     .ThenInclude(ca => ca.User)
-                .AsNoTracking()
                 .SingleOrDefaultAsync(c => c.CompetencyId == id);
         }
 
