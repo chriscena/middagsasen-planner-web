@@ -37,6 +37,10 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<WeatherMeasurementValue> WeatherMeasurementValues { get; set; } = null!;
         public virtual DbSet<EventResource> EventResource { get; set; } = null!;
         public virtual DbSet<WorkHour> WorkHours { get; set; } = null!;
+        public virtual DbSet<Competency> Competencies { get; set; } = null!;
+        public virtual DbSet<CompetencyApprover> CompetencyApprovers { get; set; } = null!;
+        public virtual DbSet<UserCompetency> UserCompetencies { get; set; } = null!;
+        public virtual DbSet<ResourceTypeCompetency> ResourceTypeCompetencies { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -292,6 +296,89 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.WeatherLocationId)
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_WeatherMeasurementValues_WeatherLocations");
+            });
+
+            modelBuilder.Entity<Competency>(entity =>
+            {
+                entity.ToTable("Competencies");
+                entity.HasKey(e => e.CompetencyId);
+                entity.Property(e => e.Name).HasMaxLength(400);
+                entity.Property(e => e.Description).HasMaxLength(2000);
+            });
+
+            modelBuilder.Entity<UserCompetency>(entity =>
+            {
+                entity.ToTable("UserCompetencies");
+                entity.HasKey(e => e.UserCompetencyId);
+                entity.Property(e => e.ApprovedDate).HasColumnType("datetime");
+                entity.Property(e => e.ExpiryDate).HasColumnType("datetime");
+                entity.Property(e => e.Created).HasColumnType("datetime");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.Competencies)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_UserCompetencies_Users");
+
+                entity.HasOne(e => e.Competency)
+                    .WithMany(c => c.UserCompetencies)
+                    .HasForeignKey(d => d.CompetencyId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_UserCompetencies_Competencies");
+
+                entity.HasOne(e => e.ApprovedByUser)
+                    .WithMany(c => c.ApprovedUserCompetencies)
+                    .HasForeignKey(d => d.ApprovedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_UserCompetencies_Users_ApprovedBy");
+
+                entity.HasIndex(e => new { e.UserId, e.CompetencyId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_UserCompetencies_UserId_CompetencyId");
+            });
+
+            modelBuilder.Entity<CompetencyApprover>(entity =>
+            {
+                entity.ToTable("CompetencyApprovers");
+                entity.HasKey(e => e.CompetencyApproverId);
+
+                entity.HasOne(e => e.Competency)
+                    .WithMany(c => c.CompetencyApprovers)
+                    .HasForeignKey(d => d.CompetencyId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_CompetencyApprovers_Competencies");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.CompetencyApprovals)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_CompetencyApprovers_Users");
+
+                entity.HasIndex(e => new { e.CompetencyId, e.UserId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_CompetencyApprovers_CompetencyId_UserId");
+            });
+
+            modelBuilder.Entity<ResourceTypeCompetency>(entity =>
+            {
+                entity.ToTable("ResourceTypeCompetencies");
+                entity.HasKey(e => e.ResourceTypeCompetencyId);
+
+                entity.HasOne(e => e.ResourceType)
+                    .WithMany(c => c.RequiredCompetencies)
+                    .HasForeignKey(d => d.ResourceTypeId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeCompetencies_ResourceTypes");
+
+                entity.HasOne(e => e.Competency)
+                    .WithMany(c => c.ResourceTypeCompetencies)
+                    .HasForeignKey(d => d.CompetencyId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ResourceTypeCompetencies_Competencies");
+
+                entity.HasIndex(e => new { e.ResourceTypeId, e.CompetencyId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_ResourceTypeCompetencies_ResourceTypeId_CompetencyId");
             });
 
         }

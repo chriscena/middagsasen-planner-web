@@ -55,6 +55,10 @@ const routes = [
         component: () => import("pages/TemplatesPage.vue"),
       },
       {
+        path: "competencies",
+        component: () => import("pages/CompetenciesPage.vue"),
+      },
+      {
         path: "shifts",
         component: () => import("pages/MyShiftsPage.vue"),
       },

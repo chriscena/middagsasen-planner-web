@@ -120,6 +120,89 @@
             v-model="selectedUser.isHidden"
           ></q-checkbox>
         </q-card-section>
+
+        <!-- Competency section (only for existing users) -->
+        <q-card-section v-if="selectedUser.id">
+          <div class="text-subtitle2 q-mb-sm">Kompetanser</div>
+          <q-spinner v-if="loadingUserCompetencies" size="1.5em" color="primary" class="q-mb-sm"></q-spinner>
+          <q-list dense separator v-if="editUserCompetencies.length > 0">
+            <q-item v-for="uc in editUserCompetencies" :key="uc.id">
+              <q-item-section>
+                <q-item-label>{{ uc.competencyName }}</q-item-label>
+                <q-item-label caption v-if="uc.expiryDate">
+                  Utløper: {{ formatCompetencyDate(uc.expiryDate) }}
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <div class="row items-center q-gutter-xs">
+                  <q-badge
+                    v-if="uc.approved && !uc.isExpired"
+                    color="green"
+                    label="Godkjent"
+                  ></q-badge>
+                  <q-badge
+                    v-else-if="uc.approved && uc.isExpired"
+                    color="red"
+                    label="Utløpt"
+                  ></q-badge>
+                  <q-badge
+                    v-else
+                    color="orange"
+                    label="Venter på godkjenning"
+                  ></q-badge>
+                  <q-btn
+                    v-if="!uc.approved"
+                    flat
+                    dense
+                    no-caps
+                    color="positive"
+                    label="Godkjenn"
+                    :loading="approvingId === uc.id"
+                    @click="approveCompetency(uc)"
+                  ></q-btn>
+                  <q-btn
+                    v-if="uc.approved"
+                    flat
+                    dense
+                    no-caps
+                    color="negative"
+                    label="Trekk tilbake"
+                    :loading="revokingId === uc.id"
+                    @click="revokeCompetency(uc)"
+                  ></q-btn>
+                </div>
+              </q-item-section>
+            </q-item>
+          </q-list>
+          <div v-else-if="!loadingUserCompetencies" class="text-caption text-grey q-mb-sm">
+            Ingen kompetanser registrert
+          </div>
+          <div class="row items-center q-gutter-sm q-mt-sm">
+            <q-select
+              class="col"
+              v-model="adminSelectedCompetencyId"
+              :options="adminAvailableCompetencies"
+              option-value="id"
+              option-label="name"
+              emit-value
+              map-options
+              outlined
+              dense
+              label="Legg til kompetanse"
+            ></q-select>
+            <q-btn
+              flat
+              round
+              dense
+              icon="add"
+              color="primary"
+              :disable="!adminSelectedCompetencyId"
+              :loading="adminAddingCompetency"
+              @click="adminAddCompetency"
+            ></q-btn>
+          </div>
+        </q-card-section>
+
         <q-card-actions align="right">
           <q-btn
             label="Avbryt"
@@ -142,9 +225,10 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import { useQuasar } from "quasar";
+import { useQuasar, date as dateUtil } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import { useCompetencyStore } from "stores/CompetencyStore";
 import { useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter";
 
@@ -154,6 +238,7 @@ const $q = useQuasar();
 const router = useRouter();
 const userStore = useUserStore();
 const authStore = useAuthStore();
+const competencyStore = useCompetencyStore();
 
 const filter = ref(null);
 
@@ -196,9 +281,123 @@ function emptyUser() {
 }
 
 const showingEditDialog = ref(false);
+
+// Competency management
+const loadingUserCompetencies = ref(false);
+const adminSelectedCompetencyId = ref(null);
+const adminAddingCompetency = ref(false);
+const approvingId = ref(null);
+const revokingId = ref(null);
+
+const editUserCompetencies = computed(() => {
+  const userId = selectedUser.value?.id;
+  if (!userId) return [];
+  return competencyStore.userCompetencies[userId] || [];
+});
+
+const adminAvailableCompetencies = computed(() => {
+  const existing = editUserCompetencies.value.map((uc) => uc.competencyId);
+  return competencyStore.competencies.filter((c) => !existing.includes(c.id));
+});
+
+function formatCompetencyDate(dateStr) {
+  if (!dateStr) return "";
+  return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
+}
+
+async function loadUserCompetencies(userId) {
+  try {
+    loadingUserCompetencies.value = true;
+    await Promise.all([
+      competencyStore.getUserCompetencies(userId),
+      competencyStore.getCompetencies(),
+    ]);
+  } catch (error) {
+    console.log(error);
+  } finally {
+    loadingUserCompetencies.value = false;
+  }
+}
+
+function findCompetencyDef(competencyId) {
+  return competencyStore.competencies.find((c) => c.id === competencyId);
+}
+
+async function approveCompetency(uc) {
+  const competencyDef = findCompetencyDef(uc.competencyId);
+  if (competencyDef && competencyDef.hasExpiry) {
+    $q.dialog({
+      title: "Velg utløpsdato",
+      message: `Kompetansen "${uc.competencyName}" krever en utløpsdato.`,
+      prompt: {
+        model: "",
+        type: "date",
+      },
+      cancel: { label: "Avbryt", flat: true, noCaps: true },
+      ok: { label: "Godkjenn", noCaps: true, color: "primary", unelevated: true },
+      persistent: true,
+    }).onOk(async (expiryDate) => {
+      await doApprove(uc, expiryDate || null);
+    });
+  } else {
+    await doApprove(uc, null);
+  }
+}
+
+async function doApprove(uc, expiryDate) {
+  try {
+    approvingId.value = uc.id;
+    await competencyStore.approveUserCompetency(uc.id, { expiryDate });
+    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    $q.notify({ message: "Kompetanse godkjent" });
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å godkjenne kompetanse", color: "negative" });
+  } finally {
+    approvingId.value = null;
+  }
+}
+
+async function revokeCompetency(uc) {
+  try {
+    revokingId.value = uc.id;
+    await competencyStore.revokeUserCompetency(uc.id);
+    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    $q.notify({ message: "Kompetanse trukket tilbake" });
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å trekke tilbake kompetanse", color: "negative" });
+  } finally {
+    revokingId.value = null;
+  }
+}
+
+async function adminAddCompetency() {
+  if (!adminSelectedCompetencyId.value) return;
+  try {
+    adminAddingCompetency.value = true;
+    await competencyStore.addUserCompetency({
+      userId: selectedUser.value.id,
+      competencyId: adminSelectedCompetencyId.value,
+    });
+    adminSelectedCompetencyId.value = null;
+    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    $q.notify({ message: "Kompetanse lagt til" });
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å legge til kompetanse", color: "negative" });
+  } finally {
+    adminAddingCompetency.value = false;
+  }
+}
+
 function editUser(user) {
   selectedUser.value = { ...user };
+  adminSelectedCompetencyId.value = null;
   showingEditDialog.value = true;
+  if (user.id) {
+    loadUserCompetencies(user.id);
+  }
 }
 
 function newUser() {

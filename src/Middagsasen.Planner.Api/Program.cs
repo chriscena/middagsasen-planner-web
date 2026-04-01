@@ -12,6 +12,7 @@ using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.Weather;
+using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.WorkHours;
 using Serilog;
 using Serilog.Events;
@@ -67,6 +68,8 @@ builder.Services.AddScoped<IEventTemplatesService, EventsService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<WeatherService>();
 builder.Services.AddScoped<IWorkHoursService, WorkHoursService>();
+builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
+builder.Services.AddScoped<ICompetencyService, CompetencyService>();
 
 builder.Services.AddHostedService<WeatherDataCollector>();
 

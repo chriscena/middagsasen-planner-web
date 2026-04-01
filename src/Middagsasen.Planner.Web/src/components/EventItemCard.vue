@@ -26,6 +26,21 @@
               name="info"
               class="q-mr-xs"
             ></q-icon>
+            <q-icon
+              v-if="resource.competencyWarnings?.length"
+              color="amber-8"
+              name="group_off"
+              class="q-mr-xs"
+              ><q-tooltip>
+                <div
+                  v-for="w in resource.competencyWarnings"
+                  :key="w.competencyName"
+                >
+                  {{ w.competencyName }}: {{ w.currentCount }} av
+                  {{ w.minimumRequired }} påkrevd
+                </div>
+              </q-tooltip></q-icon
+            >
             <q-badge rounded color="yellow-8" v-if="resource.messages.length">
               {{ resource.messages.length }}</q-badge
             ></q-item-label
@@ -56,6 +71,7 @@
               size="sm"
               name="escalator_warning"
             ></q-icon>
+
             {{ shift.user.fullName }}</q-item-label
           >
           <q-item-label caption v-if="isTaken(shift)">{{

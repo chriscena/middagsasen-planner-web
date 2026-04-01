@@ -9,7 +9,8 @@
   "scripts": {
     "lint": "eslint --ext .js,.vue ./",
     "format": "prettier --write \"**/*.{js,vue,scss,html,md,json}\" --ignore-path .gitignore",
-    "test": "echo \"No test specified\" && exit 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "quasar dev",
     "build": "quasar build"
   },
@@ -34,12 +35,14 @@
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^5.2.0",
     "@quasar/app-vite": "^2.0.0",
+    "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.2",
     "eslint": "^8.10.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-vue": "^9.0.0",
     "postcss": "^8.4.14",
-    "prettier": "^2.5.1"
+    "prettier": "^2.5.1",
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": "^22 || ^20",
