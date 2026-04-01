@@ -72,7 +72,7 @@ namespace Middagsasen.Planner.Api.Services.Competencies
                     {
                         CompetencyId = competency.CompetencyId,
                         ResourceTypeId = resourceTypeId,
-                        MinimumRequired = 0,
+                        MinimumRequired = 1,
                     }).ToList();
 
                     await Repository.SetResourceTypeCompetencies(resourceTypeId, merged);
