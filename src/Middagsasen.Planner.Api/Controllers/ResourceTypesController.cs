@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.Users;
@@ -10,12 +11,14 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class ResourceTypesController : ControllerBase
     {
-        public ResourceTypesController(IResourceTypesService resourceTypesService)
+        public ResourceTypesController(IResourceTypesService resourceTypesService, ICompetencyService competencyService)
         {
             ResourceTypesService = resourceTypesService;
+            CompetencyService = competencyService;
         }
 
         public IResourceTypesService ResourceTypesService { get; }
+        public ICompetencyService CompetencyService { get; }
 
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<ResourceTypeResponse>), StatusCodes.Status200OK)]
@@ -110,6 +113,23 @@ namespace Middagsasen.Planner.Api.Controllers
             await ResourceTypesService.DeleteFile(id, resourceTypeId);
 
             return Ok();
+        }
+
+        [HttpGet("{id}/competencies"), Authorize]
+        [ProducesResponseType(typeof(IEnumerable<ResourceTypeCompetencyResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetCompetencies(int id)
+        {
+            var competencies = await CompetencyService.GetResourceTypeCompetencies(id);
+            return Ok(competencies);
+        }
+
+        [HttpPut("{id}/competencies")]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(IEnumerable<ResourceTypeCompetencyResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> SetCompetencies(int id, [FromBody] IEnumerable<SetResourceTypeCompetencyRequest> requirements)
+        {
+            var result = await CompetencyService.SetResourceTypeCompetencies(id, requirements);
+            return Ok(result);
         }
     }
 

@@ -63,6 +63,15 @@
           </q-item-section>
         </q-item>
 
+        <q-item v-if="isAdmin" clickable to="/competencies" v-ripple>
+          <q-item-section avatar>
+            <q-icon name="workspace_premium"></q-icon>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label>Kompetanse</q-item-label>
+          </q-item-section>
+        </q-item>
+
         <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
           <q-item-section avatar>
             <q-icon name="settings"></q-icon>
@@ -131,6 +140,75 @@
             <q-item-label>Mine timer</q-item-label>
           </q-item-section>
         </q-item>
+      </q-list>
+      <q-separator></q-separator>
+      <q-list>
+        <q-item-label header>Mine kompetanser</q-item-label>
+        <q-item v-if="loadingCompetencies">
+          <q-item-section>
+            <q-spinner size="1.5em" color="primary"></q-spinner>
+          </q-item-section>
+        </q-item>
+        <q-item v-for="uc in myCompetencies" :key="uc.id">
+          <q-item-section>
+            <q-item-label>{{ uc.competencyName }}</q-item-label>
+            <q-item-label caption v-if="uc.expiryDate">
+              Utløper: {{ formatDate(uc.expiryDate) }}
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-badge
+              v-if="uc.approved && !uc.isExpired"
+              color="green"
+              label="Godkjent"
+            ></q-badge>
+            <q-badge
+              v-else-if="uc.approved && uc.isExpired"
+              color="red"
+              label="Utløpt"
+            ></q-badge>
+            <q-badge
+              v-else
+              color="orange"
+              label="Venter på godkjenning"
+            ></q-badge>
+          </q-item-section>
+        </q-item>
+        <q-item v-if="!loadingCompetencies && myCompetencies.length === 0">
+          <q-item-section>
+            <q-item-label caption>Ingen kompetanser registrert</q-item-label>
+          </q-item-section>
+        </q-item>
+        <q-item>
+          <q-item-section>
+            <q-select
+              v-model="selectedCompetencyId"
+              :options="availableCompetencies"
+              option-value="id"
+              option-label="name"
+              emit-value
+              map-options
+              outlined
+              dense
+              label="Legg til kompetanse"
+            ></q-select>
+          </q-item-section>
+          <q-item-section side>
+            <q-btn
+              flat
+              round
+              dense
+              icon="add"
+              color="primary"
+              :disable="!selectedCompetencyId"
+              :loading="addingCompetency"
+              @click="addMyCompetency"
+            ></q-btn>
+          </q-item-section>
+        </q-item>
+      </q-list>
+      <q-separator></q-separator>
+      <q-list separator>
         <q-item clickable @click="logout">
           <q-item-section avatar
             ><q-icon name="logout"></q-icon
@@ -216,21 +294,87 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
+import { useCompetencyStore } from "src/stores/CompetencyStore";
 import { useVuelidate } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
-import { useQuasar } from "quasar";
+import { useQuasar, date as dateUtil } from "quasar";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
+const competencyStore = useCompetencyStore();
 const router = useRouter();
 const $q = useQuasar();
 
 const user = computed(() => authStore.user);
 const isAdmin = computed(() => user.value?.isAdmin ?? false);
+
+// Competency management
+const loadingCompetencies = ref(false);
+const addingCompetency = ref(false);
+const selectedCompetencyId = ref(null);
+
+const myCompetencies = computed(() => {
+  const userId = user.value?.id;
+  if (!userId) return [];
+  return competencyStore.userCompetencies[userId] || [];
+});
+
+const availableCompetencies = computed(() => {
+  const existing = myCompetencies.value.map((uc) => uc.competencyId);
+  return competencyStore.competencies.filter((c) => !existing.includes(c.id));
+});
+
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
+}
+
+async function loadMyCompetencies() {
+  const userId = user.value?.id;
+  if (!userId) return;
+  try {
+    loadingCompetencies.value = true;
+    await Promise.all([
+      competencyStore.getUserCompetencies(userId),
+      competencyStore.getCompetencies(),
+    ]);
+  } catch (error) {
+    console.log(error);
+  } finally {
+    loadingCompetencies.value = false;
+  }
+}
+
+async function addMyCompetency() {
+  if (!selectedCompetencyId.value) return;
+  try {
+    addingCompetency.value = true;
+    await competencyStore.addUserCompetency({
+      userId: user.value.id,
+      competencyId: selectedCompetencyId.value,
+    });
+    selectedCompetencyId.value = null;
+    await competencyStore.getUserCompetencies(user.value.id);
+    $q.notify({ message: "Kompetanse registrert" });
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å registrere kompetanse", color: "negative" });
+  } finally {
+    addingCompetency.value = false;
+  }
+}
+
+// Load competencies when right drawer opens and user is logged in
+const rightDrawerOpen = ref(false);
+watch(rightDrawerOpen, (val) => {
+  if (val && user.value?.id) {
+    loadMyCompetencies();
+  }
+});
 
 const editingUser = ref(false);
 
@@ -311,7 +455,6 @@ async function logout() {
 }
 
 const leftDrawerOpen = ref(false);
-const rightDrawerOpen = ref(false);
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;

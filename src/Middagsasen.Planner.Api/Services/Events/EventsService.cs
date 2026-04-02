@@ -130,12 +130,21 @@ namespace Middagsasen.Planner.Api.Services.Events
                         .ThenInclude(s => s.User)
                             .ThenInclude(u =>u.Trainings)
                 .Include(e => e.Resources)
+                    .ThenInclude(r => r.Shifts)
+                        .ThenInclude(s => s.User)
+                            .ThenInclude(u => u.Competencies)
+                                .ThenInclude(uc => uc.Competency)
+                .Include(e => e.Resources)
                     .ThenInclude(r => r.ResourceType)
                         .ThenInclude(rt => rt.Trainers)
                             .ThenInclude(t => t.User)
                 .Include(e => e.Resources)
                     .ThenInclude(r => r.ResourceType)
                         .ThenInclude(rt => rt.Files)
+                .Include(e => e.Resources)
+                    .ThenInclude(r => r.ResourceType)
+                        .ThenInclude(rt => rt.RequiredCompetencies)
+                            .ThenInclude(rc => rc.Competency)
                 .Include(e => e.Resources)
                     .ThenInclude(r => r.Messages)
                         .ThenInclude(t => t.CreatedByUser);
@@ -670,8 +679,43 @@ namespace Middagsasen.Planner.Api.Services.Events
             EndTime = resource.EndTime.ToSimpleIsoString(),
             MinimumStaff = resource.MinimumStaff,
             Shifts = resource.Shifts.Select(Map).ToList(),
-            Messages = resource.Messages.Select(Map).ToList()
+            Messages = resource.Messages.Select(Map).ToList(),
+            CompetencyWarnings = GetCompetencyWarnings(resource),
         };
+
+        private IEnumerable<CompetencyWarningResponse>? GetCompetencyWarnings(EventResource resource)
+        {
+            var requiredCompetencies = resource.ResourceType?.RequiredCompetencies;
+            if (requiredCompetencies == null || !requiredCompetencies.Any())
+                return null;
+
+            var now = DateTime.UtcNow;
+            var warnings = new List<CompetencyWarningResponse>();
+
+            foreach (var rc in requiredCompetencies)
+            {
+                if (rc.Competency == null) continue;
+
+                var count = resource.Shifts
+                    .Count(s => s.User?.Competencies != null &&
+                        s.User.Competencies.Any(uc =>
+                            uc.CompetencyId == rc.CompetencyId
+                            && uc.Approved
+                            && (uc.ExpiryDate == null || uc.ExpiryDate > now)));
+
+                if (count < rc.MinimumRequired)
+                {
+                    warnings.Add(new CompetencyWarningResponse
+                    {
+                        CompetencyName = rc.Competency.Name,
+                        MinimumRequired = rc.MinimumRequired,
+                        CurrentCount = count,
+                    });
+                }
+            }
+
+            return warnings.Any() ? warnings : null;
+        }
 
         private ShiftResponse Map(EventResourceUser shift) => new ShiftResponse
         {

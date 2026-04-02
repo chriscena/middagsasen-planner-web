@@ -67,6 +67,7 @@ export const useEventStore = defineStore("events", {
     async createResourceType(resourceType) {
       const response = await api.post("/api/resourcetypes", resourceType);
       await this.getResourceTypes();
+      return response.data;
     },
 
     async updateResourceType(resourceType) {

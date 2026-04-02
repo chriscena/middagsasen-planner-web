@@ -124,6 +124,64 @@
             </q-card-actions>
           </q-card>
           <q-card bordered flat>
+            <q-card-section class="q-py-sm text-subtitle2"
+              >Kompetansekrav</q-card-section
+            ><q-separator></q-separator>
+            <q-list role="list" separator>
+              <q-item
+                v-for="(req, index) in competencyRequirements"
+                :key="req.competencyId"
+              >
+                <q-item-section>
+                  {{ req.competencyName }}
+                </q-item-section>
+                <q-item-section side style="min-width: 80px">
+                  <q-input
+                    outlined
+                    dense
+                    type="number"
+                    v-model.number="req.minimumRequired"
+                    :min="1"
+                    label="Min"
+                    @focus="(event) => event.target.select()"
+                  ></q-input>
+                </q-item-section>
+                <q-item-section side>
+                  <q-btn
+                    flat
+                    round
+                    icon="delete"
+                    title="Fjern kompetansekrav"
+                    @click="removeCompetencyRequirement(index)"
+                  ></q-btn>
+                </q-item-section>
+              </q-item>
+            </q-list>
+            <q-separator></q-separator>
+            <q-card-actions>
+              <q-select
+                class="col"
+                label="Kompetanse"
+                placeholder="Velg kompetanse"
+                outlined
+                dense
+                :options="availableCompetencies"
+                option-label="name"
+                option-value="id"
+                v-model="selectedCompetency"
+              ></q-select>
+              <q-btn
+                icon="add"
+                flat
+                round
+                color="primary"
+                :disable="!selectedCompetency"
+                @click="addCompetencyRequirement"
+                title="Legg til kompetansekrav"
+              ></q-btn>
+            </q-card-actions>
+          </q-card>
+          <q-card bordered flat>
             <q-card-section class="q-py-sm text-subtitle2">Filer</q-card-section
             ><q-separator></q-separator>
             <q-list role="list" separator>
@@ -276,12 +334,14 @@ import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
+import { useCompetencyStore } from "stores/CompetencyStore";
 import { computed } from "vue";
 
 const emit = defineEmits(["toggle-right"]);
 const $router = useRouter();
 const eventStore = useEventStore();
 const userStore = useUserStore();
+const competencyStore = useCompetencyStore();
 const $q = useQuasar();
 
 const showingEdit = ref(false);
@@ -291,8 +351,11 @@ const loading = ref(false);
 onMounted(async () => {
   try {
     loading.value = true;
-    await userStore.getUsers();
-    await eventStore.getResourceTypes();
+    await Promise.all([
+      userStore.getUsers(),
+      eventStore.getResourceTypes(),
+      competencyStore.getCompetencies(),
+    ]);
   } catch (error) {
   } finally {
     loading.value = false;
@@ -307,21 +370,42 @@ const visibleTrainers = computed(() =>
 const selectedResource = ref(null);
 function newResourceType() {
   selectedResource.value = emptyResource();
+  competencyRequirements.value = [];
+  selectedCompetency.value = null;
   showingEdit.value = true;
 }
 
-function editResourceType(resourceType) {
+async function editResourceType(resourceType) {
   selectedResource.value = Object.assign({}, resourceType);
+  competencyRequirements.value = [];
+  selectedCompetency.value = null;
   showingEdit.value = true;
+  await loadCompetencyRequirements(resourceType.id);
 }
 
-function saveResource() {
-  if (selectedResource.value.id) {
-    eventStore.updateResourceType(selectedResource.value);
-  } else {
-    eventStore.createResourceType(selectedResource.value);
+async function saveResource() {
+  try {
+    let resourceTypeId;
+    if (selectedResource.value.id) {
+      await eventStore.updateResourceType(selectedResource.value);
+      resourceTypeId = selectedResource.value.id;
+    } else {
+      const created = await eventStore.createResourceType(selectedResource.value);
+      resourceTypeId = created?.id;
+    }
+    if (resourceTypeId) {
+      const requirements = competencyRequirements.value.map((cr) => ({
+        competencyId: cr.competencyId,
+        minimumRequired: cr.minimumRequired,
+      }));
+      await competencyStore.setResourceTypeCompetencies(resourceTypeId, requirements);
+    }
+    showingEdit.value = false;
+    $q.notify({ message: "Vakttypen er lagret." });
+  } catch (error) {
+    console.log(error);
+    $q.notify({ message: "Klarte ikke å lagre vakttypen." });
   }
-  showingEdit.value = false;
 }
 
 function emptyResource() {
@@ -356,6 +440,38 @@ const canAddTrainer = computed(() => !!user.value);
 
 function deleteTrainer(trainer) {
   trainer.isDeleted = true;
+}
+
+const competencyRequirements = ref([]);
+const selectedCompetency = ref(null);
+
+const availableCompetencies = computed(() => {
+  const linkedIds = competencyRequirements.value.map((cr) => cr.competencyId);
+  return competencyStore.competencies.filter(
+    (c) => !linkedIds.includes(c.id)
+  );
+});
+
+function addCompetencyRequirement() {
+  competencyRequirements.value.push({
+    competencyId: selectedCompetency.value.id,
+    competencyName: selectedCompetency.value.name,
+    minimumRequired: 1,
+  });
+  selectedCompetency.value = null;
+}
+
+function removeCompetencyRequirement(index) {
+  competencyRequirements.value.splice(index, 1);
+}
+
+async function loadCompetencyRequirements(resourceTypeId) {
+  const data = await competencyStore.getResourceTypeCompetencies(resourceTypeId);
+  competencyRequirements.value = data.map((item) => ({
+    competencyId: item.competencyId,
+    competencyName: item.competencyName ?? item.name,
+    minimumRequired: item.minimumRequired,
+  }));
 }
 
 const fileInfo = ref(null);
