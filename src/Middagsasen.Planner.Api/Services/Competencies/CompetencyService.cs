@@ -164,6 +164,12 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return userCompetencies.Select(MapUserCompetency).ToList();
         }
 
+        public async Task<UserCompetencyResponse?> GetUserCompetencyById(int id)
+        {
+            var userCompetency = await Repository.GetUserCompetencyById(id);
+            return userCompetency != null ? MapUserCompetency(userCompetency) : null;
+        }
+
         public async Task<UserCompetencyResponse?> AddUserCompetency(UserCompetencyRequest request)
         {
             var userCompetency = new UserCompetency
@@ -225,8 +231,6 @@ namespace Middagsasen.Planner.Api.Services.Competencies
         public async Task<IEnumerable<ResourceTypeCompetencyResponse>> SetResourceTypeCompetencies(int resourceTypeId, IEnumerable<SetResourceTypeCompetencyRequest> requirements)
         {
             var existing = await Repository.GetResourceTypeCompetencies(resourceTypeId);
-            var existingDict = existing.ToDictionary(e => e.CompetencyId);
-            var incomingDict = requirements.ToDictionary(r => r.CompetencyId);
 
             var merged = new List<ResourceTypeCompetency>();
 
@@ -276,6 +280,11 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             await Repository.SaveChangesAsync();
 
             return true;
+        }
+
+        public async Task<bool> IsApprover(int competencyId, int userId)
+        {
+            return await Repository.IsApprover(competencyId, userId);
         }
 
         // Mapping methods

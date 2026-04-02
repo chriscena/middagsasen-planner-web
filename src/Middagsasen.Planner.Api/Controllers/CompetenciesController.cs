@@ -62,6 +62,11 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(IEnumerable<UserCompetencyResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetUserCompetencies(int userId)
         {
+            var user = (UserResponse)HttpContext.Items["User"]!;
+
+            if (!user.IsAdmin && userId != user.Id)
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+
             return Ok(await CompetencyService.GetUserCompetencies(userId));
         }
 
@@ -69,6 +74,11 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> AddUserCompetency([FromBody] UserCompetencyRequest request)
         {
+            var user = (UserResponse)HttpContext.Items["User"]!;
+
+            if (!user.IsAdmin && request.UserId != user.Id)
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+
             var userCompetency = await CompetencyService.AddUserCompetency(request);
             return userCompetency != null
                 ? Created($"/api/competencies/user/{userCompetency.Id}", userCompetency)
@@ -79,8 +89,13 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> ApproveUserCompetency(int userCompetencyId, [FromBody] ApproveCompetencyRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
+
+            var userCompetency = await CompetencyService.GetUserCompetencyById(userCompetencyId);
+            if (userCompetency == null) return NotFound();
+
+            if (!user.IsAdmin && !await CompetencyService.IsApprover(userCompetency.CompetencyId, user.Id))
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
             var result = await CompetencyService.ApproveUserCompetency(userCompetencyId, user.Id, request);
             return result != null ? Ok(result) : NotFound();

@@ -303,7 +303,7 @@ namespace Middagsasen.Planner.Api.Data
                 entity.ToTable("Competencies");
                 entity.HasKey(e => e.CompetencyId);
                 entity.Property(e => e.Name).HasMaxLength(400);
-                entity.Property(e => e.Description).HasMaxLength(2000);
+                entity.Property(e => e.Description).HasColumnType("nvarchar(max)");
             });
 
             modelBuilder.Entity<UserCompetency>(entity =>

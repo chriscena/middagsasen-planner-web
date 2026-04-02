@@ -13,6 +13,6 @@ namespace Middagsasen.Planner.Api.Data
 
         public virtual User User { get; set; } = null!;
         public virtual Competency Competency { get; set; } = null!;
-        public virtual User ApprovedByUser { get; set; } = null!;
+        public virtual User? ApprovedByUser { get; set; }
     }
 }

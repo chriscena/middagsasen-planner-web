@@ -11,6 +11,7 @@ namespace Middagsasen.Planner.Api.Services.Competencies
 
         // User competencies
         Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId);
+        Task<UserCompetencyResponse?> GetUserCompetencyById(int id);
         Task<UserCompetencyResponse?> AddUserCompetency(UserCompetencyRequest request);
         Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, int approvedByUserId, ApproveCompetencyRequest request);
         Task<UserCompetencyResponse?> RevokeUserCompetency(int userCompetencyId);
@@ -22,5 +23,6 @@ namespace Middagsasen.Planner.Api.Services.Competencies
         // Approvers
         Task<CompetencyApproverResponse?> AddApprover(int competencyId, int userId);
         Task<bool> RemoveApprover(int approverId);
+        Task<bool> IsApprover(int competencyId, int userId);
     }
 }

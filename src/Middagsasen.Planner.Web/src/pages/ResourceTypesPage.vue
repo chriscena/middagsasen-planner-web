@@ -130,7 +130,7 @@
             <q-list role="list" separator>
               <q-item
                 v-for="(req, index) in competencyRequirements"
-                :key="index"
+                :key="req.competencyId"
               >
                 <q-item-section>
                   {{ req.competencyName }}
@@ -390,11 +390,7 @@ async function saveResource() {
       await eventStore.updateResourceType(selectedResource.value);
       resourceTypeId = selectedResource.value.id;
     } else {
-      await eventStore.createResourceType(selectedResource.value);
-      // For new resource types, find the newly created one to get its id
-      const created = eventStore.resourceTypes.find(
-        (rt) => rt.name === selectedResource.value.name
-      );
+      const created = await eventStore.createResourceType(selectedResource.value);
       resourceTypeId = created?.id;
     }
     if (resourceTypeId) {
