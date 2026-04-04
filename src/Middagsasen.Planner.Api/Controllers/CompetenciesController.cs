@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Competencies;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -9,12 +8,14 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class CompetenciesController : ControllerBase
     {
-        public CompetenciesController(ICompetencyService competencyService)
+        public CompetenciesController(ICompetencyService competencyService, ICurrentUserService currentUser)
         {
             CompetencyService = competencyService;
+            CurrentUser = currentUser;
         }
 
         public ICompetencyService CompetencyService { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<CompetencyResponse>), StatusCodes.Status200OK)]
@@ -62,9 +63,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(IEnumerable<UserCompetencyResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetUserCompetencies(int userId)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
-            if (!user.IsAdmin && userId != user.Id)
+            if (!CurrentUser.IsAdmin && userId != CurrentUser.UserId)
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
             return Ok(await CompetencyService.GetUserCompetencies(userId));
@@ -74,9 +73,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> AddUserCompetency([FromBody] UserCompetencyRequest request)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
-            if (!user.IsAdmin && request.UserId != user.Id)
+            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
             var userCompetency = await CompetencyService.AddUserCompetency(request);
@@ -89,15 +86,13 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> ApproveUserCompetency(int userCompetencyId, [FromBody] ApproveCompetencyRequest request)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
             var userCompetency = await CompetencyService.GetUserCompetencyById(userCompetencyId);
             if (userCompetency == null) return NotFound();
 
-            if (!user.IsAdmin && !await CompetencyService.IsApprover(userCompetency.CompetencyId, user.Id))
+            if (!CurrentUser.IsAdmin && !await CompetencyService.IsApprover(userCompetency.CompetencyId, CurrentUser.UserId))
                 return new StatusCodeResult(StatusCodes.Status403Forbidden);
 
-            var result = await CompetencyService.ApproveUserCompetency(userCompetencyId, user.Id, request);
+            var result = await CompetencyService.ApproveUserCompetency(userCompetencyId, request);
             return result != null ? Ok(result) : NotFound();
         }
 

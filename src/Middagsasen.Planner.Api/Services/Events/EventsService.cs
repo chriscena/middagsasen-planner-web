@@ -1,24 +1,23 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
-using Middagsasen.Planner.Api.Services.SmsSender;
-using Middagsasen.Planner.Api.Services.Storage;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
-    public class EventsService : IResourceTypesService, IEventsService, IEventTemplatesService
+    public class EventsService : IEventsService
     {
-        public EventsService(PlannerDbContext dbContext, ISmsSender smsSender, IStorageService storage)
+        public EventsService(PlannerDbContext dbContext, IResourceTypesService resourceTypesService, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
-            SmsSender = smsSender;
-            Storage = storage;
+            ResourceTypesService = resourceTypesService;
+            CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
-        public ISmsSender SmsSender { get; }
-        public IStorageService Storage { get; }
+        public IResourceTypesService ResourceTypesService { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         public async Task<IEnumerable<EventStatusResponse>> GetEventStatuses(int month, int year)
         {
@@ -38,90 +37,6 @@ namespace Middagsasen.Planner.Api.Services.Events
                     IsMissingStaff = g.Any(e => e.IsMissingStaff),
                 });
             return response;
-        }
-
-        private IQueryable<ResourceType> ResourceTypes => DbContext.ResourceTypes
-                .Include(r => r.Trainers)
-                    .ThenInclude(t => t.User)
-                .Include(r => r.Files);
-
-        public async Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes()
-        {
-            var resourceTypes = await ResourceTypes
-                .AsNoTracking()
-                .Where(r => !r.Inactive)
-                .ToListAsync();
-            return resourceTypes.Select(Map).ToList();
-        }
-
-        public async Task<ResourceTypeResponse?> GetResourceTypeById(int id)
-        {
-            var resourceType = await ResourceTypes
-                .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            return (resourceType == null) ? null : Map(resourceType);
-        }
-
-        public async Task<ResourceTypeResponse?> CreateResourceType(ResourceTypeRequest request)
-        {
-            var resourceType = new ResourceType
-            {
-                Name = request.Name,
-                DefaultStaff = request.DefaultStaff,
-                NotificationMessage = request.NotificationMessage,
-                Trainers = request.Trainers?.Select(t => new ResourceTypeTrainer { UserId = t.UserId }).ToList() ?? new List<ResourceTypeTrainer>(),
-            };
-
-            DbContext.ResourceTypes.Add(resourceType);
-            await DbContext.SaveChangesAsync();
-
-            return await GetResourceTypeById(resourceType.ResourceTypeId);
-        }
-
-        public async Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request)
-        {
-            var resourceType = await DbContext.ResourceTypes
-                .Include(r => r.Trainers)
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            if (resourceType == null) { return null; }
-
-            resourceType.Name = request.Name;
-            resourceType.DefaultStaff = request.DefaultStaff;
-            resourceType.NotificationMessage = request.NotificationMessage;
-
-            if (request.Trainers != null)
-            {
-                foreach (var trainer in request.Trainers)
-                {
-                    if (trainer.Id > 0 && trainer.IsDeleted)
-                    {
-                        var trainerToDelete = resourceType.Trainers.SingleOrDefault(t => t.ResourceTypeTrainerId == trainer.Id);
-                        if (trainerToDelete == null) continue;
-                        resourceType.Trainers.Remove(trainerToDelete);
-                    }
-                    else if (trainer.Id == 0 && !trainer.IsDeleted)
-                    {
-                        resourceType.Trainers.Add(new ResourceTypeTrainer
-                        {
-                            UserId = trainer.UserId,
-                        });
-                    }
-                }
-            }
-            await DbContext.SaveChangesAsync();
-
-            return await GetResourceTypeById(resourceType.ResourceTypeId);
-        }
-
-        public async Task<ResourceTypeResponse?> DeleteResourceType(int id)
-        {
-            var resourceType = await DbContext.ResourceTypes.SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            if (resourceType == null) { return null; }
-
-            resourceType.Inactive = true;
-
-            await DbContext.SaveChangesAsync();
-            return Map(resourceType);
         }
 
         private IQueryable<Event> Events => DbContext.Events
@@ -169,13 +84,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             return events.Select(Map).ToList();
         }
 
-        public async Task<EventResponse?> GetEventById(int id)
+        public async Task<EventResponse> GetEventById(int id)
         {
             var existingEvent = await Events
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == id);
+                .SingleOrDefaultAsync(e => e.EventId == id)
+                ?? throw new EntityNotFoundException("Kunne ikke finne vakt.");
 
-            return (existingEvent == null) ? null : Map(existingEvent);
+            return Map(existingEvent);
         }
 
         public async Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id)
@@ -206,7 +122,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
-        public async Task<EventResponse?> CreateEvent(EventRequest request)
+        public async Task<EventResponse> CreateEvent(EventRequest request)
         {
             var newEvent = new Event
             {
@@ -279,6 +195,14 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request)
         {
+            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
+                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = CurrentUser.UserId;
+            }
+
             var newShift = new EventResourceUser
             {
                 EventResourceId = eventResourceId,
@@ -294,9 +218,9 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.Training != null)
             {
                 if (request.Training.Id == 0)
-                    await CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else 
-                    await UpdateTraining(request.Training.ResourceTypeId, request.Training);
+                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
+                else
+                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
             }
 
             var responseShift = await DbContext.Shifts
@@ -308,102 +232,18 @@ namespace Middagsasen.Planner.Api.Services.Events
             return responseShift == null ? null : Map(responseShift);
         }
 
-        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
-        {
-            if (!request.TrainingCompleted.HasValue) return null;
-
-            var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
-            {
-                UserId = request.UserId,
-                ResourceTypeId = resourceTypeId,
-                TrainingComplete = request.TrainingCompleted,
-                Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow,
-                ConfirmedBy = !request.TrainingCompleted.Value ? null : request.ConfirmedBy,
-            }).Entity;
-
-            await DbContext.SaveChangesAsync();
-
-            if (request.TrainingCompleted.Value) return Map(training);
-
-            var user = await DbContext.Users
-                .SingleAsync(u => u.UserId == request.UserId);
-
-            var resourceType = await DbContext.ResourceTypes
-                .SingleAsync(t => t.ResourceTypeId == resourceTypeId);
-
-            var trainers = await DbContext.ResourceTypeTrainers
-                .Include(t => t.User)
-                .AsNoTracking()
-                .Where(t => t.ResourceTypeId == resourceTypeId)
-                .ToListAsync();
-
-            var body = $"Hei {{0}}! {MapFullName(user.FirstName, user.LastName)} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {request.StartTime.ToString("dd'.'MM'.'yyyy")}.";
-            
-            var messages = new List<SmsMessage>();
-
-            foreach (var trainer in trainers)
-            {
-                var message = new SmsMessage
-                {
-                    ReceiverPhoneNo = trainer.User.UserName.ToNumericPhoneNo(),
-                    Body = string.Format(body, trainer.User.FirstName),
-                };
-                messages.Add(message);
-            }
-
-            if (messages.Any())
-                await SmsSender.SendMessages(messages);
-            return Map(training);
-        }
-
-        public async Task<TrainingResponse?> UpdateTraining(int resourceTypeId, TrainingRequest request)
-        {
-            if (!request.TrainingCompleted.HasValue) return null;
-
-
-            var training = await DbContext.ResourceTypeTrainings.SingleAsync(t => t.ResourceTypeTrainingId == request.Id);
-
-            training.TrainingComplete = request.TrainingCompleted;
-            training.Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow;
-            training.ConfirmedBy = !request.TrainingCompleted.Value ? null : request.ConfirmedBy;
-
-            await DbContext.SaveChangesAsync();
-
-            if (request.TrainingCompleted.Value) return Map(training);
-
-            var user = await DbContext.Users
-                .SingleAsync(u => u.UserId == request.UserId);
-
-            var resourceType = await DbContext.ResourceTypes
-                .SingleAsync(t => t.ResourceTypeId == resourceTypeId);
-
-            var trainers = await DbContext.ResourceTypeTrainers
-                .Include(t => t.User)
-                .AsNoTracking()
-                .Where(t => t.ResourceTypeId == resourceTypeId)
-                .ToListAsync();
-
-            var body = $"Hei {{0}}! {MapFullName(user.FirstName, user.LastName)} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {request.StartTime.ToString("dd'.'MM'.'yyyy")}.";
-
-            var messages = new List<SmsMessage>();
-
-            foreach (var trainer in trainers)
-            {
-                var message = new SmsMessage
-                {
-                    ReceiverPhoneNo = trainer.User.UserName.ToNumericPhoneNo(),
-                    Body = string.Format(body, trainer.User.FirstName),
-                };
-                messages.Add(message);
-            }
-
-            if (messages.Any())
-                await SmsSender.SendMessages(messages);
-            return Map(training);
-        }
-
         public async Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request)
         {
+            if (request.UserId == 0) request.UserId = CurrentUser.UserId;
+
+            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
+                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = CurrentUser.UserId;
+            }
+
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
 
@@ -423,9 +263,9 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.Training != null)
             {
                 if (request.Training.Id == 0)
-                    await CreateTraining(request.Training.ResourceTypeId, request.Training);
+                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
                 else
-                    await UpdateTraining(request.Training.ResourceTypeId, request.Training);
+                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
             }
 
             var responseShift = await DbContext.Shifts
@@ -437,107 +277,17 @@ namespace Middagsasen.Planner.Api.Services.Events
             return responseShift == null ? null : Map(responseShift);
         }
 
-        public async Task<ShiftResponse?> DeleteShift(int id, int userId, bool isAdmin)
+        public async Task<ShiftResponse?> DeleteShift(int id)
         {
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
-            if (shift.UserId != userId && !isAdmin) return null;
+            if (!CurrentUser.IsAdmin && shift.UserId != CurrentUser.UserId)
+                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
 
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();
 
             return Map(shift);
-        }
-
-        private IQueryable<EventTemplate> EventTemplates => DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                .ThenInclude(r => r.ResourceType);
-
-        public async Task<IEnumerable<EventTemplateResponse>> GetEventTemplates()
-        {
-            var templates = await EventTemplates
-                .AsNoTracking()
-                .ToListAsync();
-            return templates.Select(Map).ToList();
-        }
-
-        public async Task<EventTemplateResponse?> GetEventTemplateById(int id)
-        {
-            var template = await EventTemplates
-                .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventTemplateId == id);
-            return template != null ? Map(template) : null;
-        }
-
-        public async Task<EventTemplateResponse?> CreateEventTemplate(EventTemplateRequest request)
-        {
-            var newEvent = new EventTemplate
-            {
-                Name = request.Name,
-                EventName = request.EventName,
-                StartTime = DateTime.Parse(request.StartTime),
-                EndTime = DateTime.Parse(request.EndTime),
-                ResourceTemplates = request.ResourceTemplates.Select(Map).ToList(),
-            };
-
-            DbContext.EventTemplates.Add(newEvent);
-            await DbContext.SaveChangesAsync();
-
-            return await GetEventTemplateById(newEvent.EventTemplateId);
-        }
-
-        public async Task<EventTemplateResponse?> UpdateEventTemplate(int id, EventTemplateRequest request)
-        {
-            var existingEvent = await EventTemplates
-            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
-
-            if (existingEvent == null) return null;
-
-            existingEvent.Name = request.Name;
-            existingEvent.EventName = request.EventName;
-            existingEvent.StartTime = DateTime.Parse(request.StartTime);
-            existingEvent.EndTime = DateTime.Parse(request.EndTime);
-
-            foreach (var resource in request.ResourceTemplates)
-            {
-                if (resource.IsDeleted)
-                {
-                    var resourceToDelete = existingEvent.ResourceTemplates.FirstOrDefault(r => r.ResourceTemplateId == resource.Id);
-                    if (resourceToDelete == null) continue;
-                    existingEvent.ResourceTemplates.Remove(resourceToDelete);
-                }
-                else if (!resource.Id.HasValue)
-                {
-                    existingEvent.ResourceTemplates.Add(Map(resource));
-                }
-                else
-                {
-                    var resourceToUpdate = existingEvent.ResourceTemplates.FirstOrDefault(r => r.ResourceTemplateId == resource.Id);
-                    if (resourceToUpdate == null) continue;
-                    resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
-                    resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
-                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
-                }
-            }
-            await DbContext.SaveChangesAsync();
-
-            var response = await EventTemplates
-            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
-
-            return response != null ? Map(response) : null;
-        }
-
-        public async Task<EventTemplateResponse?> DeleteEventTemplate(int id)
-        {
-            var existingTemplate = await DbContext.EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id);
-
-            if (existingTemplate == null) return null;
-
-            DbContext.EventTemplates.Remove(existingTemplate);
-
-            await DbContext.SaveChangesAsync();
-            return Map(existingTemplate);
         }
 
         public async Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
@@ -581,36 +331,6 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
-        public async Task<EventTemplateResponse?> CreateTemplateFromEvent(int id, TemplateFromEventRequest request)
-        {
-            var existingEvent = await DbContext.Events
-                .Include(e => e.Resources)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == id);
-
-            if (existingEvent == null) return null;
-
-            var template = new EventTemplate
-            {
-                Name = request.Name,
-                EventName = existingEvent.Name,
-                StartTime = existingEvent.StartTime,
-                EndTime = existingEvent.EndTime,
-                ResourceTemplates = existingEvent.Resources.Select(r => new ResourceTemplate
-                {
-                    ResourceTypeId = r.ResourceTypeId,
-                    StartTime = r.StartTime,
-                    EndTime = r.EndTime,
-                    MinimumStaff = r.MinimumStaff,
-                }).ToList(),
-            };
-
-            DbContext.EventTemplates.Add(template);
-            await DbContext.SaveChangesAsync();
-
-            return await GetEventTemplateById(template.EventTemplateId);
-        }
-
         private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
         {
             Id = training.ResourceTypeTrainingId,
@@ -621,7 +341,6 @@ namespace Middagsasen.Planner.Api.Services.Events
             ConfirmedById = training.ConfirmedBy,
             ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
         };
-
 
         private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
         {
@@ -763,104 +482,6 @@ namespace Middagsasen.Planner.Api.Services.Events
             return resource;
         }
 
-        private EventTemplateResponse Map(EventTemplate template) => new EventTemplateResponse
-        {
-            Id = template.EventTemplateId,
-            Name = template.Name,
-            EventName = template.EventName,
-            StartTime = template.StartTime.ToSimpleIsoString(),
-            EndTime = template.EndTime.ToSimpleIsoString(),
-            ResourceTemplates = template.ResourceTemplates?.Select(Map),
-        };
-
-        private ResourceTemplateResponse Map(ResourceTemplate template) => new ResourceTemplateResponse
-        {
-            Id = template.ResourceTemplateId,
-            ResourceType = Map(template.ResourceType),
-            StartTime = template.StartTime.ToSimpleIsoString(),
-            EndTime = template.EndTime.ToSimpleIsoString(),
-            MinimumStaff = template.MinimumStaff,
-        };
-
-        private ResourceTemplate Map(ResourceTemplateRequest resource)
-        {
-            var template = new ResourceTemplate
-            {
-                ResourceTypeId = resource.ResourceTypeId,
-                StartTime = DateTime.Parse(resource.StartTime),
-                EndTime = DateTime.Parse(resource.EndTime),
-                MinimumStaff = resource.MinimumStaff,
-            };
-            if (resource.Id.HasValue)
-            {
-                template.EventTemplateId = resource.Id.Value;
-            }
-            return template;
-        }
-
-        public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
-        {
-            var now = DateTime.UtcNow;
-            var containerPath = GetContainerPath(now);
-            var storageFileName = Guid.NewGuid().ToString();
-            
-            await Storage.Save($"{containerPath}/{storageFileName}", request.FileInfo.OpenReadStream());
-
-            var newFile = new ResourceTypeFile
-            {
-                StorageName = storageFileName,
-                FileName = request.FileInfo.FileName,
-                Description = request.Description,
-                MimeType  = request.FileInfo.ContentType,
-                ResourceTypeId = id,
-                Created = now,
-                CreatedBy = request.UserId,
-                Updated = now,
-                UpdatedBy = request.UserId,
-               
-            };
-           DbContext.ResourceTypeFiles.Add(newFile);
-           await DbContext.SaveChangesAsync();
-
-            var responseFile = DbContext.ResourceTypeFiles
-                .Include(f => f.ResourceType)
-                .Include(f => f.CreatedByUser)
-                .Include(f => f.UpdatedByUser)
-                .AsNoTracking()
-                .Single(f => f.ResourceTypeFileId == newFile.ResourceTypeFileId);
-
-            return Map(responseFile);
-        }
-
-        private object GetContainerPath(DateTime date)
-        {
-            return $"resourceTypes/{date.Year}/{date.Month:0#}";
-        }
-
-        public async Task<FileResponse> GetFile(int id, int resourceTypeId)
-        {
-            var responseFile = DbContext.ResourceTypeFiles
-                .AsNoTracking()
-                .Single(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId);
-
-            var containerPath = GetContainerPath(responseFile.Created);
-            var fileContent = await Storage.Read($"{containerPath}/{responseFile.StorageName}");
-
-            return new FileResponse { Data = fileContent, FileName = responseFile.FileName, MimeType = responseFile.MimeType };
-        }
-
-        public async Task DeleteFile(int id, int resourceTypeId)
-        {
-            var fileToDelete = DbContext.ResourceTypeFiles
-                .Single(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId);
-
-            var containerPath = GetContainerPath(fileToDelete.Created);
-            await Storage.Delete($"{containerPath}/{fileToDelete.StorageName}");
-
-            var responseFile = DbContext.Remove(fileToDelete);
-            await DbContext.SaveChangesAsync();
-        }
-
         public async Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId)
         {
             var messages = await DbContext.Messages
@@ -874,6 +495,8 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<MessageResponse?> AddMessage(int id, MessageRequest request)
         {
+            request.CreatedBy = CurrentUser.UserId;
+
             var message = new EventResourceMessage
             {
                 Message = request.Message,

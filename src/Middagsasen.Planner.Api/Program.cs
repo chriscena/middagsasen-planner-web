@@ -13,6 +13,7 @@ using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.Weather;
 using Middagsasen.Planner.Api.Services.Competencies;
+using Middagsasen.Planner.Api.Services.System;
 using Middagsasen.Planner.Api.Services.WorkHours;
 using Serilog;
 using Serilog.Events;
@@ -40,6 +41,8 @@ builder.Services.AddSerilog((services, lc) => lc
         services.GetRequiredService<TelemetryConfiguration>(),
         TelemetryConverter.Events)
     );
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -58,19 +61,28 @@ builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProv
 builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddTransient<IBlobStorageSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
-builder.Services.AddTransient<ISmsSender, SmsSenderService>();
+builder.Services.AddHttpClient<ISmsSender, SmsSenderService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.eurobate.com/");
+});
 builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();
-builder.Services.AddScoped<IResourceTypesService, EventsService>();
-builder.Services.AddScoped<IEventTemplatesService, EventsService>();
+builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
+builder.Services.AddScoped<IEventTemplatesService, EventTemplatesService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<WeatherService>();
 builder.Services.AddScoped<IWorkHoursService, WorkHoursService>();
 builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();
+builder.Services.AddScoped<ISystemService, SystemService>();
 
+builder.Services.AddSingleton(new WeatherSettings
+{
+    UbibotBaseUrl = builder.Configuration["Weather:UbibotBaseUrl"] ?? "https://webapi.ubibot.com/",
+    UbibotAccountKey = builder.Configuration["Weather:UbibotAccountKey"] ?? string.Empty,
+});
 builder.Services.AddHostedService<WeatherDataCollector>();
 
 
@@ -92,6 +104,7 @@ app.UseCors(x => x
         .AllowAnyMethod()
         .AllowAnyHeader());
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<JwtMiddleware>();
 app.MapControllers();
 

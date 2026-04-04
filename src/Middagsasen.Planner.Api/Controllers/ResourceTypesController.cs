@@ -3,7 +3,6 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
@@ -66,13 +65,6 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
-
-            if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
-            {
-                request.ConfirmedBy = user.Id;
-            }
             var training = await ResourceTypesService.CreateTraining(id, request);
             return Created($"{training.ResourceTypeId}/training/{training.Id}", training);
         }
@@ -82,14 +74,10 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromForm] string description)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
-
             var request = new FileUploadRequest
             {
                 FileInfo = file,
                 Description = description,
-                UserId = user.Id
             };
 
             var response = await ResourceTypesService.AddFile(id, request);

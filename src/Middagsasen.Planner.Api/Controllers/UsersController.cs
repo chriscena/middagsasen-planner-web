@@ -7,21 +7,20 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController, Authorize]
     public class UsersController : ControllerBase
     {
-        public UsersController(IUserService userService)
+        public UsersController(IUserService userService, ICurrentUserService currentUser)
         {
             UserService = userService;
+            CurrentUser = currentUser;
         }
 
         public IUserService UserService { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         [HttpGet("api/me")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Me()
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
-
-            var response = await UserService.GetUserById(user.Id);
+            var response = await UserService.GetUserById(CurrentUser.UserId);
             return Ok(response);
         }
 
@@ -29,11 +28,8 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateMe([FromBody]UserRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
-
-            var response = await UserService.Update(user.Id, request);
-            if (response == null) return NotFound($"Fant ikke bruker med ID {user.Id}");
+            var response = await UserService.Update(CurrentUser.UserId, request);
+            if (response == null) return NotFound($"Fant ikke bruker med ID {CurrentUser.UserId}");
 
             return Ok(response);
         }

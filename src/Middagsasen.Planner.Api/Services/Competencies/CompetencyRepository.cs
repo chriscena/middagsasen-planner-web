@@ -22,6 +22,7 @@ namespace Middagsasen.Planner.Api.Services.Competencies
                 .Include(c => c.CompetencyApprovers)
                     .ThenInclude(ca => ca.User)
                 .AsNoTracking()
+                .Where(c => !c.Inactive)
                 .ToListAsync();
         }
 
