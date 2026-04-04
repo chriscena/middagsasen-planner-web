@@ -91,16 +91,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
-            try
-            {
-                var response = await EventsService.AddShift(id, request);
-                if (response == null) return NotFound();
-                return Created($"/api/shifts/{response.Id}", response);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
-            }
+            var response = await EventsService.AddShift(id, request);
+            if (response == null) return NotFound();
+            return Created($"/api/shifts/{response.Id}", response);
         }
 
         [HttpPost("api/resources/{id}/messages")]
@@ -125,30 +118,16 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)
         {
-            try
-            {
-                var shift = await EventsService.UpdateShift(id, request);
-                return (shift == null) ? NotFound() : Ok(shift);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
-            }
+            var shift = await EventsService.UpdateShift(id, request);
+            return (shift == null) ? NotFound() : Ok(shift);
         }
 
         [HttpDelete("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> DeleteShift(int id)
         {
-            try
-            {
-                var shift = await EventsService.DeleteShift(id);
-                return (shift == null) ? NotFound() : Ok(shift);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
-            }
+            var shift = await EventsService.DeleteShift(id);
+            return (shift == null) ? NotFound() : Ok(shift);
         }
 
         [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
@@ -386,7 +387,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task AddShift_ThrowsUnauthorizedAccessException_WhenNonAdminAddsForOtherUser()
+        public async Task AddShift_ThrowsForbiddenAccessException_WhenNonAdminAddsForOtherUser()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -405,7 +406,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act & Assert
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
                 () => service.AddShift(resource.EventResourceId, request));
         }
 
@@ -558,7 +559,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task DeleteShift_ThrowsUnauthorizedAccessException_WhenNonAdminDeletesOtherUsersShift()
+        public async Task DeleteShift_ThrowsForbiddenAccessException_WhenNonAdminDeletesOtherUsersShift()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -580,7 +581,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context, userId: otherUser.UserId, isAdmin: false);
 
             // Act & Assert
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
                 () => service.DeleteShift(shift.EventResourceUserId));
         }
 

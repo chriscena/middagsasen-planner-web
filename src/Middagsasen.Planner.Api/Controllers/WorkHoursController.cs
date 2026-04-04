@@ -81,42 +81,16 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType<EndTimeResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateEndTime(int workHourId, EndTimeRequest request)
         {
-            try
-            {
-                if (request == null)
-                    return BadRequest();
-
-                var response = await WorkHoursService.UpdateEndTime(workHourId, request);
-
-                return response == null
-                    ? NotFound()
-                    : Ok(response);
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            var response = await WorkHoursService.UpdateEndTime(workHourId, request);
+            return response == null ? NotFound() : Ok(response);
         }
 
         [HttpPatch("{workHourId}/ApprovedBy")]
         [ProducesResponseType<ApprovedByResponse>(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateApprovedBy(int workHourId, ApprovedByRequest request)
         {
-            try
-            {
-                if (request == null)
-                    return BadRequest();
-
-                var response = await WorkHoursService.UpdateApprovedBy(workHourId, request);
-
-                return response == null
-                    ? NotFound()
-                    : Ok(response);
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            var response = await WorkHoursService.UpdateApprovedBy(workHourId, request);
+            return response == null ? NotFound() : Ok(response);
         }
 
         [HttpDelete("{workHourId}")]

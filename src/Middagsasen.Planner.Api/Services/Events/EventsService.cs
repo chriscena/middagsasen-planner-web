@@ -196,7 +196,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public async Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request)
         {
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new UnauthorizedAccessException();
+                throw new ForbiddenAccessException();
 
             if (request.Training != null)
             {
@@ -237,7 +237,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.UserId == 0) request.UserId = CurrentUser.UserId;
 
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new UnauthorizedAccessException();
+                throw new ForbiddenAccessException();
 
             if (request.Training != null)
             {
@@ -282,7 +282,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
             if (!CurrentUser.IsAdmin && shift.UserId != CurrentUser.UserId)
-                throw new UnauthorizedAccessException();
+                throw new ForbiddenAccessException();
 
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();

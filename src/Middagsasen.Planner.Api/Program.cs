@@ -104,6 +104,7 @@ app.UseCors(x => x
         .AllowAnyMethod()
         .AllowAnyHeader());
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<JwtMiddleware>();
 app.MapControllers();
 
