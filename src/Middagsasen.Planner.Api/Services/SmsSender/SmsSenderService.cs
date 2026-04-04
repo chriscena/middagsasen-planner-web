@@ -6,8 +6,11 @@ namespace Middagsasen.Planner.Api.Services.SmsSender
 {
     public class SmsSenderService : ISmsSender
     {
-        public SmsSenderService(ISmsSenderSettings settings)
+        private readonly HttpClient _httpClient;
+
+        public SmsSenderService(HttpClient httpClient, ISmsSenderSettings settings)
         {
+            _httpClient = httpClient;
             if (string.IsNullOrEmpty(settings.SmsUsername) || string.IsNullOrEmpty(settings.SmsPassword) || string.IsNullOrEmpty(settings.SmsSenderName))
                 throw new InvalidOperationException("Missing SMS Sender Configuration");
             Username = settings.SmsUsername;
@@ -20,12 +23,6 @@ namespace Middagsasen.Planner.Api.Services.SmsSender
         public string Password { get; }
         public string SenderName { get; }
         public string? DeliveryReportUrl { get; }
-        private const string BaseUrl = "https://api.eurobate.com/";
-
-        private static HttpClient? _httpClient;
-        private static HttpClient HttpClient { get { return _httpClient ?? (_httpClient = new HttpClient() { BaseAddress = new Uri(BaseUrl) }); } }
-
-        private string SendSmsUri = "json_api.php";
         private readonly JsonSerializerSettings serializerSettings = new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
@@ -55,7 +52,7 @@ namespace Middagsasen.Planner.Api.Services.SmsSender
             var content = new StringContent(jsonModel, Encoding.UTF8, "application/json");
             try
             {
-                var response = await HttpClient.PostAsync(SendSmsUri, content);
+                var response = await _httpClient.PostAsync("json_api.php", content);
 
                 if (response.IsSuccessStatusCode)
                 {

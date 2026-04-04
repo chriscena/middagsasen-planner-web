@@ -61,7 +61,10 @@ builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProv
 builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddTransient<IBlobStorageSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
-builder.Services.AddTransient<ISmsSender, SmsSenderService>();
+builder.Services.AddHttpClient<ISmsSender, SmsSenderService>(client =>
+{
+    client.BaseAddress = new Uri("https://api.eurobate.com/");
+});
 builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
@@ -75,6 +78,11 @@ builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();
 builder.Services.AddScoped<ISystemService, SystemService>();
 
+builder.Services.AddSingleton(new WeatherSettings
+{
+    UbibotBaseUrl = builder.Configuration["Weather:UbibotBaseUrl"] ?? "https://webapi.ubibot.com/",
+    UbibotAccountKey = builder.Configuration["Weather:UbibotAccountKey"] ?? string.Empty,
+});
 builder.Services.AddHostedService<WeatherDataCollector>();
 
 

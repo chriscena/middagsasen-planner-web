@@ -4,9 +4,13 @@ using Newtonsoft.Json.Serialization;
 
 namespace Middagsasen.Planner.Api.Services.Weather;
 
-internal class WeatherDataCollector(IServiceScopeFactory scopeFactory, ILogger<WeatherDataCollector> logger) : IHostedService, IDisposable
+internal class WeatherDataCollector(
+    IServiceScopeFactory scopeFactory,
+    ILogger<WeatherDataCollector> logger,
+    IHttpClientFactory httpClientFactory,
+    WeatherSettings weatherSettings) : IHostedService, IDisposable
 {
-    private static readonly HttpClient _httpClient = new();
+    private readonly WeatherSettings _settings = weatherSettings;
     private bool _running = false;
     private Timer? _timer;
 
@@ -36,8 +40,9 @@ internal class WeatherDataCollector(IServiceScopeFactory scopeFactory, ILogger<W
             var weatherService = scope.ServiceProvider.GetRequiredService<WeatherService>();
 
             _running = true;
-            var request = new HttpRequestMessage(HttpMethod.Get, "https://webapi.ubibot.com/channels?account_key=a34fb31647911819e04ea39c61af4fb7");
-            var response = await _httpClient.SendAsync(request);
+            var httpClient = httpClientFactory.CreateClient();
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{_settings.UbibotBaseUrl}channels?account_key={_settings.UbibotAccountKey}");
+            var response = await httpClient.SendAsync(request);
             if (response.IsSuccessStatusCode)
             {
                 var content = await response.Content.ReadAsStringAsync();
