@@ -240,7 +240,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return Map(responseFile);
         }
 
-        private object GetContainerPath(DateTime date)
+        private string GetContainerPath(DateTime date)
         {
             return $"resourceTypes/{date.Year}/{date.Month:0#}";
         }

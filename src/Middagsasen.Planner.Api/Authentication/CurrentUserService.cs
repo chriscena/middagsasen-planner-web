@@ -14,7 +14,7 @@ namespace Middagsasen.Planner.Api.Authentication
         public UserResponse? User =>
             (UserResponse?)_httpContextAccessor.HttpContext?.Items["User"];
 
-        public int UserId => User?.Id ?? throw new UnauthorizedAccessException();
+        public int UserId => User?.Id ?? throw new UnauthorizedAccessException("Bruker er ikke autentisert.");
 
         public bool IsAdmin => User?.IsAdmin ?? false;
     }
