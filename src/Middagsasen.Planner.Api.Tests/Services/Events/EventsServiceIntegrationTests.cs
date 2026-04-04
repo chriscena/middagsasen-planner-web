@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
@@ -19,9 +20,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             _resourceTypesService = Substitute.For<IResourceTypesService>();
         }
 
-        private EventsService CreateService(PlannerDbContext context)
+        private static ICurrentUserService MockCurrentUser(int userId, bool isAdmin = false)
         {
-            return new EventsService(context, _resourceTypesService);
+            var mock = Substitute.For<ICurrentUserService>();
+            mock.UserId.Returns(userId);
+            mock.IsAdmin.Returns(isAdmin);
+            return mock;
+        }
+
+        private EventsService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
+        {
+            var currentUser = MockCurrentUser(userId, isAdmin);
+            return new EventsService(context, _resourceTypesService, currentUser);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -347,7 +357,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId, isAdmin: false);
 
             var request = new ShiftRequest
             {
@@ -358,7 +368,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.AddShift(resource.EventResourceId, request, user.UserId, isAdmin: false);
+            var result = await service.AddShift(resource.EventResourceId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -385,7 +395,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: currentUser.UserId, isAdmin: false);
 
             var request = new ShiftRequest
             {
@@ -396,7 +406,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Act & Assert
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
-                () => service.AddShift(resource.EventResourceId, request, currentUser.UserId, isAdmin: false));
+                () => service.AddShift(resource.EventResourceId, request));
         }
 
         [Fact]
@@ -409,7 +419,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: adminUser.UserId, isAdmin: true);
 
             var request = new ShiftRequest
             {
@@ -419,7 +429,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.AddShift(resource.EventResourceId, request, adminUser.UserId, isAdmin: true);
+            var result = await service.AddShift(resource.EventResourceId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -446,7 +456,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId, isAdmin: false);
 
             var request = new ShiftRequest
             {
@@ -457,7 +467,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.UpdateShift(shift.EventResourceUserId, request, user.UserId, isAdmin: false);
+            var result = await service.UpdateShift(shift.EventResourceUserId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -490,7 +500,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId, isAdmin: false);
 
             var request = new ShiftRequest
             {
@@ -499,7 +509,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.UpdateShift(shift.EventResourceUserId, request, user.UserId, isAdmin: false);
+            var result = await service.UpdateShift(shift.EventResourceUserId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -532,10 +542,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId, isAdmin: false);
 
             // Act
-            var result = await service.DeleteShift(shift.EventResourceUserId, user.UserId, isAdmin: false);
+            var result = await service.DeleteShift(shift.EventResourceUserId);
 
             // Assert
             Assert.NotNull(result);
@@ -567,11 +577,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: otherUser.UserId, isAdmin: false);
 
             // Act & Assert
             await Assert.ThrowsAsync<UnauthorizedAccessException>(
-                () => service.DeleteShift(shift.EventResourceUserId, otherUser.UserId, isAdmin: false));
+                () => service.DeleteShift(shift.EventResourceUserId));
         }
 
         #endregion
@@ -587,7 +597,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId);
 
             var request = new MessageRequest
             {
@@ -596,7 +606,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.AddMessage(resource.EventResourceId, request, user.UserId);
+            var result = await service.AddMessage(resource.EventResourceId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -621,7 +631,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId);
 
             var request = new MessageRequest
             {
@@ -630,7 +640,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
             // Act
-            var result = await service.AddMessage(resource.EventResourceId, request, user.UserId);
+            var result = await service.AddMessage(resource.EventResourceId, request);
 
             // Assert
             Assert.NotNull(result);

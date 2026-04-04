@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
+using NSubstitute;
 
 namespace Middagsasen.Planner.Api.Tests.Services.Competencies
 {
@@ -15,10 +17,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             _fixture = fixture;
         }
 
-        private CompetencyService CreateService(PlannerDbContext context)
+        private static ICurrentUserService MockCurrentUser(int userId, bool isAdmin = false)
+        {
+            var mock = Substitute.For<ICurrentUserService>();
+            mock.UserId.Returns(userId);
+            mock.IsAdmin.Returns(isAdmin);
+            return mock;
+        }
+
+        private CompetencyService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
         {
             var repository = new CompetencyRepository(context);
-            return new CompetencyService(repository);
+            var currentUser = MockCurrentUser(userId, isAdmin);
+            return new CompetencyService(repository, currentUser);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -450,10 +461,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 .UserCompetencyId;
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: approver.UserId);
 
             // Act
-            var result = await service.ApproveUserCompetency(ucId, approver.UserId, new ApproveCompetencyRequest());
+            var result = await service.ApproveUserCompetency(ucId, new ApproveCompetencyRequest());
 
             // Assert
             Assert.NotNull(result);
@@ -495,10 +506,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var expiryDate = DateTime.UtcNow.AddYears(1).Date;
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: approver.UserId);
 
             // Act
-            var result = await service.ApproveUserCompetency(ucId, approver.UserId, new ApproveCompetencyRequest
+            var result = await service.ApproveUserCompetency(ucId, new ApproveCompetencyRequest
             {
                 ExpiryDate = expiryDate,
             });

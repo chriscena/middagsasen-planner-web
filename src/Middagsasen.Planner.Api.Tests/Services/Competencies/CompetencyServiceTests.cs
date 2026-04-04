@@ -1,3 +1,4 @@
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Competencies;
 using NSubstitute;
@@ -7,12 +8,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
     public class CompetencyServiceTests
     {
         private readonly ICompetencyRepository _repository;
+        private readonly ICurrentUserService _currentUser;
         private readonly CompetencyService _sut;
 
         public CompetencyServiceTests()
         {
             _repository = Substitute.For<ICompetencyRepository>();
-            _sut = new CompetencyService(_repository);
+            _currentUser = Substitute.For<ICurrentUserService>();
+            _currentUser.UserId.Returns(50);
+            _currentUser.IsAdmin.Returns(false);
+            _sut = new CompetencyService(_repository, _currentUser);
         }
 
         // Helper to create a Competency entity with navigation properties
@@ -414,7 +419,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var before = DateTime.UtcNow;
 
             // Act
-            var result = await _sut.ApproveUserCompetency(1, 50, request);
+            var result = await _sut.ApproveUserCompetency(1, request);
 
             // Assert
             Assert.True(userCompetency.Approved);
@@ -440,7 +445,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var request = new ApproveCompetencyRequest { ExpiryDate = expiryDate };
 
             // Act
-            await _sut.ApproveUserCompetency(1, 50, request);
+            await _sut.ApproveUserCompetency(1, request);
 
             // Assert
             Assert.Equal(expiryDate, userCompetency.ExpiryDate);
@@ -453,7 +458,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             _repository.GetUserCompetencyById(999).Returns((UserCompetency?)null);
 
             // Act
-            var result = await _sut.ApproveUserCompetency(999, 1, new ApproveCompetencyRequest());
+            var result = await _sut.ApproveUserCompetency(999, new ApproveCompetencyRequest());
 
             // Assert
             Assert.Null(result);

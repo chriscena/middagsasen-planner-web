@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.SmsSender;
@@ -22,9 +23,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             _storageService = Substitute.For<IStorageService>();
         }
 
-        private ResourceTypesService CreateService(PlannerDbContext context)
+        private static ICurrentUserService MockCurrentUser(int userId, bool isAdmin = false)
         {
-            return new ResourceTypesService(context, _smsSender, _storageService);
+            var mock = Substitute.For<ICurrentUserService>();
+            mock.UserId.Returns(userId);
+            mock.IsAdmin.Returns(isAdmin);
+            return mock;
+        }
+
+        private ResourceTypesService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
+        {
+            var currentUser = MockCurrentUser(userId, isAdmin);
+            return new ResourceTypesService(context, _smsSender, _storageService, currentUser);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -273,7 +283,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var resourceType = await SeedResourceType(seedContext, name: UniqueName("Training"));
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: confirmer.UserId);
 
             var request = new TrainingRequest
             {
@@ -284,7 +294,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             };
 
             // Act
-            var result = await service.CreateTraining(resourceType.ResourceTypeId, request, confirmer.UserId);
+            var result = await service.CreateTraining(resourceType.ResourceTypeId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -317,7 +327,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
                 .Returns(new SmsResult { Success = true });
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: trainee.UserId);
 
             var request = new TrainingRequest
             {
@@ -328,7 +338,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             };
 
             // Act
-            var result = await service.CreateTraining(resourceType.ResourceTypeId, request, trainee.UserId);
+            var result = await service.CreateTraining(resourceType.ResourceTypeId, request);
 
             // Assert
             Assert.NotNull(result);

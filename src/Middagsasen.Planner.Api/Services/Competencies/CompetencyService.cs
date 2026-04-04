@@ -1,15 +1,18 @@
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 
 namespace Middagsasen.Planner.Api.Services.Competencies
 {
     public class CompetencyService : ICompetencyService
     {
-        public CompetencyService(ICompetencyRepository repository)
+        public CompetencyService(ICompetencyRepository repository, ICurrentUserService currentUser)
         {
             Repository = repository;
+            CurrentUser = currentUser;
         }
 
         public ICompetencyRepository Repository { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         // Competency CRUD
 
@@ -187,14 +190,14 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return result != null ? MapUserCompetency(result) : null;
         }
 
-        public async Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, int approvedByUserId, ApproveCompetencyRequest request)
+        public async Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request)
         {
             var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId);
             if (userCompetency == null) return null;
 
             userCompetency.Approved = true;
             userCompetency.ApprovedDate = DateTime.UtcNow;
-            userCompetency.ApprovedBy = approvedByUserId;
+            userCompetency.ApprovedBy = CurrentUser.UserId;
             userCompetency.ExpiryDate = request.ExpiryDate;
 
             await Repository.SaveChangesAsync();

@@ -41,6 +41,8 @@ builder.Services.AddSerilog((services, lc) => lc
         services.GetRequiredService<TelemetryConfiguration>(),
         TelemetryConverter.Events)
     );
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

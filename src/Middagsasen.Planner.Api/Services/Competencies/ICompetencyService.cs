@@ -13,7 +13,7 @@ namespace Middagsasen.Planner.Api.Services.Competencies
         Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId);
         Task<UserCompetencyResponse?> GetUserCompetencyById(int id);
         Task<UserCompetencyResponse?> AddUserCompetency(UserCompetencyRequest request);
-        Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, int approvedByUserId, ApproveCompetencyRequest request);
+        Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request);
         Task<UserCompetencyResponse?> RevokeUserCompetency(int userCompetencyId);
 
         // Resource type competencies

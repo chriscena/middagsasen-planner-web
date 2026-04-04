@@ -3,19 +3,20 @@ using System.Data;
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Controllers
 {
     [ApiController, Authorize]
     public class EventsController : ControllerBase
     {
-        public EventsController(IEventsService eventsService)
+        public EventsController(IEventsService eventsService, ICurrentUserService currentUser)
         {
             EventsService = eventsService;
+            CurrentUser = currentUser;
         }
 
         public IEventsService EventsService { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         [HttpGet("api/eventstatus")]
         [ProducesResponseType(typeof(IEnumerable<EventStatusResponse>), StatusCodes.Status200OK)]
@@ -29,9 +30,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(IEnumerable<UserShiftResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyShifts()
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
-            var shifts = await EventsService.GetShiftsByUserId(user.Id);
+            var shifts = await EventsService.GetShiftsByUserId(CurrentUser.UserId);
             return Ok(shifts);
         }
 
@@ -92,11 +91,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
             try
             {
-                var response = await EventsService.AddShift(id, request, user.Id, user.IsAdmin);
+                var response = await EventsService.AddShift(id, request);
                 if (response == null) return NotFound();
                 return Created($"/api/shifts/{response.Id}", response);
             }
@@ -110,9 +107,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> AddMessage(int id, [FromBody] MessageRequest request)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
-            var response = await EventsService.AddMessage(id, request, user.Id);
+            var response = await EventsService.AddMessage(id, request);
             if (response == null) return NotFound();
             return Created($"/api/resources/{response.EventResourceId}/messages/{response.Id}", response);
         }
@@ -130,11 +125,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
             try
             {
-                var shift = await EventsService.UpdateShift(id, request, user.Id, user.IsAdmin);
+                var shift = await EventsService.UpdateShift(id, request);
                 return (shift == null) ? NotFound() : Ok(shift);
             }
             catch (UnauthorizedAccessException)
@@ -147,11 +140,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> DeleteShift(int id)
         {
-            var user = (UserResponse)HttpContext.Items["User"]!;
-
             try
             {
-                var shift = await EventsService.DeleteShift(id, user.Id, user.IsAdmin);
+                var shift = await EventsService.DeleteShift(id);
                 return (shift == null) ? NotFound() : Ok(shift);
             }
             catch (UnauthorizedAccessException)

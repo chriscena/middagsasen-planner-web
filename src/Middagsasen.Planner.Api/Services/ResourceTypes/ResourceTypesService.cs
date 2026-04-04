@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.SmsSender;
@@ -8,16 +9,18 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 {
     public class ResourceTypesService : IResourceTypesService
     {
-        public ResourceTypesService(PlannerDbContext dbContext, ISmsSender smsSender, IStorageService storage)
+        public ResourceTypesService(PlannerDbContext dbContext, ISmsSender smsSender, IStorageService storage, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
             SmsSender = smsSender;
             Storage = storage;
+            CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
         public ISmsSender SmsSender { get; }
         public IStorageService Storage { get; }
+        public ICurrentUserService CurrentUser { get; }
 
         private IQueryable<ResourceType> ResourceTypes => DbContext.ResourceTypes
                 .Include(r => r.Trainers)
@@ -103,11 +106,11 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return Map(resourceType);
         }
 
-        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request, int currentUserId)
+        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
         {
             if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
             {
-                request.ConfirmedBy = currentUserId;
+                request.ConfirmedBy = CurrentUser.UserId;
             }
 
             if (!request.TrainingCompleted.HasValue) return null;
@@ -202,9 +205,9 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return Map(training);
         }
 
-        public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request, int uploadedByUserId)
+        public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
         {
-            request.UserId = uploadedByUserId;
+            request.UserId = CurrentUser.UserId;
             var now = DateTime.UtcNow;
             var containerPath = GetContainerPath(now);
             var storageFileName = Guid.NewGuid().ToString();
