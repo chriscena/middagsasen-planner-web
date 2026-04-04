@@ -66,14 +66,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
-            if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
-            {
-                request.ConfirmedBy = user.Id;
-            }
-            var training = await ResourceTypesService.CreateTraining(id, request);
+            var training = await ResourceTypesService.CreateTraining(id, request, user.Id);
             return Created($"{training.ResourceTypeId}/training/{training.Id}", training);
         }
 
@@ -82,17 +77,15 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromForm] string description)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
             var request = new FileUploadRequest
             {
                 FileInfo = file,
                 Description = description,
-                UserId = user.Id
             };
 
-            var response = await ResourceTypesService.AddFile(id, request);
+            var response = await ResourceTypesService.AddFile(id, request, user.Id);
             return Created($"{response.ResourceTypeId}/files/{response.Id}", response);
         }
 

@@ -303,8 +303,8 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.Training != null)
             {
                 if (request.Training.Id == 0)
-                    await CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else 
+                    await CreateTraining(request.Training.ResourceTypeId, request.Training, currentUserId);
+                else
                     await UpdateTraining(request.Training.ResourceTypeId, request.Training);
             }
 
@@ -317,8 +317,13 @@ namespace Middagsasen.Planner.Api.Services.Events
             return responseShift == null ? null : Map(responseShift);
         }
 
-        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
+        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request, int currentUserId)
         {
+            if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
+            {
+                request.ConfirmedBy = currentUserId;
+            }
+
             if (!request.TrainingCompleted.HasValue) return null;
 
             var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
@@ -442,7 +447,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.Training != null)
             {
                 if (request.Training.Id == 0)
-                    await CreateTraining(request.Training.ResourceTypeId, request.Training);
+                    await CreateTraining(request.Training.ResourceTypeId, request.Training, currentUserId);
                 else
                     await UpdateTraining(request.Training.ResourceTypeId, request.Training);
             }
@@ -818,8 +823,9 @@ namespace Middagsasen.Planner.Api.Services.Events
             return template;
         }
 
-        public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
+        public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request, int uploadedByUserId)
         {
+            request.UserId = uploadedByUserId;
             var now = DateTime.UtcNow;
             var containerPath = GetContainerPath(now);
             var storageFileName = Guid.NewGuid().ToString();
