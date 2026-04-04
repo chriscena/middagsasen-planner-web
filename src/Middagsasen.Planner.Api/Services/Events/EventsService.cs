@@ -169,13 +169,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             return events.Select(Map).ToList();
         }
 
-        public async Task<EventResponse?> GetEventById(int id)
+        public async Task<EventResponse> GetEventById(int id)
         {
             var existingEvent = await Events
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == id);
+                .SingleOrDefaultAsync(e => e.EventId == id)
+                ?? throw new EntityNotFoundException("Kunne ikke finne vakt.");
 
-            return (existingEvent == null) ? null : Map(existingEvent);
+            return Map(existingEvent);
         }
 
         public async Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id)
@@ -206,7 +207,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
-        public async Task<EventResponse?> CreateEvent(EventRequest request)
+        public async Task<EventResponse> CreateEvent(EventRequest request)
         {
             var newEvent = new Event
             {
@@ -277,8 +278,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(existingEvent);
         }
 
-        public async Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request)
+        public async Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request, int currentUserId, bool isAdmin)
         {
+            if (!isAdmin && request.UserId != currentUserId)
+                throw new UnauthorizedAccessException();
+
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = currentUserId;
+            }
+
             var newShift = new EventResourceUser
             {
                 EventResourceId = eventResourceId,
@@ -402,8 +411,18 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(training);
         }
 
-        public async Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request)
+        public async Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request, int currentUserId, bool isAdmin)
         {
+            if (request.UserId == 0) request.UserId = currentUserId;
+
+            if (!isAdmin && request.UserId != currentUserId)
+                throw new UnauthorizedAccessException();
+
+            if (request.Training != null)
+            {
+                request.Training.ConfirmedBy = currentUserId;
+            }
+
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
 
@@ -441,7 +460,8 @@ namespace Middagsasen.Planner.Api.Services.Events
         {
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
             if (shift == null) return null;
-            if (shift.UserId != userId && !isAdmin) return null;
+            if (!isAdmin && shift.UserId != userId)
+                throw new UnauthorizedAccessException();
 
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();
@@ -872,8 +892,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             return messages.Select(Map).ToList();
         }
 
-        public async Task<MessageResponse?> AddMessage(int id, MessageRequest request)
+        public async Task<MessageResponse?> AddMessage(int id, MessageRequest request, int createdByUserId)
         {
+            request.CreatedBy = createdByUserId;
+
             var message = new EventResourceMessage
             {
                 Message = request.Message,

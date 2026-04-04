@@ -29,8 +29,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(IEnumerable<UserShiftResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyShifts()
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
             var shifts = await EventsService.GetShiftsByUserId(user.Id);
             return Ok(shifts);
@@ -93,32 +92,27 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
-            if (!user.IsAdmin && request.UserId != user.Id)
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
-
-            if (request.Training != null)
+            try
             {
-                request.Training.ConfirmedBy = user.Id;
+                var response = await EventsService.AddShift(id, request, user.Id, user.IsAdmin);
+                if (response == null) return NotFound();
+                return Created($"/api/shifts/{response.Id}", response);
             }
-
-            var response = await EventsService.AddShift(id, request);
-            if (response == null) return NotFound();
-            return Created($"/api/shifts/{response.Id}", response);
+            catch (UnauthorizedAccessException)
+            {
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+            }
         }
 
         [HttpPost("api/resources/{id}/messages")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
         public async Task<IActionResult> AddMessage(int id, [FromBody] MessageRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
-            request.CreatedBy = user.Id;
-
-            var response = await EventsService.AddMessage(id, request);
+            var response = await EventsService.AddMessage(id, request, user.Id);
             if (response == null) return NotFound();
             return Created($"/api/resources/{response.EventResourceId}/messages/{response.Id}", response);
         }
@@ -136,32 +130,34 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
-            if (request.UserId == 0) request.UserId = user.Id;
-
-            if (!user.IsAdmin && request.UserId != user.Id)
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
-
-            if (request.Training != null)
+            try
             {
-                request.Training.ConfirmedBy = user.Id; 
+                var shift = await EventsService.UpdateShift(id, request, user.Id, user.IsAdmin);
+                return (shift == null) ? NotFound() : Ok(shift);
             }
-
-            var shift = await EventsService.UpdateShift(id, request);
-            return (shift == null) ? NotFound() : Ok(shift);
+            catch (UnauthorizedAccessException)
+            {
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+            }
         }
 
         [HttpDelete("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> DeleteShift(int id)
         {
-            var user = (UserResponse?)HttpContext.Items["User"];
-            if (user == null) return Unauthorized();
+            var user = (UserResponse)HttpContext.Items["User"]!;
 
-            var shift = await EventsService.DeleteShift(id, user.Id, user.IsAdmin);
-            return (shift == null) ? NotFound() : Ok(shift);
+            try
+            {
+                var shift = await EventsService.DeleteShift(id, user.Id, user.IsAdmin);
+                return (shift == null) ? NotFound() : Ok(shift);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+            }
         }
 
         [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
@@ -169,21 +165,8 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(MinimumStaffResponse), StatusCodes.Status200OK)]
         public async Task<IActionResult> Update(int eventResourceId, MinimumStaffRequest request)
         {
-            try
-            {
-                if (request == null)
-                    return BadRequest();
-
-                var response = await EventsService.UpdateMinimumStaff(eventResourceId, request);
-
-                return response == null
-                    ? NotFound()
-                    : Ok(response);
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            var response = await EventsService.UpdateMinimumStaff(eventResourceId, request);
+            return response == null ? NotFound() : Ok(response);
         }
     }
 }
