@@ -64,7 +64,7 @@ builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();
-builder.Services.AddScoped<IResourceTypesService, EventsService>();
+builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
 builder.Services.AddScoped<IEventTemplatesService, EventsService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<WeatherService>();
