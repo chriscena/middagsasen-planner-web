@@ -13,6 +13,7 @@ using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.Weather;
 using Middagsasen.Planner.Api.Services.Competencies;
+using Middagsasen.Planner.Api.Services.System;
 using Middagsasen.Planner.Api.Services.WorkHours;
 using Serilog;
 using Serilog.Events;
@@ -70,6 +71,7 @@ builder.Services.AddScoped<WeatherService>();
 builder.Services.AddScoped<IWorkHoursService, WorkHoursService>();
 builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();
+builder.Services.AddScoped<ISystemService, SystemService>();
 
 builder.Services.AddHostedService<WeatherDataCollector>();
 
