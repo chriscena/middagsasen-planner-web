@@ -385,10 +385,10 @@ namespace Middagsasen.Planner.Api.Data
             {
                 entity.ToTable("WorkHours");
                 entity.HasKey(e => e.WorkHourId);
-                entity.Property(e => e.StartTime).HasColumnType("datetime");
-                entity.Property(e => e.EndTime).HasColumnType("datetime");
-                entity.Property(e => e.ApprovedTime).HasColumnType("datetime");
-                entity.Property(e => e.ModifiedTime).HasColumnType("datetime");
+
+                // Optimistisk samtidighet: UPDATE/DELETE inkluderer opprinnelig ApprovalStatus i WHERE,
+                // slik at en føring som ble godkjent/avslått etter at den ble hentet ikke endres.
+                entity.Property(e => e.ApprovalStatus).IsConcurrencyToken();
 
                 entity.HasOne(e => e.ApprovedByUser)
                     .WithMany()

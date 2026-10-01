@@ -19,6 +19,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         void Add(WorkHour workHour);
         void Remove(WorkHour workHour);
+        /// <summary>
+        /// Lagrer endringer. Kaster <see cref="Services.EntityLockedException"/> hvis føringens
+        /// status er endret av en annen siden den ble hentet (optimistisk samtidighet på ApprovalStatus).
+        /// </summary>
         Task SaveChangesAsync();
     }
 

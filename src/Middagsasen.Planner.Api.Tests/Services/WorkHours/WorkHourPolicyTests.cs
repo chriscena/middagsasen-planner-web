@@ -117,13 +117,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(expected, WorkHourPolicy.CanRead(Entry(status), isAdmin, userId));
         }
 
+        // Policyen vurderer kun tilgang/tilstand; verdien valideres av servicen etterpå (403 → 409 → 400).
         [Theory]
-        [InlineData(0)]
-        [InlineData(3)]
-        [InlineData(-1)]
-        public void CanSetStatus_InvalidStatus_IsForbidden(int status)
+        [InlineData(0, false, null, WorkHourAccess.Forbidden)]
+        [InlineData(3, false, null, WorkHourAccess.Forbidden)]
+        [InlineData(3, false, Approved, WorkHourAccess.Forbidden)]
+        [InlineData(0, true, null, WorkHourAccess.Allowed)]
+        [InlineData(3, true, null, WorkHourAccess.Allowed)]
+        [InlineData(-1, true, null, WorkHourAccess.Allowed)]
+        [InlineData(3, true, Approved, WorkHourAccess.Locked)]
+        public void CanSetStatus_IgnoresStatusValue(int status, bool isAdmin, int? current, WorkHourAccess expected)
         {
-            Assert.Equal(WorkHourAccess.Forbidden, WorkHourPolicy.CanSetStatus(Entry(null), true, OtherId, status));
+            Assert.Equal(expected, WorkHourPolicy.CanSetStatus(Entry(current), isAdmin, OwnerId, status));
         }
     }
 }

@@ -42,7 +42,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// <summary>
         /// Sette status. Kun admin. Godkjenne/avslå (1/2) kun åpne føringer;
         /// «Ingen status» (null) kun på godkjente/avslåtte føringer.
-        /// Ugyldige statusverdier gir <see cref="WorkHourAccess.Forbidden"/> — servicen validerer verdien før policyen kalles.
+        /// Vurderer kun tilgang og tilstand, ikke om statusverdien er gyldig: enhver ikke-null verdi
+        /// behandles som godkjenn/avslå. Servicen validerer verdien etter policyen, slik at
+        /// tilgang (403) og låsing (409) vurderes før ugyldig verdi (400).
         /// </summary>
         public static WorkHourAccess CanSetStatus(WorkHour entry, bool isAdmin, int userId, int? newStatus)
         {
@@ -50,8 +52,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             if (newStatus is null)
                 return IsOpen(entry) ? WorkHourAccess.Locked : WorkHourAccess.Allowed;
-
-            if (newStatus is not (Approved or Rejected)) return WorkHourAccess.Forbidden;
 
             return IsOpen(entry) ? WorkHourAccess.Allowed : WorkHourAccess.Locked;
         }

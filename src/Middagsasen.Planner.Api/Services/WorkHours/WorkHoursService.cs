@@ -10,6 +10,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string LockedMessage = "Timeføringen er allerede behandlet og kan ikke endres.";
         internal const string NoStatusToResetMessage = "Timeføringen har ingen status som kan fjernes.";
         internal const string NotFoundMessage = "Timeføringen finnes ikke.";
+        internal const string StartTimeRequiredMessage = "Starttid må oppgis.";
+        internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
 
         public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser)
         {
@@ -23,7 +25,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
             if (!request.StartTime.HasValue)
-                throw new InvalidOperationException("Starttid må oppgis.");
+                throw new InvalidOperationException(StartTimeRequiredMessage);
+            ValidateTimes(request.StartTime, request.EndTime);
 
             var workHour = new WorkHour
             {
@@ -44,11 +47,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             var userId = CurrentUser.UserId;
             var isAdmin = CurrentUser.IsAdmin;
 
-            var hasContent = request.StartTime.HasValue || request.EndTime.HasValue || request.Description != null;
+            // «Innhold» betyr felter som faktisk endres i forhold til lagret verdi — en PATCH med
+            // uendrede verdier oppfører seg som en tom PATCH (også på låste føringer).
+            var startChanged = request.StartTime.HasValue && request.StartTime != workHour.StartTime;
+            var endChanged = request.EndTime.HasValue && request.EndTime != workHour.EndTime;
+            var descriptionChanged = request.Description != null && request.Description != workHour.Description;
+            var hasContent = startChanged || endChanged || descriptionChanged;
             var hasStatus = request.ApprovalStatus.HasValue;
-
-            if (hasStatus)
-                ValidateStatus(request.ApprovalStatus);
 
             if (!hasContent && !hasStatus)
             {
@@ -57,32 +62,26 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 return Map(workHour);
             }
 
-            // Alle tilgangssjekker gjøres mot tilstanden FØR endring.
-            if (hasContent)
-                Ensure(WorkHourPolicy.CanEdit(workHour, isAdmin, userId), LockedMessage);
-            if (hasStatus)
-                Ensure(WorkHourPolicy.CanSetStatus(workHour, isAdmin, userId, request.ApprovalStatus), LockedMessage);
+            // Rekkefølge: 404 (over) → 403 → 409 → 400. Tilgangssjekker gjøres mot tilstanden FØR endring.
+            Ensure(LockedMessage,
+                hasContent ? WorkHourPolicy.CanEdit(workHour, isAdmin, userId) : WorkHourAccess.Allowed,
+                hasStatus ? WorkHourPolicy.CanSetStatus(workHour, isAdmin, userId, request.ApprovalStatus) : WorkHourAccess.Allowed);
 
-            var contentChanged = false;
-            if (request.StartTime.HasValue && request.StartTime != workHour.StartTime)
-            {
+            ValidateStatus(request.ApprovalStatus);
+            // Valider mot resulterende verdier (request-verdi hvis sendt, ellers lagret verdi).
+            if (startChanged || endChanged)
+                ValidateTimes(request.StartTime ?? workHour.StartTime, request.EndTime ?? workHour.EndTime);
+
+            if (startChanged)
                 workHour.StartTime = request.StartTime;
-                contentChanged = true;
-            }
-            if (request.EndTime.HasValue && request.EndTime != workHour.EndTime)
-            {
+            if (endChanged)
                 workHour.EndTime = request.EndTime;
-                contentChanged = true;
-            }
-            if (request.Description != null && request.Description != workHour.Description)
-            {
+            if (descriptionChanged)
                 workHour.Description = request.Description;
-                contentChanged = true;
-            }
 
             // ModifiedBy settes kun ved faktisk innholdsendring utført av en annen enn eier,
             // og nullstilles aldri når eier redigerer senere.
-            if (contentChanged && !WorkHourPolicy.IsOwner(workHour, userId))
+            if (hasContent && !WorkHourPolicy.IsOwner(workHour, userId))
             {
                 workHour.ModifiedBy = userId;
                 workHour.ModifiedTime = DateTime.UtcNow;
@@ -91,7 +90,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             if (hasStatus)
                 ApplyStatus(workHour, request.ApprovalStatus, userId);
 
-            // Innhold og status lagres i én operasjon.
+            // Innhold og status lagres i én operasjon. Gir 409 hvis status er endret av en annen
+            // siden føringen ble hentet (ApprovalStatus er concurrency token).
             await Repository.SaveChangesAsync();
 
             return await GetMapped(workHourId);
@@ -102,10 +102,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             var workHour = await GetTracked(workHourId);
             var userId = CurrentUser.UserId;
 
-            ValidateStatus(request.ApprovalStatus);
             Ensure(
-                WorkHourPolicy.CanSetStatus(workHour, CurrentUser.IsAdmin, userId, request.ApprovalStatus),
-                request.ApprovalStatus.HasValue ? LockedMessage : NoStatusToResetMessage);
+                request.ApprovalStatus.HasValue ? LockedMessage : NoStatusToResetMessage,
+                WorkHourPolicy.CanSetStatus(workHour, CurrentUser.IsAdmin, userId, request.ApprovalStatus));
+            ValidateStatus(request.ApprovalStatus);
 
             ApplyStatus(workHour, request.ApprovalStatus, userId);
             await Repository.SaveChangesAsync();
@@ -122,7 +122,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> DeleteWorkHour(int workHourId)
         {
             var workHour = await GetTracked(workHourId);
-            Ensure(WorkHourPolicy.CanEdit(workHour, CurrentUser.IsAdmin, CurrentUser.UserId), LockedMessage);
+            Ensure(LockedMessage, WorkHourPolicy.CanEdit(workHour, CurrentUser.IsAdmin, CurrentUser.UserId));
 
             var response = Map(workHour);
             Repository.Remove(workHour);
@@ -227,6 +227,12 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 throw new InvalidOperationException("Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).");
         }
 
+        private static void ValidateTimes(DateTime? startTime, DateTime? endTime)
+        {
+            if (endTime.HasValue && startTime.HasValue && endTime.Value <= startTime.Value)
+                throw new InvalidOperationException(EndBeforeStartMessage);
+        }
+
         private static void ApplyStatus(WorkHour workHour, int? status, int userId)
         {
             workHour.ApprovalStatus = status;
@@ -242,15 +248,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             }
         }
 
-        private static void Ensure(WorkHourAccess access, string lockedMessage)
+        /// <summary>Forbidden (403) vinner over Locked (409) når flere vurderinger kombineres.</summary>
+        private static void Ensure(string lockedMessage, params WorkHourAccess[] accesses)
         {
-            switch (access)
-            {
-                case WorkHourAccess.Forbidden:
-                    throw new ForbiddenAccessException(ForbiddenMessage);
-                case WorkHourAccess.Locked:
-                    throw new EntityLockedException(lockedMessage);
-            }
+            if (accesses.Contains(WorkHourAccess.Forbidden))
+                throw new ForbiddenAccessException(ForbiddenMessage);
+            if (accesses.Contains(WorkHourAccess.Locked))
+                throw new EntityLockedException(lockedMessage);
         }
 
         private void EnsureAdmin()

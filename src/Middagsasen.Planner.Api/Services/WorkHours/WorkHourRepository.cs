@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 
 namespace Middagsasen.Planner.Api.Services.WorkHours
 {
@@ -74,6 +75,18 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         public void Remove(WorkHour workHour) => DbContext.WorkHours.Remove(workHour);
 
-        public async Task SaveChangesAsync() => await DbContext.SaveChangesAsync();
+        public async Task SaveChangesAsync()
+        {
+            try
+            {
+                await DbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                // ApprovalStatus er concurrency token: føringen ble behandlet (eller slettet)
+                // av en annen mellom henting og lagring.
+                throw new EntityLockedException(WorkHoursService.LockedMessage, ex);
+            }
+        }
     }
 }

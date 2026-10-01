@@ -694,5 +694,407 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         }
 
         #endregion
+
+        #region Validering av tider
+
+        [Theory]
+        [InlineData(-1)]
+        [InlineData(0)]
+        public async Task Create_EndNotAfterStart_ThrowsInvalidOperation(int endOffsetHours)
+        {
+            var user = await SeedUser();
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, user);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.CreateWorkHour(new CreateWorkHourRequest { StartTime = Start, EndTime = Start.AddHours(endOffsetHours) }));
+            Assert.Equal(WorkHoursService.EndBeforeStartMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Create_WithoutEndTime_IsAllowed()
+        {
+            var user = await SeedUser();
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, user).CreateWorkHour(new CreateWorkHourRequest { StartTime = Start });
+
+            Assert.Null(result.EndTime);
+        }
+
+        [Fact]
+        public async Task Update_OnlyEndTime_BeforeStoredStart_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start.AddMinutes(-30) }));
+            Assert.Equal(WorkHoursService.EndBeforeStartMessage, ex.Message);
+            Assert.Equal(End, (await Reload(wh.WorkHourId)).EndTime);
+        }
+
+        [Fact]
+        public async Task Update_OnlyStartTime_AfterStoredEnd_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { StartTime = End.AddHours(1) }));
+            Assert.Equal(Start, (await Reload(wh.WorkHourId)).StartTime);
+        }
+
+        [Fact]
+        public async Task Update_BothTimes_EndBeforeStart_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { StartTime = End, EndTime = Start }));
+            var db = await Reload(wh.WorkHourId);
+            Assert.Equal(Start, db.StartTime);
+            Assert.Equal(End, db.EndTime);
+        }
+
+        [Fact]
+        public async Task Update_EndEqualsStoredStart_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start }));
+        }
+
+        [Fact]
+        public async Task Update_BothTimesValid_MovingPastStoredValues_Succeeds()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            // Ny start er etter lagret slutt, men gyldig mot ny slutt.
+            var result = await CreateService(context, owner).UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { StartTime = End.AddHours(1), EndTime = End.AddHours(2) });
+
+            Assert.Equal(1.0m, result.Hours);
+        }
+
+        [Fact]
+        public async Task Update_InvalidTimes_ByOtherNonAdmin_ThrowsForbiddenNotValidation()
+        {
+            var owner = await SeedUser();
+            var other = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, other)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start.AddHours(-1) }));
+        }
+
+        [Fact]
+        public async Task Update_InvalidTimes_OnLockedEntry_ThrowsLockedNotValidation()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<EntityLockedException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start.AddHours(-1) }));
+        }
+
+        #endregion
+
+        #region Rekkefølge på sjekker (404 → 403 → 409 → 400)
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(3)]
+        [InlineData(-1)]
+        public async Task Update_NonAdminSendsAnyStatus_ThrowsForbidden(int status)
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = status }));
+        }
+
+        [Theory]
+        [InlineData(1)]
+        [InlineData(3)]
+        public async Task UpdateApprovedBy_NonAdminSendsAnyStatus_ThrowsForbidden(int status)
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
+                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = status }));
+        }
+
+        [Fact]
+        public async Task UpdateApprovedBy_AdminInvalidStatusOnOpen_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, admin)
+                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 3 }));
+            Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
+        }
+
+        [Fact]
+        public async Task Update_AdminInvalidStatusOnLocked_ThrowsLockedBeforeValidation()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<EntityLockedException>(() => CreateService(context, admin)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 3 }));
+        }
+
+        [Fact]
+        public async Task Update_OwnerContentOnLockedPlusStatus_ThrowsForbiddenBeforeLocked()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = 1 }));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task Update_UnchangedValuesOnLocked_ReturnsEntryWithoutConflict(bool asAdmin)
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, asAdmin ? admin : owner).UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { StartTime = Start, EndTime = End, Description = "Opprinnelig" });
+
+            Assert.Equal(wh.WorkHourId, result.WorkHourId);
+            Assert.Equal(1, result.ApprovalStatus);
+            Assert.Null(result.ModifiedBy);
+        }
+
+        [Fact]
+        public async Task Update_UnchangedValuesOnLocked_ByOtherNonAdmin_ThrowsForbidden()
+        {
+            var owner = await SeedUser();
+            var other = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, other).UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { StartTime = Start, Description = "Opprinnelig" }));
+        }
+
+        #endregion
+
+        #region Samtidighet (ApprovalStatus som concurrency token)
+
+        /// <summary>Repository som kjører <see cref="BeforeSave"/> rett før lagring, for å simulere et race.</summary>
+        private sealed class RacingRepository : IWorkHourRepository
+        {
+            private readonly WorkHourRepository _inner;
+            public RacingRepository(PlannerDbContext context) => _inner = new WorkHourRepository(context);
+            public Func<Task>? BeforeSave { get; set; }
+
+            public Task<WorkHour?> GetWorkHourById(int workHourId) => _inner.GetWorkHourById(workHourId);
+            public Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId) => _inner.GetWorkHourByIdReadOnly(workHourId);
+            public Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, int skip, int take)
+                => _inner.GetWorkHours(userId, approved, skip, take);
+            public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? startFrom = null)
+                => _inner.GetIntervals(userId, startFrom);
+            public void Add(WorkHour workHour) => _inner.Add(workHour);
+            public void Remove(WorkHour workHour) => _inner.Remove(workHour);
+
+            public async Task SaveChangesAsync()
+            {
+                if (BeforeSave != null)
+                {
+                    var action = BeforeSave;
+                    BeforeSave = null;
+                    await action();
+                }
+                await _inner.SaveChangesAsync();
+            }
+        }
+
+        private (WorkHoursService Service, RacingRepository Repository) CreateRacingService(PlannerDbContext context, User user)
+        {
+            var repository = new RacingRepository(context);
+            return (new WorkHoursService(repository, MockCurrentUser(user.UserId, user.IsAdmin)), repository);
+        }
+
+        /// <summary>Endrer status direkte i databasen via en annen context, utenom servicen.</summary>
+        private Func<Task> SetStatusInDatabase(int workHourId, int? status, User? approvedBy) => async () =>
+        {
+            using var other = _fixture.CreateContext();
+            var approvedById = approvedBy?.UserId;
+            await other.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE WorkHours SET ApprovalStatus = {status}, ApprovedBy = {approvedById} WHERE WorkHourId = {workHourId}");
+        };
+
+        [Fact]
+        public async Task Race_OwnerEditsWhileAdminApproves_ThrowsLockedAndContentUnchanged()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+            var (service, repository) = CreateRacingService(context, owner);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 1, admin);
+
+            var ex = await Assert.ThrowsAsync<EntityLockedException>(() => service.UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { Description = "Etter race", EndTime = End.AddHours(1) }));
+
+            Assert.Equal(WorkHoursService.LockedMessage, ex.Message);
+            var db = await Reload(wh.WorkHourId);
+            Assert.Equal("Opprinnelig", db.Description);
+            Assert.Equal(End, db.EndTime);
+            Assert.Equal(1, db.ApprovalStatus);
+            Assert.Equal(admin.UserId, db.ApprovedBy);
+        }
+
+        [Fact]
+        public async Task Race_AdminEditsAndApprovesWhileOtherAdminRejects_ThrowsLocked()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var otherAdmin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+            var (service, repository) = CreateRacingService(context, admin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 2, otherAdmin);
+
+            await Assert.ThrowsAsync<EntityLockedException>(() => service.UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { Description = "Rettet", ApprovalStatus = 1 }));
+
+            var db = await Reload(wh.WorkHourId);
+            Assert.Equal("Opprinnelig", db.Description);
+            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(otherAdmin.UserId, db.ApprovedBy);
+            Assert.Null(db.ModifiedBy);
+        }
+
+        [Fact]
+        public async Task Race_UpdateApprovedBy_ApproveWhileOtherAdminRejects_ThrowsLocked()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var otherAdmin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+            var (service, repository) = CreateRacingService(context, admin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 2, otherAdmin);
+
+            await Assert.ThrowsAsync<EntityLockedException>(() =>
+                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 1 }));
+
+            var db = await Reload(wh.WorkHourId);
+            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(otherAdmin.UserId, db.ApprovedBy);
+        }
+
+        [Fact]
+        public async Task Race_UpdateApprovedBy_ResetWhileOtherAdminAlreadyReset_ThrowsLocked()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+            var (service, repository) = CreateRacingService(context, admin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, null, null);
+
+            await Assert.ThrowsAsync<EntityLockedException>(() =>
+                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = null }));
+        }
+
+        [Fact]
+        public async Task Race_DeleteWhileAdminApproves_ThrowsLockedAndEntryKept()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+            var (service, repository) = CreateRacingService(context, owner);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 1, admin);
+
+            await Assert.ThrowsAsync<EntityLockedException>(() => service.DeleteWorkHour(wh.WorkHourId));
+
+            Assert.Equal(1, (await Reload(wh.WorkHourId)).ApprovalStatus);
+        }
+
+        [Fact]
+        public async Task Update_OpenEntry_GeneratesWhereApprovalStatusIsNull()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            var sql = new List<string>();
+            var options = new DbContextOptionsBuilder<PlannerDbContext>()
+                .UseSqlServer(_fixture.ConnectionString)
+                .LogTo(sql.Add, new[] { DbLoggerCategory.Database.Command.Name })
+                .Options;
+            using var context = new PlannerDbContext(options);
+
+            await CreateService(context, owner).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "Ny" });
+
+            // Loggen inneholder både «Executing» og «Executed» for samme kommando.
+            var updates = sql.Where(s => s.Contains("UPDATE [WorkHours]")).ToList();
+            Assert.NotEmpty(updates);
+            Assert.All(updates, u => Assert.Contains("[ApprovalStatus] IS NULL", u));
+            Assert.Equal("Ny", (await Reload(wh.WorkHourId)).Description);
+        }
+
+        [Fact]
+        public async Task NormalFlow_ApproveResetEditReapprove_WorksWithConcurrencyToken()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+
+            using (var c = _fixture.CreateContext())
+                await CreateService(c, admin).UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 1 });
+
+            // «Ingen status» fra godkjent → null: WHERE ApprovalStatus = 1.
+            using (var c = _fixture.CreateContext())
+                await CreateService(c, admin).UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = null });
+            Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
+
+            // Redigering av nå åpen føring: WHERE ApprovalStatus IS NULL.
+            using (var c = _fixture.CreateContext())
+                await CreateService(c, owner).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "Rettet" });
+
+            using (var c = _fixture.CreateContext())
+                await CreateService(c, admin).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 2 });
+
+            var db = await Reload(wh.WorkHourId);
+            Assert.Equal("Rettet", db.Description);
+            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(admin.UserId, db.ApprovedBy);
+        }
+
+        #endregion
     }
 }
