@@ -36,6 +36,7 @@ src/
 - [docs/kompetansesystem.md](docs/kompetansesystem.md) — design for kompetansesystemet
 - [docs/backend-arkitektur.md](docs/backend-arkitektur.md) — arkitekturanalyse og 6-stegs forbedringsplan
 - [docs/postgresql-migrering.md](docs/postgresql-migrering.md) — plan for migrering MSSQL → PostgreSQL
+- [docs/timeforing-redigering.md](docs/timeforing-redigering.md) — admin-redigering av timeføringer, låsing og tilgangsregler
 
 ## Kommandoer
 
