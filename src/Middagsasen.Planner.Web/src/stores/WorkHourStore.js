@@ -1,5 +1,4 @@
 import { defineStore } from "pinia";
-import { parseISO, formatISO, addDays } from "date-fns";
 import { api } from "boot/axios";
 
 export const useWorkHourStore = defineStore("workHours", {
@@ -11,8 +10,14 @@ export const useWorkHourStore = defineStore("workHours", {
   }),
   actions: {
     async createWorkHour(model) {
-      const response = await api.post(`/api/WorkHours`, model);
+      const payload = {
+        startTime: model.startTime,
+        endTime: model.endTime,
+        description: model.description,
+      };
+      const response = await api.post(`/api/WorkHours`, payload);
       this.workHour = response.data;
+      return response.data;
     },
 
     async getWorkHours(params) {
@@ -24,7 +29,7 @@ export const useWorkHourStore = defineStore("workHours", {
     },
 
     async getWorkHoursSums(userId = null) {
-      const params = userId ? `?userId=${userId}` : '';
+      const params = userId ? `?userId=${userId}` : "";
       const response = await api.get(`/api/WorkHours/Sum${params}`);
       return response.data;
     },
@@ -41,35 +46,24 @@ export const useWorkHourStore = defineStore("workHours", {
       const response = await api.get(`/api/WorkHours/${workHourId}`);
       this.workHourById = response.data;
     },
-    async updateWorkHourEndTime(model) {
-      const response = await api.patch(
-        `/api/WorkHours/${model.workHourId}/EndTime`,
-        model
-      );
+
+    // Sender kun feltene i `changes` (startTime, endTime, description, approvalStatus).
+    async patchWorkHour(workHourId, changes) {
+      const response = await api.patch(`/api/WorkHours/${workHourId}`, changes);
+      return response.data;
     },
-    async updateWorkHour(model) {
-      const response = await api.put(
-        `/api/WorkHours/${model.workHourId}`,
-        model
-      );
-    },
+
+    // approvalStatus: 1 = godkjent, 2 = avslått, null = ingen status.
     async updateApproval(model) {
       const response = await api.patch(
         `/api/WorkHours/${model.workHourId}/ApprovedBy`,
-        model
-      );
-    },
-    async updateWorkHourDescription(model) {
-      const response = await api.patch(
-        `/api/WorkHours/${model.workHourId}`,
-        model
+        { approvalStatus: model.approvalStatus }
       );
       return response.data;
     },
+
     async deleteWorkHourById(workHourId) {
-        await api.delete(
-        `/api/WorkHours/${workHourId}`,
-      );
+      await api.delete(`/api/WorkHours/${workHourId}`);
     },
   },
 });

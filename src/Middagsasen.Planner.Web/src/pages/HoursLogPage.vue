@@ -89,8 +89,8 @@
           <q-separator v-if="viewModel.rejectedHoursSum > 0" />
           <q-item
             separator
-            v-for="(hours, index) in viewModel.userWorkHours"
-            :key="index"
+            v-for="hours in viewModel.userWorkHours"
+            :key="hours.workHourId"
             clickable
             v-ripple
             @click="editWorkHour(hours)"
@@ -120,6 +120,9 @@
                 {{ toTimeString(hours.endTime) }}
               </q-item-label>
               <q-item-label caption>{{ hours.description }}</q-item-label>
+              <q-item-label caption v-if="hours.modifiedBy" class="text-italic">
+                Endret av {{ hours.modifiedByName ?? "ukjent" }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-item-label>
@@ -204,7 +207,7 @@ async function getUserWorkhours(index, done) {
     $q.notify({
       type: "negative",
       closeBtn: "close",
-      message: ("errorOccurred", { error: e }),
+      message: "Klarte ikke å hente timeføringer",
     });
   } finally {
     viewModel.loading = false;

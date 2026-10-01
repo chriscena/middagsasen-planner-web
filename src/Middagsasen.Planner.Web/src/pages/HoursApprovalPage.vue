@@ -183,15 +183,7 @@
             <q-card-section class="row">
               <q-space></q-space>
               <q-item-label caption>
-                {{
-                  props.row.approvedBy
-                    ? props.row.approvalStatus !== null
-                      ? props.row.approvalStatus === 1
-                        ? "Godkjent av: " + userNameById(props.row.approvedBy)
-                        : "Avslått av: " + userNameById(props.row.approvedBy)
-                      : ""
-                    : ""
-                }}
+                {{ approvedByText(props.row) }}
               </q-item-label>
             </q-card-section>
           </q-card>
@@ -285,7 +277,15 @@
       </q-card-actions>
     </q-card>
   </q-dialog>
-  <q-dialog v-model="showWorkHourDialog" @hide="onCloseWorkHourDialog">
+  <q-dialog v-model="showEditDialog" persistent>
+    <TimeTrackingForm
+      :model-value="editWorkHour"
+      allow-approval
+      @cancel="showEditDialog = false"
+      @saved="onWorkHourSaved"
+    ></TimeTrackingForm>
+  </q-dialog>
+  <q-dialog v-model="showWorkHourDialog">
     <q-card class="q-pa-sm" style="width: 100%">
       <q-card-section>
         <div class="row">
@@ -296,33 +296,6 @@
             class="q-pa-xs q-pl-sm"
           >
             <q-list>
-              <q-item
-                v-if="foundWorkHour.approvalStatus !== 1"
-                clickable
-                @click="changeStatus(foundWorkHour.workHourId, 1)"
-              >
-                <q-item-section>
-                  <div>
-                    <q-icon
-                      name="check_circle"
-                      class="green-text q-pr-sm"
-                      size="md"
-                    />Godkjent
-                  </div>
-                </q-item-section>
-              </q-item>
-              <q-item
-                v-if="foundWorkHour.approvalStatus !== 2"
-                clickable
-                @click="changeStatus(foundWorkHour.workHourId, 2)"
-              >
-                <q-item-section>
-                  <div>
-                    <q-icon name="cancel" class="red-text q-pr-sm" size="md" />
-                    Avslått
-                  </div>
-                </q-item-section>
-              </q-item>
               <q-item
                 v-if="foundWorkHour.approvalStatus !== null"
                 clickable
@@ -382,60 +355,13 @@
       </q-card-section>
       <q-separator></q-separator>
       <q-card-section>
-        <div v-if="!editingDescription" class="row items-center q-gutter-sm">
-          <q-item-label
-            class="col cursor-pointer"
-            :caption="!foundWorkHour.description"
-            @click="editingDescription = true"
-          >
-            {{ foundWorkHour.description || "Ingen beskrivelse..." }}
-          </q-item-label>
-          <q-btn
-            flat
-            round
-            dense
-            icon="edit"
-            size="sm"
-            @click="editingDescription = true"
-            title="Rediger beskrivelse"
-          />
-        </div>
-        <div v-else class="row items-center q-gutter-sm">
-          <q-input
-            class="col"
-            outlined
-            dense
-            label="Beskrivelse"
-            v-model="foundWorkHour.description"
-            :disable="updating"
-            autofocus
-          />
-          <q-btn
-            flat
-            round
-            dense
-            icon="check"
-            color="positive"
-            :loading="updating"
-            @click="
-              updateDescription(
-                foundWorkHour.workHourId,
-                foundWorkHour.description
-              )
-            "
-            title="Lagre"
-          />
-          <q-btn
-            flat
-            round
-            dense
-            icon="close"
-            color="negative"
-            :disable="updating"
-            @click="cancelEditDescription"
-            title="Avbryt"
-          />
-        </div>
+        <q-item-label :caption="!foundWorkHour.description">
+          {{ foundWorkHour.description || "Ingen beskrivelse..." }}
+        </q-item-label>
+        <q-item-label v-if="foundWorkHour.modifiedBy" caption class="q-pt-sm">
+          Endret av {{ foundWorkHour.modifiedByName ?? "ukjent" }}
+          {{ toDateTimeString(foundWorkHour.modifiedTime) }}
+        </q-item-label>
       </q-card-section>
       <q-separator></q-separator>
       <q-card-actions>
@@ -445,15 +371,7 @@
       <q-card-section v-if="foundWorkHour.approvalStatus !== null" class="row">
         <q-space></q-space>
         <q-item-label caption>
-          {{
-            foundWorkHour.approvedBy
-              ? foundWorkHour.approvalStatus !== null
-                ? foundWorkHour.approvalStatus === 1
-                  ? "Godkjent av: " + userNameById(foundWorkHour.approvedBy)
-                  : "Avslått av: " + userNameById(foundWorkHour.approvedBy)
-                : ""
-              : ""
-          }}
+          {{ approvedByText(foundWorkHour) }}
         </q-item-label>
       </q-card-section>
     </q-card>
@@ -468,6 +386,11 @@ import { useAuthStore } from "src/stores/AuthStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter.js";
+import {
+  getWorkHourErrorKind,
+  summarizeBulkApproval,
+} from "src/shared/workHourDiff.js";
+import TimeTrackingForm from "components/TimeTrackingForm.vue";
 
 // store init
 const $router = useRouter();
@@ -486,8 +409,9 @@ const approvedHours = ref(0);
 const pendingHours = ref(0);
 const rejectedHours = ref(0);
 const foundWorkHour = ref({});
-const originalDescription = ref("");
 const showWorkHourDialog = ref(false);
+const editWorkHour = ref(null);
+const showEditDialog = ref(false);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
 const loading = ref(false);
@@ -495,7 +419,6 @@ const showApprovalDialog = ref(false);
 const userWorkHours = ref([]);
 const currentPage = ref(1);
 const currentUser = computed(() => authStore.user);
-const currentUserId = currentUser.value.id;
 const pagination = ref({
   rowsPerPage: Number.isInteger(parseInt($route.query.rowPP))
     ? parseInt($route.query.rowPP)
@@ -532,8 +455,7 @@ const columns = [
   {
     name: "approvedBy",
     label: "Godkjent av",
-    field: (row) => row.approvedBy,
-    format: (val) => userNameById(val),
+    field: (row) => row.approvedByName ?? "",
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -642,7 +564,7 @@ async function getUserWorkHours(props) {
     $q.notify({
       type: "negative",
       closeBtn: "close",
-      message: ("errorOccurred", { error: e }),
+      message: "Klarte ikke å hente timeføringer",
     });
   } finally {
     setFilter({
@@ -653,73 +575,40 @@ async function getUserWorkHours(props) {
   }
 }
 
-function onCloseWorkHourDialog() {
-  foundWorkHour.value.description = originalDescription.value;
-  editingDescription.value = false;
-}
-
-function cancelEditDescription() {
-  foundWorkHour.value.description = originalDescription.value;
-  editingDescription.value = false;
-}
-
 function closeWorkHourDialog() {
   showWorkHourDialog.value = false;
 }
 
-const updating = ref(false);
-const editingDescription = ref(false);
-async function updateDescription(workHourId, description) {
-  try {
-    updating.value = true;
-    const payload = {
-      workHourId: workHourId,
-      description: description,
-    };
-    const result = await workHourStore.updateWorkHourDescription(payload);
-    originalDescription.value = description;
-    editingDescription.value = false;
-    $q.notify({
-      message: "Beskrivelse oppdatert.",
-      color: "positive",
-    });
-  } catch (error) {
-    console.error(error);
-    $q.notify({
-      message: "Klarte ikke å oppdatere beskrivelse",
-      color: "negative",
-    });
-  } finally {
-    updating.value = false;
-  }
+function onWorkHourSaved() {
+  showEditDialog.value = false;
+  tableRef.value?.requestServerInteraction();
 }
 
 async function approveUpdateRows(status) {
+  const counts = { ok: 0, alreadyProcessed: 0, failed: 0 };
   try {
     loading.value = true;
-    for (let i = 0; i < selectedWorkHours.value.length; i++) {
+    for (const workHour of selectedWorkHours.value) {
       try {
-        const model = {
-          approvedBy: currentUserId,
+        await workHourStore.updateApproval({
+          workHourId: workHour.workHourId,
           approvalStatus: status,
-          workHourId: selectedWorkHours.value[i].workHourId,
-        };
-        await workHourStore.updateApproval(model);
+        });
+        counts.ok++;
       } catch (e) {
         console.error(e);
-        $q.notify({
-          type: "negative",
-          closeBtn: "close",
-          message: ("errorOccurred", { error: e }),
-        });
+        if (getWorkHourErrorKind(e) === "conflict") {
+          counts.alreadyProcessed++;
+        } else {
+          counts.failed++;
+        }
       }
     }
-  } catch (e) {
-    console.error(e);
+    const summary = summarizeBulkApproval(counts, status);
     $q.notify({
-      type: "negative",
-      closeBtn: "close",
-      message: ("errorOccurred", { error: e }),
+      type: summary.type,
+      closeBtn: summary.type === "positive" ? undefined : "close",
+      message: summary.message,
     });
   } finally {
     loading.value = false;
@@ -732,22 +621,26 @@ async function approveUpdateRows(status) {
 async function changeStatus(workHourId, status) {
   try {
     loading.value = true;
-    const model = {
-      approvedBy: status === null ? null : currentUserId,
-      approvalStatus: status,
+    await workHourStore.updateApproval({
       workHourId: workHourId,
-    };
-    await workHourStore.updateApproval(model);
+      approvalStatus: status,
+    });
     $q.notify({
       message: "Status oppdatert",
       color: "positive",
     });
   } catch (e) {
     console.error(e);
+    const kind = getWorkHourErrorKind(e);
     $q.notify({
       type: "negative",
       closeBtn: "close",
-      message: ("errorOccurred", { error: e }),
+      message:
+        kind === "conflict"
+          ? "Føringen har allerede fått en annen status"
+          : kind === "forbidden"
+          ? "Du har ikke tilgang til å endre denne føringen"
+          : "Klarte ikke å oppdatere status",
     });
   } finally {
     loading.value = false;
@@ -763,7 +656,12 @@ async function openWorkHours(workHourRow) {
   if (!foundWorkHour.value) {
     return;
   }
-  originalDescription.value = foundWorkHour.value.description ?? "";
+  if (foundWorkHour.value.approvalStatus === null) {
+    // Åpen føring: kan redigeres og godkjennes/avslås i skjemaet.
+    editWorkHour.value = { ...foundWorkHour.value };
+    showEditDialog.value = true;
+    return;
+  }
   if (foundWorkHour.value.approvalStatus === 1) {
     dialogIcon.value.class = "green-text";
     dialogIcon.value.name = "check_circle";
@@ -833,6 +731,14 @@ function toTimeString(value) {
 }
 function toDateString(value) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
+}
+
+function approvedByText(row) {
+  if (!row.approvedBy || row.approvalStatus === null) return "";
+  const name = row.approvedByName ?? "ukjent";
+  return row.approvalStatus === 1
+    ? `Godkjent av: ${name}`
+    : `Avslått av: ${name}`;
 }
 
 function userNameById(id) {
