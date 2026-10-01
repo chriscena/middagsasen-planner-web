@@ -47,14 +47,13 @@
       />
     </div>
     <div>
-      <q-list role="list" separator ref="workHoursList">
+      <q-list role="list" separator>
         <q-infinite-scroll
           v-if="viewModel.seasonsLoaded"
           :offset="100"
           @load="getUserWorkhours"
           :distance="100"
           ref="infiniteScroll"
-          :scroll-target="workHoursList"
         >
           <q-item dense v-if="viewModel.pendingHoursSum > 0">
             <q-item-section avatar>
@@ -104,6 +103,11 @@
             >
           </q-item>
           <q-separator v-if="viewModel.rejectedHoursSum > 0" />
+          <q-item v-if="viewModel.noResults">
+            <q-item-section class="text-center text-grey-7"
+              >Ingen timer funnet</q-item-section
+            >
+          </q-item>
           <q-item
             separator
             v-for="hours in viewModel.userWorkHours"
@@ -201,6 +205,7 @@ const viewModel = reactive({
   // Sesongens startår; null til sesonger er lastet.
   season: null,
   seasonsLoaded: false,
+  noResults: false,
 });
 
 const infiniteScroll = useTemplateRef("infiniteScroll");
@@ -226,6 +231,7 @@ async function getUserWorkhours(index, done) {
     stop =
       viewModel.userWorkHours.length >= response.totalCount ||
       response.result.length === 0;
+    viewModel.noResults = stop && viewModel.userWorkHours.length === 0;
   } catch (e) {
     console.error(e);
     stop = true;
@@ -268,6 +274,7 @@ function editWorkHour(hours) {
 // Tømmer listen, starter infinite scroll på nytt og henter summer.
 async function reload() {
   viewModel.userWorkHours = [];
+  viewModel.noResults = false;
   infiniteScroll.value?.reset();
   infiniteScroll.value?.resume();
   await getWorkHoursSums();
