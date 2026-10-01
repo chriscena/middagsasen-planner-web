@@ -4,22 +4,6 @@ import { useAuthStore } from "src/stores/AuthStore";
 
 const authStore = useAuthStore();
 
-api.interceptors.response.use(
-  function (response) {
-    return response;
-  },
-  function (error) {
-    if (error.response?.status === 401) {
-      authStore.removeUserSession();
-      window.location("/login");
-      return Promise.reject("Unauthorized");
-    }
-    // Any status codes that falls outside the range of 2xx cause this function to trigger
-    // Do something with response error
-    return Promise.reject(error);
-  }
-);
-
 export const useUserStore = defineStore("users", {
   state: () => ({
     users: [],
@@ -34,8 +18,9 @@ export const useUserStore = defineStore("users", {
       try {
         const userResponse = await api.get("/api/me");
         authStore.setUser(userResponse.data);
-      } catch (error) {
-        if (error?.response?.status === 401) authStore.removeUserSession();
+      } catch {
+        // 401 håndteres av response-interceptoren i boot/axios.js. Øvrige feil
+        // svelges fordi getUser() ofte kalles uten await/catch.
       }
     },
     async getUsers() {

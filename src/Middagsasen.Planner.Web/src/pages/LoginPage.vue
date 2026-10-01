@@ -91,12 +91,14 @@ import { ref } from "vue";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
+import { isSafeRedirect } from "src/auth/unauthorizedHandler";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
 const router = useRouter();
+const route = useRoute();
 const $q = useQuasar();
 
 const username = ref(null);
@@ -113,7 +115,8 @@ async function login() {
 
     await authStore.setAccessToken(response.data.token);
     await userStore.getUser();
-    await router.push("/");
+    const redirect = route.query.redirect;
+    await router.replace(isSafeRedirect(redirect) ? redirect : "/");
   } catch (error) {
     console.log(error);
     $q.notify({
