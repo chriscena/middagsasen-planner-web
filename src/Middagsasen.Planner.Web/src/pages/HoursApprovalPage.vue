@@ -51,8 +51,7 @@
                 dense
                 outlined
                 label="Sesong"
-                :disable="loading || approvedFilter === 3"
-                :hint="approvedFilter === 3 ? 'Gjelder alle sesonger' : undefined"
+                :disable="loading"
                 :model-value="seasonFilter"
                 :options="seasonStore.seasons"
                 option-label="label"
@@ -92,18 +91,23 @@
               </q-select>
             </div>
           </div>
-          <div class="row q-gutter-sm q-pr-md">
-            <q-radio
-              dense
-              :disable="loading"
-              :model-value="approvedFilter"
-              label="Ubehandlet"
-              :val="3"
-              @update:model-value="(val) => setFilter({ approved: val })"
-              ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
-                >{{ formatNumber(pendingHours) }} t</q-badge
-              ></q-radio
-            >
+          <div class="row items-start q-gutter-sm q-pr-md">
+            <div class="column">
+              <q-radio
+                dense
+                :disable="loading"
+                :model-value="approvedFilter"
+                label="Ubehandlet"
+                :val="3"
+                @update:model-value="(val) => setFilter({ approved: val })"
+                ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
+                  >{{ formatNumber(pendingHours) }} t</q-badge
+                ></q-radio
+              >
+              <div class="text-caption text-grey-7 q-pl-lg">
+                Gjelder alle sesonger
+              </div>
+            </div>
             <q-radio
               dense
               :disable="loading"
