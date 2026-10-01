@@ -39,11 +39,7 @@ export default route(function (/* { store, ssrContext } */) {
   const openRoutes = ["/login", "/vaer", "/weather"];
   Router.beforeEach((to, from, next) => {
     if (!openRoutes.includes(to.path) && !authStore.user)
-      next(
-        to.fullPath === "/"
-          ? { path: "/login" }
-          : { path: "/login", query: { redirect: to.fullPath } }
-      );
+      next({ path: "/login", query: { redirect: to.fullPath } });
     else if (to.path === "/login" && authStore.user) next({ path: "/" });
     else next();
   });

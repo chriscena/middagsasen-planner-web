@@ -47,14 +47,14 @@ describe('handleUnauthorized', () => {
     });
   });
 
-  it('only handles the first of several parallel 401s', async () => {
+  it('only notifies and redirects for the first of several parallel 401s', async () => {
     const first = createError(401, '/api/events');
     const second = createError(401, '/api/me');
 
     await expect(handleUnauthorized(first, deps())).rejects.toBe(first);
     await expect(handleUnauthorized(second, deps())).rejects.toBe(second);
 
-    expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
+    expect(authStore.removeUserSession).toHaveBeenCalledTimes(2);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(router.replace).toHaveBeenCalledTimes(1);
   });
@@ -69,13 +69,13 @@ describe('handleUnauthorized', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('does nothing when session is already cleared', async () => {
+  it('clears stale session but does not notify or navigate when no user is loaded', async () => {
     authStore.user = null;
     const error = createError(401, '/api/events');
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
-    expect(authStore.removeUserSession).not.toHaveBeenCalled();
+    expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
     expect(notify).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
   });
@@ -86,6 +86,7 @@ describe('handleUnauthorized', () => {
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
+    expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
     expect(notify).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
   });

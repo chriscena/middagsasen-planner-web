@@ -115,6 +115,17 @@ async function login() {
 
     await authStore.setAccessToken(response.data.token);
     await userStore.getUser();
+
+    // getUser svelger feil (f.eks. 401/500/timeout mot /api/me). Uten bruker
+    // må vi rydde bort tokenet og bli værende på innloggingssiden.
+    if (!authStore.user) {
+      authStore.removeUserSession();
+      $q.notify({
+        message: "Klarte ikke å logge deg på 😣",
+      });
+      return;
+    }
+
     const redirect = route.query.redirect;
     await router.replace(isSafeRedirect(redirect) ? redirect : "/");
   } catch (error) {

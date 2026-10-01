@@ -18,11 +18,16 @@ export function handleUnauthorized(error, { authStore, router, notify }) {
   const url = error?.config?.url ?? "";
   const isAuthEndpoint = url.startsWith(AUTH_ENDPOINT_PREFIX);
 
-  if (isUnauthorized && !isAuthEndpoint && authStore.user) {
+  if (isUnauthorized && !isAuthEndpoint) {
+    // Rydd alltid sesjonen, også når ingen bruker er lastet, slik at et
+    // ugyldig token ikke blir liggende igjen.
+    const hadUser = !!authStore.user;
     authStore.removeUserSession();
 
+    // Kun første 401 (mens bruker fortsatt var satt) varsler og navigerer,
+    // slik at parallelle 401-svar ikke gir dobbel melding/navigering.
     const currentRoute = router.currentRoute.value;
-    if (currentRoute.path !== LOGIN_PATH) {
+    if (hadUser && currentRoute.path !== LOGIN_PATH) {
       notify({ message: "Du er logget ut. Logg inn på nytt." });
       router.replace({
         path: LOGIN_PATH,
