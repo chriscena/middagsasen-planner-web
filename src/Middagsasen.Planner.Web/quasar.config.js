@@ -1,5 +1,28 @@
 import { configure } from "quasar/wrappers";
 import { fileURLToPath } from "node:url";
+
+// Versjons-ID for bygget. Brukes både i bundelen (__APP_VERSION__) og i
+// version.json, slik at klienten kan oppdage at en ny versjon er deployet.
+const builtAt = new Date().toISOString();
+const sha = (process.env.GITHUB_SHA || "").slice(0, 7);
+const version = sha ? `${builtAt}-${sha}` : builtAt;
+const appVersion = { version, builtAt, sha };
+
+// Skriver version.json til roten av output-mappen ved produksjonsbygg.
+function versionJsonPlugin() {
+  return {
+    name: "app-version-json",
+    apply: "build",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify(appVersion),
+      });
+    },
+  };
+}
+
 export default configure((/* ctx */) => {
   return {
     eslint: {
@@ -17,7 +40,7 @@ export default configure((/* ctx */) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ["i18n", "axios", "notify-defaults", "vuedatepicker"],
+    boot: ["i18n", "axios", "notify-defaults", "vuedatepicker", "version-check"],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ["app.scss", '~@quasar/quasar-ui-qcalendar/src/index.scss'],
@@ -59,10 +82,16 @@ export default configure((/* ctx */) => {
       // polyfillModulePreload: true,
       // distDir
 
-      // extendViteConf (viteConf) {},
+      extendViteConf(viteConf) {
+        viteConf.define = {
+          ...viteConf.define,
+          __APP_VERSION__: JSON.stringify(appVersion),
+        };
+      },
       // viteVuePluginOptions: {},
 
       vitePlugins: [
+        [versionJsonPlugin, {}],
         [
           "@intlify/unplugin-vue-i18n/vite",
           {
