@@ -4,14 +4,13 @@
 
 export const VERSION_URL = "/version.json";
 export const DEFAULT_THROTTLE_MS = 5 * 60 * 1000;
-export const RELOAD_GUARD_MS = 10 * 1000;
 const RELOAD_KEY_PREFIX = "app-reload:";
 
 export const CHUNK_ERROR_PATTERN =
   /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i;
 
 export function isChunkLoadError(error) {
-  const message = typeof error === "string" ? error : error?.message;
+  const message = error?.message;
   return typeof message === "string" && CHUNK_ERROR_PATTERN.test(message);
 }
 
@@ -21,7 +20,8 @@ export function createVersionChecker({
   now = () => Date.now(),
   throttleMs = DEFAULT_THROTTLE_MS,
 }) {
-  let updateAvailable = false;
+  // Remote-versjonen som ble oppdaget, når den avviker fra currentVersion.
+  let latestVersion = null;
   let lastCheckAt = null;
   let inFlight = null;
 
@@ -39,16 +39,16 @@ export function createVersionChecker({
     }
   }
 
-  async function check({ force = false } = {}) {
+  async function check() {
     // Når ny versjon først er oppdaget, trenger vi ikke spørre igjen.
-    if (updateAvailable) return true;
+    if (latestVersion !== null) return true;
     if (!currentVersion) return false;
 
     // Samtidige kall deler samme forespørsel.
     if (inFlight) return inFlight;
 
     const timestamp = now();
-    if (!force && lastCheckAt !== null && timestamp - lastCheckAt < throttleMs) {
+    if (lastCheckAt !== null && timestamp - lastCheckAt < throttleMs) {
       return false;
     }
     lastCheckAt = timestamp;
@@ -56,9 +56,9 @@ export function createVersionChecker({
     inFlight = (async () => {
       const remoteVersion = await fetchRemoteVersion();
       if (remoteVersion && remoteVersion !== currentVersion) {
-        updateAvailable = true;
+        latestVersion = remoteVersion;
       }
-      return updateAvailable;
+      return latestVersion !== null;
     })();
 
     try {
@@ -71,7 +71,10 @@ export function createVersionChecker({
   return {
     check,
     get updateAvailable() {
-      return updateAvailable;
+      return latestVersion !== null;
+    },
+    get latestVersion() {
+      return latestVersion;
     },
   };
 }
@@ -92,25 +95,41 @@ function safeSet(storage, key, value) {
   }
 }
 
-// Løkkesperre: laster bare inn på nytt hvis det ikke ble gjort en reload av
-// samme årsak de siste `guardMs` millisekundene. Returnerer true hvis reload
-// ble startet.
-export function tryReload({
-  location,
-  path,
-  storage,
-  now = () => Date.now(),
-  reason = "default",
-  guardMs = RELOAD_GUARD_MS,
-}) {
-  const key = RELOAD_KEY_PREFIX + reason;
-  const timestamp = now();
-  const last = Number(safeGet(storage, key));
-  if (last && timestamp - last < guardMs) return false;
+// Løkkesperre: laster inn på nytt høyst én gang per nøkkel per økt
+// (sessionStorage). Nøkkelen inneholder versjonen, f.eks. "remote:<versjon>"
+// eller "chunk:<versjon>", slik at en CDN/nettleser som serverer gammel HTML
+// ikke gir en uendelig løkke. Returnerer true hvis reload ble startet.
+//
+// Er storage utilgjengelig, reloader vi likevel. Da finnes ingen sperre, men
+// det er sjeldent og akseptert risiko.
+export function reloadOnce({ location, storage, key, path }) {
+  const storageKey = RELOAD_KEY_PREFIX + key;
+  if (safeGet(storage, storageKey) !== null) return false;
 
-  safeSet(storage, key, String(timestamp));
+  safeSet(storage, storageKey, "1");
   if (path) location.assign(path);
   else location.reload();
+  return true;
+}
+
+// Beslutning for router.beforeEach. Venter aldri på nettverket: hvis en ny
+// versjon allerede er kjent, lastes målruten på nytt (returnerer false). Ellers
+// startes en sjekk i bakgrunnen, og reload skjer ved neste navigering.
+// `reload` er reloadOnce med location/storage bundet.
+export function decideNavigation({ to, from, isStartLocation, checker, reload }) {
+  if (isStartLocation) return true;
+
+  // Bare query/hash endres (paginering, kalender-bla o.l.): ikke reload.
+  const samePath = to.path === from.path;
+  if (
+    !samePath &&
+    checker.updateAvailable &&
+    reload({ key: `remote:${checker.latestVersion}`, path: to.fullPath })
+  ) {
+    return false;
+  }
+
+  checker.check().catch(() => {});
   return true;
 }
 

@@ -1,7 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import {
   createVersionChecker,
-  tryReload,
+  reloadOnce,
+  decideNavigation,
   formatVersion,
   isChunkLoadError,
 } from 'src/shared/appVersion';
@@ -27,6 +28,7 @@ describe('createVersionChecker', () => {
       cache: 'no-store',
     });
     expect(checker.updateAvailable).toBe(true);
+    expect(checker.latestVersion).toBe('v2');
   });
 
   it('returns false when the remote version is the same', async () => {
@@ -34,6 +36,8 @@ describe('createVersionChecker', () => {
     const checker = createVersionChecker({ currentVersion: 'v1', fetchFn, now });
 
     await expect(checker.check()).resolves.toBe(false);
+    expect(checker.updateAvailable).toBe(false);
+    expect(checker.latestVersion).toBeNull();
   });
 
   it('throttles checks within throttleMs', async () => {
@@ -52,15 +56,6 @@ describe('createVersionChecker', () => {
 
     time += 1;
     await checker.check();
-    expect(fetchFn).toHaveBeenCalledTimes(2);
-  });
-
-  it('force bypasses the throttle', async () => {
-    const fetchFn = vi.fn().mockResolvedValue(jsonResponse({ version: 'v1' }));
-    const checker = createVersionChecker({ currentVersion: 'v1', fetchFn, now });
-
-    await checker.check();
-    await checker.check({ force: true });
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
 
@@ -89,58 +84,53 @@ describe('createVersionChecker', () => {
     const checker = createVersionChecker({ currentVersion: 'v1', fetchFn, now });
 
     await expect(checker.check()).resolves.toBe(true);
-    await expect(checker.check({ force: true })).resolves.toBe(true);
+    time += 1;
+    await expect(checker.check()).resolves.toBe(true);
     time += 10 * 60 * 1000;
     await expect(checker.check()).resolves.toBe(true);
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('tryReload', () => {
-  function createStorage() {
-    const data = {};
-    return {
-      getItem: vi.fn((k) => (k in data ? data[k] : null)),
-      setItem: vi.fn((k, v) => {
-        data[k] = v;
-      }),
-    };
-  }
+function createStorage() {
+  const data = {};
+  return {
+    getItem: vi.fn((k) => (k in data ? data[k] : null)),
+    setItem: vi.fn((k, v) => {
+      data[k] = v;
+    }),
+  };
+}
 
+describe('reloadOnce', () => {
   let location;
   beforeEach(() => {
     location = { assign: vi.fn(), reload: vi.fn() };
   });
 
-  it('navigates to path the first time', () => {
-    const storage = createStorage();
-    const result = tryReload({ location, path: '/hours', storage, now: () => 1000 });
+  it('navigates to path with assign', () => {
+    const result = reloadOnce({ location, storage: createStorage(), key: 'remote:v2', path: '/hours' });
 
     expect(result).toBe(true);
     expect(location.assign).toHaveBeenCalledWith('/hours');
+    expect(location.reload).not.toHaveBeenCalled();
   });
 
   it('reloads current page when no path is given', () => {
-    tryReload({ location, storage: createStorage(), now: () => 1000 });
+    reloadOnce({ location, storage: createStorage(), key: 'remote:v2' });
     expect(location.reload).toHaveBeenCalledTimes(1);
+    expect(location.assign).not.toHaveBeenCalled();
   });
 
-  it('blocks a second reload for the same reason within the guard window', () => {
+  it('reloads only once per key, but again for a new key', () => {
     const storage = createStorage();
-    let time = 1000;
-    const now = () => time;
 
-    tryReload({ location, path: '/a', storage, now, reason: 'chunk' });
-    time += 9_999;
-    expect(tryReload({ location, path: '/a', storage, now, reason: 'chunk' })).toBe(false);
+    expect(reloadOnce({ location, storage, key: 'remote:v2', path: '/a' })).toBe(true);
+    expect(reloadOnce({ location, storage, key: 'remote:v2', path: '/a' })).toBe(false);
     expect(location.assign).toHaveBeenCalledTimes(1);
 
-    // Annen årsak sperres ikke.
-    expect(tryReload({ location, path: '/a', storage, now, reason: 'other' })).toBe(true);
-
-    time += 1;
-    expect(tryReload({ location, path: '/a', storage, now, reason: 'chunk' })).toBe(true);
-    expect(location.assign).toHaveBeenCalledTimes(3);
+    expect(reloadOnce({ location, storage, key: 'remote:v3', path: '/a' })).toBe(true);
+    expect(location.assign).toHaveBeenCalledTimes(2);
   });
 
   it('still reloads when storage throws', () => {
@@ -152,8 +142,79 @@ describe('tryReload', () => {
         throw new Error('denied');
       },
     };
-    expect(tryReload({ location, path: '/', storage, now: () => 1 })).toBe(true);
+    expect(reloadOnce({ location, storage, key: 'chunk:v1', path: '/' })).toBe(true);
     expect(location.assign).toHaveBeenCalledWith('/');
+  });
+
+  it('still reloads when storage is missing', () => {
+    expect(reloadOnce({ location, storage: null, key: 'chunk:v1' })).toBe(true);
+    expect(location.reload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('decideNavigation', () => {
+  function createChecker({ updateAvailable = false, latestVersion = null } = {}) {
+    return {
+      updateAvailable,
+      latestVersion,
+      // Løses aldri: viser at guarden ikke venter på nettverket.
+      check: vi.fn(() => new Promise(() => {})),
+    };
+  }
+
+  const from = { path: '/events', fullPath: '/events' };
+  const to = { path: '/hours', fullPath: '/hours?page=2' };
+
+  it('skips everything on the start location', () => {
+    const checker = createChecker({ updateAvailable: true, latestVersion: 'v2' });
+    const reload = vi.fn();
+
+    expect(decideNavigation({ to, from, isStartLocation: true, checker, reload })).toBe(true);
+    expect(reload).not.toHaveBeenCalled();
+    expect(checker.check).not.toHaveBeenCalled();
+  });
+
+  it('reloads to the target when an update is known', () => {
+    const checker = createChecker({ updateAvailable: true, latestVersion: 'v2' });
+    const reload = vi.fn(() => true);
+
+    expect(decideNavigation({ to, from, isStartLocation: false, checker, reload })).toBe(false);
+    expect(reload).toHaveBeenCalledWith({ key: 'remote:v2', path: '/hours?page=2' });
+  });
+
+  it('continues navigation when reload is blocked', () => {
+    const checker = createChecker({ updateAvailable: true, latestVersion: 'v2' });
+    const reload = vi.fn(() => false);
+
+    expect(decideNavigation({ to, from, isStartLocation: false, checker, reload })).toBe(true);
+  });
+
+  it('starts a background check without waiting when no update is known', () => {
+    const checker = createChecker();
+    const reload = vi.fn();
+
+    const result = decideNavigation({ to, from, isStartLocation: false, checker, reload });
+    expect(result).toBe(true);
+    expect(checker.check).toHaveBeenCalledTimes(1);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('does not reload when only query or hash changes', () => {
+    const checker = createChecker({ updateAvailable: true, latestVersion: 'v2' });
+    const reload = vi.fn(() => true);
+    const sameTo = { path: '/events', fullPath: '/events?week=3#top' };
+
+    expect(decideNavigation({ to: sameTo, from, isStartLocation: false, checker, reload })).toBe(true);
+    expect(reload).not.toHaveBeenCalled();
+    expect(checker.check).toHaveBeenCalledTimes(1);
+  });
+
+  it('swallows a rejected background check', async () => {
+    const checker = createChecker();
+    checker.check = vi.fn(() => Promise.reject(new Error('boom')));
+
+    expect(decideNavigation({ to, from, isStartLocation: false, checker, reload: vi.fn() })).toBe(true);
+    await Promise.resolve();
   });
 });
 
@@ -176,5 +237,6 @@ describe('isChunkLoadError', () => {
     expect(isChunkLoadError(new Error('error loading dynamically imported module'))).toBe(true);
     expect(isChunkLoadError(new Error('Something else'))).toBe(false);
     expect(isChunkLoadError(undefined)).toBe(false);
+    expect(isChunkLoadError('Failed to fetch dynamically imported module')).toBe(false);
   });
 });

@@ -3,7 +3,8 @@ import { Notify } from "quasar";
 import { START_LOCATION } from "vue-router";
 import {
   createVersionChecker,
-  tryReload,
+  reloadOnce,
+  decideNavigation,
   isChunkLoadError,
 } from "src/shared/appVersion";
 
@@ -17,35 +18,59 @@ function getSessionStorage() {
   }
 }
 
+// fetch med tidsavbrudd. Bruker AbortController + setTimeout i stedet for
+// AbortSignal.timeout, som mangler i eldre Safari.
+async function fetchWithTimeout(url, options) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // Oppdager ny deploy og laster appen på nytt, slik at brukere med fanen
 // åpen lenge ikke kjører gammel JS eller får feil ved lasting av chunks.
 export default boot(({ router }) => {
   if (process.env.DEV) return;
 
+  const currentVersion = __APP_VERSION__.version;
   const checker = createVersionChecker({
-    currentVersion: __APP_VERSION__.version,
-    // Tidsavbrudd slik at en treg forespørsel ikke holder igjen navigering.
-    fetchFn: (url, options) =>
-      fetch(url, { ...options, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) }),
+    currentVersion,
+    fetchFn: fetchWithTimeout,
   });
 
-  const reload = (path, reason) =>
-    tryReload({
+  // Automatisk reload går via reloadOnce: høyst ett forsøk per nøkkel per økt.
+  const reload = ({ key, path }) =>
+    reloadOnce({
       location: window.location,
-      path,
       storage: getSessionStorage(),
-      reason,
+      key,
+      path,
     });
 
-  // Ved navigering: ny versjon gir full sideinnlasting til målet. Registreres
-  // etter auth-guarden i router/index.js, og kjører derfor etter den.
-  router.beforeEach(async (to, from) => {
-    if (from === START_LOCATION) return true;
-    if (await checker.check()) {
-      window.location.assign(to.fullPath);
-      return false;
-    }
-    return true;
+  const chunkKey = `chunk:${currentVersion}`;
+
+  // Målet for pågående navigering, slik at chunk-feil kan laste riktig rute.
+  let pendingPath = null;
+
+  // Ved navigering: kjent ny versjon gir full sideinnlasting til målet.
+  // Venter aldri på nettverket. Registreres etter auth-guarden i
+  // router/index.js, og kjører derfor etter den.
+  router.beforeEach((to, from) => {
+    pendingPath = to.fullPath;
+    return decideNavigation({
+      to,
+      from,
+      isStartLocation: from === START_LOCATION,
+      checker,
+      reload,
+    });
+  });
+
+  router.afterEach(() => {
+    pendingPath = null;
   });
 
   // Når fanen blir synlig igjen: vis én vedvarende melding om ny versjon.
@@ -61,6 +86,8 @@ export default boot(({ router }) => {
         {
           label: "Oppdater",
           color: "white",
+          // Bevisst klikk fra brukeren kan ikke gi løkke, så vi laster alltid
+          // inn på nytt i stedet for å gå via reloadOnce.
           handler: () => window.location.reload(),
         },
         { icon: "close", color: "white", round: true, flat: true, size: "sm" },
@@ -68,13 +95,18 @@ export default boot(({ router }) => {
     });
   });
 
-  // Chunk-feil etter deploy (gamle filer finnes ikke lenger).
-  // Hvis løkkesperren stopper reload, slipper vi feilen videre som normalt.
+  // Chunk-feil etter deploy (gamle filer finnes ikke lenger). Samme nøkkel
+  // for begge hendelsene, så de ikke gir to reloads. Hvis sperren stopper
+  // reload, slipper vi feilen videre som normalt.
   window.addEventListener("vite:preloadError", (event) => {
-    if (reload(undefined, "chunk")) event.preventDefault();
+    if (reload({ key: chunkKey, path: pendingPath ?? undefined })) {
+      event.preventDefault();
+    }
   });
 
   router.onError((error, to) => {
-    if (isChunkLoadError(error)) reload(to?.fullPath, "chunk");
+    if (isChunkLoadError(error)) {
+      reload({ key: chunkKey, path: to?.fullPath ?? pendingPath ?? undefined });
+    }
   });
 });
