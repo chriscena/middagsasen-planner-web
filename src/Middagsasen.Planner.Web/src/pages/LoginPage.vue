@@ -91,12 +91,14 @@ import { ref } from "vue";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
+import { isSafeRedirect } from "src/auth/unauthorizedHandler";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
 const router = useRouter();
+const route = useRoute();
 const $q = useQuasar();
 
 const username = ref(null);
@@ -113,7 +115,19 @@ async function login() {
 
     await authStore.setAccessToken(response.data.token);
     await userStore.getUser();
-    await router.push("/");
+
+    // getUser svelger feil (f.eks. 401/500/timeout mot /api/me). Uten bruker
+    // må vi rydde bort tokenet og bli værende på innloggingssiden.
+    if (!authStore.user) {
+      authStore.removeUserSession();
+      $q.notify({
+        message: "Klarte ikke å logge deg på 😣",
+      });
+      return;
+    }
+
+    const redirect = route.query.redirect;
+    await router.replace(isSafeRedirect(redirect) ? redirect : "/");
   } catch (error) {
     console.log(error);
     $q.notify({
