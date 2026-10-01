@@ -8,6 +8,26 @@
         {{ modifiedByText }}
       </div>
     </q-card-section>
+    <q-card-actions v-if="canApprove" align="right">
+      <q-btn
+        no-caps
+        unelevated
+        color="negative"
+        label="Avslå"
+        @click="approveHours(2)"
+        :disable="(hasChanges && !validForm) || busy"
+        :loading="viewModel.approving === 2"
+      ></q-btn>
+      <q-btn
+        no-caps
+        unelevated
+        color="positive"
+        label="Godkjenn"
+        @click="approveHours(1)"
+        :disable="(hasChanges && !validForm) || busy"
+        :loading="viewModel.approving === 1"
+      ></q-btn>
+    </q-card-actions>
     <q-card-section class="q-gutter-sm">
       <DatePickerInput
         v-model="viewModel.startDate"
@@ -76,33 +96,12 @@
       <q-btn
         v-if="canSave"
         no-caps
-        :unelevated="!canApprove"
-        :flat="canApprove"
+        unelevated
         color="primary"
         label="Lagre"
         @click="saveHours"
         :disable="!validForm || busy"
         :loading="viewModel.saving"
-      ></q-btn>
-      <q-btn
-        v-if="canApprove"
-        no-caps
-        unelevated
-        color="negative"
-        label="Avslå"
-        @click="approveHours(2)"
-        :disable="(hasChanges && !validForm) || busy"
-        :loading="viewModel.approving === 2"
-      ></q-btn>
-      <q-btn
-        v-if="canApprove"
-        no-caps
-        unelevated
-        color="positive"
-        label="Godkjenn"
-        @click="approveHours(1)"
-        :disable="(hasChanges && !validForm) || busy"
-        :loading="viewModel.approving === 1"
       ></q-btn>
     </q-card-actions>
   </q-card>

@@ -12,15 +12,18 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string NotFoundMessage = "Timeføringen finnes ikke.";
         internal const string StartTimeRequiredMessage = "Starttid må oppgis.";
         internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
+        internal const string InvalidSeasonMessage = "Ugyldig sesong.";
 
-        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser)
+        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
         {
             Repository = repository;
             CurrentUser = currentUser;
+            TimeProvider = timeProvider;
         }
 
         public IWorkHourRepository Repository { get; }
         public ICurrentUserService CurrentUser { get; }
+        public TimeProvider TimeProvider { get; }
 
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
@@ -130,16 +133,16 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return response;
         }
 
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? approved, int? page = 1, int? pageSize = 20)
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? userId, int? approved, int? season, int? page = 1, int? pageSize = 20)
         {
             EnsureAdmin();
-            return await GetPaged(null, approved, page, pageSize);
+            return await GetPaged(userId, approved, season, page, pageSize);
         }
 
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20)
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? season, int? page = 1, int? pageSize = 20)
         {
             EnsureAdminOrSelf(userId);
-            return await GetPaged(userId, approved, page, pageSize);
+            return await GetPaged(userId, approved, season, page, pageSize);
         }
 
         public async Task<WorkHourResponse> GetWorkHourById(int workHourId)
@@ -153,14 +156,15 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return Map(workHour);
         }
 
-        public async Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null)
+        public async Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null, int? season = null)
         {
             if (userId.HasValue)
                 EnsureAdminOrSelf(userId.Value);
             else
                 EnsureAdmin();
 
-            var byStatus = SumByStatus(await Repository.GetIntervals(userId));
+            var (from, to) = ToSeasonRange(season);
+            var byStatus = SumByStatus(await Repository.GetIntervals(userId, from, to));
 
             return new WorkHourSumResponse
             {
@@ -174,13 +178,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         {
             EnsureAdmin();
 
-            var now = DateTime.UtcNow;
-            var m = DateTimeExtensions.SeasonStartMonth;
-            var seasonStart = now.Month < m
-                ? new DateTime(now.Year - 1, m, 1)
-                : new DateTime(now.Year, m, 1);
-
-            var intervals = await Repository.GetIntervals(null, seasonStart);
+            var (from, to) = DateTimeExtensions.GetSeasonRangeUtc(CurrentSeasonStartYear());
+            var intervals = await Repository.GetIntervals(null, from, to);
 
             return intervals
                 .GroupBy(h => h.UserId)
@@ -198,13 +197,31 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .ToList();
         }
 
-        private async Task<PagedResponse<WorkHourResponse>> GetPaged(int? userId, int? approved, int? page, int? pageSize)
+        /// <summary>Inneværende sesongs startår, vurdert i norsk tid.</summary>
+        private int CurrentSeasonStartYear() => TimeProvider.GetUtcNow().GetSeasonStartYear();
+
+        /// <summary>
+        /// Gjør om sesongens startår til et halvåpent intervall [From, To) av UTC-tidspunkter; null = ingen datofilter.
+        /// Gyldig sesong er fra <see cref="DateTimeExtensions.FirstSeasonStartYear"/> til og med inneværende sesong + 1.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Ugyldig sesong (gir 400).</exception>
+        private (DateTime? From, DateTime? To) ToSeasonRange(int? season)
+        {
+            if (!season.HasValue) return (null, null);
+            if (season.Value < DateTimeExtensions.FirstSeasonStartYear || season.Value > CurrentSeasonStartYear() + 1)
+                throw new InvalidOperationException(InvalidSeasonMessage);
+            var (from, to) = DateTimeExtensions.GetSeasonRangeUtc(season.Value);
+            return (from, to);
+        }
+
+        private async Task<PagedResponse<WorkHourResponse>> GetPaged(int? userId, int? approved, int? season, int? page, int? pageSize)
         {
             var take = pageSize ?? 20;
             var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
             var skip = (pageToUse - 1) * take;
 
-            var (items, totalCount) = await Repository.GetWorkHours(userId, approved, skip, take);
+            var (from, to) = ToSeasonRange(season);
+            var (items, totalCount) = await Repository.GetWorkHours(userId, approved, from, to, skip, take);
             return new PagedResponse<WorkHourResponse> { Result = items.Select(Map).ToList(), TotalCount = totalCount };
         }
 

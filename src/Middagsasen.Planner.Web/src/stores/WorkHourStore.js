@@ -28,9 +28,12 @@ export const useWorkHourStore = defineStore("workHours", {
       return response.data;
     },
 
-    async getWorkHoursSums(userId = null) {
-      const params = userId ? `?userId=${userId}` : "";
-      const response = await api.get(`/api/WorkHours/Sum${params}`);
+    // season = sesongens startår. Utelatt userId/season = ingen filtrering
+    // (axios utelater null/undefined params fra URL-en).
+    async getWorkHoursSums(userId = null, season = null) {
+      const response = await api.get(`/api/WorkHours/Sum`, {
+        params: { userId, season },
+      });
       return response.data;
     },
 

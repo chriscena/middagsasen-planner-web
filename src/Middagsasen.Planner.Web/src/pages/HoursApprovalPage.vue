@@ -24,7 +24,7 @@
     </q-header>
     <div>
       <q-table
-        v-if="isAdmin"
+        v-if="isAdmin && seasonsLoaded"
         :grid="$q.screen.lt.md"
         :bordered="$q.screen.lt.md"
         flat
@@ -45,6 +45,53 @@
         @row-click="(_, row) => openWorkHours(row)"
       >
         <template #top>
+          <div class="col-12 row q-col-gutter-sm q-pb-sm">
+            <div :class="$q.screen.lt.md ? 'col-12' : 'col-3'">
+              <q-select
+                dense
+                outlined
+                label="Sesong"
+                :disable="loading || approvedFilter === 3"
+                :hint="approvedFilter === 3 ? 'Gjelder alle sesonger' : undefined"
+                :model-value="seasonFilter"
+                :options="seasonStore.seasons"
+                option-label="label"
+                option-value="startYear"
+                emit-value
+                map-options
+                @update:model-value="(val) => setFilter({ season: val })"
+              />
+            </div>
+            <div :class="$q.screen.lt.md ? 'col-12' : 'col-3'">
+              <q-select
+                dense
+                outlined
+                clearable
+                use-input
+                input-debounce="0"
+                label="Bruker"
+                :disable="loading"
+                :model-value="userFilter"
+                :options="userOptions"
+                option-label="fullName"
+                option-value="id"
+                emit-value
+                map-options
+                @filter="filterUsers"
+                @update:model-value="
+                  (val) => setFilter({ userId: val ?? null })
+                "
+              >
+                <template #no-option>
+                  <q-item>
+                    <q-item-section class="text-grey">
+                      Ingen treff
+                    </q-item-section>
+                  </q-item>
+                </template>
+              </q-select>
+            </div>
+          </div>
           <div class="row q-gutter-sm q-pr-md">
             <q-radio
               dense
@@ -380,10 +427,11 @@
 </template>
 <script setup>
 import { useQuasar } from "quasar";
-import { onMounted, ref, computed, useTemplateRef } from "vue";
+import { onMounted, ref, computed, useTemplateRef, nextTick } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useUserStore } from "src/stores/UserStore";
 import { useAuthStore } from "src/stores/AuthStore";
+import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter.js";
@@ -400,6 +448,7 @@ const $route = useRoute();
 const workHourStore = useWorkHourStore();
 const userStore = useUserStore();
 const authStore = useAuthStore();
+const seasonStore = useSeasonStore();
 const $q = useQuasar();
 
 // props and emits
@@ -417,6 +466,8 @@ const showEditDialog = ref(false);
 const selectedWorkHours = ref([]);
 const tableRef = useTemplateRef("tableRef");
 const loading = ref(false);
+const seasonsLoaded = ref(false);
+const userOptions = ref([]);
 const showApprovalDialog = ref(false);
 const userWorkHours = ref([]);
 const currentPage = ref(1);
@@ -513,20 +564,29 @@ const visibleColumns = computed(() => {
 
 const isAdmin = computed(() => currentUser.value?.isAdmin ?? false);
 
-const page = computed(() => {
-  return $route.query.page;
-});
-const rowPP = computed(() => {
-  return $route.query.rowPP;
-});
-
 const approvedFilter = computed(() => {
   return $route.query.a !== undefined ? parseInt($route.query.a) : 3;
+});
+
+// Sesongens startår fra URL (`s`), ellers inneværende sesong.
+const seasonFilter = computed(() => {
+  const fromQuery = parseInt($route.query.s);
+  return Number.isInteger(fromQuery)
+    ? fromQuery
+    : seasonStore.currentSeason?.startYear ?? null;
+});
+
+// Valgt bruker fra URL (`u`), null = alle brukere.
+const userFilter = computed(() => {
+  const fromQuery = parseInt($route.query.u);
+  return Number.isInteger(fromQuery) ? fromQuery : null;
 });
 
 const filter = computed(() => {
   return {
     approved: approvedFilter.value,
+    season: seasonFilter.value,
+    userId: userFilter.value,
   };
 });
 
@@ -542,15 +602,21 @@ async function getUserWorkHours(props) {
   loading.value = true;
   resetTable();
   try {
+    // Ubehandlede timer vises på tvers av sesonger, så de ikke skjules av
+    // sesongfilteret. Axios utelater null/undefined params.
+    const ignoreSeason = filter.approved === 3;
     const params = {
       approved: filter.approved,
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
+      season: ignoreSeason ? null : filter.season,
+      userId: filter.userId,
     };
 
-    const [response, sumResponse] = await Promise.all([
+    const [response, seasonSums, allSeasonSums] = await Promise.all([
       workHourStore.getWorkHours(params),
-      workHourStore.getWorkHoursSums(),
+      workHourStore.getWorkHoursSums(filter.userId, filter.season),
+      workHourStore.getWorkHoursSums(filter.userId, null),
     ]);
 
     userWorkHours.value = response.result;
@@ -558,9 +624,10 @@ async function getUserWorkHours(props) {
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
 
-    approvedHours.value = sumResponse.approvedHours;
-    pendingHours.value = sumResponse.pendingHours;
-    rejectedHours.value = sumResponse.rejectedHours;
+    // Godkjent/Avslått gjelder valgt sesong; Ubehandlet alle sesonger.
+    approvedHours.value = seasonSums.approvedHours;
+    rejectedHours.value = seasonSums.rejectedHours;
+    pendingHours.value = allSeasonSums.pendingHours;
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -569,10 +636,8 @@ async function getUserWorkHours(props) {
       message: "Klarte ikke å hente timeføringer",
     });
   } finally {
-    setFilter({
-      page: pagination.value.page,
-      rowsPP: pagination.value.rowsPerPage,
-    });
+    // Synker side/rader til URL-en (setFilter leser dem fra pagination).
+    setFilter();
     loading.value = false;
   }
 }
@@ -692,39 +757,46 @@ function toggleSelectAll(val) {
   }
 }
 
-async function setFilter(filter) {
-  if ((filter.approved || approvedFilter.value) !== 3) {
+// Oppdaterer URL-query (a, page, rowPP, s, u). Felter som ikke er med i
+// `changes` (approved, season, userId) beholder nåværende verdi; page og rowPP
+// leses fra `pagination`.
+async function setFilter(changes = {}) {
+  const approved = changes.approved ?? approvedFilter.value;
+  const season = "season" in changes ? changes.season : seasonFilter.value;
+  const userId = "userId" in changes ? changes.userId : userFilter.value;
+
+  if (approved !== 3) {
     selectedWorkHours.value = [];
   }
-  if (!filter) {
-    await $router.push({
-      query: {},
-    });
-  } else {
-    await $router.push({
-      query: {
-        a:
-          filter.approved !== undefined || approvedFilter.value !== undefined
-            ? filter.approved ?? approvedFilter.value
-              ? filter.approved ?? approvedFilter.value
-              : undefined
-            : undefined,
-        page:
-          pagination.value.page !== undefined || page.value !== undefined
-            ? pagination.value.page ?? page.value
-              ? pagination.value.page
-              : 1
-            : undefined,
-        rowPP:
-          pagination.value.rowsPerPage !== undefined ||
-          rowPP.value !== undefined
-            ? pagination.value.rowsPerPage ?? rowPP.value
-              ? pagination.value.rowsPerPage
-              : undefined
-            : undefined,
-      },
-    });
+  if (
+    approved !== approvedFilter.value ||
+    season !== seasonFilter.value ||
+    userId !== userFilter.value
+  ) {
+    pagination.value.page = 1;
+    selectedWorkHours.value = [];
   }
+
+  await $router.push({
+    query: {
+      a: approved || undefined,
+      page: pagination.value.page || 1,
+      rowPP: pagination.value.rowsPerPage || undefined,
+      s: season ?? undefined,
+      u: userId ?? undefined,
+    },
+  });
+}
+
+function filterUsers(val, update) {
+  update(() => {
+    const needle = (val ?? "").toLowerCase();
+    userOptions.value = needle
+      ? userStore.users.filter((u) =>
+          (u.fullName ?? "").toLowerCase().includes(needle)
+        )
+      : userStore.users;
+  });
 }
 
 function toDateTimeString(value, options) {
@@ -756,8 +828,24 @@ function userNameById(id) {
 }
 
 onMounted(async () => {
-  await userStore.getUsers();
-  await userStore.getUser();
+  try {
+    await Promise.all([
+      userStore.getUsers(),
+      userStore.getUser(),
+      seasonStore.getSeasons(),
+    ]);
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "Klarte ikke å hente sesonger eller brukere",
+    });
+  }
+  userOptions.value = userStore.users;
+  // Tabellen rendres først når sesong er kjent, så første forespørsel har riktig filter.
+  seasonsLoaded.value = true;
+  await nextTick();
   tableRef.value?.requestServerInteraction();
 });
 </script>

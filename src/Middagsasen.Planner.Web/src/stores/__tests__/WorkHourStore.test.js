@@ -74,4 +74,59 @@ describe('WorkHourStore', () => {
       );
     });
   });
+
+  describe('getWorkHoursSums', () => {
+    it('sends userId and season as params', async () => {
+      const sums = { approvedHours: 1, pendingHours: 2, rejectedHours: 3 };
+      mockApi.get.mockResolvedValue({ data: sums });
+
+      const result = await store.getWorkHoursSums(4, 2025);
+
+      expect(mockApi.get).toHaveBeenCalledWith('/api/WorkHours/Sum', {
+        params: { userId: 4, season: 2025 },
+      });
+      expect(result).toEqual(sums);
+    });
+
+    it('passes null values through (axios drops them from the URL)', async () => {
+      mockApi.get.mockResolvedValue({ data: {} });
+
+      await store.getWorkHoursSums(null, 2025);
+      expect(mockApi.get).toHaveBeenLastCalledWith('/api/WorkHours/Sum', {
+        params: { userId: null, season: 2025 },
+      });
+
+      await store.getWorkHoursSums();
+      expect(mockApi.get).toHaveBeenLastCalledWith('/api/WorkHours/Sum', {
+        params: { userId: null, season: null },
+      });
+    });
+  });
+
+  describe('getWorkHours', () => {
+    it('forwards season and userId params', async () => {
+      const data = { result: [], totalCount: 0 };
+      mockApi.get.mockResolvedValue({ data });
+      const params = { approved: 3, page: 1, pageSize: 15, season: 2025, userId: 7 };
+
+      const result = await store.getWorkHours(params);
+
+      expect(mockApi.get).toHaveBeenCalledWith('/api/WorkHours/', { params });
+      expect(result).toEqual(data);
+    });
+  });
+
+  describe('getWorkHoursByUser', () => {
+    it('forwards season param', async () => {
+      const data = { result: [], totalCount: 0 };
+      mockApi.get.mockResolvedValue({ data });
+      const params = { page: 1, pageSize: 20, season: 2024 };
+
+      await store.getWorkHoursByUser(9, params);
+
+      expect(mockApi.get).toHaveBeenCalledWith('/api/WorkHours/User/9', {
+        params,
+      });
+    });
+  });
 });

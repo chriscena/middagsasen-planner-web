@@ -29,12 +29,16 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
         }
 
-        public async Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, int skip, int take)
+        public async Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take)
         {
             var query = DbContext.WorkHours.AsNoTracking();
 
             if (userId.HasValue)
                 query = query.Where(w => w.UserId == userId.Value);
+            if (from.HasValue)
+                query = query.Where(w => w.StartTime >= from.Value);
+            if (to.HasValue)
+                query = query.Where(w => w.StartTime < to.Value);
 
             query = approved switch
             {
@@ -55,7 +59,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return (items, totalCount);
         }
 
-        public async Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? startFrom = null)
+        public async Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null)
         {
             var query = DbContext.WorkHours
                 .AsNoTracking()
@@ -63,8 +67,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             if (userId.HasValue)
                 query = query.Where(w => w.UserId == userId.Value);
-            if (startFrom.HasValue)
-                query = query.Where(w => w.StartTime >= startFrom.Value);
+            if (from.HasValue)
+                query = query.Where(w => w.StartTime >= from.Value);
+            if (to.HasValue)
+                query = query.Where(w => w.StartTime < to.Value);
 
             return await query
                 .Select(w => new WorkHourInterval(w.UserId, w.ApprovalStatus, w.StartTime!.Value, w.EndTime!.Value))
