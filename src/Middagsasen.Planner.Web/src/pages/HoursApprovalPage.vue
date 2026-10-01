@@ -129,8 +129,10 @@
         <template #item="props" v-if="$q.screen.lt.md">
           <q-card
             :props="props"
-            class="q-pa-sm q-my-sm col-12 grid-style-transition"
+            class="q-pa-sm q-my-sm col-12 grid-style-transition cursor-pointer"
             :style="props.selected ? 'transform: scale(0.95);' : ''"
+            v-ripple
+            @click="openWorkHours(props.row)"
           >
             <q-card-section>
               <div class="row">
@@ -146,11 +148,10 @@
                   class="red-text q-pr-lg"
                   v-if="props.row.approvalStatus === 2"
                 />
-                <q-checkbox
-                  v-if="props.row.approvalStatus === null"
-                  v-model="props.selected"
-                  class="q-pr-md"
-                />
+                <!-- Valg for masse-godkjenning skal ikke åpne dialogen -->
+                <div v-if="props.row.approvalStatus === null" @click.stop>
+                  <q-checkbox v-model="props.selected" class="q-pr-md" />
+                </div>
                 <div class="text-h6 q-pr-lg">
                   <q-item-label caption>
                     <span>
