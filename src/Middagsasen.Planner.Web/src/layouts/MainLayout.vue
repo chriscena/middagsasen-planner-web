@@ -90,6 +90,8 @@
           </q-item-section>
         </q-item>
       </q-list>
+      <q-separator></q-separator>
+      <div class="q-px-md q-py-sm text-caption text-grey">{{ appVersion }}</div>
     </q-drawer>
 
     <q-drawer elevated v-model="rightDrawerOpen" side="right" overlay>
@@ -302,6 +304,10 @@ import { useVuelidate } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar, date as dateUtil } from "quasar";
+import { formatVersion } from "src/shared/appVersion";
+
+// Byggversjon vises nederst i menyen.
+const appVersion = formatVersion(__APP_VERSION__);
 
 const authStore = useAuthStore();
 const userStore = useUserStore();

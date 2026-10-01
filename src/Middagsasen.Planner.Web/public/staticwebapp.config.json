@@ -1,12 +1,11 @@
 {
+  "routes": [
+    { "route": "/index.html", "headers": { "Cache-Control": "no-cache" } },
+    { "route": "/version.json", "headers": { "Cache-Control": "no-store" } },
+    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": [
-      "/api/*",
-      "/assets/*",
-      "/icons/*",
-      "/images/*.{png,jpg,gif}",
-      "/css/*"
-    ]
+    "exclude": ["/api/*", "/assets/*", "/icons/*", "/images/*.{png,jpg,gif}", "/css/*", "/version.json"]
   }
 }
