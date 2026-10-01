@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Data
+namespace Middagsasen.Planner.Api.Data
 {
     public class WorkHour
     {
@@ -10,5 +10,10 @@
         public int? ApprovedBy { get; set; }
         public int? ApprovalStatus { get; set; }
         public DateTime? ApprovedTime { get; set; }
+        public int? ModifiedBy { get; set; }
+        public DateTime? ModifiedTime { get; set; }
+
+        public virtual User? ApprovedByUser { get; set; }
+        public virtual User? ModifiedByUser { get; set; }
     }
 }

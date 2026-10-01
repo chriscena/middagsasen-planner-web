@@ -1,174 +1,292 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Services.SmsSender;
-using Middagsasen.Planner.Api.Services.Storage;
 
 namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public class WorkHoursService : IWorkHoursService
     {
-        public WorkHoursService(PlannerDbContext dbContext, ISmsSender smsSender, IStorageService storage)
+        internal const string ForbiddenMessage = "Du har ikke tilgang til å utføre denne handlingen.";
+        internal const string LockedMessage = "Timeføringen er allerede behandlet og kan ikke endres.";
+        internal const string NoStatusToResetMessage = "Timeføringen har ingen status som kan fjernes.";
+        internal const string NotFoundMessage = "Timeføringen finnes ikke.";
+        internal const string StartTimeRequiredMessage = "Starttid må oppgis.";
+        internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
+
+        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser)
         {
-            DbContext = dbContext;
-            SmsSender = smsSender;
-            Storage = storage;
+            Repository = repository;
+            CurrentUser = currentUser;
         }
 
-        public PlannerDbContext DbContext { get; }
-        public ISmsSender SmsSender { get; }
-        public IStorageService Storage { get; }
+        public IWorkHourRepository Repository { get; }
+        public ICurrentUserService CurrentUser { get; }
 
-        public async Task<WorkHourResponse?> CreateWorkHour(WorkHourRequest request)
+        public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
-            var newWorkHour = new WorkHour
+            if (!request.StartTime.HasValue)
+                throw new InvalidOperationException(StartTimeRequiredMessage);
+            ValidateTimes(request.StartTime, request.EndTime);
+
+            var workHour = new WorkHour
             {
-                UserId = request.UserId,
+                UserId = CurrentUser.UserId,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
-                Description = request.Description
+                Description = request.Description,
             };
-            DbContext.WorkHours.Add(newWorkHour);
-            await DbContext.SaveChangesAsync();
+            Repository.Add(workHour);
+            await Repository.SaveChangesAsync();
 
-            return await GetWorkHourById(newWorkHour.WorkHourId);
+            return await GetMapped(workHour.WorkHourId);
+        }
+
+        public async Task<WorkHourResponse> UpdateWorkHour(int workHourId, UpdateWorkHourRequest request)
+        {
+            var workHour = await GetTracked(workHourId);
+            var userId = CurrentUser.UserId;
+            var isAdmin = CurrentUser.IsAdmin;
+
+            // «Innhold» betyr felter som faktisk endres i forhold til lagret verdi — en PATCH med
+            // uendrede verdier oppfører seg som en tom PATCH (også på låste føringer).
+            var startChanged = request.StartTime.HasValue && request.StartTime != workHour.StartTime;
+            var endChanged = request.EndTime.HasValue && request.EndTime != workHour.EndTime;
+            var descriptionChanged = request.Description != null && request.Description != workHour.Description;
+            var hasContent = startChanged || endChanged || descriptionChanged;
+            var hasStatus = request.ApprovalStatus.HasValue;
+
+            if (!hasContent && !hasStatus)
+            {
+                if (!WorkHourPolicy.CanRead(workHour, isAdmin, userId))
+                    throw new ForbiddenAccessException(ForbiddenMessage);
+                return Map(workHour);
+            }
+
+            // Rekkefølge: 404 (over) → 403 → 409 → 400. Tilgangssjekker gjøres mot tilstanden FØR endring.
+            Ensure(LockedMessage,
+                hasContent ? WorkHourPolicy.CanEdit(workHour, isAdmin, userId) : WorkHourAccess.Allowed,
+                hasStatus ? WorkHourPolicy.CanSetStatus(workHour, isAdmin, userId, request.ApprovalStatus) : WorkHourAccess.Allowed);
+
+            ValidateStatus(request.ApprovalStatus);
+            // Valider mot resulterende verdier (request-verdi hvis sendt, ellers lagret verdi).
+            if (startChanged || endChanged)
+                ValidateTimes(request.StartTime ?? workHour.StartTime, request.EndTime ?? workHour.EndTime);
+
+            if (startChanged)
+                workHour.StartTime = request.StartTime;
+            if (endChanged)
+                workHour.EndTime = request.EndTime;
+            if (descriptionChanged)
+                workHour.Description = request.Description;
+
+            // ModifiedBy settes kun ved faktisk innholdsendring utført av en annen enn eier,
+            // og nullstilles aldri når eier redigerer senere.
+            if (hasContent && !WorkHourPolicy.IsOwner(workHour, userId))
+            {
+                workHour.ModifiedBy = userId;
+                workHour.ModifiedTime = DateTime.UtcNow;
+            }
+
+            if (hasStatus)
+                ApplyStatus(workHour, request.ApprovalStatus, userId);
+
+            // Innhold og status lagres i én operasjon. Gir 409 hvis status er endret av en annen
+            // siden føringen ble hentet (ApprovalStatus er concurrency token).
+            await Repository.SaveChangesAsync();
+
+            return await GetMapped(workHourId);
+        }
+
+        public async Task<ApprovedByResponse> UpdateApprovedBy(int workHourId, ApprovedByRequest request)
+        {
+            var workHour = await GetTracked(workHourId);
+            var userId = CurrentUser.UserId;
+
+            Ensure(
+                request.ApprovalStatus.HasValue ? LockedMessage : NoStatusToResetMessage,
+                WorkHourPolicy.CanSetStatus(workHour, CurrentUser.IsAdmin, userId, request.ApprovalStatus));
+            ValidateStatus(request.ApprovalStatus);
+
+            ApplyStatus(workHour, request.ApprovalStatus, userId);
+            await Repository.SaveChangesAsync();
+
+            return new ApprovedByResponse
+            {
+                WorkHourId = workHour.WorkHourId,
+                ApprovedBy = workHour.ApprovedBy,
+                ApprovalStatus = workHour.ApprovalStatus,
+                ApprovedTime = workHour.ApprovedTime.AsUtc(),
+            };
+        }
+
+        public async Task<WorkHourResponse> DeleteWorkHour(int workHourId)
+        {
+            var workHour = await GetTracked(workHourId);
+            Ensure(LockedMessage, WorkHourPolicy.CanEdit(workHour, CurrentUser.IsAdmin, CurrentUser.UserId));
+
+            var response = Map(workHour);
+            Repository.Remove(workHour);
+            await Repository.SaveChangesAsync();
+            return response;
         }
 
         public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? approved, int? page = 1, int? pageSize = 20)
         {
-            var take = pageSize ?? 20;
-            var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
-            var skip = (pageToUse - 1) * take;
+            EnsureAdmin();
+            return await GetPaged(null, approved, page, pageSize);
+        }
 
-            var query = DbContext.WorkHours
-               .AsNoTracking();
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20)
+        {
+            EnsureAdminOrSelf(userId);
+            return await GetPaged(userId, approved, page, pageSize);
+        }
 
-            if (approved == 1)
-                query = query.Where(w => w.ApprovalStatus == 1);
-            if (approved == 2)
-                query = query.Where(w => w.ApprovalStatus == 2);
-            if (approved == 3)
-                query = query.Where(w => !w.ApprovalStatus.HasValue);
+        public async Task<WorkHourResponse> GetWorkHourById(int workHourId)
+        {
+            var workHour = await Repository.GetWorkHourByIdReadOnly(workHourId)
+                ?? throw new EntityNotFoundException(NotFoundMessage);
 
-            var totalCount = query.Count();
-            var existingWorkHours = await query
-                .OrderByDescending(w => w.StartTime)
-                .Skip(skip)
-                .Take(take)
-                .ToListAsync();
+            if (!WorkHourPolicy.CanRead(workHour, CurrentUser.IsAdmin, CurrentUser.UserId))
+                throw new ForbiddenAccessException(ForbiddenMessage);
 
-            var result = existingWorkHours.Select(Map).ToList();
-
-            return new PagedResponse<WorkHourResponse> { Result = result, TotalCount = totalCount };
+            return Map(workHour);
         }
 
         public async Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null)
         {
-            var query = DbContext.WorkHours
-               .AsNoTracking();
-
             if (userId.HasValue)
-                query = query.Where(w => w.UserId == userId.Value);
+                EnsureAdminOrSelf(userId.Value);
+            else
+                EnsureAdmin();
 
-            var existingWorkHours = (await query
-                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue)
-                .Select(h => new { Status = h.ApprovalStatus ?? 0, Hours = (h.EndTime!.Value - h.StartTime!.Value).TotalHours })
-                .ToListAsync())
-                .GroupBy(h => h.Status)
-                .Select(h => new { Status = h.Key, TotalHours = h.Sum(t => t.Hours)})
-                .ToDictionary(h => h.Status, h => h.TotalHours);
+            var byStatus = SumByStatus(await Repository.GetIntervals(userId));
 
             return new WorkHourSumResponse
             {
-                PendingHours = existingWorkHours.TryGetValue(0, out double pendingHours) ? Math.Round(pendingHours, 1) : 0,
-                ApprovedHours = existingWorkHours.TryGetValue(1, out double approvedHours) ? Math.Round(approvedHours, 1) : 0,
-                RejectedHours = existingWorkHours.TryGetValue(2, out double rejectedHours) ? Math.Round(rejectedHours, 1) : 0,
+                PendingHours = byStatus.Pending,
+                ApprovedHours = byStatus.Approved,
+                RejectedHours = byStatus.Rejected,
             };
         }
 
         public async Task<IEnumerable<UserWorkHourSumResponse>> GetWorkHoursSumPerUser()
         {
+            EnsureAdmin();
+
             var now = DateTime.UtcNow;
             var m = DateTimeExtensions.SeasonStartMonth;
             var seasonStart = now.Month < m
                 ? new DateTime(now.Year - 1, m, 1)
                 : new DateTime(now.Year, m, 1);
 
-            var workHours = await DbContext.WorkHours
-                .AsNoTracking()
-                .Where(w => w.EndTime.HasValue && w.StartTime.HasValue && w.StartTime >= seasonStart)
-                .Select(h => new { h.UserId, Status = h.ApprovalStatus ?? 0, Hours = (h.EndTime!.Value - h.StartTime!.Value).TotalHours })
-                .ToListAsync();
+            var intervals = await Repository.GetIntervals(null, seasonStart);
 
-            return workHours
+            return intervals
                 .GroupBy(h => h.UserId)
                 .Select(g =>
                 {
-                    var byStatus = g.GroupBy(h => h.Status).ToDictionary(s => s.Key, s => s.Sum(t => t.Hours));
+                    var byStatus = SumByStatus(g);
                     return new UserWorkHourSumResponse
                     {
                         UserId = g.Key,
-                        PendingHours = byStatus.TryGetValue(0, out double pending) ? Math.Round(pending, 1) : 0,
-                        ApprovedHours = byStatus.TryGetValue(1, out double approved) ? Math.Round(approved, 1) : 0,
-                        RejectedHours = byStatus.TryGetValue(2, out double rejected) ? Math.Round(rejected, 1) : 0,
+                        PendingHours = byStatus.Pending,
+                        ApprovedHours = byStatus.Approved,
+                        RejectedHours = byStatus.Rejected,
                     };
                 })
                 .ToList();
         }
 
-        public async Task<WorkHourResponse?> GetWorkHourById(int id)
-        {
-            var existingWorkHour = await DbContext.WorkHours
-                .AsNoTracking()
-                .SingleOrDefaultAsync(w => w.WorkHourId == id);
-
-            return (existingWorkHour == null) ? null : Map(existingWorkHour);
-        }
-
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20)
+        private async Task<PagedResponse<WorkHourResponse>> GetPaged(int? userId, int? approved, int? page, int? pageSize)
         {
             var take = pageSize ?? 20;
             var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
             var skip = (pageToUse - 1) * take;
 
-            var query = DbContext.WorkHours
-                .AsNoTracking()
-                .Where(w => w.UserId == userId);
-
-            if (approved == 1)
-                query = query.Where(w => w.ApprovalStatus == 1);
-            if (approved == 2)
-                query = query.Where(w => w.ApprovalStatus == 2);
-            if (approved == 3)
-                query = query.Where(w => !w.ApprovalStatus.HasValue);
-
-            var totalCount = query.Count();
-
-            List<WorkHour> existingWorkHours;
-
-            existingWorkHours = await query
-                .OrderByDescending(w => w.StartTime)
-                .Skip(skip)
-                .Take(take)
-                .ToListAsync();
-
-            var result = existingWorkHours.Select(Map).ToList();
-
-            return new PagedResponse<WorkHourResponse> { Result = result, TotalCount = totalCount };
+            var (items, totalCount) = await Repository.GetWorkHours(userId, approved, skip, take);
+            return new PagedResponse<WorkHourResponse> { Result = items.Select(Map).ToList(), TotalCount = totalCount };
         }
 
-        public async Task<WorkHourResponse?> GetActiveWorkHour(int userId)
+        private async Task<WorkHour> GetTracked(int workHourId)
         {
-            var query = DbContext.WorkHours
-               .AsNoTracking()
-               .Where(w => w.EndTime == null && w.UserId == userId);
-
-            var existingWorkHour = await query.FirstOrDefaultAsync();
-
-            return (existingWorkHour == null) ? null : Map(existingWorkHour);
+            return await Repository.GetWorkHourById(workHourId)
+                ?? throw new EntityNotFoundException(NotFoundMessage);
         }
 
-        private WorkHourResponse Map(WorkHour workHour)
+        private async Task<WorkHourResponse> GetMapped(int workHourId)
+        {
+            var workHour = await Repository.GetWorkHourByIdReadOnly(workHourId)
+                ?? throw new EntityNotFoundException(NotFoundMessage);
+            return Map(workHour);
+        }
+
+        private static void ValidateStatus(int? status)
+        {
+            if (status.HasValue && status is not (WorkHourPolicy.Approved or WorkHourPolicy.Rejected))
+                throw new InvalidOperationException("Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).");
+        }
+
+        private static void ValidateTimes(DateTime? startTime, DateTime? endTime)
+        {
+            if (endTime.HasValue && startTime.HasValue && endTime.Value <= startTime.Value)
+                throw new InvalidOperationException(EndBeforeStartMessage);
+        }
+
+        private static void ApplyStatus(WorkHour workHour, int? status, int userId)
+        {
+            workHour.ApprovalStatus = status;
+            if (status.HasValue)
+            {
+                workHour.ApprovedBy = userId;
+                workHour.ApprovedTime = DateTime.UtcNow;
+            }
+            else
+            {
+                workHour.ApprovedBy = null;
+                workHour.ApprovedTime = null;
+            }
+        }
+
+        /// <summary>Forbidden (403) vinner over Locked (409) når flere vurderinger kombineres.</summary>
+        private static void Ensure(string lockedMessage, params WorkHourAccess[] accesses)
+        {
+            if (accesses.Contains(WorkHourAccess.Forbidden))
+                throw new ForbiddenAccessException(ForbiddenMessage);
+            if (accesses.Contains(WorkHourAccess.Locked))
+                throw new EntityLockedException(lockedMessage);
+        }
+
+        private void EnsureAdmin()
+        {
+            if (!CurrentUser.IsAdmin)
+                throw new ForbiddenAccessException(ForbiddenMessage);
+        }
+
+        private void EnsureAdminOrSelf(int userId)
+        {
+            if (!CurrentUser.IsAdmin && CurrentUser.UserId != userId)
+                throw new ForbiddenAccessException(ForbiddenMessage);
+        }
+
+        private static (double Pending, double Approved, double Rejected) SumByStatus(IEnumerable<WorkHourInterval> intervals)
+        {
+            var byStatus = intervals
+                .GroupBy(h => h.ApprovalStatus ?? 0)
+                .ToDictionary(g => g.Key, g => g.Sum(h => h.Hours));
+
+            static double Get(Dictionary<int, double> d, int key) => d.TryGetValue(key, out var v) ? Math.Round(v, 1) : 0;
+
+            return (Get(byStatus, 0), Get(byStatus, WorkHourPolicy.Approved), Get(byStatus, WorkHourPolicy.Rejected));
+        }
+
+        private static string? MapFullName(User? user)
+        {
+            if (user == null) return null;
+            return $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim();
+        }
+
+        private static WorkHourResponse Map(WorkHour workHour)
         {
             decimal interval = 0;
             if (workHour.EndTime.HasValue && workHour.StartTime.HasValue)
@@ -185,91 +303,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 Hours = interval,
                 Description = workHour.Description,
                 ApprovedBy = workHour.ApprovedBy,
-                ApprovalStatus = workHour.ApprovalStatus
-            };
-        }
-
-        public async Task<WorkHourResponse?> UpdateWorkHourById(int workHourId, WorkHourRequest request)
-        {
-            var workHour = await DbContext.WorkHours.SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
-            if (workHour == null) return null;
-
-            if (request.StartTime.HasValue)
-                workHour.StartTime = request.StartTime;
-            if (request.EndTime.HasValue)
-                workHour.EndTime = request.EndTime.Value;
-            if (!string.IsNullOrWhiteSpace(request.Description))
-                workHour.Description = request.Description;
-            if (request.ApprovedBy.HasValue)
-                workHour.ApprovedBy = request.ApprovedBy;
-            if (request.ApprovalStatus.HasValue)
-                workHour.ApprovalStatus = request.ApprovalStatus;
-
-            await DbContext.SaveChangesAsync();
-
-            return Map(workHour);
-        }
-
-        public async Task<WorkHourResponse?> UpdateWorkHourCommentById(int workHourId, WorkHourCommentRequest request)
-        {
-            var workHour = await DbContext.WorkHours.SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
-            if (workHour == null) return null;
-
-            if (!string.IsNullOrWhiteSpace(request.Description))
-                workHour.Description = request.Description;
-            
-            await DbContext.SaveChangesAsync();
-
-            return Map(workHour);
-        }
-
-        public async Task<EndTimeResponse?> UpdateEndTime(int workHourId, EndTimeRequest request)
-        {
-            var workHour = await DbContext.WorkHours
-                .SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
-
-            if (workHour == null) return null;
-
-            workHour.EndTime = request.EndTime;
-            await DbContext.SaveChangesAsync();
-
-            return new EndTimeResponse
-            {
-                WorkHourId = workHour.WorkHourId,
-                EndTime = workHour.EndTime
-            };
-        }
-
-        public async Task<ApprovedByResponse?> UpdateApprovedBy(int workHourId, ApprovedByRequest request)
-        {
-            var workHour = await DbContext.WorkHours
-                .SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
-
-            if (workHour == null) return null;
-
-            workHour.ApprovedBy = request.ApprovedBy;
-            workHour.ApprovalStatus = request.ApprovalStatus;
-            workHour.ApprovedTime = DateTime.Now;
-            await DbContext.SaveChangesAsync();
-
-            return new ApprovedByResponse
-            {
-                WorkHourId = workHour.WorkHourId,
-                ApprovedBy = workHour.ApprovedBy,
+                ApprovedByName = MapFullName(workHour.ApprovedByUser),
+                ApprovedTime = workHour.ApprovedTime.AsUtc(),
                 ApprovalStatus = workHour.ApprovalStatus,
-                ApprovedTime = workHour.ApprovedTime,
+                ModifiedBy = workHour.ModifiedBy,
+                ModifiedByName = MapFullName(workHour.ModifiedByUser),
+                ModifiedTime = workHour.ModifiedTime.AsUtc(),
             };
-        }
-
-        public async Task<WorkHourResponse?> DeleteWorkHour(int workHourId)
-        {
-            var workHour = await DbContext.WorkHours.SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
-            if (workHour == null) return null;
-
-            DbContext.WorkHours.Remove(workHour);
-            await DbContext.SaveChangesAsync();
-
-            return Map(workHour);
         }
     }
 }

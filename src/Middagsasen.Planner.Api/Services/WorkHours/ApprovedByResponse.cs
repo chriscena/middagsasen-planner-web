@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Services.WorkHours
+namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public class ApprovedByResponse
     {

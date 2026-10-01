@@ -73,6 +73,7 @@ builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
 builder.Services.AddScoped<IEventTemplatesService, EventTemplatesService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<WeatherService>();
+builder.Services.AddScoped<IWorkHourRepository, WorkHourRepository>();
 builder.Services.AddScoped<IWorkHoursService, WorkHoursService>();
 builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();

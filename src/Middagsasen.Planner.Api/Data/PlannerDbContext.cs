@@ -381,6 +381,28 @@ namespace Middagsasen.Planner.Api.Data
                     .HasDatabaseName("UQ_ResourceTypeCompetencies_ResourceTypeId_CompetencyId");
             });
 
+            modelBuilder.Entity<WorkHour>(entity =>
+            {
+                entity.ToTable("WorkHours");
+                entity.HasKey(e => e.WorkHourId);
+
+                // Optimistisk samtidighet: UPDATE/DELETE inkluderer opprinnelig ApprovalStatus i WHERE,
+                // slik at en føring som ble godkjent/avslått etter at den ble hentet ikke endres.
+                entity.Property(e => e.ApprovalStatus).IsConcurrencyToken();
+
+                entity.HasOne(e => e.ApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(d => d.ApprovedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_WorkHours_Users_ApprovedBy");
+
+                entity.HasOne(e => e.ModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(d => d.ModifiedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_WorkHours_Users_ModifiedBy");
+            });
+
         }
     }
 }

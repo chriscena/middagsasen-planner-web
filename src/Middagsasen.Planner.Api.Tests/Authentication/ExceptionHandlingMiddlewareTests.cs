@@ -62,6 +62,19 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         }
 
         [Fact]
+        public async Task Returns409_WhenEntityLockedExceptionThrown()
+        {
+            var middleware = CreateMiddleware(_ => throw new EntityLockedException("Locked"));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (statusCode, body) = await GetResponse(context);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Contains("Locked", body);
+        }
+
+        [Fact]
         public async Task Returns401_WhenUnauthorizedAccessExceptionThrown()
         {
             var middleware = CreateMiddleware(_ => throw new UnauthorizedAccessException("Unauthorized"));

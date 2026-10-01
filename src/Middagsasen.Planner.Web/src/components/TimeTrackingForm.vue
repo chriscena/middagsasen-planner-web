@@ -4,6 +4,9 @@
       >Timeføring
       <q-badge v-if="viewModel.status === 1" color="positive">Godkjent</q-badge>
       <q-badge v-if="viewModel.status === 2" color="negative">Avvist</q-badge>
+      <div v-if="modifiedByText" class="text-caption text-grey-7">
+        {{ modifiedByText }}
+      </div>
     </q-card-section>
     <q-card-section class="q-gutter-sm">
       <DatePickerInput
@@ -59,7 +62,7 @@
         color="negative"
         label="Slett"
         @click="deleteHours"
-        :disable="viewModel.saving"
+        :disable="busy"
         :loading="viewModel.deleting"
       ></q-btn>
       <q-space></q-space>
@@ -68,17 +71,38 @@
         flat
         label="Avbryt"
         @click="emit('cancel')"
-        :disable="viewModel.saving || viewModel.deleting"
+        :disable="busy"
       ></q-btn>
       <q-btn
         v-if="canSave"
         no-caps
-        unelevated
+        :unelevated="!canApprove"
+        :flat="canApprove"
         color="primary"
         label="Lagre"
         @click="saveHours"
-        :disable="!validForm || viewModel.deleting"
+        :disable="!validForm || busy"
         :loading="viewModel.saving"
+      ></q-btn>
+      <q-btn
+        v-if="canApprove"
+        no-caps
+        unelevated
+        color="negative"
+        label="Avslå"
+        @click="approveHours(2)"
+        :disable="(hasChanges && !validForm) || busy"
+        :loading="viewModel.approving === 2"
+      ></q-btn>
+      <q-btn
+        v-if="canApprove"
+        no-caps
+        unelevated
+        color="positive"
+        label="Godkjenn"
+        @click="approveHours(1)"
+        :disable="(hasChanges && !validForm) || busy"
+        :loading="viewModel.approving === 1"
       ></q-btn>
     </q-card-actions>
   </q-card>
@@ -92,11 +116,22 @@ import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
 import DatePickerInput from "./DatePickerInput.vue";
 import { useQuasar } from "quasar";
+import {
+  buildWorkHourPatch,
+  getWorkHourChanges,
+  getWorkHourErrorKind,
+  getWorkHourErrorMessage,
+} from "src/shared/workHourDiff.js";
 
 const props = defineProps({
   modelValue: {
     type: Object,
     default: undefined,
+  },
+  // Viser «Godkjenn»/«Avslå» for admin på åpne føringer (brukes fra godkjenningssiden).
+  allowApproval: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -104,13 +139,11 @@ const emit = defineEmits(["cancel", "saved"]);
 const $q = useQuasar();
 const workHourStore = useWorkHourStore();
 const authStore = useAuthStore();
-const user = computed(() => authStore.user);
 const isAdmin = computed(() => authStore.isAdmin);
 const loading = ref(false);
 
 const viewModel = reactive({
   id: null,
-  userId: null,
   startDateTime: null,
   endDateTime: null,
   startDate: format(new Date(), "dd.MM.yyyy"),
@@ -124,8 +157,12 @@ const viewModel = reactive({
   status: 0,
   saving: false,
   deleting: false,
+  approving: null,
   loading: false,
 });
+
+// Opprinnelige verdier (satt ved mount) for å finne hva som faktisk er endret.
+const original = ref(null);
 
 function setStartDate() {
   viewModel.startDateValid = viewModel.startDate;
@@ -181,25 +218,84 @@ const calculatedHours = computed(() => {
   return `${hours}:${minutes.toString().padStart(2, "0")}`;
 });
 
-async function saveHours() {
+const currentValues = computed(() => ({
+  startDateTime: viewModel.startDateTime,
+  endDateTime: viewModel.endDateTime,
+  description: viewModel.description,
+}));
+
+const hasChanges = computed(
+  () =>
+    !original.value ||
+    Object.keys(getWorkHourChanges(original.value, currentValues.value))
+      .length > 0
+);
+
+const busy = computed(
+  () => viewModel.saving || viewModel.deleting || viewModel.approving !== null
+);
+
+const modifiedByText = computed(() => {
+  const model = props.modelValue;
+  if (!model?.modifiedBy) return null;
+  const name = model.modifiedByName ?? "ukjent";
+  const time = model.modifiedTime
+    ? ` ${format(new Date(model.modifiedTime), "dd.MM.yyyy HH:mm")}`
+    : "";
+  return `Endret av ${name}${time}`;
+});
+
+function validateContent() {
   if (!viewModel.startTimeValid || !viewModel.endTimeValid) {
     $q.notify({
       message: "Vennligst sjekk at tidspunktene er gyldige",
       color: "negative",
     });
-    return;
+    return false;
+  }
+  if (!descriptionIsValid.value) {
+    viewModel.descriptionValid = false;
+    $q.notify({
+      message: "Kommentar må fylles ut",
+      color: "negative",
+    });
+    return false;
   }
   if (!calculatedHours.value || calculatedHours.value === "0:00") {
     $q.notify({
       message: "Null timer gidder vi ikke å lagre vel. 😝",
       color: "negative",
     });
-    return;
+    return false;
   }
+  return true;
+}
 
+function notifyError(error, fallbackMessage) {
+  const kind = getWorkHourErrorKind(error);
+  const defaultMessage =
+    kind === "conflict"
+      ? "Føringen er allerede behandlet og kan ikke endres lenger"
+      : kind === "notFound"
+      ? "Føringen finnes ikke lenger"
+      : kind === "forbidden"
+      ? "Du har ikke tilgang til å endre denne føringen"
+      : fallbackMessage;
+  $q.notify({
+    message: getWorkHourErrorMessage(error, defaultMessage),
+    color: "negative",
+  });
+  if (kind === "conflict" || kind === "notFound") {
+    // Forelder lukker og laster listen på nytt.
+    emit("saved", null);
+  }
+}
+
+async function saveHours() {
   if (props.modelValue) {
     await updateHours();
   } else {
+    if (!validateContent()) return;
     await createHours();
   }
 }
@@ -211,7 +307,6 @@ async function createHours() {
       startTime: viewModel.startDateTime,
       endTime: viewModel.endDateTime,
       description: viewModel.description,
-      userId: user.value.id,
     };
     const result = await workHourStore.createWorkHour(payload);
     emit("saved", result);
@@ -238,31 +333,56 @@ const validForm = computed(() => {
 });
 
 async function updateHours() {
+  const changes = buildWorkHourPatch(original.value, currentValues.value);
+  if (Object.keys(changes).length === 0) {
+    // Ingen endringer – ikke send tom PATCH.
+    emit("cancel");
+    return;
+  }
+  if (!validateContent()) return;
   try {
     viewModel.saving = true;
-    const payload = {
-      workHourId: viewModel.id,
-      startTime: viewModel.startDateTime,
-      endTime: viewModel.endDateTime,
-      description: viewModel.description,
-      userId:
-        isAdmin.value && viewModel.userId !== user.value.id
-          ? viewModel.userId
-          : user.value.id,
-    };
-    const result = await workHourStore.updateWorkHour(payload);
+    const result = await workHourStore.patchWorkHour(viewModel.id, changes);
     emit("saved", result);
     $q.notify({
       message: "Endringer lagret",
       color: "positive",
     });
   } catch (error) {
-    $q.notify({
-      message: "Klarte ikke å lagre endringer",
-      color: "negative",
-    });
+    notifyError(error, "Klarte ikke å lagre endringer");
   } finally {
     viewModel.saving = false;
+  }
+}
+
+async function approveHours(approvalStatus) {
+  const payload = buildWorkHourPatch(
+    original.value,
+    currentValues.value,
+    approvalStatus
+  );
+  const contentChanged = Object.keys(payload).some(
+    (key) => key !== "approvalStatus"
+  );
+  if (contentChanged && !validateContent()) return;
+  try {
+    viewModel.approving = approvalStatus;
+    const result = await workHourStore.patchWorkHour(viewModel.id, payload);
+    emit("saved", result);
+    $q.notify({
+      message:
+        approvalStatus === 1 ? "Timeføring godkjent" : "Timeføring avslått",
+      color: "positive",
+    });
+  } catch (error) {
+    notifyError(
+      error,
+      approvalStatus === 1
+        ? "Klarte ikke å godkjenne timeføring"
+        : "Klarte ikke å avslå timeføring"
+    );
+  } finally {
+    viewModel.approving = null;
   }
 }
 
@@ -276,10 +396,7 @@ async function deleteHours() {
       color: "positive",
     });
   } catch (error) {
-    $q.notify({
-      message: "Klarte ikke å slette timeføring",
-      color: "negative",
-    });
+    notifyError(error, "Klarte ikke å slette timeføring");
   } finally {
     viewModel.deleting = false;
   }
@@ -289,10 +406,16 @@ const descriptionIsValid = computed(
   () => viewModel.description && viewModel.description.trim() !== ""
 );
 
-const canDelete = computed(() => viewModel.status !== 1 && viewModel.id);
+const isOpen = computed(() => viewModel.status == null);
+
+const canDelete = computed(() => !!viewModel.id && isOpen.value);
 
 const canSave = computed(
   () => viewModel.status !== 1 && viewModel.status !== 2
+);
+
+const canApprove = computed(
+  () => props.allowApproval && isAdmin.value && !!viewModel.id && isOpen.value
 );
 
 const validateDescription = () => {
@@ -310,6 +433,9 @@ onMounted(() => {
     viewModel.id = props.modelValue.workHourId;
     viewModel.status = props.modelValue.approvalStatus;
     calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
+    // Lagres etter calculateTime slik at uendret skjema gir tom diff
+    // (også når servertiden har sekunder som skjemaet ikke viser).
+    original.value = { ...currentValues.value };
   } else {
     calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
   }
