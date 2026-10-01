@@ -30,7 +30,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         }
 
         private static WorkHoursService CreateService(PlannerDbContext context, User user)
-            => new(new WorkHourRepository(context), MockCurrentUser(user.UserId, user.IsAdmin));
+            => new(new WorkHourRepository(context), MockCurrentUser(user.UserId, user.IsAdmin), Clock);
+
+        /// <summary>Fast «nå» (1. oktober 2026) slik at sesongvalidering og inneværende sesong er deterministisk.</summary>
+        private static readonly TimeProvider Clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
         private async Task<User> SeedUser(bool isAdmin = false, string firstName = "Test", string lastName = "User")
         {
@@ -658,10 +661,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var first = await SeedWorkHourAt(owner, new DateTime(2024, 7, 1, 0, 0, 0));
-            var last = await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 20, 0, 0));
-            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 20, 0, 0)); // forrige sesong
-            await SeedWorkHourAt(owner, new DateTime(2025, 7, 1, 0, 0, 0));   // neste sesong
+            // StartTime lagres i UTC; sesongen starter 1. juli 00:00 norsk tid = 30. juni 22:00 UTC (sommertid).
+            var first = await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 22, 0, 0)); // 1. juli 00:00 Oslo
+            var last = await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 21, 59, 0)); // 30. juni 23:59 Oslo
+            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 21, 59, 0)); // forrige sesong
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 22, 0, 0));  // neste sesong
             using var context = _fixture.CreateContext();
 
             var result = await CreateService(context, admin).GetWorkHours(owner.UserId, null, 2024, pageSize: 100);
@@ -755,10 +759,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            await SeedWorkHourAt(owner, new DateTime(2024, 7, 1, 0, 0, 0));                                // 3 t, åpen
-            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 9, 0, 0), status: 1, approvedBy: admin); // 3 t, godkjent
-            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 9, 0, 0));                               // forrige sesong
-            await SeedWorkHourAt(owner, new DateTime(2025, 7, 1, 0, 0, 0), status: 1, approvedBy: admin);  // neste sesong
+            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 22, 0, 0));                               // 3 t, åpen (1. juli 00:00 Oslo)
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 21, 0, 0), status: 1, approvedBy: admin); // 3 t, godkjent (30. juni 23:00 Oslo)
+            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 21, 0, 0));                               // forrige sesong
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 22, 0, 0), status: 1, approvedBy: admin); // neste sesong
             using var context = _fixture.CreateContext();
             var service = CreateService(context, owner);
 
@@ -769,6 +773,32 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(3.0, season.ApprovedHours);
             Assert.Equal(6.0, all.PendingHours);
             Assert.Equal(6.0, all.ApprovedHours);
+        }
+
+        [Fact]
+        public async Task GetByUser_SeasonBoundary_IsEvaluatedInOsloTime()
+        {
+            var owner = await SeedUser();
+            var afterMidnightOslo = await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 22, 30, 0));  // 1. juli 00:30 Oslo
+            var beforeMidnightOslo = await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 21, 30, 0)); // 30. juni 23:30 Oslo
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, owner);
+
+            var season2025 = await service.GetWorkHoursByUser(owner.UserId, null, 2025);
+            var season2024 = await service.GetWorkHoursByUser(owner.UserId, null, 2024);
+
+            Assert.Equal(new[] { afterMidnightOslo.WorkHourId }, season2025.Result.Select(r => r.WorkHourId));
+            Assert.Equal(new[] { beforeMidnightOslo.WorkHourId }, season2024.Result.Select(r => r.WorkHourId));
+        }
+
+        [Fact]
+        public async Task GetByUser_InvalidSeason_ThrowsInvalidOperation()
+        {
+            var owner = await SeedUser();
+            using var context = _fixture.CreateContext();
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                CreateService(context, owner).GetWorkHoursByUser(owner.UserId, null, 9999));
         }
 
         [Fact]
@@ -1031,7 +1061,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         private (WorkHoursService Service, RacingRepository Repository) CreateRacingService(PlannerDbContext context, User user)
         {
             var repository = new RacingRepository(context);
-            return (new WorkHoursService(repository, MockCurrentUser(user.UserId, user.IsAdmin)), repository);
+            return (new WorkHoursService(repository, MockCurrentUser(user.UserId, user.IsAdmin), Clock), repository);
         }
 
         /// <summary>Endrer status direkte i databasen via en annen context, utenom servicen.</summary>

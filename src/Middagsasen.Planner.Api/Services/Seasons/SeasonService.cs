@@ -13,7 +13,7 @@ namespace Middagsasen.Planner.Api.Services.Seasons
 
         public IEnumerable<SeasonResponse> GetSeasons()
         {
-            var currentStartYear = TimeProvider.GetUtcNow().UtcDateTime.GetSeasonStartYear();
+            var currentStartYear = TimeProvider.GetUtcNow().GetSeasonStartYear(); // vurderes i norsk tid
             var firstStartYear = Math.Min(DateTimeExtensions.FirstSeasonStartYear, currentStartYear);
 
             var seasons = new List<SeasonResponse>();

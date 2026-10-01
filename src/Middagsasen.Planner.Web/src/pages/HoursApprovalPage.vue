@@ -51,7 +51,8 @@
                 dense
                 outlined
                 label="Sesong"
-                :disable="loading"
+                :disable="loading || approvedFilter === 3"
+                :hint="approvedFilter === 3 ? 'Gjelder alle sesonger' : undefined"
                 :model-value="seasonFilter"
                 :options="seasonStore.seasons"
                 option-label="label"
@@ -601,21 +602,21 @@ async function getUserWorkHours(props) {
   loading.value = true;
   resetTable();
   try {
+    // Ubehandlede timer vises på tvers av sesonger, så de ikke skjules av
+    // sesongfilteret. Axios utelater null/undefined params.
+    const ignoreSeason = filter.approved === 3;
     const params = {
       approved: filter.approved,
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
+      season: ignoreSeason ? null : filter.season,
+      userId: filter.userId,
     };
-    if (filter.season !== null && filter.season !== undefined) {
-      params.season = filter.season;
-    }
-    if (filter.userId !== null && filter.userId !== undefined) {
-      params.userId = filter.userId;
-    }
 
-    const [response, sumResponse] = await Promise.all([
+    const [response, seasonSums, allSeasonSums] = await Promise.all([
       workHourStore.getWorkHours(params),
       workHourStore.getWorkHoursSums(filter.userId, filter.season),
+      workHourStore.getWorkHoursSums(filter.userId, null),
     ]);
 
     userWorkHours.value = response.result;
@@ -623,9 +624,10 @@ async function getUserWorkHours(props) {
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
 
-    approvedHours.value = sumResponse.approvedHours;
-    pendingHours.value = sumResponse.pendingHours;
-    rejectedHours.value = sumResponse.rejectedHours;
+    // Godkjent/Avslått gjelder valgt sesong; Ubehandlet alle sesonger.
+    approvedHours.value = seasonSums.approvedHours;
+    rejectedHours.value = seasonSums.rejectedHours;
+    pendingHours.value = allSeasonSums.pendingHours;
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -634,10 +636,8 @@ async function getUserWorkHours(props) {
       message: "Klarte ikke å hente timeføringer",
     });
   } finally {
-    setFilter({
-      page: pagination.value.page,
-      rowsPP: pagination.value.rowsPerPage,
-    });
+    // Synker side/rader til URL-en (setFilter leser dem fra pagination).
+    setFilter();
     loading.value = false;
   }
 }
@@ -758,7 +758,8 @@ function toggleSelectAll(val) {
 }
 
 // Oppdaterer URL-query (a, page, rowPP, s, u). Felter som ikke er med i
-// `changes` beholder nåværende verdi.
+// `changes` (approved, season, userId) beholder nåværende verdi; page og rowPP
+// leses fra `pagination`.
 async function setFilter(changes = {}) {
   const approved = changes.approved ?? approvedFilter.value;
   const season = "season" in changes ? changes.season : seasonFilter.value;
@@ -767,7 +768,11 @@ async function setFilter(changes = {}) {
   if (approved !== 3) {
     selectedWorkHours.value = [];
   }
-  if (season !== seasonFilter.value || userId !== userFilter.value) {
+  if (
+    approved !== approvedFilter.value ||
+    season !== seasonFilter.value ||
+    userId !== userFilter.value
+  ) {
     pagination.value.page = 1;
     selectedWorkHours.value = [];
   }

@@ -88,17 +88,17 @@ describe('WorkHourStore', () => {
       expect(result).toEqual(sums);
     });
 
-    it('omits null values', async () => {
+    it('passes null values through (axios drops them from the URL)', async () => {
       mockApi.get.mockResolvedValue({ data: {} });
 
       await store.getWorkHoursSums(null, 2025);
       expect(mockApi.get).toHaveBeenLastCalledWith('/api/WorkHours/Sum', {
-        params: { season: 2025 },
+        params: { userId: null, season: 2025 },
       });
 
       await store.getWorkHoursSums();
       expect(mockApi.get).toHaveBeenLastCalledWith('/api/WorkHours/Sum', {
-        params: {},
+        params: { userId: null, season: null },
       });
     });
   });

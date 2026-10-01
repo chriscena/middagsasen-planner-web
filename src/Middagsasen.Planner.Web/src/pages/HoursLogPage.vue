@@ -167,7 +167,7 @@
       <TimeTrackingForm
         :model-value="viewModel.selectedWorkHours"
         @cancel="viewModel.showForm = false"
-        @saved="viewModel.showForm = false"
+        @saved="onWorkHourSaved"
       ></TimeTrackingForm>
     </q-dialog>
   </q-page>
@@ -183,6 +183,7 @@ import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import { formatNumber } from "src/shared/formatter.js";
+import { getSeasonStartYear } from "src/shared/season.js";
 
 // store init
 const $router = useRouter();
@@ -213,18 +214,25 @@ const infiniteScroll = useTemplateRef("infiniteScroll");
 const currentUser = computed(() => authStore.user);
 const userId = currentUser.value.id;
 
+// Økes når listen tømmes, slik at svar fra kall startet før det forkastes.
+let loadGeneration = 0;
+let sumsGeneration = 0;
+
 async function getUserWorkhours(index, done) {
+  const generation = loadGeneration;
   let stop = false;
   try {
     viewModel.loading = true;
+    // Axios utelater null/undefined params.
     const params = {
       page: index,
       pageSize: 20,
+      season: viewModel.season,
     };
-    if (viewModel.season !== null) {
-      params.season = viewModel.season;
-    }
     const response = await workHourStore.getWorkHoursByUser(userId, params);
+    // Utdatert svar: ikke rør listen. done(false) lar infinite scroll laste
+    // første side på nytt for den nye listen.
+    if (generation !== loadGeneration) return;
     if (response.result.length > 0) {
       viewModel.userWorkHours.push(...response.result);
     }
@@ -233,6 +241,7 @@ async function getUserWorkhours(index, done) {
       response.result.length === 0;
     viewModel.noResults = stop && viewModel.userWorkHours.length === 0;
   } catch (e) {
+    if (generation !== loadGeneration) return;
     console.error(e);
     stop = true;
     $q.notify({
@@ -247,10 +256,13 @@ async function getUserWorkhours(index, done) {
 }
 
 async function getWorkHoursSums() {
+  const generation = ++sumsGeneration;
   const response = await workHourStore.getWorkHoursSums(
     userId,
     viewModel.season
   );
+  // Et nyere kall er startet; ignorer utdatert svar.
+  if (generation !== sumsGeneration) return;
   viewModel.approvedHoursSum = response.approvedHours;
   viewModel.pendingHoursSum = response.pendingHours;
   viewModel.rejectedHoursSum = response.rejectedHours;
@@ -273,11 +285,26 @@ function editWorkHour(hours) {
 
 // Tømmer listen, starter infinite scroll på nytt og henter summer.
 async function reload() {
+  loadGeneration++;
   viewModel.userWorkHours = [];
   viewModel.noResults = false;
   infiniteScroll.value?.reset();
   infiniteScroll.value?.resume();
   await getWorkHoursSums();
+}
+
+// Bytter til sesongen den lagrede føringen tilhører, slik at den er synlig
+// når listen lastes på nytt (reload skjer når dialogen lukkes).
+function onWorkHourSaved(savedWorkHour) {
+  const season = getSeasonStartYear(savedWorkHour?.startTime);
+  if (
+    season !== null &&
+    season !== viewModel.season &&
+    seasonStore.seasons.some((s) => s.startYear === season)
+  ) {
+    viewModel.season = season;
+  }
+  viewModel.showForm = false;
 }
 
 async function onTimeTrackingFormClosed() {

@@ -1,6 +1,4 @@
-﻿using System.Runtime.CompilerServices;
-
-namespace Middagsasen.Planner.Api.Core
+﻿namespace Middagsasen.Planner.Api.Core
 {
     public static class DateTimeExtensions
     {
@@ -53,6 +51,16 @@ namespace Middagsasen.Planner.Api.Core
             return dateTime.Value.AsUtc();
         }
 
+        /// <summary>
+        /// Tidssonen sesonggrensene defineres i (1. juli 00:00 norsk tid).
+        /// "Europe/Oslo" (IANA) støttes på både Windows og Linux i .NET 8.
+        /// </summary>
+        public static readonly TimeZoneInfo SeasonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo");
+
+        /// <summary>
+        /// Returnerer sesongnavn (f.eks. "2024/2025") for en <b>kalenderdato</b> (lokal/unspecified tid).
+        /// Ren kalenderlogikk uten tidssonekonvertering — se <see cref="GetSeasonStartYear(DateTime)"/>.
+        /// </summary>
         public static string ToSeason(this DateTime? startTime)
         {
             if (!startTime.HasValue) return "";
@@ -61,7 +69,9 @@ namespace Middagsasen.Planner.Api.Core
         }
 
         /// <summary>
-        /// Returnerer startåret for sesongen datoen tilhører. En sesong starter 1. <see cref="SeasonStartMonth"/>.
+        /// Returnerer startåret for sesongen en <b>kalenderdato</b> tilhører. En sesong starter 1. <see cref="SeasonStartMonth"/>.
+        /// Datoens <see cref="DateTime.Kind"/> ignoreres; ingen tidssonekonvertering gjøres.
+        /// Bruk <see cref="GetSeasonStartYear(DateTimeOffset)"/> for et tidspunkt (f.eks. «nå» eller en UTC-lagret verdi).
         /// </summary>
         public static int GetSeasonStartYear(this DateTime date)
         {
@@ -69,12 +79,29 @@ namespace Middagsasen.Planner.Api.Core
         }
 
         /// <summary>
-        /// Returnerer datointervallet for sesongen som starter i <paramref name="startYear"/>,
-        /// som et halvåpent intervall [From, To).
+        /// Returnerer startåret for sesongen et <b>tidspunkt</b> (instant) tilhører, vurdert i norsk tid
+        /// (<see cref="SeasonTimeZone"/>). F.eks. 2025-06-30T22:30Z (= 1. juli 00:30 i Oslo) gir 2025.
         /// </summary>
-        public static (DateTime From, DateTime To) GetSeasonRange(int startYear)
+        public static int GetSeasonStartYear(this DateTimeOffset instant)
         {
-            return (new DateTime(startYear, SeasonStartMonth, 1), new DateTime(startYear + 1, SeasonStartMonth, 1));
+            return TimeZoneInfo.ConvertTime(instant, SeasonTimeZone).DateTime.GetSeasonStartYear();
+        }
+
+        /// <summary>
+        /// Returnerer sesongen som starter i <paramref name="startYear"/> som et halvåpent intervall [From, To)
+        /// av <b>UTC-tidspunkter</b> (<see cref="DateTimeKind.Utc"/>): fra 1. juli 00:00 norsk tid i
+        /// <paramref name="startYear"/> til 1. juli 00:00 norsk tid året etter. Brukes mot UTC-lagrede verdier.
+        /// </summary>
+        /// <exception cref="ArgumentOutOfRangeException">Hvis <paramref name="startYear"/> gir en ugyldig dato.</exception>
+        public static (DateTime From, DateTime To) GetSeasonRangeUtc(int startYear)
+        {
+            return (SeasonStartUtc(startYear), SeasonStartUtc(startYear + 1));
+        }
+
+        private static DateTime SeasonStartUtc(int year)
+        {
+            var localStart = new DateTime(year, SeasonStartMonth, 1, 0, 0, 0, DateTimeKind.Unspecified);
+            return TimeZoneInfo.ConvertTimeToUtc(localStart, SeasonTimeZone);
         }
 
         /// <summary>

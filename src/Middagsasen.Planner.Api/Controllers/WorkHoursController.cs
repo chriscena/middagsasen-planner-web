@@ -60,6 +60,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpGet]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Get(int? page, int? pageSize, int? approved, int? season, int? userId)
         {
@@ -77,6 +78,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("User/{userId}")]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved, int? season)
         {
@@ -85,6 +87,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("Sum")]
         [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetSum(int? userId = null, int? season = null)
         {

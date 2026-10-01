@@ -12,15 +12,18 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string NotFoundMessage = "Timeføringen finnes ikke.";
         internal const string StartTimeRequiredMessage = "Starttid må oppgis.";
         internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
+        internal const string InvalidSeasonMessage = "Ugyldig sesong.";
 
-        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser)
+        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
         {
             Repository = repository;
             CurrentUser = currentUser;
+            TimeProvider = timeProvider;
         }
 
         public IWorkHourRepository Repository { get; }
         public ICurrentUserService CurrentUser { get; }
+        public TimeProvider TimeProvider { get; }
 
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
@@ -175,7 +178,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         {
             EnsureAdmin();
 
-            var (from, to) = DateTimeExtensions.GetSeasonRange(DateTime.UtcNow.GetSeasonStartYear());
+            var (from, to) = DateTimeExtensions.GetSeasonRangeUtc(CurrentSeasonStartYear());
             var intervals = await Repository.GetIntervals(null, from, to);
 
             return intervals
@@ -194,11 +197,20 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .ToList();
         }
 
-        /// <summary>Gjør om sesongens startår til et halvåpent datointervall [From, To); null = ingen datofilter.</summary>
-        private static (DateTime? From, DateTime? To) ToSeasonRange(int? season)
+        /// <summary>Inneværende sesongs startår, vurdert i norsk tid.</summary>
+        private int CurrentSeasonStartYear() => TimeProvider.GetUtcNow().GetSeasonStartYear();
+
+        /// <summary>
+        /// Gjør om sesongens startår til et halvåpent intervall [From, To) av UTC-tidspunkter; null = ingen datofilter.
+        /// Gyldig sesong er fra <see cref="DateTimeExtensions.FirstSeasonStartYear"/> til og med inneværende sesong + 1.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Ugyldig sesong (gir 400).</exception>
+        private (DateTime? From, DateTime? To) ToSeasonRange(int? season)
         {
             if (!season.HasValue) return (null, null);
-            var (from, to) = DateTimeExtensions.GetSeasonRange(season.Value);
+            if (season.Value < DateTimeExtensions.FirstSeasonStartYear || season.Value > CurrentSeasonStartYear() + 1)
+                throw new InvalidOperationException(InvalidSeasonMessage);
+            var (from, to) = DateTimeExtensions.GetSeasonRangeUtc(season.Value);
             return (from, to);
         }
 

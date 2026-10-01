@@ -1,17 +1,11 @@
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services.Seasons;
+using Middagsasen.Planner.Api.Tests.Infrastructure;
 
 namespace Middagsasen.Planner.Api.Tests.Services.Seasons
 {
     public class SeasonServiceTests
     {
-        private sealed class FakeTimeProvider : TimeProvider
-        {
-            private readonly DateTimeOffset _now;
-            public FakeTimeProvider(DateTimeOffset now) => _now = now;
-            public override DateTimeOffset GetUtcNow() => _now;
-        }
-
         private static SeasonService CreateService(int year, int month, int day)
             => new(new FakeTimeProvider(new DateTimeOffset(year, month, day, 12, 0, 0, TimeSpan.Zero)));
 
@@ -58,6 +52,24 @@ namespace Middagsasen.Planner.Api.Tests.Services.Seasons
             Assert.Equal(2025, seasons[0].StartYear);
             Assert.True(seasons[0].IsCurrent);
             Assert.Equal(3, seasons.Count);
+        }
+    
+        [Fact]
+        public void GetSeasons_JustAfterMidnight1JulyOslo_NewSeasonIsCurrent()
+        {
+            // 2025-06-30T22:30Z = 1. juli 00:30 norsk sommertid
+            var service = new SeasonService(new FakeTimeProvider(new DateTimeOffset(2025, 6, 30, 22, 30, 0, TimeSpan.Zero)));
+
+            Assert.Equal(2025, service.GetSeasons().First(s => s.IsCurrent).StartYear);
+        }
+
+        [Fact]
+        public void GetSeasons_JustBeforeMidnight1JulyOslo_PreviousSeasonIsCurrent()
+        {
+            // 2025-06-30T21:30Z = 30. juni 23:30 norsk sommertid
+            var service = new SeasonService(new FakeTimeProvider(new DateTimeOffset(2025, 6, 30, 21, 30, 0, TimeSpan.Zero)));
+
+            Assert.Equal(2024, service.GetSeasons().First(s => s.IsCurrent).StartYear);
         }
     }
 }
