@@ -13,4 +13,7 @@ CREATE TABLE WorkHours
   constraint FK_WorkHours_Users_ApprovedBy foreign key (ApprovedBy) REFERENCES Users(UserId),
   ApprovalStatus INT null,
   ApprovedTime DATETIME null,
+  ModifiedBy INT null,
+  constraint FK_WorkHours_Users_ModifiedBy foreign key (ModifiedBy) REFERENCES Users(UserId),
+  ModifiedTime DATETIME null,
 )

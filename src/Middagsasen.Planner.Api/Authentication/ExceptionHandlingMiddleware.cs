@@ -32,6 +32,7 @@ namespace Middagsasen.Planner.Api.Authentication
             {
                 EntityNotFoundException => (StatusCodes.Status404NotFound, exception.Message),
                 ForbiddenAccessException => (StatusCodes.Status403Forbidden, exception.Message),
+                EntityLockedException => (StatusCodes.Status409Conflict, exception.Message),
                 UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, exception.Message),
                 InvalidOperationException => (StatusCodes.Status400BadRequest, exception.Message),
                 _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),

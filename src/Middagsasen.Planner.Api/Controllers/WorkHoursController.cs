@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.WorkHours;
@@ -16,104 +16,88 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IWorkHoursService WorkHoursService { get; }
 
-
         [HttpPost]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status201Created)]
-        public async Task<IActionResult> Create([FromBody] WorkHourRequest request)
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> Create([FromBody] CreateWorkHourRequest request)
         {
             var response = await WorkHoursService.CreateWorkHour(request);
-            if (response == null)
-            {
-                return BadRequest("Failed to create work timer.");
-            }
-            return Created($"/workhours/{response.WorkHourId}", response);
-        }
-
-        [HttpPut("{workHourId}")]
-        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int workHourId, [FromBody] WorkHourRequest request)
-        {
-            var response = await WorkHoursService.UpdateWorkHourById(workHourId, request);
-            return (response == null) ? NotFound() : Ok(response);
+            return Created($"/api/workhours/{response.WorkHourId}", response);
         }
 
         [HttpPatch("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateComment(int workHourId, [FromBody] WorkHourCommentRequest request)
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> Update(int workHourId, [FromBody] UpdateWorkHourRequest request)
         {
-            var response = await WorkHoursService.UpdateWorkHourCommentById(workHourId, request);
-            return (response == null) ? NotFound() : Ok(response);
-        }
-
-        [HttpGet]
-        [ProducesResponseType<IEnumerable<WorkHourResponse>>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)
-        {
-            var workHours = await WorkHoursService.GetWorkHours(approved, page, pageSize);
-            return Ok(workHours);
-        }
-
-        [HttpGet("{workHourId}")]
-        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetById(int workHourId)
-        {
-            var existingWorkHour = await WorkHoursService.GetWorkHourById(workHourId);
-            return existingWorkHour != null ? Ok(existingWorkHour) : NotFound();
-        }
-
-        [HttpGet("User/{userId}")]
-        [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved)
-        {
-            var existingWorkHour = await WorkHoursService.GetWorkHoursByUser(userId, approved, page, pageSize);
-            return existingWorkHour != null ? Ok(existingWorkHour) : NotFound();
-        }
-
-        [HttpGet("User/{userId}/EndTime")]
-        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetActive(int userId)
-        {
-            var existingWorkHour = await WorkHoursService.GetActiveWorkHour(userId);
-            return Ok(existingWorkHour);
-        }
-
-        [HttpPatch("{workHourId}/EndTime")]
-        [ProducesResponseType<EndTimeResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateEndTime(int workHourId, EndTimeRequest request)
-        {
-            var response = await WorkHoursService.UpdateEndTime(workHourId, request);
-            return response == null ? NotFound() : Ok(response);
+            return Ok(await WorkHoursService.UpdateWorkHour(workHourId, request));
         }
 
         [HttpPatch("{workHourId}/ApprovedBy")]
         [ProducesResponseType<ApprovedByResponse>(StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateApprovedBy(int workHourId, ApprovedByRequest request)
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
+        public async Task<IActionResult> UpdateApprovedBy(int workHourId, [FromBody] ApprovedByRequest request)
         {
-            var response = await WorkHoursService.UpdateApprovedBy(workHourId, request);
-            return response == null ? NotFound() : Ok(response);
+            return Ok(await WorkHoursService.UpdateApprovedBy(workHourId, request));
         }
 
         [HttpDelete("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status409Conflict)]
         public async Task<IActionResult> Delete(int workHourId)
         {
-            var response = await WorkHoursService.DeleteWorkHour(workHourId);
-            return (response == null) ? NotFound() : Ok(response);
+            return Ok(await WorkHoursService.DeleteWorkHour(workHourId));
+        }
+
+        [HttpGet]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)
+        {
+            return Ok(await WorkHoursService.GetWorkHours(approved, page, pageSize));
+        }
+
+        [HttpGet("{workHourId}")]
+        [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetById(int workHourId)
+        {
+            return Ok(await WorkHoursService.GetWorkHourById(workHourId));
+        }
+
+        [HttpGet("User/{userId}")]
+        [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved)
+        {
+            return Ok(await WorkHoursService.GetWorkHoursByUser(userId, approved, page, pageSize));
         }
 
         [HttpGet("Sum")]
         [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
-        public async Task<WorkHourSumResponse> GetSum(int? userId = null)
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetSum(int? userId = null)
         {
-            var response = await WorkHoursService.GetWorkHoursSum(userId);
-            return response;
+            return Ok(await WorkHoursService.GetWorkHoursSum(userId));
         }
 
         [HttpGet("Sum/All")]
+        [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType<IEnumerable<UserWorkHourSumResponse>>(StatusCodes.Status200OK)]
-        public async Task<IEnumerable<UserWorkHourSumResponse>> GetSumPerUser()
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetSumPerUser()
         {
-            return await WorkHoursService.GetWorkHoursSumPerUser();
+            return Ok(await WorkHoursService.GetWorkHoursSumPerUser());
         }
     }
 }

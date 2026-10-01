@@ -1,4 +1,4 @@
-﻿namespace Middagsasen.Planner.Api.Services.WorkHours
+namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public class WorkHourResponse
     {
@@ -10,7 +10,11 @@
         public decimal? Hours { get; set; }
         public string? Description { get; set; }
         public int? ApprovedBy { get; set; }
+        public string? ApprovedByName { get; set; }
+        public DateTime? ApprovedTime { get; set; }
         public int? ApprovalStatus { get; set; }
-
+        public int? ModifiedBy { get; set; }
+        public string? ModifiedByName { get; set; }
+        public DateTime? ModifiedTime { get; set; }
     }
 }

@@ -381,6 +381,28 @@ namespace Middagsasen.Planner.Api.Data
                     .HasDatabaseName("UQ_ResourceTypeCompetencies_ResourceTypeId_CompetencyId");
             });
 
+            modelBuilder.Entity<WorkHour>(entity =>
+            {
+                entity.ToTable("WorkHours");
+                entity.HasKey(e => e.WorkHourId);
+                entity.Property(e => e.StartTime).HasColumnType("datetime");
+                entity.Property(e => e.EndTime).HasColumnType("datetime");
+                entity.Property(e => e.ApprovedTime).HasColumnType("datetime");
+                entity.Property(e => e.ModifiedTime).HasColumnType("datetime");
+
+                entity.HasOne(e => e.ApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(d => d.ApprovedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_WorkHours_Users_ApprovedBy");
+
+                entity.HasOne(e => e.ModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(d => d.ModifiedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_WorkHours_Users_ModifiedBy");
+            });
+
         }
     }
 }

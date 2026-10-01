@@ -1,9 +1,8 @@
-﻿namespace Middagsasen.Planner.Api.Services.WorkHours
+namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public class ApprovedByRequest
     {
-        public int? ApprovedBy { get; set; }
+        /// <summary>1 = godkjent, 2 = avslått, null = «Ingen status» (låser opp en behandlet føring).</summary>
         public int? ApprovalStatus { get; set; }
-
     }
 }
