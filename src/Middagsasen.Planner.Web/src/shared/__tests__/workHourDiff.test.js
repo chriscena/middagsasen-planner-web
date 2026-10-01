@@ -3,6 +3,7 @@ import {
   getWorkHourChanges,
   buildWorkHourPatch,
   getWorkHourErrorKind,
+  getWorkHourErrorMessage,
   summarizeBulkApproval,
 } from 'src/shared/workHourDiff.js';
 
@@ -113,10 +114,67 @@ describe('getWorkHourErrorKind', () => {
   it('maps 403 to forbidden', () => {
     expect(getWorkHourErrorKind({ response: { status: 403 } })).toBe('forbidden');
   });
+  it('maps 404 to notFound', () => {
+    expect(getWorkHourErrorKind({ response: { status: 404 } })).toBe('notFound');
+  });
   it('maps other errors to other', () => {
     expect(getWorkHourErrorKind({ response: { status: 500 } })).toBe('other');
     expect(getWorkHourErrorKind(new Error('network'))).toBe('other');
     expect(getWorkHourErrorKind(undefined)).toBe('other');
+  });
+});
+
+describe('getWorkHourErrorMessage', () => {
+  it('returns server error message from body', () => {
+    const error = {
+      response: {
+        status: 409,
+        data: { error: 'Timeføringen har ingen status som kan fjernes.' },
+      },
+    };
+    expect(getWorkHourErrorMessage(error, 'fallback')).toBe(
+      'Timeføringen har ingen status som kan fjernes.'
+    );
+  });
+
+  it('returns fallback when response has no body (empty 403)', () => {
+    expect(
+      getWorkHourErrorMessage({ response: { status: 403, data: '' } }, 'fallback')
+    ).toBe('fallback');
+    expect(
+      getWorkHourErrorMessage({ response: { status: 403 } }, 'fallback')
+    ).toBe('fallback');
+  });
+
+  it('returns fallback for ProblemDetails without error field', () => {
+    const error = {
+      response: {
+        status: 400,
+        data: {
+          type: 'https://tools.ietf.org/html/rfc9110#section-15.5.1',
+          title: 'One or more validation errors occurred.',
+          status: 400,
+          errors: { StartTime: ['The StartTime field is required.'] },
+        },
+      },
+    };
+    expect(getWorkHourErrorMessage(error, 'fallback')).toBe('fallback');
+  });
+
+  it('returns fallback for blank or non-string error', () => {
+    expect(
+      getWorkHourErrorMessage({ response: { data: { error: '  ' } } }, 'fallback')
+    ).toBe('fallback');
+    expect(
+      getWorkHourErrorMessage({ response: { data: { error: 42 } } }, 'fallback')
+    ).toBe('fallback');
+  });
+
+  it('returns fallback for network error without response', () => {
+    expect(getWorkHourErrorMessage(new Error('Network Error'), 'fallback')).toBe(
+      'fallback'
+    );
+    expect(getWorkHourErrorMessage(undefined, 'fallback')).toBe('fallback');
   });
 });
 
@@ -142,6 +200,18 @@ describe('summarizeBulkApproval', () => {
     ).toEqual({
       type: 'warning',
       message: '3 avslått, 1 var allerede behandlet, 1 feilet',
+    });
+  });
+
+  it('reports entries that no longer exist separately', () => {
+    expect(
+      summarizeBulkApproval(
+        { ok: 5, alreadyProcessed: 1, notFound: 2, failed: 0 },
+        1
+      )
+    ).toEqual({
+      type: 'warning',
+      message: '5 godkjent, 1 var allerede behandlet, 2 fantes ikke lenger',
     });
   });
 });

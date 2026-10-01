@@ -45,29 +45,45 @@ export function buildWorkHourPatch(original, current, approvalStatus = null) {
 
 /**
  * Klassifiserer en axios-feil fra WorkHours-API-et.
- * @returns {"conflict" | "forbidden" | "other"}
+ * @returns {"conflict" | "forbidden" | "notFound" | "other"}
  */
 export function getWorkHourErrorKind(error) {
   const status = error?.response?.status;
   if (status === 409) return "conflict";
   if (status === 403) return "forbidden";
+  if (status === 404) return "notFound";
   return "other";
 }
 
 /**
+ * Henter serverens feilmelding (`{ error: "<melding>" }`) hvis den finnes,
+ * ellers `fallback` (f.eks. ved tom 403, ProblemDetails eller nettverksfeil).
+ */
+export function getWorkHourErrorMessage(error, fallback) {
+  const message = error?.response?.data?.error;
+  return typeof message === "string" && message.trim() !== ""
+    ? message
+    : fallback;
+}
+
+/**
  * Lager én oppsummering etter masse-godkjenning/avslag.
- * @param {{ ok: number, alreadyProcessed: number, failed: number }} counts
+ * @param {{ ok: number, alreadyProcessed: number, notFound: number, failed: number }} counts
  * @param {1|2} status
  * @returns {{ type: "positive" | "warning", message: string }}
  */
 export function summarizeBulkApproval(counts, status) {
-  const { ok = 0, alreadyProcessed = 0, failed = 0 } = counts;
+  const { ok = 0, alreadyProcessed = 0, notFound = 0, failed = 0 } = counts;
   const verb = status === 2 ? "avslått" : "godkjent";
   const parts = [`${ok} ${verb}`];
   if (alreadyProcessed > 0) parts.push(`${alreadyProcessed} var allerede behandlet`);
+  if (notFound > 0) parts.push(`${notFound} fantes ikke lenger`);
   if (failed > 0) parts.push(`${failed} feilet`);
   return {
-    type: alreadyProcessed === 0 && failed === 0 ? "positive" : "warning",
+    type:
+      alreadyProcessed === 0 && notFound === 0 && failed === 0
+        ? "positive"
+        : "warning",
     message: parts.join(", "),
   };
 }

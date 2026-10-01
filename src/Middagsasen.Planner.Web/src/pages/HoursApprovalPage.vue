@@ -389,6 +389,7 @@ import { useRoute, useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter.js";
 import {
   getWorkHourErrorKind,
+  getWorkHourErrorMessage,
   summarizeBulkApproval,
 } from "src/shared/workHourDiff.js";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
@@ -586,7 +587,7 @@ function onWorkHourSaved() {
 }
 
 async function approveUpdateRows(status) {
-  const counts = { ok: 0, alreadyProcessed: 0, failed: 0 };
+  const counts = { ok: 0, alreadyProcessed: 0, notFound: 0, failed: 0 };
   try {
     loading.value = true;
     for (const workHour of selectedWorkHours.value) {
@@ -598,8 +599,11 @@ async function approveUpdateRows(status) {
         counts.ok++;
       } catch (e) {
         console.error(e);
-        if (getWorkHourErrorKind(e) === "conflict") {
+        const kind = getWorkHourErrorKind(e);
+        if (kind === "conflict") {
           counts.alreadyProcessed++;
+        } else if (kind === "notFound") {
+          counts.notFound++;
         } else {
           counts.failed++;
         }
@@ -636,12 +640,16 @@ async function changeStatus(workHourId, status) {
     $q.notify({
       type: "negative",
       closeBtn: "close",
-      message:
+      message: getWorkHourErrorMessage(
+        e,
         kind === "conflict"
-          ? "Føringen har allerede fått en annen status"
+          ? "Statusen kunne ikke endres fordi føringen er endret av noen andre"
+          : kind === "notFound"
+          ? "Føringen finnes ikke lenger"
           : kind === "forbidden"
           ? "Du har ikke tilgang til å endre denne føringen"
-          : "Klarte ikke å oppdatere status",
+          : "Klarte ikke å oppdatere status"
+      ),
     });
   } finally {
     loading.value = false;

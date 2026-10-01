@@ -120,6 +120,7 @@ import {
   buildWorkHourPatch,
   getWorkHourChanges,
   getWorkHourErrorKind,
+  getWorkHourErrorMessage,
 } from "src/shared/workHourDiff.js";
 
 const props = defineProps({
@@ -272,23 +273,21 @@ function validateContent() {
 
 function notifyError(error, fallbackMessage) {
   const kind = getWorkHourErrorKind(error);
-  if (kind === "conflict") {
-    $q.notify({
-      message: "Føringen er allerede behandlet og kan ikke endres lenger",
-      color: "negative",
-    });
+  const defaultMessage =
+    kind === "conflict"
+      ? "Føringen er allerede behandlet og kan ikke endres lenger"
+      : kind === "notFound"
+      ? "Føringen finnes ikke lenger"
+      : kind === "forbidden"
+      ? "Du har ikke tilgang til å endre denne føringen"
+      : fallbackMessage;
+  $q.notify({
+    message: getWorkHourErrorMessage(error, defaultMessage),
+    color: "negative",
+  });
+  if (kind === "conflict" || kind === "notFound") {
     // Forelder lukker og laster listen på nytt.
     emit("saved", null);
-  } else if (kind === "forbidden") {
-    $q.notify({
-      message: "Du har ikke tilgang til å endre denne føringen",
-      color: "negative",
-    });
-  } else {
-    $q.notify({
-      message: fallbackMessage,
-      color: "negative",
-    });
   }
 }
 
