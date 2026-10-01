@@ -6,10 +6,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         Task<WorkHourResponse> UpdateWorkHour(int workHourId, UpdateWorkHourRequest request);
         Task<ApprovedByResponse> UpdateApprovedBy(int workHourId, ApprovedByRequest request);
         Task<WorkHourResponse> DeleteWorkHour(int workHourId);
-        Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? approved, int? page = 1, int? pageSize = 20);
-        Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? page = 1, int? pageSize = 20);
+        /// <summary>Føringer for alle (eller én) brukere, kun admin. <paramref name="season"/> = sesongens startår; null = alle sesonger.</summary>
+        Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? userId, int? approved, int? season, int? page = 1, int? pageSize = 20);
+        /// <summary>Føringer for én bruker. <paramref name="season"/> = sesongens startår; null = alle sesonger.</summary>
+        Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? season, int? page = 1, int? pageSize = 20);
         Task<WorkHourResponse> GetWorkHourById(int workHourId);
-        Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null);
+        /// <summary>Sum timer per status. <paramref name="season"/> = sesongens startår; null = alle sesonger.</summary>
+        Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null, int? season = null);
         Task<IEnumerable<UserWorkHourSumResponse>> GetWorkHoursSumPerUser();
     }
 }

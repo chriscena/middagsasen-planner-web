@@ -61,9 +61,9 @@ namespace Middagsasen.Planner.Api.Controllers
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved)
+        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved, int? season, int? userId)
         {
-            return Ok(await WorkHoursService.GetWorkHours(approved, page, pageSize));
+            return Ok(await WorkHoursService.GetWorkHours(userId, approved, season, page, pageSize));
         }
 
         [HttpGet("{workHourId}")]
@@ -78,17 +78,17 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpGet("User/{userId}")]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved)
+        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved, int? season)
         {
-            return Ok(await WorkHoursService.GetWorkHoursByUser(userId, approved, page, pageSize));
+            return Ok(await WorkHoursService.GetWorkHoursByUser(userId, approved, season, page, pageSize));
         }
 
         [HttpGet("Sum")]
         [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetSum(int? userId = null)
+        public async Task<IActionResult> GetSum(int? userId = null, int? season = null)
         {
-            return Ok(await WorkHoursService.GetWorkHoursSum(userId));
+            return Ok(await WorkHoursService.GetWorkHoursSum(userId, season));
         }
 
         [HttpGet("Sum/All")]

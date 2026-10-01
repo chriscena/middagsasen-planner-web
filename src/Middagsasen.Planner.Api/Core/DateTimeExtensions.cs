@@ -5,6 +5,7 @@ namespace Middagsasen.Planner.Api.Core
     public static class DateTimeExtensions
     {
         public const int SeasonStartMonth = 7;
+        public const int FirstSeasonStartYear = 2023;
         public const string IsoDateTime = "yyyy'-'MM'-'dd'T'HH':'mm':'ssK";
         public const string IsoSimpleDateTime = "yyyy'-'MM'-'dd'T'HH':'mm";
 
@@ -56,11 +57,32 @@ namespace Middagsasen.Planner.Api.Core
         {
             if (!startTime.HasValue) return "";
 
-            var month = startTime.Value.Month;
-            var year = startTime.Value.Year;
-            return (month < SeasonStartMonth)
-                ? $"{year - 1}/{year}"
-                : $"{year}/{year + 1}";
+            return ToSeasonLabel(startTime.Value.GetSeasonStartYear());
+        }
+
+        /// <summary>
+        /// Returnerer startåret for sesongen datoen tilhører. En sesong starter 1. <see cref="SeasonStartMonth"/>.
+        /// </summary>
+        public static int GetSeasonStartYear(this DateTime date)
+        {
+            return date.Month < SeasonStartMonth ? date.Year - 1 : date.Year;
+        }
+
+        /// <summary>
+        /// Returnerer datointervallet for sesongen som starter i <paramref name="startYear"/>,
+        /// som et halvåpent intervall [From, To).
+        /// </summary>
+        public static (DateTime From, DateTime To) GetSeasonRange(int startYear)
+        {
+            return (new DateTime(startYear, SeasonStartMonth, 1), new DateTime(startYear + 1, SeasonStartMonth, 1));
+        }
+
+        /// <summary>
+        /// Returnerer visningsnavn for sesongen, f.eks. "2024/2025".
+        /// </summary>
+        public static string ToSeasonLabel(int startYear)
+        {
+            return $"{startYear}/{startYear + 1}";
         }
     }
 }

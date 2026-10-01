@@ -30,9 +30,26 @@
         ></q-btn>
       </q-toolbar>
     </q-header>
+    <div class="q-pb-sm">
+      <q-select
+        dense
+        outlined
+        label="Sesong"
+        :style="$q.screen.lt.md ? '' : 'max-width: 300px'"
+        :disable="viewModel.loading || viewModel.season === null"
+        :model-value="viewModel.season"
+        :options="seasonStore.seasons"
+        option-label="label"
+        option-value="startYear"
+        emit-value
+        map-options
+        @update:model-value="onSeasonChanged"
+      />
+    </div>
     <div>
       <q-list role="list" separator ref="workHoursList">
         <q-infinite-scroll
+          v-if="viewModel.seasonsLoaded"
           :offset="100"
           @load="getUserWorkhours"
           :distance="100"
@@ -157,6 +174,7 @@ import { useQuasar } from "quasar";
 import { ref, computed, useTemplateRef, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
+import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
@@ -166,6 +184,7 @@ import { formatNumber } from "src/shared/formatter.js";
 const $router = useRouter();
 const workHourStore = useWorkHourStore();
 const authStore = useAuthStore();
+const seasonStore = useSeasonStore();
 const $q = useQuasar();
 
 // props and emits
@@ -179,6 +198,9 @@ const viewModel = reactive({
   approvedHoursSum: 0,
   pendingHoursSum: 0,
   rejectedHoursSum: 0,
+  // Sesongens startår; null til sesonger er lastet.
+  season: null,
+  seasonsLoaded: false,
 });
 
 const infiniteScroll = useTemplateRef("infiniteScroll");
@@ -194,6 +216,9 @@ async function getUserWorkhours(index, done) {
       page: index,
       pageSize: 20,
     };
+    if (viewModel.season !== null) {
+      params.season = viewModel.season;
+    }
     const response = await workHourStore.getWorkHoursByUser(userId, params);
     if (response.result.length > 0) {
       viewModel.userWorkHours.push(...response.result);
@@ -216,7 +241,10 @@ async function getUserWorkhours(index, done) {
 }
 
 async function getWorkHoursSums() {
-  const response = await workHourStore.getWorkHoursSums(userId);
+  const response = await workHourStore.getWorkHoursSums(
+    userId,
+    viewModel.season
+  );
   viewModel.approvedHoursSum = response.approvedHours;
   viewModel.pendingHoursSum = response.pendingHours;
   viewModel.rejectedHoursSum = response.rejectedHours;
@@ -237,15 +265,39 @@ function editWorkHour(hours) {
   viewModel.showForm = true;
 }
 
-async function onTimeTrackingFormClosed() {
-  viewModel.selectedWorkHours = null;
+// Tømmer listen, starter infinite scroll på nytt og henter summer.
+async function reload() {
   viewModel.userWorkHours = [];
-  infiniteScroll.value.reset();
-  infiniteScroll.value.resume();
+  infiniteScroll.value?.reset();
+  infiniteScroll.value?.resume();
   await getWorkHoursSums();
 }
 
+async function onTimeTrackingFormClosed() {
+  viewModel.selectedWorkHours = null;
+  await reload();
+}
+
+async function onSeasonChanged(season) {
+  if (season === viewModel.season) return;
+  viewModel.season = season;
+  await reload();
+}
+
 onMounted(async () => {
+  try {
+    await seasonStore.getSeasons();
+    viewModel.season = seasonStore.currentSeason?.startYear ?? null;
+  } catch (e) {
+    console.error(e);
+    $q.notify({
+      type: "negative",
+      closeBtn: "close",
+      message: "Klarte ikke å hente sesonger",
+    });
+  }
+  // Infinite scroll rendres først når sesong er satt, så første side filtreres riktig.
+  viewModel.seasonsLoaded = true;
   await getWorkHoursSums();
 });
 

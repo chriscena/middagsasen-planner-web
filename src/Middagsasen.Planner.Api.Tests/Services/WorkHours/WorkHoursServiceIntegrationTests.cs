@@ -66,6 +66,24 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             return workHour;
         }
 
+        /// <summary>Seeder en føring på 3 timer som starter på <paramref name="startTime"/>.</summary>
+        private async Task<WorkHour> SeedWorkHourAt(User owner, DateTime startTime, int? status = null, User? approvedBy = null)
+        {
+            using var context = _fixture.CreateContext();
+            var workHour = new WorkHour
+            {
+                UserId = owner.UserId,
+                StartTime = startTime,
+                EndTime = startTime.AddHours(3),
+                ApprovalStatus = status,
+                ApprovedBy = approvedBy?.UserId,
+                ApprovedTime = approvedBy != null ? DateTime.UtcNow.AddDays(-1) : null,
+            };
+            context.WorkHours.Add(workHour);
+            await context.SaveChangesAsync();
+            return workHour;
+        }
+
         private async Task<WorkHour> Reload(int id)
         {
             using var context = _fixture.CreateContext();
@@ -592,10 +610,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, owner);
 
-            var all = await service.GetWorkHoursByUser(owner.UserId, null);
-            var open = await service.GetWorkHoursByUser(owner.UserId, 3);
-            var approved = await service.GetWorkHoursByUser(owner.UserId, 1);
-            var paged = await service.GetWorkHoursByUser(owner.UserId, null, page: 1, pageSize: 2);
+            var all = await service.GetWorkHoursByUser(owner.UserId, null, null);
+            var open = await service.GetWorkHoursByUser(owner.UserId, 3, null);
+            var approved = await service.GetWorkHoursByUser(owner.UserId, 1, null);
+            var paged = await service.GetWorkHoursByUser(owner.UserId, null, null, page: 1, pageSize: 2);
 
             Assert.Equal(3, all.TotalCount);
             Assert.Equal(2, open.TotalCount);
@@ -611,7 +629,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var other = await SeedUser();
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, other).GetWorkHoursByUser(owner.UserId, null));
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, other).GetWorkHoursByUser(owner.UserId, null, null));
         }
 
         [Fact]
@@ -620,7 +638,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var user = await SeedUser();
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, user).GetWorkHours(null));
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, user).GetWorkHours(null, null, null));
         }
 
         [Fact]
@@ -631,8 +649,56 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            var result = await CreateService(context, admin).GetWorkHours(null);
+            var result = await CreateService(context, admin).GetWorkHours(null, null, null);
             Assert.True(result.TotalCount >= 1);
+        }
+
+        [Fact]
+        public async Task GetWorkHours_FilteredOnSeason_ReturnsOnlyEntriesInSeason()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var first = await SeedWorkHourAt(owner, new DateTime(2024, 7, 1, 0, 0, 0));
+            var last = await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 20, 0, 0));
+            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 20, 0, 0)); // forrige sesong
+            await SeedWorkHourAt(owner, new DateTime(2025, 7, 1, 0, 0, 0));   // neste sesong
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, admin).GetWorkHours(owner.UserId, null, 2024, pageSize: 100);
+
+            Assert.Equal(2, result.TotalCount);
+            Assert.Equal(new[] { last.WorkHourId, first.WorkHourId }, result.Result.Select(r => r.WorkHourId));
+        }
+
+        [Fact]
+        public async Task GetWorkHours_FilteredOnUser_ReturnsOnlyThatUsersEntries()
+        {
+            var owner = await SeedUser();
+            var other = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            await SeedWorkHour(owner);
+            await SeedWorkHour(owner);
+            await SeedWorkHour(other);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, admin).GetWorkHours(owner.UserId, null, null, pageSize: 100);
+
+            Assert.Equal(2, result.TotalCount);
+            Assert.All(result.Result, r => Assert.Equal(owner.UserId, r.UserId));
+        }
+
+        [Fact]
+        public async Task GetByUser_FilteredOnSeason_ReturnsOnlyEntriesInSeason()
+        {
+            var owner = await SeedUser();
+            await SeedWorkHourAt(owner, new DateTime(2024, 9, 1, 9, 0, 0));
+            await SeedWorkHourAt(owner, new DateTime(2023, 9, 1, 9, 0, 0));
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, owner).GetWorkHoursByUser(owner.UserId, null, 2023);
+
+            Assert.Equal(1, result.TotalCount);
+            Assert.Equal(new DateTime(2023, 9, 1, 9, 0, 0), result.Result.Single().StartTime);
         }
 
         [Fact]
@@ -682,6 +748,27 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
             var result = await CreateService(context, admin).GetWorkHoursSum(owner.UserId);
             Assert.Equal(3.0, result.PendingHours);
+        }
+
+        [Fact]
+        public async Task GetSum_WithSeason_RespectsLowerAndUpperBound()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            await SeedWorkHourAt(owner, new DateTime(2024, 7, 1, 0, 0, 0));                                // 3 t, åpen
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 9, 0, 0), status: 1, approvedBy: admin); // 3 t, godkjent
+            await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 9, 0, 0));                               // forrige sesong
+            await SeedWorkHourAt(owner, new DateTime(2025, 7, 1, 0, 0, 0), status: 1, approvedBy: admin);  // neste sesong
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, owner);
+
+            var season = await service.GetWorkHoursSum(owner.UserId, 2024);
+            var all = await service.GetWorkHoursSum(owner.UserId);
+
+            Assert.Equal(3.0, season.PendingHours);
+            Assert.Equal(3.0, season.ApprovedHours);
+            Assert.Equal(6.0, all.PendingHours);
+            Assert.Equal(6.0, all.ApprovedHours);
         }
 
         [Fact]
@@ -922,10 +1009,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
             public Task<WorkHour?> GetWorkHourById(int workHourId) => _inner.GetWorkHourById(workHourId);
             public Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId) => _inner.GetWorkHourByIdReadOnly(workHourId);
-            public Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, int skip, int take)
-                => _inner.GetWorkHours(userId, approved, skip, take);
-            public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? startFrom = null)
-                => _inner.GetIntervals(userId, startFrom);
+            public Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take)
+                => _inner.GetWorkHours(userId, approved, from, to, skip, take);
+            public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null)
+                => _inner.GetIntervals(userId, from, to);
             public void Add(WorkHour workHour) => _inner.Add(workHour);
             public void Remove(WorkHour workHour) => _inner.Remove(workHour);
 

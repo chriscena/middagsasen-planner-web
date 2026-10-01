@@ -11,11 +11,17 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// <summary>Henter føring uten tracking, inkl. ApprovedByUser/ModifiedByUser.</summary>
         Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId);
 
-        /// <summary>Paginert liste sortert på starttid synkende. <paramref name="userId"/> null = alle brukere.</summary>
-        Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, int skip, int take);
+        /// <summary>
+        /// Paginert liste sortert på starttid synkende. <paramref name="userId"/> null = alle brukere.
+        /// <paramref name="from"/>/<paramref name="to"/> filtrerer på starttid i det halvåpne intervallet [from, to); null = ingen grense.
+        /// </summary>
+        Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take);
 
-        /// <summary>Avsluttede føringer (både start og slutt satt) for summering.</summary>
-        Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? startFrom = null);
+        /// <summary>
+        /// Avsluttede føringer (både start og slutt satt) for summering.
+        /// <paramref name="from"/>/<paramref name="to"/> filtrerer på starttid i det halvåpne intervallet [from, to); null = ingen grense.
+        /// </summary>
+        Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null);
 
         void Add(WorkHour workHour);
         void Remove(WorkHour workHour);

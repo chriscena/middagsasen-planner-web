@@ -8,6 +8,7 @@ using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
+using Middagsasen.Planner.Api.Services.Seasons;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
@@ -78,6 +79,8 @@ builder.Services.AddScoped<IWorkHoursService, WorkHoursService>();
 builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();
 builder.Services.AddScoped<ISystemService, SystemService>();
+builder.Services.AddScoped<ISeasonService, SeasonService>();
+builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddSingleton(new WeatherSettings
 {
