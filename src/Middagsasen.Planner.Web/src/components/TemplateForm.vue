@@ -98,6 +98,7 @@ import type {
   ResourceTemplateRequest,
   ResourceTypeResponse,
 } from "src/types";
+import { newClientKey } from "src/shared/clientKey";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
@@ -122,8 +123,6 @@ const emit = defineEmits<{
   delete: [value: TemplateFormModel];
 }>();
 
-// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
-// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
 const props = withDefaults(
   defineProps<{
     modelValue: TemplateFormValue;
@@ -140,13 +139,12 @@ onMounted(async () => {
   eventName.value = props.modelValue.eventName;
   startTime.value = formatTime(props.modelValue.startTime);
   endTime.value = formatTime(props.modelValue.endTime);
-  // OBS (#82): resourceTemplates er nullable i DTO-en; null gir TypeError her.
-  resources.value = props.modelValue.resourceTemplates!.map(
+  // resourceTemplates er nullable i DTO-en.
+  resources.value = (props.modelValue.resourceTemplates ?? []).map(
     (r): ResourceFormModel => {
       return {
         id: r.id,
-        // OBS (#82): `eventId: r.eventId` fjernet: ResourceTemplateResponse har
-        // ikke eventId, så verdien var alltid undefined (og brukes ikke).
+        clientKey: newClientKey(r.id),
         resourceType: r.resourceType,
         startTime: formatTime(r.startTime),
         endTime: formatTime(r.endTime),
@@ -178,8 +176,10 @@ const endTime = ref<string | null>("17:00");
 const resources = ref<ResourceFormModel[]>([]);
 
 const canSave = computed(() => {
+  // EventTemplateRequest krever både malnavn og navn på vaktliste.
   return !!(
     name.value &&
+    eventName.value &&
     startTime.value &&
     endTime.value &&
     resources.value.length
@@ -210,11 +210,10 @@ function mapToModel(): TemplateFormModel {
         resourceTypeId: r.resourceType!.id,
         startTime: formatDateTime(toDateTime(r.startTime)),
         endTime: formatDateTime(toDateTime(r.endTime)),
-        // OBS (#82): kan være string fra q-input type="number"; API-et godtar
-        // tall som streng (JsonSerializerDefaults.Web).
-        minimumStaff: r.minimumStaff as number,
+        // q-input type="number" kan gi string; Number() sender et tall.
+        minimumStaff: Number(r.minimumStaff),
         // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
-        isDeleted: r.isDeleted as boolean,
+        isDeleted: r.isDeleted ?? false,
       };
     }),
   };
@@ -233,8 +232,6 @@ function deleteTemplate() {
 }
 
 function formatDateTime(date: Date) {
-  // OBS (#82): tredje argument var `new Date()`, men format tar et options-objekt;
-  // fjernet uten endret atferd (Date har ingen av options-feltene).
   return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 </script>

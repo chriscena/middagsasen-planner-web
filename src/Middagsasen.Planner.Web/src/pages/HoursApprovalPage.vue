@@ -217,8 +217,7 @@
                 </div>
                 <q-space></q-space>
                 <q-item-label caption class="q-pt-md">
-                  {{ formatNumber(props.row.hours) }}
-                  t
+                  {{ formatHours(props.row.hours) }}
                 </q-item-label>
               </div>
             </q-card-section>
@@ -284,8 +283,7 @@
         </template>
         <template #body-cell-hours="props">
           <q-td :props="props">
-            {{ formatNumber(props.row.hours) }}
-            t
+            {{ formatHours(props.row.hours) }}
           </q-td>
         </template>
       </q-table>
@@ -399,10 +397,8 @@
             {{ userNameById(foundWorkHour.userId) }}
           </div>
           <q-space></q-space>
-          <!-- OBS (#82): hours kan være null i DTO-en; formatNumber kaster da. -->
           <q-item-label caption class="q-pt-md">
-            {{ formatNumber(foundWorkHour.hours as number) }}
-            t
+            {{ formatHours(foundWorkHour.hours) }}
           </q-item-label>
         </div>
       </q-card-section>
@@ -440,7 +436,7 @@ import { useAuthStore } from "src/stores/AuthStore";
 import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
-import { formatNumber } from "src/shared/formatter";
+import { formatHours, formatNumber } from "src/shared/formatter";
 import {
   getWorkHourErrorKind,
   summarizeBulkApproval,
@@ -490,8 +486,7 @@ const loading = ref(false);
 const seasonsLoaded = ref(false);
 const userOptions = ref<UserResponse[]>([]);
 const showApprovalDialog = ref(false);
-// OBS (#82): approvalType var ikke deklarert i JS-versjonen (satt implisitt på
-// komponentinstansen fra templaten, ikke-reaktivt). Settes alltid før dialogen åpnes.
+// 1 = godkjenn, 2 = avslå. Settes alltid før bekreftelsesdialogen åpnes.
 const approvalType = ref<1 | 2>(1);
 const userWorkHours = ref<WorkHourResponse[]>([]);
 const currentPage = ref(1);
@@ -576,7 +571,7 @@ const columns: QTableColumn<WorkHourResponse>[] = [
     name: "hours",
     label: "Timer",
     field: (row) => row.hours,
-    format: (val: number) => formatNumber(val),
+    format: (val: number | null | undefined) => formatNumber(val),
     align: "right",
     headerStyle: "width: 5%",
     style: "width: 5%",
@@ -668,7 +663,6 @@ async function getUserWorkHours(props: TableRequestProps) {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "Klarte ikke å hente timeføringer",
     });
   } finally {
@@ -688,7 +682,12 @@ function onWorkHourSaved() {
 }
 
 async function approveUpdateRows(status: number) {
-  const counts: Required<BulkApprovalCounts> = { ok: 0, alreadyProcessed: 0, notFound: 0, failed: 0 };
+  const counts: Required<BulkApprovalCounts> = {
+    ok: 0,
+    alreadyProcessed: 0,
+    notFound: 0,
+    failed: 0,
+  };
   try {
     loading.value = true;
     for (const workHour of selectedWorkHours.value) {
@@ -713,7 +712,6 @@ async function approveUpdateRows(status: number) {
     const summary = summarizeBulkApproval(counts, status);
     $q.notify({
       type: summary.type,
-      ...(summary.type === "positive" ? {} : { closeBtn: "close" }),
       message: summary.message,
     });
   } finally {
@@ -745,7 +743,6 @@ async function changeStatus(
     const kind = getWorkHourErrorKind(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: getApiErrorMessage(
         e,
         kind === "conflict"
@@ -885,7 +882,6 @@ onMounted(async () => {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "Klarte ikke å hente sesonger eller brukere",
     });
   }

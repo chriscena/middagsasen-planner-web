@@ -98,6 +98,8 @@ import type { ResourceTypeResponse } from "src/types";
 // Skjemamodell for en vakt (ressurs) i ResourceList/EventForm/TemplateForm.
 // Ikke en DTO: tidene er "HH:mm", og resourceType er hele objektet.
 export interface ResourceFormModel {
+  // Stabil nøkkel for `:key` i lister (se newClientKey). Sendes ikke til API-et.
+  clientKey: string;
   id?: number | undefined;
   eventId?: number | undefined;
   resourceType: ResourceTypeResponse | null;
@@ -115,8 +117,6 @@ const emit = defineEmits<{
   save: [value: ResourceFormModel];
 }>();
 
-// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
-// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
 const props = defineProps<{
   modelValue: ResourceFormModel;
   resourceTypes: ResourceTypeResponse[];
@@ -160,6 +160,7 @@ function saveResource() {
 function mapToModel(): ResourceFormModel {
   return {
     id: props.modelValue.id,
+    clientKey: props.modelValue.clientKey,
     resourceType: resourceType.value,
     minimumStaff: minimumStaff.value,
     startTime: startTime.value,

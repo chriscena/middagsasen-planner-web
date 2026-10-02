@@ -6,7 +6,7 @@
           <q-item-label>Ingen vakter</q-item-label></q-item-section
         >
       </q-item>
-      <q-item v-for="(resource, index) in visibleResources" :key="index">
+      <q-item v-for="resource in visibleResources" :key="resource.clientKey">
         <q-item-section>
           <q-item-label
             >{{ resource.resourceType?.name }}
@@ -52,9 +52,8 @@ import { format, addMinutes, parse } from "date-fns";
 import ResourceForm from "components/ResourceForm.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { ResourceTypeResponse } from "src/types";
+import { newClientKey } from "src/shared/clientKey";
 
-// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
-// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
 const props = withDefaults(
   defineProps<{
     modelValue?: ResourceFormModel[];
@@ -81,6 +80,7 @@ const showingEdit = ref(false);
 
 function addResource() {
   selectedResource.value = {
+    clientKey: newClientKey(),
     resourceType: null,
     startTime: format(addMinutes(toDateTime(props.startTime), -30), "HH:mm"),
     endTime: format(addMinutes(toDateTime(props.endTime), 30), "HH:mm"),
@@ -105,6 +105,7 @@ function saveResource(model: ResourceFormModel) {
   if (model?.isNew) {
     let resources = [...props.modelValue];
     resources.push({
+      clientKey: model.clientKey,
       resourceType: model.resourceType,
       startTime: model.startTime,
       endTime: model.endTime,
@@ -114,7 +115,6 @@ function saveResource(model: ResourceFormModel) {
     emit("update:model-value", resources);
   } else if (selectedResource.value) {
     // Dialogen (og dermed save) vises kun når selectedResource er satt.
-    selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.startTime = model.startTime;
     selectedResource.value.endTime = model.endTime;

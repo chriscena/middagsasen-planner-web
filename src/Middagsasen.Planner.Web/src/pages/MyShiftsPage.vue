@@ -78,7 +78,7 @@ import { onMounted, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { api } from "src/boot/axios";
-import { parse, parseISO, format } from "date-fns";
+import { parse, parseISO, format, isValid } from "date-fns";
 import { nb } from "date-fns/locale";
 import type { ShiftSeasonResponse } from "src/types";
 
@@ -95,19 +95,18 @@ const viewModel = reactive<ViewModel>({
   shifts: [],
 });
 
-// OBS (#82): startDate/startTime/endTime er nullable i UserShiftResponse
-// (Shift.StartTime/EndTime er nullable i databasen). Med null gir parse/parseISO
-// Invalid Date og format kaster RangeError — samme som i JS-versjonen.
+// startDate/startTime/endTime er nullable i UserShiftResponse (Shift.StartTime/
+// EndTime er nullable i databasen). format kaster RangeError for Invalid Date,
+// så manglende/ugyldige verdier vises som tomt felt.
+function formatOrEmpty(date: Date, pattern: string): string {
+  return isValid(date) ? format(date, pattern, { locale: nb }) : "";
+}
 const formattedDay = (dateString: string | null | undefined): string =>
-  format(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "EEE", {
-    locale: nb,
-  });
+  formatOrEmpty(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "EEE");
 const formattedDate = (dateString: string | null | undefined): string =>
-  format(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "dd.MM", {
-    locale: nb,
-  });
+  formatOrEmpty(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "dd.MM");
 const formattedTime = (time: string | null | undefined): string =>
-  format(parseISO(time ?? ""), "HH:mm");
+  formatOrEmpty(parseISO(time ?? ""), "HH:mm");
 
 onMounted(async () => {
   try {

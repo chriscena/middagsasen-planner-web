@@ -38,7 +38,11 @@
         <q-item-section side>
           <q-badge color="primary">
             {{ competency.resourceTypes?.length || 0 }}
-            {{ (competency.resourceTypes?.length || 0) === 1 ? "vakttype" : "vakttyper" }}
+            {{
+              (competency.resourceTypes?.length || 0) === 1
+                ? "vakttype"
+                : "vakttyper"
+            }}
           </q-badge>
         </q-item-section>
       </q-item> </q-list
@@ -101,7 +105,7 @@
             <q-list role="list" separator>
               <q-item
                 v-for="approver in selected.approvers"
-                :key="approver.id"
+                :key="approver.userId"
               >
                 <q-item-section>{{ approver.fullName }}</q-item-section>
                 <q-item-section side>
@@ -134,7 +138,9 @@
                       {{ scope.opt.fullName }}
                     </q-item-section>
                     <q-item-section side>
-                      <q-item-label caption>{{ scope.opt.phoneNo }}</q-item-label>
+                      <q-item-label caption>{{
+                        scope.opt.phoneNo
+                      }}</q-item-label>
                     </q-item-section>
                   </q-item>
                 </template>
@@ -253,8 +259,6 @@ async function editCompetency(competency: CompetencyResponse): Promise<void> {
 async function saveCompetency(): Promise<void> {
   // Cast: name kan være null og description undefined her; backend avviser
   // manglende navn med 400 (som før).
-  // OBS (#82): godkjennere lagt til på en ny kompetanse (id 0, kun lokalt)
-  // sendes ikke med — CompetencyRequest har ikke approvers — og går tapt.
   const request = {
     name: selected.value.name,
     description: selected.value.description,
@@ -264,7 +268,27 @@ async function saveCompetency(): Promise<void> {
     if (selected.value.id) {
       await competencyStore.updateCompetency(selected.value.id, request);
     } else {
-      await competencyStore.createCompetency(request);
+      const created = await competencyStore.createCompetency(request);
+      // Godkjennere lagt til før kompetansen fantes, ligger kun lokalt (id 0).
+      // CompetencyRequest har ikke approvers, så de legges til etter opprettelse.
+      const pendingApprovers = selected.value.approvers.filter((a) => !a.id);
+      selected.value.id = created.id;
+      const results = await Promise.allSettled(
+        pendingApprovers.map((a) =>
+          competencyStore.addApprover(created.id, a.userId)
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) {
+        results.forEach((r) => {
+          if (r.status === "rejected") console.log(r.reason);
+        });
+        $q.notify({
+          message: `Kompetansen er lagret, men ${failed} av ${pendingApprovers.length} godkjennere kunne ikke legges til.`,
+        });
+        showingEdit.value = false;
+        return;
+      }
     }
     showingEdit.value = false;
     $q.notify({ message: "Kompetansen er lagret." });

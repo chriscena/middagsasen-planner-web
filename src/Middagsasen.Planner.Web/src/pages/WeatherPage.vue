@@ -84,7 +84,6 @@ const weatherStore = useWeatherStore();
 
 interface MeasurementViewModel {
   measurementName: string;
-  measurementUnit: unknown;
   data: ChartData<"line", (number | Point | null)[]>;
   options: ChartOptions<"line">;
 }
@@ -101,10 +100,6 @@ const locations = computed((): LocationViewModel[] =>
       measurements: l.measurements.map((m) => {
         return {
           measurementName: m.measurementName,
-          // OBS (#82): feltet heter `unit` i MeasurementResponse, så dette er
-          // alltid undefined. measurementUnit brukes ikke i malen.
-          // @ts-expect-error measurementUnit finnes ikke på MeasurementResponse (se OBS over).
-          measurementUnit: m.measurementUnit,
           data: {
             datasets: [
               {

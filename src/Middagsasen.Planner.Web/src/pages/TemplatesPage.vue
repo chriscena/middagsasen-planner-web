@@ -129,12 +129,19 @@ function formatStartEndTime(template: EventTemplateResponse) {
 
 const savingTemplate = ref(false);
 async function saveTemplate(model: TemplateFormModel) {
+  // Lagre er deaktivert i TemplateForm (canSave) uten begge navnene.
+  const { name, eventName } = model;
+  if (!name || !eventName) {
+    $q.notify({ message: "Malen må ha navn og navn på vaktliste." });
+    return;
+  }
   try {
     savingTemplate.value = true;
-    // OBS (#82): skjemaet kan sende name/eventName som null, mens
-    // EventTemplateRequest krever streng. canSave krever name, men eventName
-    // kan være tømt. Castet for å bevare atferd (sendes uendret til API-et).
-    const request = model as EventTemplateRequest & { id: number };
+    const request: EventTemplateRequest & { id: number } = {
+      ...model,
+      name,
+      eventName,
+    };
     if (model.id) {
       await eventStore.updateTemplate(request);
       $q.notify({

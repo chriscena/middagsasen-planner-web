@@ -55,7 +55,9 @@ export const useEventStore = defineStore("events", {
           return e.startTime.startsWith(timestamp.date);
         });
       },
-    eventStatusDates: (state): string[] => [...Object.keys(state.eventStatuses)],
+    eventStatusDates: (state): string[] => [
+      ...Object.keys(state.eventStatuses),
+    ],
   },
   actions: {
     async getEventStatuses(month: number, year: number): Promise<void> {
@@ -156,29 +158,12 @@ export const useEventStore = defineStore("events", {
       const userStore = useUserStore();
       userStore.getUser();
     },
-    // NB: Backend har ikke noe PUT-endepunkt for
-    // /api/resourcetypes/{id}/training/{trainingId}, og body-en matcher ingen
-    // DTO. Metoden kalles ikke fra noen komponent i dag.
-    async updateTraining(
-      resource: ResourceResponse,
-      training: ShiftTraining
-    ): Promise<void> {
-      const model = {
-        needTraining: !training.trainingComplete,
-      };
-      await api.put(
-        `/api/resourcetypes/${resource.resourceType.id}/training/${training.id}`,
-        model
-      );
-      const userStore = useUserStore();
-      userStore.getUser();
-    },
-
     async addShift(
       parentResource: ResourceResponse,
       user: Pick<UserResponse, "id">,
       comment: string | null,
-      training: ShiftTraining
+      // undefined når vakttypen ikke har opplæring (checkTraining).
+      training?: ShiftTraining | null
     ): Promise<void> {
       const model: ShiftRequest = {
         startTime: parentResource.startTime,
@@ -213,13 +198,10 @@ export const useEventStore = defineStore("events", {
         }
       });
 
-      if (training.trainingComplete != null) {
+      if (training?.trainingComplete != null) {
         const userStore = useUserStore();
         userStore.getUser();
       }
-      // if (training?.id) {
-      //   await updateTraining(training);
-      // }
     },
     async deleteShift(shift: Pick<ShiftResponse, "id">): Promise<void> {
       const response = await api.delete<ShiftResponse>(

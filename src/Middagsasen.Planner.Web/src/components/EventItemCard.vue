@@ -433,6 +433,7 @@
                 color="primary"
                 no-caps
                 unelevated
+                :disable="!newMessage?.trim()"
                 :loading="savingMessage"
               ></q-btn> </q-card-actions
           ></template>
@@ -454,6 +455,7 @@ import { getApiErrorMessage } from "src/shared/apiError";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import type {
   EventResponse,
+  MessageRequest,
   MessageResponse,
   ResourceResponse,
   ResourceTypeResponse,
@@ -607,7 +609,10 @@ function isTaken(shift: ShiftListItem): shift is ShiftResponse {
   return (shift?.user?.id ?? 0) > 0;
 }
 
-function showEditButton(timestamp: DayTimestamp, shift: ShiftListItem): boolean {
+function showEditButton(
+  timestamp: DayTimestamp,
+  shift: ShiftListItem
+): boolean {
   return (
     timestamp.date >= today() &&
     (shift?.user?.id ?? 0) === currentUser.value?.id
@@ -731,17 +736,11 @@ async function addUserAsResource(
         iconColor: "primary",
         message: resource.resourceType.notificationMessage,
         position: "center",
-        // OBS (#82): Quasar-opsjonen heter `multiLine`; `multiline` ignoreres,
-        // så meldingen vises ikke som flerlinjet. Beholdt for å bevare atferd.
-        // @ts-expect-error ukjent opsjon i QNotifyCreateOptions (se over).
-        multiline: true,
+        multiLine: true,
       });
     }
-    // OBS (#82): training er undefined når ressurstypen ikke har opplæring
-    // (checkTraining). EventStore.addShift leser da `training.trainingComplete`
-    // etter at vakta er lagret og kaster TypeError, så brukeren får
-    // feilmelding selv om vakta ble tatt. `!` bevarer JS-atferden.
-    await eventStore.addShift(resource, currentUser.value, null, training!);
+    // training er undefined når vakttypen ikke har opplæring (checkTraining).
+    await eventStore.addShift(resource, currentUser.value, null, training);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
@@ -876,13 +875,13 @@ function showResourceInfo(resource: ResourceResponse): void {
 
 // Kalles fra ressursinfo-dialogen, der selectedResource er satt.
 async function saveMessage(): Promise<void> {
+  // Hver beskjed er en egen rad i API-et (sletting er et eget endepunkt), så en
+  // tom beskjed har ingen mening og sendes ikke. Lagre er deaktivert da.
+  const message = newMessage.value?.trim();
+  if (!message) return;
   try {
     savingMessage.value = true;
-    const model = {
-      // OBS (#82): newMessage er null når feltet er tomt/nullstilt, og da
-      // sendes `message: null` selv om MessageRequest krever en streng.
-      message: newMessage.value as string,
-    };
+    const model: MessageRequest = { message };
     const response = await eventStore.addMessage(
       selectedResource.value!.id,
       model
@@ -943,7 +942,6 @@ async function addEmptyShift(resource: ResourceResponse): Promise<void> {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "errorOccurred",
     });
   } finally {
@@ -965,7 +963,6 @@ async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "errorOccurred",
     });
   } finally {

@@ -84,7 +84,10 @@
         ></q-input>
         <q-card bordered flat>
           <q-list separator>
-            <q-item v-for="(resource, index) in visibleResources" :key="index">
+            <q-item
+              v-for="resource in visibleResources"
+              :key="resource.clientKey"
+            >
               <q-item-section>
                 <q-item-label
                   >{{ resource.resourceType.name }}
@@ -312,16 +315,18 @@ import {
   addMinutes,
   formatISO,
   parse,
-  isBefore,
-  addDays,
 } from "date-fns";
 import { useRouter } from "vue-router";
 import type { EventRequest, ResourceTypeResponse } from "src/types";
+import { toDateTime, toResourceStartDateTime } from "src/shared/eventDateTime";
+import { newClientKey } from "src/shared/clientKey";
 
 // Vakt i skjemaet: lastet fra eventet (med id/eventId), lagt til lokalt, eller
 // en ny vakt under redigering (isNew, uten isDeleted).
 interface ResourceForm {
   id?: number;
+  // Stabil nøkkel for `:key` i lista. Sendes ikke til API-et.
+  clientKey: string;
   eventId?: number;
   resourceType: ResourceTypeResponse | null;
   startTime: string | null;
@@ -370,6 +375,7 @@ onMounted(async () => {
       resources.value = event.resources.map((r) => {
         return {
           id: r.id,
+          clientKey: newClientKey(r.id),
           eventId: r.eventId,
           resourceType: r.resourceType,
           startTime: formatTime(r.startTime),
@@ -405,33 +411,14 @@ const isValidEndTime = computed(() =>
   isValid(parse(endTime.value, "HH:mm", new Date()))
 );
 
-const startDateTime = computed(() => {
-  try {
-    return toDateTime(startDate.value, startTime.value);
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-});
+const startDateTime = computed(() =>
+  toDateTime(startDate.value, startTime.value)
+);
 
-const endDateTime = computed(() => {
-  try {
-    return toDateTime(startDate.value, endTime.value, startDateTime.value);
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-});
-
-function toDateTime(date: string, time: string | null, start?: Date | null) {
-  const datetime = parse(`${date} ${time}`, "dd.MM.yyyy HH:mm", new Date());
-  // OBS (#82): Tilordning til const kaster TypeError når slutt er før start
-  // (over midnatt). endDateTime blir da null, og saveEvent feiler stille
-  // (format(null) kaster, feilen svelges i catch). Beholdt for å bevare atferd.
-  // @ts-expect-error -- se OBS over: const-tilordningen er bevart med vilje.
-  if (start && isBefore(datetime, start)) datetime = addDays(datetime, 1);
-  return datetime;
-}
+// Slutt før start betyr at vaktlista går over midnatt (neste dag).
+const endDateTime = computed(() =>
+  toDateTime(startDate.value, endTime.value, startDateTime.value)
+);
 
 const startDate = ref(formatDate(new Date()));
 const startTime = ref("10:00");
@@ -441,8 +428,9 @@ const resources = ref<ResourceModel[]>([]);
 const canSave = computed(() => {
   return !!(
     name.value &&
-    // startDateTime.value &&
-    // endDateTime.value &&
+    isValidDate.value &&
+    isValidStartTime.value &&
+    isValidEndTime.value &&
     resources.value.length
   );
 });
@@ -465,10 +453,11 @@ function resourceTypeChanged(newValue: ResourceTypeResponse | null) {
 function addResource() {
   selectedResource.value = {
     resourceType: null,
-    startTime: startDateTime.value
+    clientKey: newClientKey(),
+    startTime: isValid(startDateTime.value)
       ? format(addMinutes(startDateTime.value, -30), "HH:mm")
       : null,
-    endTime: endDateTime.value
+    endTime: isValid(endDateTime.value)
       ? format(addMinutes(endDateTime.value, 30), "HH:mm")
       : null,
     minimumStaff: 1,
@@ -485,6 +474,7 @@ function editResource(resource: ResourceModel) {
 function saveResource() {
   if (selectedResource.value?.isNew) {
     resources.value.push({
+      clientKey: selectedResource.value.clientKey,
       // Lagre-knappen er deaktivert uten vakttype (canAdd).
       resourceType: selectedResource.value.resourceType!,
       startTime: selectedResource.value.startTime,
@@ -524,24 +514,29 @@ function formatDate(isoDateTime: Date | string) {
 async function saveEvent() {
   try {
     loading.value = true;
-    // `!` på startDateTime/endDateTime: se OBS i toDateTime; null gir samme
-    // kast fra format som i JS-versjonen.
     const model: EventRequest = {
       // canSave krever navn.
       name: name.value!,
-      startTime: formatDateTime(startDateTime.value!),
-      endTime: formatDateTime(endDateTime.value!),
+      startTime: formatDateTime(startDateTime.value),
+      endTime: formatDateTime(endDateTime.value),
       resources: resources.value.map((r) => {
+        const resourceStart = toResourceStartDateTime(
+          startDate.value,
+          r.startTime,
+          startDateTime.value
+        );
         return {
           // `?? null`: id er valgfri i skjemaet, og med
           // exactOptionalPropertyTypes kan den ikke være undefined.
           id: r.id ?? null,
           resourceTypeId: r.resourceType.id,
-          startTime: formatDateTime(toDateTime(startDate.value, r.startTime)),
-          endTime: formatDateTime(toDateTime(startDate.value, r.endTime)),
-          minimumStaff: r.minimumStaff,
+          startTime: formatDateTime(resourceStart),
+          endTime: formatDateTime(
+            toDateTime(startDate.value, r.endTime, resourceStart)
+          ),
+          // q-input type="number" kan gi string; Number() sender et tall.
+          minimumStaff: Number(r.minimumStaff),
           isDeleted: r.isDeleted,
-          shifts: [],
         };
       }),
     };
@@ -556,7 +551,7 @@ async function saveEvent() {
         message: "Vaktlista er lagt til",
       });
     }
-    const date = formatISO(startDateTime.value!, {
+    const date = formatISO(startDateTime.value, {
       representation: "date",
     });
     await $router.push(`/day/${date}`);
