@@ -4,6 +4,8 @@ using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
+using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
 
@@ -670,7 +672,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            // Forfatteren sletter sin egen melding.
+            var service = CreateService(context, userId: user.UserId);
 
             // Act
             var result = await service.DeleteMessage(message.EventResourceMessageId, resource.EventResourceId);
@@ -900,5 +903,455 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         #endregion
+        #region Tilgang (#94)
+
+        private async Task<EventResourceUser> SeedShift(PlannerDbContext context, int eventResourceId, int userId, string comment = "Original")
+        {
+            var shift = new EventResourceUser
+            {
+                EventResourceId = eventResourceId,
+                UserId = userId,
+                StartTime = new DateTime(2026, 1, 15, 9, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 15, 0, 0),
+                Comment = comment,
+            };
+            context.Shifts.Add(shift);
+            await context.SaveChangesAsync();
+            return shift;
+        }
+
+        private static async Task SeedTrainer(PlannerDbContext context, int resourceTypeId, int userId)
+        {
+            context.ResourceTypeTrainers.Add(new ResourceTypeTrainer { ResourceTypeId = resourceTypeId, UserId = userId });
+            await context.SaveChangesAsync();
+        }
+
+        private async Task<EventResourceUser> GetShiftFromDb(int shiftId)
+        {
+            using var verifyContext = _fixture.CreateContext();
+            return await verifyContext.Shifts.AsNoTracking().SingleAsync(s => s.EventResourceUserId == shiftId);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Owner_CanUpdateTimesCommentAndOwnTraining()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: owner.UserId);
+
+            var training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = false };
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                StartTime = new DateTime(2026, 1, 15, 10, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 14, 0, 0),
+                Comment = "Eier endret",
+                Training = training,
+            };
+
+            var result = await service.UpdateShift(shift.EventResourceUserId, request);
+
+            Assert.Equal("Eier endret", result.Comment);
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal("Eier endret", dbShift.Comment);
+            Assert.Equal(new DateTime(2026, 1, 15, 10, 0, 0), dbShift.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 15, 14, 0, 0), dbShift.EndTime);
+            await _resourceTypesService.Received(1).CreateTraining(resource.ResourceTypeId, training);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Owner_ThrowsForbidden_WhenMovingShiftToOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: owner.UserId);
+
+            var request = new ShiftRequest { UserId = otherUser.UserId, Comment = "Flyttet" };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Original", dbShift.Comment);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Owner_ThrowsForbidden_WhenTrainingIsForOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: owner.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Comment = "Endret",
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = otherUser.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+
+            Assert.Equal("Original", (await GetShiftFromDb(shift.EventResourceUserId)).Comment);
+            await _resourceTypesService.DidNotReceiveWithAnyArgs().CreateTraining(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateShift_ThrowsForbidden_WhenOtherUserUpdatesShift()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: otherUser.UserId);
+
+            // Både med request.UserId = innlogget bruker (forsøk på å ta over vakta) og = eieren.
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => service.UpdateShift(shift.EventResourceUserId, new ShiftRequest { UserId = otherUser.UserId, Comment = "Tatt over" }));
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => service.UpdateShift(shift.EventResourceUserId, new ShiftRequest { UserId = owner.UserId, Comment = "Endret" }));
+
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Original", dbShift.Comment);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_UpdatesTrainingForOwner_WithoutChangingShift()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var training = new TrainingRequest { Id = 4242, ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true };
+            // Frontend sender hele vakt-objektet; vaktfeltene skal ignoreres for treneren.
+            var request = new ShiftRequest
+            {
+                UserId = trainer.UserId,
+                StartTime = new DateTime(2026, 1, 15, 11, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 12, 0, 0),
+                Comment = "Trener endret",
+                Training = training,
+            };
+
+            var result = await service.UpdateShift(shift.EventResourceUserId, request);
+
+            Assert.Equal(owner.UserId, result.User.Id);
+            await _resourceTypesService.Received(1).UpdateTraining(resource.ResourceTypeId, training);
+
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Original", dbShift.Comment);
+            Assert.Equal(new DateTime(2026, 1, 15, 9, 0, 0), dbShift.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 15, 15, 0, 0), dbShift.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_WithoutTraining_ReturnsShiftUnchanged()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var result = await service.UpdateShift(shift.EventResourceUserId, new ShiftRequest { UserId = trainer.UserId, Comment = "Trener endret" });
+
+            Assert.Equal(owner.UserId, result.User.Id);
+            Assert.Equal("Original", result.Comment);
+            Assert.Equal("Original", (await GetShiftFromDb(shift.EventResourceUserId)).Comment);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_ThrowsForbidden_WhenTrainingIsForOtherUserThanOwner()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = otherUser.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+            await _resourceTypesService.DidNotReceiveWithAnyArgs().CreateTraining(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_ThrowsForbidden_WhenTrainingIsForOtherResourceType()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var otherRt = await SeedResourceType(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            await SeedTrainer(seedContext, otherRt.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Training = new TrainingRequest { ResourceTypeId = otherRt.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+            await _resourceTypesService.DidNotReceiveWithAnyArgs().CreateTraining(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateShift_ThrowsForbidden_WhenTrainerForOtherResourceType()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var otherRt = await SeedResourceType(seedContext);
+            await SeedTrainer(seedContext, otherRt.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+            await _resourceTypesService.DidNotReceiveWithAnyArgs().CreateTraining(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Admin_CanMoveShiftAndUpdateAllFields()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var admin = await SeedUser(seedContext, "Admin", isAdmin: true);
+            var owner = await SeedUser(seedContext, "Owner");
+            var newOwner = await SeedUser(seedContext, "NewOwner");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: admin.UserId, isAdmin: true);
+
+            var training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = newOwner.UserId, TrainingCompleted = true };
+            var request = new ShiftRequest
+            {
+                UserId = newOwner.UserId,
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
+                Comment = "Admin endret",
+                Training = training,
+            };
+
+            var result = await service.UpdateShift(shift.EventResourceUserId, request);
+
+            Assert.Equal(newOwner.UserId, result.User.Id);
+            await _resourceTypesService.Received(1).CreateTraining(resource.ResourceTypeId, training);
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(newOwner.UserId, dbShift.UserId);
+            Assert.Equal("Admin endret", dbShift.Comment);
+            Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbShift.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbShift.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateShift_DoesNotPersistShiftChanges_WhenTrainingIsForbidden()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            _resourceTypesService
+                .CreateTraining(Arg.Any<int>(), Arg.Any<TrainingRequest>())
+                .Returns<TrainingResponse?>(_ => throw new ForbiddenAccessException());
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: owner.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Comment = "Endret",
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+
+            Assert.Equal("Original", (await GetShiftFromDb(shift.EventResourceUserId)).Comment);
+        }
+
+        [Fact]
+        public async Task AddShift_DoesNotPersistShift_WhenTrainingIsForbidden()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (_, resource) = await SeedEventWithResource(seedContext);
+
+            _resourceTypesService
+                .CreateTraining(Arg.Any<int>(), Arg.Any<TrainingRequest>())
+                .Returns<TrainingResponse?>(_ => throw new ForbiddenAccessException());
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = user.UserId,
+                Comment = UniqueName("Rollback403"),
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = user.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.AddShift(resource.EventResourceId, request));
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Shifts.AnyAsync(s => s.Comment == request.Comment));
+        }
+
+        [Fact]
+        public async Task AddShift_ThrowsForbidden_WhenNonAdminSendsTrainingForOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Current");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = user.UserId,
+                Comment = UniqueName("AddTrainingOther"),
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = otherUser.UserId, TrainingCompleted = true },
+            };
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.AddShift(resource.EventResourceId, request));
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Shifts.AnyAsync(s => s.Comment == request.Comment));
+            await _resourceTypesService.DidNotReceiveWithAnyArgs().CreateTraining(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_ConfirmsOwnersTraining_WithRealResourceTypesService()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var currentUser = MockCurrentUser(trainer.UserId);
+            var resourceTypesService = new ResourceTypesService(
+                context,
+                Substitute.For<ISmsSender>(),
+                Substitute.For<IStorageService>(),
+                currentUser);
+            var service = new EventsService(context, resourceTypesService, currentUser);
+
+            var request = new ShiftRequest
+            {
+                UserId = owner.UserId,
+                Comment = "Ignoreres",
+                Training = new TrainingRequest { ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true },
+            };
+
+            await service.UpdateShift(shift.EventResourceUserId, request);
+
+            using var verifyContext = _fixture.CreateContext();
+            var dbTraining = await verifyContext.ResourceTypeTrainings.AsNoTracking()
+                .SingleAsync(t => t.UserId == owner.UserId && t.ResourceTypeId == resource.ResourceTypeId);
+            Assert.True(dbTraining.TrainingComplete);
+            Assert.Equal(trainer.UserId, dbTraining.ConfirmedBy);
+            Assert.Equal("Original", (await GetShiftFromDb(shift.EventResourceUserId)).Comment);
+        }
+
+        [Fact]
+        public async Task DeleteMessage_AllowsAdmin_ToDeleteOthersMessage()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var author = await SeedUser(seedContext, "Author");
+            var admin = await SeedUser(seedContext, "Admin", isAdmin: true);
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var message = new EventResourceMessage { EventResourceId = resource.EventResourceId, Message = "Admin sletter", Created = DateTime.UtcNow, CreatedBy = author.UserId };
+            seedContext.Messages.Add(message);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: admin.UserId, isAdmin: true);
+
+            await service.DeleteMessage(message.EventResourceMessageId, resource.EventResourceId);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId));
+        }
+
+        [Fact]
+        public async Task DeleteMessage_ThrowsForbidden_WhenOtherUserDeletesMessage()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var author = await SeedUser(seedContext, "Author");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var message = new EventResourceMessage { EventResourceId = resource.EventResourceId, Message = "Skal ikke slettes", Created = DateTime.UtcNow, CreatedBy = author.UserId };
+            seedContext.Messages.Add(message);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: otherUser.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => service.DeleteMessage(message.EventResourceMessageId, resource.EventResourceId));
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId));
+        }
+
+        #endregion
+
     }
 }

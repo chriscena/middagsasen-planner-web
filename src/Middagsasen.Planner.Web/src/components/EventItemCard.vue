@@ -218,6 +218,9 @@
       </q-inner-loading>
     </q-card>
   </q-dialog>
+  <!-- Åpnes også av trenere for ressurstypen. Backend lar en trener som ikke
+       er admin bare endre opplæringen til vaktas eier (#94), så navn og
+       kommentar er deaktivert og sletting skjult for andre enn admin. -->
   <q-dialog v-model="showingAdminEdit" persistent>
     <q-card class="full-width">
       <q-card-section class="text-h6 row"
@@ -668,7 +671,14 @@ async function setTraining(needTraining: boolean): Promise<void> {
       currentUser.value,
       needTraining
     );
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(
+        error,
+        "Oh no! Noe tryna da vi skulle lagre opplæringen! 🙈"
+      ),
+    });
   } finally {
     savingTraining.value = false;
   }
@@ -898,7 +908,9 @@ async function deleteMessage(message: MessageResponse): Promise<void> {
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er slettet. 📤" });
   } catch (error) {
-    $q.notify({ message: "Klarte ikke å slette beskjed. 😿" });
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette beskjed. 😿"),
+    });
     console.log(error);
   } finally {
     deletingMessage.value = false;

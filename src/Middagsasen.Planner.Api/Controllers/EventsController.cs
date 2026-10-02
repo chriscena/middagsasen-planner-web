@@ -90,6 +90,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/resources/{id}/shifts")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
@@ -109,6 +110,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpDelete("api/resources/{eventResourceId}/messages/{id}")]
         [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
         {
@@ -117,6 +119,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<ShiftResponse> UpdateShift(int id, [FromBody] ShiftRequest request)

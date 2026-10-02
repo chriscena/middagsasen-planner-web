@@ -69,6 +69,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("{id}/training"), Authorize]
         [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
         {
             // Servicen ignorerer bevisst opplæring uten TrainingCompleted (brukt fra vakt-endepunktene),
