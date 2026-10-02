@@ -416,6 +416,8 @@
                 autogrow
                 type="textarea"
                 v-model="newMessage"
+                :maxlength="MESSAGE_MAX_LENGTH"
+                counter
               ></q-input>
             </q-card-section>
             <q-card-actions
@@ -465,6 +467,9 @@ import type {
   TrainingResponse,
   UserResponse,
 } from "src/types";
+
+// Maks lengde på en beskjed; speiler MessageRequest.MaxLength i backend.
+const MESSAGE_MAX_LENGTH = 4000;
 
 // Dagen fra q-calendar-agenda (Timestamp); kun date (yyyy-MM-dd) brukes.
 interface DayTimestamp {
@@ -866,7 +871,9 @@ async function saveMessage(): Promise<void> {
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er lagret. 📨" });
   } catch (error) {
-    $q.notify({ message: "Klarte ikke å lagre beskjed. 😿" });
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre beskjed. 😿"),
+    });
     console.log(error);
   } finally {
     savingMessage.value = false;
