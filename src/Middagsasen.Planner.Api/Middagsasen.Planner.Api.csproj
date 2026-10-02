@@ -8,6 +8,16 @@
     <ApplicationInsightsResourceId>/subscriptions/9d4c8fb3-81c9-498c-8762-e62871d55f14/resourceGroups/Middagsasen/providers/microsoft.insights/components/middagsasen-planner</ApplicationInsightsResourceId>
   </PropertyGroup>
 
+  <!--
+    Build-time-generering av OpenAPI-dokumentet (Microsoft.Extensions.ApiDescription.Server).
+    Dokumentet skrives til openapi/openapi.json ved hver build, slik at frontend kan generere
+    TypeScript-typer uten kjørende backend. Under kjøring serveres det også på /openapi/v1.json (Development).
+  -->
+  <PropertyGroup>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/openapi</OpenApiDocumentsDirectory>
+    <OpenApiGenerateDocumentsOptions>--file-name openapi</OpenApiGenerateDocumentsOptions>
+  </PropertyGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="Middagsasen.Planner.Api.Tests" />
   </ItemGroup>
@@ -19,11 +29,15 @@
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <PackageReference Include="Newtonsoft.Json" />
     <PackageReference Include="Serilog.AspNetCore" />
     <PackageReference Include="Serilog.Sinks.ApplicationInsights" />
-    <PackageReference Include="Swashbuckle.AspNetCore" />
+    <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
   </ItemGroup>
 
