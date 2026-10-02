@@ -1878,6 +1878,17 @@ export interface paths {
                         "application/octet-stream": components["schemas"]["Stream"];
                     };
                 };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Not Found */
                 404: {
                     headers: {
@@ -2453,9 +2464,9 @@ export interface paths {
             };
             requestBody: {
                 content: {
-                    "application/json": components["schemas"]["UserRequest"];
-                    "text/json": components["schemas"]["UserRequest"];
-                    "application/*+json": components["schemas"]["UserRequest"];
+                    "application/json": components["schemas"]["UpdateMeRequest"];
+                    "text/json": components["schemas"]["UpdateMeRequest"];
+                    "application/*+json": components["schemas"]["UpdateMeRequest"];
                 };
             };
             responses: {
@@ -2468,6 +2479,17 @@ export interface paths {
                         "text/plain": components["schemas"]["UserResponse"];
                         "application/json": components["schemas"]["UserResponse"];
                         "text/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Not Found */
@@ -2594,6 +2616,17 @@ export interface paths {
                         "text/json": components["schemas"]["UserResponse"];
                     };
                 };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Forbidden */
                 403: {
                     headers: {
@@ -2692,6 +2725,17 @@ export interface paths {
                         "text/plain": components["schemas"]["UserResponse"];
                         "application/json": components["schemas"]["UserResponse"];
                         "text/json": components["schemas"]["UserResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Forbidden */
@@ -3782,6 +3826,12 @@ export interface components {
             confirmedById?: null | number;
             confirmedByName?: null | string;
             trainingComplete?: null | boolean;
+        };
+        UpdateMeRequest: {
+            firstName?: null | string;
+            lastName?: null | string;
+            password?: null | string;
+            isHidden?: null | boolean;
         };
         UpdateWorkHourRequest: {
             /** Format: date-time */

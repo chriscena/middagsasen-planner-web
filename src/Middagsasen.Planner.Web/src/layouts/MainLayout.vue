@@ -307,7 +307,8 @@ import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar, date as dateUtil } from "quasar";
 import { formatVersion } from "src/shared/appVersion";
-import type { UserCompetencyResponse, UserRequest } from "src/types";
+import { getApiErrorMessage } from "src/shared/apiError";
+import type { UpdateMeRequest, UserCompetencyResponse } from "src/types";
 
 // Skjemaet i brukerinfo-dialogen.
 interface UserForm {
@@ -430,7 +431,7 @@ function editUser(): void {
 async function saveUser(): Promise<void> {
   try {
     saving.value = true;
-    const model: UserRequest = {
+    const model: UpdateMeRequest = {
       firstName: state.firstName,
       lastName: state.lastName,
       password: state.password,
@@ -440,7 +441,9 @@ async function saveUser(): Promise<void> {
     editingUser.value = false;
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å lagre endringer" });
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre endringer"),
+    });
   } finally {
     saving.value = false;
   }
@@ -449,7 +452,7 @@ async function saveUser(): Promise<void> {
 async function updateHidden(isHidden: boolean): Promise<void> {
   try {
     saving.value = true;
-    const model: UserRequest = {
+    const model: UpdateMeRequest = {
       isHidden: isHidden,
     };
     await userStore.saveUser(model);

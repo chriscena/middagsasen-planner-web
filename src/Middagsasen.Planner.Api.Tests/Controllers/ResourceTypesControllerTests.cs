@@ -1,4 +1,9 @@
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Routing;
+using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Controllers;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
@@ -40,6 +45,32 @@ namespace Middagsasen.Planner.Api.Tests.Controllers
 
             var created = Assert.IsType<CreatedResult>(result);
             Assert.Same(training, created.Value);
+        }
+
+        private static AuthorizeAttribute? GetFileAuthorizeAttribute()
+            => typeof(ResourceTypesController).GetMethod(nameof(ResourceTypesController.GetFile))!
+                .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+                .Cast<AuthorizeAttribute>()
+                .SingleOrDefault();
+
+        [Fact]
+        public void GetFile_HasAuthorizeAttribute()
+        {
+            var authorize = GetFileAuthorizeAttribute();
+
+            Assert.NotNull(authorize);
+            Assert.Null(authorize.Role);
+        }
+
+        [Fact]
+        public void GetFile_AnonymousRequest_IsRejectedWithUnauthorized()
+        {
+            var actionContext = new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor());
+            var context = new AuthorizationFilterContext(actionContext, new List<IFilterMetadata>());
+
+            GetFileAuthorizeAttribute()!.OnAuthorization(context);
+
+            Assert.IsType<UnauthorizedResult>(context.Result);
         }
     }
 }

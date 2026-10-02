@@ -1,4 +1,4 @@
-using Middagsasen.Planner.Api.Authentication;
+﻿using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.SmsSender;
@@ -158,6 +158,292 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.Update(int.MaxValue, new UserRequest { FirstName = "X" }));
+        }
+
+        private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
+
+        private static async Task<User> SeedUserWithPhone(PlannerDbContext context, string phoneNo, bool isAdmin = false)
+        {
+            var user = new User
+            {
+                UserName = phoneNo,
+                FirstName = "Opprinnelig",
+                LastName = "Bruker",
+                IsAdmin = isAdmin,
+                Created = DateTime.UtcNow,
+            };
+            context.Users.Add(user);
+            await context.SaveChangesAsync();
+            return user;
+        }
+
+        [Fact]
+        public void UpdateMeRequest_HasNoAdminOrPhoneNoField()
+        {
+            var properties = typeof(UpdateMeRequest).GetProperties().Select(p => p.Name).ToList();
+
+            Assert.DoesNotContain(nameof(UserRequest.IsAdmin), properties);
+            Assert.DoesNotContain(nameof(UserRequest.PhoneNo), properties);
+        }
+
+        [Fact]
+        public async Task UpdateMe_SetsIsHidden_AndLeavesItUnchangedWhenNull()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { IsHidden = true });
+                Assert.True(result.IsHidden);
+                Assert.False(result.IsAdmin);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Fortsatt skjult" });
+                Assert.True(result.IsHidden);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == user.UserId).IsHidden);
+        }
+
+        [Fact]
+        public async Task UpdateMe_UpdatesName_AndKeepsUserName()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var result = await service.UpdateMe(user.UserId, new UpdateMeRequest
+            {
+                FirstName = "Nytt",
+                LastName = "Navn",
+            });
+
+            Assert.Equal("Nytt", result.FirstName);
+            Assert.Equal("Navn", result.LastName);
+            Assert.Equal(phoneNo, result.PhoneNo);
+            Assert.False(result.IsAdmin);
+
+            using var verifyContext = _fixture.CreateContext();
+            var stored = verifyContext.Users.Single(u => u.UserId == user.UserId);
+            Assert.Equal(phoneNo, stored.UserName);
+            Assert.False(stored.IsAdmin);
+            Assert.False(stored.IsHidden);
+        }
+
+        [Fact]
+        public async Task UpdateMe_KeepsExistingAdmin()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var admin = await SeedUserWithPhone(seedContext, UniquePhoneNo(), isAdmin: true);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var result = await service.UpdateMe(admin.UserId, new UpdateMeRequest { FirstName = "Admin" });
+
+            Assert.True(result.IsAdmin);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == admin.UserId).IsAdmin);
+        }
+
+        [Fact]
+        public async Task UpdateMe_ReturnsTrainings()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 1 };
+            seedContext.ResourceTypes.Add(rt);
+            await seedContext.SaveChangesAsync();
+            seedContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
+            {
+                UserId = user.UserId,
+                ResourceTypeId = rt.ResourceTypeId,
+                TrainingComplete = true,
+            });
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Med opplæring" });
+
+            var training = Assert.Single(result.Trainings);
+            Assert.Equal(rt.ResourceTypeId, training.ResourceTypeId);
+            Assert.Equal(rt.Name, training.ResourceTypeName);
+            Assert.True(training.TrainingComplete);
+        }
+
+        [Fact]
+        public async Task Update_ThrowsDomainValidation_WhenPhoneNoBelongsToAnotherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var otherPhoneNo = UniquePhoneNo();
+            // Eldre data: den andre brukeren har nummeret lagret i et annet format.
+            await SeedUserWithPhone(seedContext, $"+47 {otherPhoneNo}");
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.Update(user.UserId, new UserRequest { PhoneNo = $"0047{otherPhoneNo}" }));
+            Assert.Equal(UserService.PhoneNoInUseMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Update_ChangesPhoneNo_AndStoresItNormalized()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var newPhoneNo = UniquePhoneNo();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+47 {newPhoneNo}" });
+
+            Assert.Equal(newPhoneNo, result.PhoneNo);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.Equal(newPhoneNo, verifyContext.Users.Single(u => u.UserId == user.UserId).UserName);
+        }
+
+        [Fact]
+        public async Task Update_AllowsKeepingOwnPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var result = await service.Update(user.UserId, new UserRequest { PhoneNo = phoneNo, IsAdmin = true });
+
+            Assert.Equal(phoneNo, result.PhoneNo);
+            Assert.True(result.IsAdmin);
+        }
+
+        [Fact]
+        public async Task Update_AllowsUnchangedPhoneNo_WhenAnotherUserHasSameNumberInOtherFormat()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+            await SeedUserWithPhone(seedContext, $"+47 {phoneNo}");
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { FirstName = "Endret", PhoneNo = phoneNo });
+
+            Assert.Equal("Endret", result.FirstName);
+            Assert.Equal(phoneNo, result.PhoneNo);
+        }
+
+        [Fact]
+        public async Task Update_AllowsUnchangedUserName_WhenItIsNotAPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, "admin");
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { FirstName = "Admin", PhoneNo = "admin", IsAdmin = true });
+
+            Assert.Equal("admin", result.PhoneNo);
+            Assert.True(result.IsAdmin);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.Equal("admin", verifyContext.Users.Single(u => u.UserId == user.UserId).UserName);
+        }
+
+        [Fact]
+        public async Task Create_ThrowsDomainValidation_WhenPhoneNoIsInUse()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var existing = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.Create(new UserRequest { FirstName = "Ny", PhoneNo = $"+47 {existing.UserName}" }));
+            Assert.Equal(UserService.PhoneNoInUseMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Create_ReactivatesInactiveUser_WithSamePhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            // Slettet bruker med nummeret lagret i eldre format.
+            var deleted = await SeedUserWithPhone(seedContext, $"+47 {phoneNo}");
+            deleted.Inactive = true;
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Create(new UserRequest
+            {
+                FirstName = "Tilbake",
+                LastName = "Igjen",
+                PhoneNo = phoneNo,
+                IsAdmin = true,
+                IsHidden = true,
+                Password = "hemmelig",
+            });
+
+            Assert.Equal(deleted.UserId, result.Id);
+            Assert.Equal("Tilbake", result.FirstName);
+            Assert.Equal("Igjen", result.LastName);
+            Assert.Equal(phoneNo, result.PhoneNo);
+            Assert.True(result.IsAdmin);
+            Assert.True(result.IsHidden);
+
+            using var verifyContext = _fixture.CreateContext();
+            var stored = verifyContext.Users.Single(u => u.UserId == deleted.UserId);
+            Assert.False(stored.Inactive);
+            Assert.Equal(phoneNo, stored.UserName);
+            Assert.NotNull(stored.Salt);
+            Assert.True(PasswordHasher.VerifyHash("hemmelig", stored.Salt!, stored.EncryptedPassword!));
+            Assert.Single(verifyContext.Users.Where(u => u.UserName == phoneNo || u.UserName == $"+47 {phoneNo}"));
+        }
+
+        [Fact]
+        public async Task Create_ThrowsDomainValidation_WhenPhoneNoBelongsToActiveAndInactiveUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var deleted = await SeedUserWithPhone(seedContext, $"+47{phoneNo}");
+            deleted.Inactive = true;
+            await SeedUserWithPhone(seedContext, phoneNo);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Create(new UserRequest { FirstName = "Ny", PhoneNo = phoneNo }));
+            Assert.Equal(UserService.PhoneNoInUseMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Create_StoresNormalizedPhoneNo()
+        {
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+            var phoneNo = UniquePhoneNo();
+
+            var result = await service.Create(new UserRequest { FirstName = "Ny", PhoneNo = $"+47 {phoneNo[..3]} {phoneNo[3..]}" });
+
+            Assert.Equal(phoneNo, result.PhoneNo);
+        }
+
+        [Fact]
+        public async Task Create_ThrowsDomainValidation_WhenPhoneNoIsInvalid()
+        {
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.Create(new UserRequest { FirstName = "Ny", PhoneNo = "123" }));
+            Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
         }
 
         [Fact]

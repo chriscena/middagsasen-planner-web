@@ -3,6 +3,7 @@ import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
 import type {
   PhoneResponse,
+  UpdateMeRequest,
   UserRequest,
   UserResponse,
   UserWorkHourSumResponse,
@@ -65,7 +66,7 @@ export const useUserStore = defineStore("users", {
       const deletedUser = response.data;
       this.users = this.users.filter((u) => u.id !== deletedUser.id);
     },
-    async saveUser(user: UserRequest): Promise<void> {
+    async saveUser(user: UpdateMeRequest): Promise<void> {
       const response = await api.put<UserResponse>("/api/me", user);
       authStore.setUser(response.data);
     },

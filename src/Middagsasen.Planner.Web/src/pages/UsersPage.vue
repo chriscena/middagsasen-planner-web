@@ -230,6 +230,7 @@ import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { formatNumber } from "src/shared/formatter";
+import { getApiErrorMessage } from "src/shared/apiError";
 import type { UserCompetencyResponse, UserResponse } from "src/types";
 
 // Skjemaet i redigeringsdialogen. Ved redigering er det en kopi av
@@ -437,11 +438,12 @@ async function saveUser(): Promise<void> {
     }
     $q.notify({ message: "Bruker lagret" });
     showingEditDialog.value = false;
-  } catch {
-    $q.notify({ message: "Klarte ikke å lagre bruker" });
+  } catch (error) {
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre bruker"),
+    });
   } finally {
-    // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).
-    saving.value = true;
+    saving.value = false;
   }
 }
 
@@ -455,8 +457,7 @@ async function deleteUser(): Promise<void> {
   } catch {
     $q.notify({ message: "Klarte ikke å slette bruker" });
   } finally {
-    // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).
-    saving.value = true;
+    saving.value = false;
   }
 }
 </script>

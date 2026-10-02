@@ -198,8 +198,7 @@
                     round
                     icon="download"
                     title="Last ned fil"
-                    type="a"
-                    :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+                    @click="downloadResourceTypeFileOrNotify(file, $q.notify)"
                   ></q-btn> </q-item-section
                 ><q-item-section side>
                   <q-btn
@@ -335,6 +334,7 @@ import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
+import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import { computed } from "vue";
 import type {
   CompetencyResponse,

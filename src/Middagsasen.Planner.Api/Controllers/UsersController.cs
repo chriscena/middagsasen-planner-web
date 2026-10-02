@@ -26,10 +26,11 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/me")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<UserResponse> UpdateMe([FromBody]UserRequest request)
+        public async Task<UserResponse> UpdateMe([FromBody]UpdateMeRequest request)
         {
-            return await UserService.Update(CurrentUser.UserId, request);
+            return await UserService.UpdateMe(CurrentUser.UserId, request);
         }
 
         [HttpGet("api/users/phone")]
@@ -61,6 +62,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("api/users")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> CreateUser(UserRequest user)
         {
@@ -71,6 +73,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<UserResponse> UpdateUser(int id, UserRequest user)

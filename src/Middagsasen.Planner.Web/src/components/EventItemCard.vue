@@ -361,7 +361,7 @@
               v-for="file in selectedResource!.resourceType.files"
               :key="file.id"
               clickable
-              :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+              @click="downloadResourceTypeFileOrNotify(file, $q.notify)"
             >
               <q-item-section
                 ><q-item-label lines="1">{{
@@ -451,6 +451,7 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { getApiErrorMessage } from "src/shared/apiError";
+import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import type {
   EventResponse,
   MessageResponse,

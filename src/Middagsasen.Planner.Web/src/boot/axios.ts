@@ -3,6 +3,7 @@ import axios from "axios";
 import { Notify } from "quasar";
 import { useAuthStore } from "src/stores/AuthStore";
 import { handleUnauthorized } from "src/auth/unauthorizedHandler";
+import { applyRequestDefaults } from "src/shared/requestDefaults";
 
 // Be careful when using SSR for cross-request state pollution
 // due to creating a Singleton instance here;
@@ -14,12 +15,7 @@ const api = axios.create(/*{ baseURL: "https://api.example.com" }*/);
 
 api.interceptors.request.use(
   function (config) {
-    config.signal = AbortSignal.timeout(10000);
-    const token = localStorage.getItem("access_token");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
+    return applyRequestDefaults(config, localStorage.getItem("access_token"));
   },
   function (error) {
     console.log(error);
