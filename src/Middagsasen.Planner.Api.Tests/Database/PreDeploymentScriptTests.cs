@@ -9,15 +9,33 @@ namespace Middagsasen.Planner.Api.Tests.Database
     /// <summary>
     /// Tester Scripts/Script.PreDeployment.sql i databaseprosjektet, som normaliserer Users.UserName før den unike
     /// indeksen opprettes. Hver test bruker en egen database i containeren, så delte testdata ikke berøres.
+    /// Databasene slettes etter hver test.
     /// </summary>
     [Collection("Database")]
-    public class PreDeploymentScriptTests
+    public class PreDeploymentScriptTests : IAsyncLifetime
     {
         private readonly DatabaseFixture _fixture;
+        private readonly List<string> _databases = [];
 
         public PreDeploymentScriptTests(DatabaseFixture fixture)
         {
             _fixture = fixture;
+        }
+
+        public Task InitializeAsync() => Task.CompletedTask;
+
+        public async Task DisposeAsync()
+        {
+            // Tøm connection pool først, ellers holder poolede tilkoblinger databasene i bruk.
+            SqlConnection.ClearAllPools();
+            await using var master = new SqlConnection(_fixture.ConnectionString);
+            await master.OpenAsync();
+            foreach (var name in _databases)
+            {
+                await new SqlCommand(
+                    $"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}];",
+                    master).ExecuteNonQueryAsync();
+            }
         }
 
         private static readonly Lazy<string> Script = new(() => ReadScript("Script.PreDeployment.sql"));
@@ -42,6 +60,7 @@ namespace Middagsasen.Planner.Api.Tests.Database
                 await master.OpenAsync();
                 await new SqlCommand($"CREATE DATABASE [{name}]", master).ExecuteNonQueryAsync();
             }
+            _databases.Add(name);
 
             var connectionString = new SqlConnectionStringBuilder(_fixture.ConnectionString) { InitialCatalog = name }.ConnectionString;
             if (withUsersTable)
@@ -59,11 +78,15 @@ namespace Middagsasen.Planner.Api.Tests.Database
             return connectionString;
         }
 
-        private static async Task Execute(string connectionString, string sql)
+        /// <summary>Kjører SQL og returnerer meldingene fra <c>PRINT</c>.</summary>
+        private static async Task<List<string>> Execute(string connectionString, string sql)
         {
+            var messages = new List<string>();
             await using var connection = new SqlConnection(connectionString);
+            connection.InfoMessage += (_, e) => messages.Add(e.Message);
             await connection.OpenAsync();
             await new SqlCommand(sql, connection).ExecuteNonQueryAsync();
+            return messages;
         }
 
         private static async Task<Dictionary<int, string>> InsertUsers(string connectionString, params (string UserName, bool Inactive)[] users)
@@ -106,8 +129,15 @@ namespace Middagsasen.Planner.Api.Tests.Database
                 "+47 623 45 678",
                 "72345678 ",
                 "0000000000000000000000082345678",
+                "0047 92345678",
                 "4692345678",
+                "+46 92345678",
                 "123456789",
+                "47 9234567",
+                "4701234567",
+                "47 01234567",
+                "4747123456",
+                "00000000",
                 "9223372036854775807",
                 "9223372036854775808",
                 "12345678901234567890123",
@@ -138,12 +168,52 @@ namespace Middagsasen.Planner.Api.Tests.Database
             Assert.Equal("52345678", StoredFor("523 45 678"));
             Assert.Equal("72345678", StoredFor("72345678 "));
             Assert.Equal("82345678", StoredFor("0000000000000000000000082345678"));
-            Assert.Equal("92345678", StoredFor("4692345678"));
-            Assert.Equal("3456789", StoredFor("123456789"));
-            Assert.Equal("23372036854775807", StoredFor("9223372036854775807"));
+            Assert.Equal("92345678", StoredFor("0047 92345678"));
+            Assert.Equal("47123456", StoredFor("4747123456"));
+            // Utenlandske numre og feil antall sifre står urørt; de kuttes ikke til 8 sifre.
+            Assert.Equal("4692345678", StoredFor("4692345678"));
+            Assert.Equal("+46 92345678", StoredFor("+46 92345678"));
+            Assert.Equal("123456789", StoredFor("123456789"));
+            Assert.Equal("47 9234567", StoredFor("47 9234567"));
+            Assert.Equal("4701234567", StoredFor("4701234567"));
+            Assert.Equal("47 01234567", StoredFor("47 01234567"));
+            Assert.Equal("00000000", StoredFor("00000000"));
+            Assert.Equal("9223372036854775807", StoredFor("9223372036854775807"));
             Assert.Equal("9223372036854775808", StoredFor("9223372036854775808"));
             Assert.Equal("admin", StoredFor("admin"));
             Assert.Equal("1234", StoredFor("1234"));
+        }
+
+        [Fact]
+        public async Task WarnsAboutUserNamesThatCannotBeNormalized_WithoutStopping()
+        {
+            var connectionString = await CreateDatabase();
+            var ids = await InsertUsers(connectionString,
+                ("+47 12345678", false),
+                ("+46 92345678", false),
+                ("admin", true),
+                ("22345678", false));
+
+            var messages = await Execute(connectionString, Script.Value);
+
+            var warning = Assert.Single(messages, m => m.Contains("Advarsel"));
+            foreach (var (id, userName) in ids.Where(i => i.Value is "+46 92345678" or "admin"))
+                Assert.Contains($"UserId {id} («{userName}»)", warning);
+            Assert.DoesNotContain("12345678", warning);
+            Assert.DoesNotContain("22345678", warning);
+            Assert.Equal(["12345678", "+46 92345678", "admin", "22345678"],
+                (await ReadUserNames(connectionString)).OrderBy(u => u.Key).Select(u => u.Value));
+        }
+
+        [Fact]
+        public async Task DoesNotWarn_WhenAllUserNamesCanBeNormalized()
+        {
+            var connectionString = await CreateDatabase();
+            await InsertUsers(connectionString, ("+47 12345678", false), ("22345678", true));
+
+            var messages = await Execute(connectionString, Script.Value);
+
+            Assert.DoesNotContain(messages, m => m.Contains("Advarsel"));
         }
 
         [Fact]
@@ -179,6 +249,7 @@ namespace Middagsasen.Planner.Api.Tests.Database
                 ("+47 22345678", false),
                 ("0047 22345678", false),
                 ("+47 32345678", false),
+                ("4632345678", false),
                 ("admin", false));
             var before = await ReadUserNames(connectionString);
 
@@ -212,20 +283,29 @@ namespace Middagsasen.Planner.Api.Tests.Database
                 ("12345678", false),
                 ("+47 12345678", true),
                 ("+47 22345678", false),
+                ("+46 12345678", false),
                 ("admin", false));
 
             var rows = new List<(string NyttBrukernavn, int UserId)>();
+            var invalid = new List<int>();
             await using (var connection = new SqlConnection(connectionString))
             {
                 await connection.OpenAsync();
                 await using var reader = await new SqlCommand(ReadScript("FinnBrukernavnKollisjoner.sql"), connection).ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                     rows.Add((reader.GetString(reader.GetOrdinal("NyttBrukernavn")), reader.GetInt32(reader.GetOrdinal("UserId"))));
+                Assert.True(await reader.NextResultAsync(), "Mangler resultatsettet med brukernavn som ikke kan normaliseres");
+                while (await reader.ReadAsync())
+                    invalid.Add(reader.GetInt32(reader.GetOrdinal("UserId")));
             }
 
+            // «+46 12345678» er et utenlandsk nummer, og kolliderer ikke med 12345678.
             Assert.Equal(
-                ids.Where(i => i.Value.EndsWith("12345678")).Select(i => ("12345678", i.Key)).OrderBy(r => r.Key),
+                ids.Where(i => i.Value is "12345678" or "+47 12345678").Select(i => ("12345678", i.Key)).OrderBy(r => r.Key),
                 rows.OrderBy(r => r.UserId));
+            Assert.Equal(
+                ids.Where(i => i.Value is "+46 12345678" or "admin").Select(i => i.Key).Order(),
+                invalid.Order());
         }
     }
 }

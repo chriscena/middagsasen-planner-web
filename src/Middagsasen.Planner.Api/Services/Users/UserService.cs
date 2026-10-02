@@ -208,20 +208,12 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// <summary>
         /// Lagrer, og gjør om brudd på den unike indeksen på <c>Users.UserName</c> til
         /// <see cref="DomainValidationException"/>. Det skjer når en parallell forespørsel tar nummeret mellom
-        /// sjekken og lagringen. Vi sjekker på nytt i stedet for å tolke leverandørspesifikke feilkoder.
+        /// sjekken og lagringen.
         /// </summary>
         private async Task SaveChangesCheckingUserName(string userName, int userId)
         {
-            try
-            {
-                await DbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateException)
-            {
-                if (await IsUserNameInUse(userName, userId))
-                    throw new DomainValidationException(PhoneNoInUseMessage);
-                throw;
-            }
+            if (!await DbContext.TrySaveWithUniqueUserName(userName, userId))
+                throw new DomainValidationException(PhoneNoInUseMessage);
         }
 
         public async Task<UserResponse> Delete(int id)
@@ -305,21 +297,32 @@ namespace Middagsasen.Planner.Api.Services.Users
 
     public static class UserNameExtensions
     {
-        public static string ToUserName(this long phoneNumber)
+        /// <summary>
+        /// Normaliserer et telefonnummer/brukernavn til formatet som lagres i <c>Users.UserName</c> og slås opp
+        /// ved innlogging og OTP: et norsk mobil-/fasttelefonnummer på 8 sifre, uten landskode.
+        /// </summary>
+        /// <remarks>
+        /// Alle tegn som ikke er sifre (0-9) fjernes, og ledende nuller ignoreres (så «0047 …» fungerer). Gyldig er da bare
+        /// <list type="bullet">
+        /// <item>nøyaktig 8 sifre (10000000–99999999), eller</item>
+        /// <item>47 fulgt av nøyaktig 8 sifre (4710000000–4799999999).</item>
+        /// </list>
+        /// Alt annet gir <c>null</c> (ugyldig), f.eks. utenlandske numre («+46 92345678»), for mange eller for få
+        /// sifre, og brukernavnet «admin». Utenlandske numre må avvises og ikke kuttes til 8 sifre, ellers kunne de
+        /// treffe en annen persons norske bruker. Samme regel brukes i Script.PreDeployment.sql i databaseprosjektet.
+        /// </remarks>
+        public static string? ToNormalizedUserName(this string? phoneNo)
         {
-            return phoneNumber.ToString().Substring(2);
+            var digits = string.Concat((phoneNo ?? "").Where(char.IsAsciiDigit)).TrimStart('0');
+            if (digits.Length == 10 && digits.StartsWith("47"))
+                digits = digits[2..];
+            return digits.Length == 8 && digits[0] != '0' ? digits : null;
         }
 
         /// <summary>
-        /// Normaliserer et telefonnummer/brukernavn til formatet som lagres i <c>Users.UserName</c> og slås opp
-        /// ved innlogging og OTP (<c>ToNumericPhoneNo().ToUserName()</c>). Returnerer <c>null</c> hvis verdien
-        /// ikke er et gyldig telefonnummer (f.eks. brukernavnet «admin»).
+        /// Telefonnummeret med landskode (47) for SMS, ut fra et brukernavn normalisert med <see cref="ToNormalizedUserName"/>.
         /// </summary>
-        public static string? ToNormalizedUserName(this string? phoneNo)
-        {
-            var phoneNumber = (phoneNo ?? "").ToNumericPhoneNo();
-            return phoneNumber == 0 ? null : phoneNumber.ToUserName();
-        }
+        public static long ToSmsPhoneNo(this string normalizedUserName) => long.Parse($"47{normalizedUserName}");
 
         /// <summary>
         /// Felles oppslag på brukernavn (også inaktive brukere). <paramref name="normalizedUserName"/> må være normalisert
@@ -328,6 +331,31 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// </summary>
         public static IQueryable<User> WhereUserName(this IQueryable<User> users, string normalizedUserName)
             => users.Where(u => u.UserName == normalizedUserName);
+
+        /// <summary>
+        /// Lagrer endringer som setter brukernavnet <paramref name="normalizedUserName"/> på brukeren
+        /// <paramref name="userId"/> (0 for en ny bruker). Returnerer <c>false</c> hvis lagringen ble avvist fordi en
+        /// annen bruker (også inaktiv) nå har brukernavnet, det vil si at en parallell forespørsel tok det mellom
+        /// sjekken og lagringen, og den unike indeksen avviste lagringen. Andre feil kastes videre.
+        /// </summary>
+        /// <remarks>
+        /// Vi sjekker på nytt etter <see cref="DbUpdateException"/> i stedet for å tolke leverandørspesifikke feilkoder.
+        /// Endringene som feilet ligger fortsatt i konteksten; kalleren må rydde dem før en ny lagring.
+        /// </remarks>
+        public static async Task<bool> TrySaveWithUniqueUserName(this PlannerDbContext dbContext, string normalizedUserName, int userId)
+        {
+            try
+            {
+                await dbContext.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                if (await dbContext.Users.WhereUserName(normalizedUserName).AnyAsync(u => u.UserId != userId))
+                    return false;
+                throw;
+            }
+        }
     }
 
     public enum AuthType

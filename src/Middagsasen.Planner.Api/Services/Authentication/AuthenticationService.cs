@@ -29,22 +29,33 @@ namespace Middagsasen.Planner.Api.Services.Authentication
         /// Sender engangskode på SMS. Finnes ingen bruker med nummeret (normalisert), opprettes en ny.
         /// </summary>
         /// <remarks>
+        /// Bare norske numre godtas (se <see cref="UserNameExtensions.ToNormalizedUserName"/>), og SMS-en sendes til
+        /// nummeret som utledes av det normaliserte brukernavnet, så koden går alltid til eieren av brukeren.
         /// Oppslaget filtrerer ikke på <c>Inactive</c>, så en inaktiv bruker gir aldri en ny rad.
-        /// Oppretter en parallell forespørsel samme bruker samtidig, avviser den unike indeksen på
-        /// <c>Users.UserName</c> den ene. Da har den andre nettopp sendt en kode, og vi svarer
-        /// <see cref="OtpStatus.TooManyRequests"/>.
+        /// Oppretter en parallell forespørsel (OTP eller administrator) samme bruker mellom oppslaget og lagringen,
+        /// avviser den unike indeksen på <c>Users.UserName</c> vår rad. Da fortsetter vi med den eksisterende brukeren,
+        /// med samme sjekk mot for mange forespørsler som ellers.
         /// </remarks>
         public async Task<OtpResponse> GenerateOtpForUser(OtpRequest request)
         {
             var userName = request.UserName.ToNormalizedUserName();
             if (userName == null) return new OtpResponse { Status = OtpStatus.InvalidPhoneNumber };
 
-            // SMS-mottakeren trenger nummeret med landskode.
-            var phoneNumber = request.UserName.ToNumericPhoneNo();
-
             var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync();
 
-            if (user != null && user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
+            if (user == null)
+            {
+                var newUser = DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
+                SetOneTimePassword(newUser);
+                if (await DbContext.TrySaveWithUniqueUserName(userName, newUser.UserId))
+                    return await SendOneTimePassword(newUser);
+
+                // Brukeren ble opprettet samtidig av en annen forespørsel. Fortsett med den.
+                DbContext.Entry(newUser).State = EntityState.Detached;
+                user = await DbContext.Users.WhereUserName(userName).SingleAsync();
+            }
+
+            if (user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
             {
                 return new OtpResponse
                 {
@@ -52,27 +63,26 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                 };
             }
 
-            var isNewUser = user == null;
-            user ??= DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
+            SetOneTimePassword(user);
+            await DbContext.SaveChangesAsync();
 
+            return await SendOneTimePassword(user);
+        }
+
+        private void SetOneTimePassword(User user)
+        {
             user.OneTimePassword = CreateOneTimePassword();
             user.OtpCreated = DateTime.UtcNow;
-            try
-            {
-                await DbContext.SaveChangesAsync();
-            }
-            catch (DbUpdateException) when (isNewUser)
-            {
-                // Sjekk på nytt i stedet for å tolke leverandørspesifikke feilkoder.
-                DbContext.Entry(user).State = EntityState.Detached;
-                if (await DbContext.Users.WhereUserName(userName).AnyAsync())
-                    return new OtpResponse { Status = OtpStatus.TooManyRequests };
-                throw;
-            }
+        }
 
+        /// <summary>
+        /// Sender koden til nummeret som utledes av brukerens (normaliserte) brukernavn, ikke til det som ble skrevet inn.
+        /// </summary>
+        private async Task<OtpResponse> SendOneTimePassword(User user)
+        {
             var sms = new SmsMessage
             {
-                ReceiverPhoneNo = phoneNumber,
+                ReceiverPhoneNo = user.UserName.ToSmsPhoneNo(),
                 Body = $"Din engangskode er {user.OneTimePassword}.",
                 SmsNotificationId = Guid.NewGuid(),
             };

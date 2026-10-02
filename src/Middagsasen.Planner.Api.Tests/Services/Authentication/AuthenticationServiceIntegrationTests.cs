@@ -44,7 +44,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             return string.Concat(format.Select(c => c == 'x' ? digits.Dequeue() : c));
         }
 
-        private async Task<User> SeedUser(string userName, bool inactive = false, string? password = null)
+        private async Task<User> SeedUser(string userName, bool inactive = false, string? password = null, DateTime? otpCreated = null)
         {
             using var context = _fixture.CreateContext();
             var user = new User
@@ -54,6 +54,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
                 LastName = "Bruker",
                 Inactive = inactive,
                 Created = DateTime.UtcNow,
+                OneTimePassword = otpCreated.HasValue ? "1234" : null,
+                OtpCreated = otpCreated,
             };
             if (password != null)
             {
@@ -119,16 +121,38 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         }
 
         [Fact]
-        public async Task GenerateOtpForUser_ReturnsTooManyRequests_WhenUserIsCreatedConcurrently()
+        public async Task GenerateOtpForUser_SendsOtp_WhenAdminCreatesUserConcurrently()
         {
             var phoneNo = UniquePhoneNo();
+            User? createdByAdmin = null;
 
-            // En parallell forespørsel oppretter brukeren mellom oppslaget og lagringen.
-            using var context = _fixture.CreateContext(new BeforeSaveInterceptor(() => SeedUser(phoneNo)));
+            // En administrator oppretter brukeren mellom oppslaget og lagringen. Da er det ikke sendt noen kode.
+            using var context = _fixture.CreateContext(new BeforeSaveInterceptor(async () => createdByAdmin = await SeedUser(phoneNo)));
+            var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
+
+            Assert.Equal(OtpStatus.Sent, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Equal(createdByAdmin!.UserId, stored.UserId);
+            Assert.NotNull(stored.OneTimePassword);
+            Assert.NotNull(stored.OtpCreated);
+            await _smsSender.Received(1).SendMessages(Arg.Is<IEnumerable<SmsMessage>>(
+                m => m.Single().ReceiverPhoneNo == long.Parse($"47{phoneNo}")
+                    && m.Single().Body.Contains(stored.OneTimePassword!)));
+        }
+
+        [Fact]
+        public async Task GenerateOtpForUser_ReturnsTooManyRequests_WhenOtherOtpRequestCreatesUserConcurrently()
+        {
+            var phoneNo = UniquePhoneNo();
+            var otpCreated = DateTime.UtcNow;
+
+            // En parallell OTP-forespørsel oppretter brukeren og sender kode mellom oppslaget og lagringen.
+            using var context = _fixture.CreateContext(new BeforeSaveInterceptor(() => SeedUser(phoneNo, otpCreated: otpCreated)));
             var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
 
             Assert.Equal(OtpStatus.TooManyRequests, result.Status);
-            Assert.Single(UsersWithUserName(phoneNo));
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Equal("1234", stored.OneTimePassword);
             await _smsSender.DidNotReceive().SendMessages(Arg.Any<IEnumerable<SmsMessage>>());
         }
 
@@ -139,6 +163,44 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = "1234" });
 
             Assert.Equal(OtpStatus.InvalidPhoneNumber, result.Status);
+        }
+
+        [Theory]
+        [InlineData("46{0}")]
+        [InlineData("+46 {0}")]
+        [InlineData("0046{0}")]
+        [InlineData("1{0}")]
+        public async Task GenerateOtpForUser_RejectsForeignNumber_EvenWhenNorwegianUserWithSameDigitsExists(string format)
+        {
+            // Et utenlandsk nummer som slutter på de samme 8 sifrene må ikke treffe den norske brukeren,
+            // ellers ville koden til brukeren 92345678 blitt sendt til +46 92345678.
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo);
+            var foreignPhoneNo = string.Format(format, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = foreignPhoneNo });
+
+            Assert.Equal(OtpStatus.InvalidPhoneNumber, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Null(stored.OneTimePassword);
+            Assert.Null(stored.OtpCreated);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(verifyContext.Users.Any(u => u.UserName.EndsWith(phoneNo) && u.UserName != phoneNo));
+            await _smsSender.DidNotReceive().SendMessages(Arg.Any<IEnumerable<SmsMessage>>());
+        }
+
+        [Fact]
+        public async Task GenerateOtpForUser_SendsSmsToNumberDerivedFromNormalizedUserName()
+        {
+            var phoneNo = UniquePhoneNo();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = $"0047 {phoneNo}" });
+
+            Assert.Equal(OtpStatus.Sent, result.Status);
+            await _smsSender.Received(1).SendMessages(Arg.Is<IEnumerable<SmsMessage>>(
+                m => m.Single().ReceiverPhoneNo == long.Parse($"47{phoneNo}")));
         }
 
         [Fact]

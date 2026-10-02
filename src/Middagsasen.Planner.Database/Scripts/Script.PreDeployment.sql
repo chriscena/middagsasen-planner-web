@@ -2,11 +2,12 @@
  Pre-deploy: normaliserer Users.UserName før den unike indeksen IX_Users_UserName opprettes.
 
  Normaliseringen er den samme som UserNameExtensions.ToNormalizedUserName i API-et:
-   1. Fjern alle tegn som ikke er sifre (0-9).
-   2. Tolk resten som et tall (bigint). Tomt, eller for stort for bigint, regnes som ugyldig.
-   3. Under 10000000 er ugyldig. Til og med 99999999 (8 siffer) legges 4700000000 til.
-   4. Resultatet er tallet som tekst uten de to første tegnene (landskoden).
- Ugyldige verdier (f.eks. «admin») står urørt.
+   1. Fjern alle tegn som ikke er sifre (0-9), og ledende nuller (så «0047 …» fungerer).
+   2. Nøyaktig 8 sifre (10000000-99999999) brukes som de er.
+   3. 47 fulgt av nøyaktig 8 sifre (4710000000-4799999999) blir de 8 sifrene uten landskoden.
+   4. Alt annet er ugyldig, f.eks. utenlandske numre («+46 92345678»), for mange eller for få sifre, og «admin».
+ Ugyldige verdier står urørt (de kuttes aldri til 8 sifre, da kunne de treffe en annen persons nummer).
+ De listes i en PRINT-advarsel så de kan ryddes manuelt, men stopper ikke deployen.
 
  Hvis normaliseringen ville gitt to eller flere rader med samme brukernavn (aktive eller inaktive),
  endres ingenting, og deployen stoppes. Brukerne må da slås sammen manuelt først; se
@@ -37,8 +38,9 @@ BEGIN
            AND UNICODE(SUBSTRING(u.UserName, p.Pos, 1)) BETWEEN 48 AND 57
         GROUP BY u.UserId
     ),
-    Tall AS (
-        SELECT UserId, TRY_CAST(Sifre AS bigint) AS Nummer
+    UtenLedendeNuller AS (
+        -- PATINDEX finner første siffer som ikke er 0. Bare nuller gir en tom streng.
+        SELECT UserId, SUBSTRING(Sifre, PATINDEX(N'%[^0]%', Sifre + N'x'), 200) AS Sifre
         FROM Sifre
     )
     SELECT
@@ -49,14 +51,26 @@ BEGIN
         COALESCE(n.Normalisert, u.UserName) AS NyttBrukernavn
     INTO #NormaliserteBrukernavn
     FROM dbo.Users u
-    LEFT JOIN Tall t ON t.UserId = u.UserId
+    LEFT JOIN UtenLedendeNuller s ON s.UserId = u.UserId
     CROSS APPLY (
         SELECT CASE
-            WHEN t.Nummer IS NULL OR t.Nummer < 10000000 THEN NULL
-            WHEN t.Nummer <= 99999999 THEN SUBSTRING(CAST(t.Nummer + 4700000000 AS nvarchar(20)), 3, 20)
-            ELSE SUBSTRING(CAST(t.Nummer AS nvarchar(20)), 3, 20)
+            WHEN LEN(s.Sifre) = 8 THEN s.Sifre
+            WHEN LEN(s.Sifre) = 10 AND LEFT(s.Sifre, 2) = N'47' AND SUBSTRING(s.Sifre, 3, 1) <> N'0' THEN SUBSTRING(s.Sifre, 3, 8)
+            ELSE NULL
         END AS Normalisert
     ) n;
+
+    -- Advarsel om brukernavn som ikke kan normaliseres. De står urørt og må ryddes manuelt.
+    DECLARE @Ugyldige nvarchar(max) = (
+        SELECT STRING_AGG(CAST(N'UserId ' + CAST(nb.UserId AS nvarchar(20)) + N' («' + nb.UserName + N'»)' AS nvarchar(max)), N', ')
+            WITHIN GROUP (ORDER BY nb.UserId)
+        FROM #NormaliserteBrukernavn nb
+        WHERE nb.Normalisert IS NULL
+    );
+    IF @Ugyldige IS NOT NULL
+        PRINT N'Advarsel: disse brukernavnene er ikke gyldige norske telefonnumre og er ikke normalisert '
+            + N'(se Scripts/FinnBrukernavnKollisjoner.sql): ' + LEFT(@Ugyldige, 3500)
+            + CASE WHEN LEN(@Ugyldige) > 3500 THEN N' ...' ELSE N'' END;
 
     -- Kollisjoner: flere rader som ville fått samme brukernavn etter normaliseringen.
     -- Dette dekker også normaliserte verdier som kolliderer med en allerede lagret verdi.

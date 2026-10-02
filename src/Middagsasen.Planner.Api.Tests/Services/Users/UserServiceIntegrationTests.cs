@@ -465,6 +465,51 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
         }
 
+        [Theory]
+        [InlineData("46{0}")]
+        [InlineData("+46 {0}")]
+        [InlineData("1{0}")]
+        public async Task Create_ThrowsDomainValidation_ForForeignPhoneNo_EvenWhenNorwegianUserWithSameDigitsExists(string format)
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Create(new UserRequest { FirstName = "Ny", PhoneNo = string.Format(format, phoneNo) }));
+            Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Update_ThrowsDomainValidation_ForForeignPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+46 {phoneNo}" }));
+            Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.Equal(phoneNo, verifyContext.Users.Single(u => u.UserId == user.UserId).UserName);
+        }
+
+        [Fact]
+        public async Task Update_ChangesInvalidUserName_ToValidPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, $"admin_{Guid.NewGuid():N}");
+            var phoneNo = UniquePhoneNo();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+47 {phoneNo}" });
+
+            Assert.Equal(phoneNo, result.PhoneNo);
+        }
+
         [Fact]
         public async Task Delete_ThrowsEntityNotFound_WhenNotFound()
         {
