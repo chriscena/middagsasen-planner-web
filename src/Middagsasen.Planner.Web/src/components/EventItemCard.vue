@@ -498,7 +498,8 @@ type SelectedTraining = Pick<
 const props = withDefaults(
   defineProps<{
     modelValue: EventResponse;
-    isAdmin?: boolean;
+    // authStore.isAdmin kan være undefined; da brukes default (false).
+    isAdmin?: boolean | undefined;
     timestamp: DayTimestamp;
   }>(),
   { isAdmin: false }

@@ -59,8 +59,10 @@
       /></q-toolbar>
     </q-footer>
     <q-dialog v-model="showingEditDialog" persistent maximized>
+      <!-- Dialogen rendrer innholdet først når den vises, og selectedTemplate
+           settes alltid før showingEditDialog. -->
       <TemplateForm
-        v-model="selectedTemplate"
+        v-model="selectedTemplate!"
         :resource-types="resourceTypes"
         :loading="savingTemplate"
         @cancel="showingEditDialog = false"
@@ -71,15 +73,22 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { useEventStore } from "src/stores/EventStore";
 import { parseISO, format } from "date-fns";
 import TemplateForm from "components/TemplateForm.vue";
+import type {
+  TemplateFormModel,
+  TemplateFormValue,
+} from "components/TemplateForm.vue";
+import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+const emit = defineEmits<{
+  "toggle-right": [];
+}>();
 const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
@@ -93,7 +102,7 @@ onMounted(async () => {
 const templates = computed(() => eventStore.templates);
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
-const selectedTemplate = ref(null);
+const selectedTemplate = ref<TemplateFormValue | null>(null);
 const showingEditDialog = ref(false);
 function newTemplate() {
   selectedTemplate.value = {
@@ -107,28 +116,32 @@ function newTemplate() {
   showingEditDialog.value = true;
 }
 
-function editTemplate(template) {
+function editTemplate(template: EventTemplateResponse) {
   selectedTemplate.value = template;
   showingEditDialog.value = true;
 }
 
-function formatStartEndTime(template) {
+function formatStartEndTime(template: EventTemplateResponse) {
   const start = format(parseISO(template.startTime), "HH:mm");
   const end = format(parseISO(template.endTime), "HH:mm");
   return `${start}-${end}`;
 }
 
 const savingTemplate = ref(false);
-async function saveTemplate(model) {
+async function saveTemplate(model: TemplateFormModel) {
   try {
     savingTemplate.value = true;
+    // OBS (#82): skjemaet kan sende name/eventName som null, mens
+    // EventTemplateRequest krever streng. canSave krever name, men eventName
+    // kan være tømt. Castet for å bevare atferd (sendes uendret til API-et).
+    const request = model as EventTemplateRequest & { id: number };
     if (model.id) {
-      await eventStore.updateTemplate(model);
+      await eventStore.updateTemplate(request);
       $q.notify({
         message: "Endringer i malen er lagret.",
       });
     } else {
-      await eventStore.createTemplate(model);
+      await eventStore.createTemplate(request);
       $q.notify({
         message: "Malen er lagt til.",
       });
@@ -143,7 +156,7 @@ async function saveTemplate(model) {
   }
 }
 
-async function deleteTemplate(model) {
+async function deleteTemplate(model: TemplateFormModel) {
   try {
     savingTemplate.value = true;
     await eventStore.deleteTemplate(model);

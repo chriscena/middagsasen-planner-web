@@ -101,13 +101,13 @@ import type {
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
-type TemplateFormValue = Omit<EventTemplateResponse, "name"> & {
+export type TemplateFormValue = Omit<EventTemplateResponse, "name"> & {
   name: string | null;
 };
 
 // EventTemplateRequest + id (brukes av eventStore.updateTemplate/deleteTemplate).
 // name/eventName kan være null fra skjemaet.
-interface TemplateFormModel {
+export interface TemplateFormModel {
   id: number;
   name: string | null;
   eventName: string | null;

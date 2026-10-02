@@ -146,8 +146,9 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
+              <!-- OBS (#82): hours er nullable i DTO-en; null gir TypeError i formatNumber. -->
               <q-item-label>
-                {{ formatNumber(hours.hours) }} t
+                {{ formatNumber(hours.hours!) }} t
               </q-item-label></q-item-section
             >
           </q-item>
@@ -173,8 +174,9 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useQuasar } from "quasar";
+import type { QInfiniteScroll } from "quasar";
 import { ref, computed, useTemplateRef, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
@@ -184,6 +186,7 @@ import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import { formatNumber } from "src/shared/formatter";
 import { getSeasonStartYear } from "src/shared/season";
+import type { WorkHourResponse } from "src/types";
 
 // store init
 const $router = useRouter();
@@ -193,9 +196,25 @@ const seasonStore = useSeasonStore();
 const $q = useQuasar();
 
 // props and emits
-const emit = defineEmits(["toggle-right", "toggle-left"]);
+const emit = defineEmits<{
+  "toggle-right": [];
+  "toggle-left": [];
+}>();
 
-const viewModel = reactive({
+interface HoursLogViewModel {
+  loading: boolean;
+  userWorkHours: WorkHourResponse[];
+  showForm: boolean;
+  selectedWorkHours: WorkHourResponse | null;
+  approvedHoursSum: number;
+  pendingHoursSum: number;
+  rejectedHoursSum: number;
+  season: number | null;
+  seasonsLoaded: boolean;
+  noResults: boolean;
+}
+
+const viewModel = reactive<HoursLogViewModel>({
   loading: false,
   userWorkHours: [],
   showForm: false,
@@ -209,16 +228,17 @@ const viewModel = reactive({
   noResults: false,
 });
 
-const infiniteScroll = useTemplateRef("infiniteScroll");
+const infiniteScroll = useTemplateRef<QInfiniteScroll>("infiniteScroll");
 
 const currentUser = computed(() => authStore.user);
-const userId = currentUser.value.id;
+// Siden ligger bak innlogging (router-guard), så user er satt her.
+const userId = currentUser.value!.id;
 
 // Økes når listen tømmes, slik at svar fra kall startet før det forkastes.
 let loadGeneration = 0;
 let sumsGeneration = 0;
 
-async function getUserWorkhours(index, done) {
+async function getUserWorkhours(index: number, done: (stop?: boolean) => void) {
   const generation = loadGeneration;
   let stop = false;
   try {
@@ -268,17 +288,17 @@ async function getWorkHoursSums() {
   viewModel.rejectedHoursSum = response.rejectedHours;
 }
 
-function ensureIsDate(value) {
+function ensureIsDate(value: Date | string) {
   return value instanceof Date ? value : new Date(value);
 }
-function toTimeString(value) {
+function toTimeString(value: Date | string | null | undefined) {
   return value ? format(ensureIsDate(value), "HH:mm") : "";
 }
-function toDateString(value) {
+function toDateString(value: Date | string | null | undefined) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
 
-function editWorkHour(hours) {
+function editWorkHour(hours: WorkHourResponse) {
   viewModel.selectedWorkHours = { ...hours };
   viewModel.showForm = true;
 }
@@ -295,7 +315,7 @@ async function reload() {
 
 // Bytter til sesongen den lagrede føringen tilhører, slik at den er synlig
 // når listen lastes på nytt (reload skjer når dialogen lukkes).
-function onWorkHourSaved(savedWorkHour) {
+function onWorkHourSaved(savedWorkHour: WorkHourResponse | null) {
   const season = getSeasonStartYear(savedWorkHour?.startTime);
   if (
     season !== null &&
@@ -312,7 +332,7 @@ async function onTimeTrackingFormClosed() {
   await reload();
 }
 
-async function onSeasonChanged(season) {
+async function onSeasonChanged(season: number | null) {
   if (season === viewModel.season) return;
   viewModel.season = season;
   await reload();
