@@ -119,8 +119,8 @@ import {
   buildWorkHourPatch,
   getWorkHourChanges,
   getWorkHourErrorKind,
-  getWorkHourErrorMessage,
 } from "src/shared/workHourDiff";
+import { getApiErrorMessage } from "src/shared/apiError";
 import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
 import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
 
@@ -311,7 +311,7 @@ function notifyError(error: unknown, fallbackMessage: string) {
       ? "Du har ikke tilgang til å endre denne føringen"
       : fallbackMessage;
   $q.notify({
-    message: getWorkHourErrorMessage(error, defaultMessage),
+    message: getApiErrorMessage(error, defaultMessage),
     color: "negative",
   });
   if (kind === "conflict" || kind === "notFound") {
@@ -343,9 +343,9 @@ async function createHours() {
       message: "Timer lagret, bra jobba! 🙌",
       color: "positive",
     });
-  } catch {
+  } catch (error) {
     $q.notify({
-      message: "Klarte ikke å lagre timer",
+      message: getApiErrorMessage(error, "Klarte ikke å lagre timer"),
       color: "negative",
     });
   } finally {

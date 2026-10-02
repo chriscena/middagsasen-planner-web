@@ -332,17 +332,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task DeleteEvent_ReturnsNull_WhenNotFound()
+        public async Task DeleteEvent_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
 
-            // Act
-            var result = await service.DeleteEvent(999999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteEvent(999999));
         }
 
         #endregion
@@ -602,12 +599,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             var request = new MessageRequest
             {
-                EventResourceId = resource.EventResourceId,
                 Message = "Test message",
             };
 
             // Act
-            var result = await service.AddMessage(resource.EventResourceId, request);
+            var result = await service.AddMessage(resource.EventResourceId, user.UserId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -632,16 +628,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context, userId: user.UserId);
+            // Innlogget bruker i servicen er bevisst en annen enn avsenderen som sendes inn.
+            var service = CreateService(context, userId: 0);
 
             var request = new MessageRequest
             {
-                EventResourceId = resource.EventResourceId,
                 Message = "CreatedBy test",
             };
 
             // Act
-            var result = await service.AddMessage(resource.EventResourceId, request);
+            var result = await service.AddMessage(resource.EventResourceId, user.UserId, request);
 
             // Assert
             Assert.NotNull(result);
@@ -720,6 +716,87 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 .AsNoTracking()
                 .SingleAsync(r => r.EventResourceId == resource.EventResourceId);
             Assert.Equal(5, dbResource.MinimumStaff);
+        }
+
+        #endregion
+
+        #region NotFound
+
+        [Fact]
+        public async Task GetEventById_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetEventById(999999));
+        }
+
+        [Fact]
+        public async Task UpdateEvent_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = "2026-01-15T08:00:00", EndTime = "2026-01-15T16:00:00", Resources = new List<ResourceRequest>() }));
+        }
+
+        [Fact]
+        public async Task CreateEventFromTemplate_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = "2026-01-15" }));
+        }
+
+        [Fact]
+        public async Task UpdateShift_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: 1, isAdmin: true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateShift(999999, new ShiftRequest { UserId = 1 }));
+        }
+
+        [Fact]
+        public async Task DeleteShift_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: 1, isAdmin: true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteShift(999999));
+        }
+
+        [Fact]
+        public async Task DeleteMessage_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteMessage(999999, 999999));
+        }
+
+        [Fact]
+        public async Task UpdateMinimumStaff_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateMinimumStaff(999999, new MinimumStaffRequest { MinimumStaff = 1 }));
         }
 
         #endregion

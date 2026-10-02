@@ -447,6 +447,7 @@ import { parseISO, format } from "date-fns";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import { getApiErrorMessage } from "src/shared/apiError";
 import type {
   EventResponse,
   MessageResponse,
@@ -736,7 +737,10 @@ async function addUserAsResource(
   } catch (error) {
     console.log(error);
     $q.notify({
-      message: "Oh no! Noe tryna da du skulle ta vakta! 🙈",
+      message: getApiErrorMessage(
+        error,
+        "Oh no! Noe tryna da du skulle ta vakta! 🙈"
+      ),
     });
   } finally {
     adding.value = false;
@@ -788,7 +792,10 @@ async function updateShift(): Promise<void> {
   } catch (error) {
     console.log(error);
     $q.notify({
-      message: "Oh no! Noe tryna da vi skulle lagre endringene! 🙈",
+      message: getApiErrorMessage(
+        error,
+        "Oh no! Noe tryna da vi skulle lagre endringene! 🙈"
+      ),
     });
   } finally {
     saving.value = false;
@@ -805,9 +812,12 @@ async function deleteShift(): Promise<void> {
     $q.notify({
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
-  } catch {
+  } catch (error) {
     $q.notify({
-      message: "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈",
+      message: getApiErrorMessage(
+        error,
+        "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈"
+      ),
     });
   } finally {
     saving.value = false;

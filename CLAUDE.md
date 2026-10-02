@@ -78,7 +78,7 @@ dotnet test ../Middagsasen.Planner.Api.Tests/
 
 ### Frontend
 - All kode er TypeScript: `.ts` og `<script setup lang="ts">` (strict, inkl. `noUncheckedIndexedAccess` og `exactOptionalPropertyTypes`)
-- API-typer importeres fra `src/types` (`import type { EventResponse } from "src/types"`). `src/types/api.d.ts` og `index.ts` er generert — ikke rediger; kjør `dotnet build` i backend og `npm run gen:api` når DTO-er endres, og sjekk inn begge
+- API-typer importeres fra `src/types` (`import type { EventResponse } from "src/types"`). `src/types/api.d.ts`, `index.ts` og `enums.ts` er generert — ikke rediger; kjør `dotnet build` i backend og `npm run gen:api` når DTO-er endres, og sjekk inn begge
 - Type-baserte `defineProps<{ ... }>()` / `defineEmits<{ ... }>()`
 - Pinia stores i options-stil med typet state-interface, en per domene
 - Axios med interceptors (`boot/axios.ts`) for API-kall

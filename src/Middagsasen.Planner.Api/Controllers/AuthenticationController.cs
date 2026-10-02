@@ -20,6 +20,8 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("authenticate")]
         [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Authenticate(AuthRequest request)
         {
             var response = await AuthService.Authenticate(request);
@@ -37,6 +39,8 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("otp")]
         [ProducesResponseType(typeof(OtpResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> CreateOneTimePassword(OtpRequest request)
         {
             var response = await AuthService.GenerateOtpForUser(request);
@@ -53,6 +57,8 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpPost("logout")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> LogOut()
         {
             var user = HttpContext.User;

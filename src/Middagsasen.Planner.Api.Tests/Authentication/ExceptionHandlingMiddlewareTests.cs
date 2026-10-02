@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
@@ -10,20 +11,25 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
     public class ExceptionHandlingMiddlewareTests
     {
         private readonly ILogger<ExceptionHandlingMiddleware> _logger;
+        private readonly IServiceProvider _services;
 
         public ExceptionHandlingMiddlewareTests()
         {
             _logger = Substitute.For<ILogger<ExceptionHandlingMiddleware>>();
+            _services = new ServiceCollection()
+                .AddLogging()
+                .AddProblemDetails()
+                .BuildServiceProvider();
         }
 
         private ExceptionHandlingMiddleware CreateMiddleware(RequestDelegate next)
         {
-            return new ExceptionHandlingMiddleware(next, _logger);
+            return new ExceptionHandlingMiddleware(next, _logger, _services.GetRequiredService<IProblemDetailsService>());
         }
 
-        private static DefaultHttpContext CreateHttpContext()
+        private DefaultHttpContext CreateHttpContext()
         {
-            var context = new DefaultHttpContext();
+            var context = new DefaultHttpContext { RequestServices = _services };
             context.Response.Body = new MemoryStream();
             return context;
         }
@@ -142,14 +148,62 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         }
 
         [Fact]
-        public async Task ResponseContentTypeIsJson()
+        public async Task ResponseContentTypeIsProblemJson()
         {
             var middleware = CreateMiddleware(_ => throw new InvalidOperationException("test"));
             var context = CreateHttpContext();
 
             await middleware.Invoke(context);
 
-            Assert.Equal("application/json", context.Response.ContentType);
+            Assert.Equal("application/problem+json", context.Response.ContentType);
+        }
+
+        [Fact]
+        public async Task ResponseBodyIsProblemDetails()
+        {
+            var middleware = CreateMiddleware(_ => throw new EntityNotFoundException("Fant ikke vakt."));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (_, body) = await GetResponse(context);
+            using var json = JsonDocument.Parse(body);
+            var root = json.RootElement;
+            Assert.Equal(404, root.GetProperty("status").GetInt32());
+            Assert.Equal("Not Found", root.GetProperty("title").GetString());
+            Assert.Equal("Fant ikke vakt.", root.GetProperty("detail").GetString());
+        }
+
+        [Fact]
+        public async Task ResponseBodyHasGenericDetail_WhenUnexpectedExceptionThrown()
+        {
+            var middleware = CreateMiddleware(_ => throw new Exception("something secret"));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (_, body) = await GetResponse(context);
+            using var json = JsonDocument.Parse(body);
+            var root = json.RootElement;
+            Assert.Equal(500, root.GetProperty("status").GetInt32());
+            Assert.Equal("Internal Server Error", root.GetProperty("title").GetString());
+            Assert.Equal("An unexpected error occurred.", root.GetProperty("detail").GetString());
+        }
+
+        [Fact]
+        public async Task WritesProblemDetails_EvenWhenAcceptHeaderDoesNotAllowJson()
+        {
+            var middleware = CreateMiddleware(_ => throw new EntityNotFoundException("Fant ikke vakt."));
+            var context = CreateHttpContext();
+            context.Request.Headers.Accept = "text/html";
+
+            await middleware.Invoke(context);
+
+            var (statusCode, body) = await GetResponse(context);
+            Assert.Equal(StatusCodes.Status404NotFound, statusCode);
+            Assert.Equal("application/problem+json", context.Response.ContentType);
+            using var json = JsonDocument.Parse(body);
+            Assert.Equal("Fant ikke vakt.", json.RootElement.GetProperty("detail").GetString());
         }
     }
 }

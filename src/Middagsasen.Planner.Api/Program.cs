@@ -46,10 +46,12 @@ builder.Services.AddSerilog((services, lc) => lc
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddControllers();
+builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi(options =>
 {
     options.AddSchemaTransformer<NonNullableRequiredSchemaTransformer>();
     options.AddSchemaTransformer<StrictNumberSchemaTransformer>();
+    options.AddSchemaTransformer<EnumSchemaTransformer>();
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
 builder.Services.AddCors();

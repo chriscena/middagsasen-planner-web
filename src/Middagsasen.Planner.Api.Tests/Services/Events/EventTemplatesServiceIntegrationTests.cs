@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 
@@ -203,17 +204,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task GetEventTemplateById_ReturnsNull_WhenNotFound()
+        public async Task GetEventTemplateById_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
 
-            // Act
-            var result = await service.GetEventTemplateById(999999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetEventTemplateById(999999));
         }
 
         [Fact]
@@ -433,7 +431,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task UpdateEventTemplate_ReturnsNull_WhenNotFound()
+        public async Task UpdateEventTemplate_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             using var context = _fixture.CreateContext();
@@ -448,11 +446,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 ResourceTemplates = new List<ResourceTemplateRequest>()
             };
 
-            // Act
-            var result = await service.UpdateEventTemplate(999999, request);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEventTemplate(999999, request));
         }
 
         [Fact]
@@ -489,17 +484,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task DeleteEventTemplate_ReturnsNull_WhenNotFound()
+        public async Task DeleteEventTemplate_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
 
-            // Act
-            var result = await service.DeleteEventTemplate(999999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteEventTemplate(999999));
         }
 
         #endregion
@@ -554,7 +546,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task CreateTemplateFromEvent_ReturnsNull_WhenEventNotFound()
+        public async Task CreateTemplateFromEvent_ThrowsEntityNotFound_WhenEventNotFound()
         {
             // Arrange
             using var context = _fixture.CreateContext();
@@ -565,11 +557,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 Name = "NonExistent",
             };
 
-            // Act
-            var result = await service.CreateTemplateFromEvent(999999, request);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateTemplateFromEvent(999999, request));
         }
 
         #endregion

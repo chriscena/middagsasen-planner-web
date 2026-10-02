@@ -18,7 +18,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status201Created)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> Create([FromBody] CreateWorkHourRequest request)
         {
             var response = await WorkHoursService.CreateWorkHour(request);
@@ -27,80 +27,80 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPatch("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Update(int workHourId, [FromBody] UpdateWorkHourRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+        public async Task<WorkHourResponse> Update(int workHourId, [FromBody] UpdateWorkHourRequest request)
         {
-            return Ok(await WorkHoursService.UpdateWorkHour(workHourId, request));
+            return await WorkHoursService.UpdateWorkHour(workHourId, request);
         }
 
         [HttpPatch("{workHourId}/ApprovedBy")]
         [ProducesResponseType<ApprovedByResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> UpdateApprovedBy(int workHourId, [FromBody] ApprovedByRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+        public async Task<ApprovedByResponse> UpdateApprovedBy(int workHourId, [FromBody] ApprovedByRequest request)
         {
-            return Ok(await WorkHoursService.UpdateApprovedBy(workHourId, request));
+            return await WorkHoursService.UpdateApprovedBy(workHourId, request);
         }
 
         [HttpDelete("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> Delete(int workHourId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+        public async Task<WorkHourResponse> Delete(int workHourId)
         {
-            return Ok(await WorkHoursService.DeleteWorkHour(workHourId));
+            return await WorkHoursService.DeleteWorkHour(workHourId);
         }
 
         [HttpGet]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> Get(int? page, int? pageSize, int? approved, int? season, int? userId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<PagedResponse<WorkHourResponse>> Get(int? page, int? pageSize, int? approved, int? season, int? userId)
         {
-            return Ok(await WorkHoursService.GetWorkHours(userId, approved, season, page, pageSize));
+            return await WorkHoursService.GetWorkHours(userId, approved, season, page, pageSize);
         }
 
         [HttpGet("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> GetById(int workHourId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<WorkHourResponse> GetById(int workHourId)
         {
-            return Ok(await WorkHoursService.GetWorkHourById(workHourId));
+            return await WorkHoursService.GetWorkHourById(workHourId);
         }
 
         [HttpGet("User/{userId}")]
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetByUserId(int userId, int? page, int? pageSize, int? approved, int? season)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<PagedResponse<WorkHourResponse>> GetByUserId(int userId, int? page, int? pageSize, int? approved, int? season)
         {
-            return Ok(await WorkHoursService.GetWorkHoursByUser(userId, approved, season, page, pageSize));
+            return await WorkHoursService.GetWorkHoursByUser(userId, approved, season, page, pageSize);
         }
 
         [HttpGet("Sum")]
         [ProducesResponseType<WorkHourSumResponse>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetSum(int? userId = null, int? season = null)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<WorkHourSumResponse> GetSum(int? userId = null, int? season = null)
         {
-            return Ok(await WorkHoursService.GetWorkHoursSum(userId, season));
+            return await WorkHoursService.GetWorkHoursSum(userId, season);
         }
 
         [HttpGet("Sum/All")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType<IEnumerable<UserWorkHourSumResponse>>(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> GetSumPerUser()
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<IEnumerable<UserWorkHourSumResponse>> GetSumPerUser()
         {
-            return Ok(await WorkHoursService.GetWorkHoursSumPerUser());
+            return await WorkHoursService.GetWorkHoursSumPerUser();
         }
     }
 }

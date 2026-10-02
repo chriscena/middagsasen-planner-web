@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
@@ -345,6 +346,65 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             Assert.False(result.TrainingComplete);
             await _smsSender.Received(1).SendMessages(Arg.Is<IEnumerable<SmsMessage>>(msgs =>
                 msgs.Any()));
+        }
+
+        #endregion
+
+        #region NotFound
+
+        [Fact]
+        public async Task GetResourceTypeById_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetResourceTypeById(999999));
+        }
+
+        [Fact]
+        public async Task UpdateResourceType_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateResourceType(999999, new ResourceTypeRequest { Name = "X" }));
+        }
+
+        [Fact]
+        public async Task DeleteResourceType_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteResourceType(999999));
+        }
+
+        [Fact]
+        public async Task GetFile_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetFile(999999, 999999));
+        }
+
+        [Fact]
+        public async Task DeleteFile_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteFile(999999, 999999));
         }
 
         #endregion

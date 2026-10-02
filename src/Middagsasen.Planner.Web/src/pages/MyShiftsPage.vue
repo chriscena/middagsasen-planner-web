@@ -80,16 +80,7 @@ import { useRouter } from "vue-router";
 import { api } from "src/boot/axios";
 import { parse, parseISO, format } from "date-fns";
 import { nb } from "date-fns/locale";
-import type { UserShiftResponse } from "src/types";
-
-// /api/me/shifts returnerer ShiftSeasonResponse[] (vakter gruppert per sesong),
-// men [ProducesResponseType] i EventsController oppgir UserShiftResponse[], så
-// typen finnes ikke i det genererte OpenAPI-dokumentet. Speiler
-// Services/Events/UserShiftResponse.cs — hold i synk manuelt.
-interface ShiftSeasonResponse {
-  label: string;
-  shifts: UserShiftResponse[];
-}
+import type { ShiftSeasonResponse } from "src/types";
 
 interface ViewModel {
   shifts: ShiftSeasonResponse[];

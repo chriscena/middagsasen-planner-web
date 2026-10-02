@@ -4,25 +4,25 @@ namespace Middagsasen.Planner.Api.Services.Competencies
     {
         // Competency CRUD
         Task<IEnumerable<CompetencyResponse>> GetCompetencies();
-        Task<CompetencyResponse?> GetCompetencyById(int id);
+        Task<CompetencyResponse> GetCompetencyById(int id);
         Task<CompetencyResponse> CreateCompetency(CompetencyRequest request);
-        Task<CompetencyResponse?> UpdateCompetency(int id, CompetencyRequest request);
-        Task<CompetencyResponse?> DeleteCompetency(int id);
+        Task<CompetencyResponse> UpdateCompetency(int id, CompetencyRequest request);
+        Task<CompetencyResponse> DeleteCompetency(int id);
 
         // User competencies
         Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId);
-        Task<UserCompetencyResponse?> GetUserCompetencyById(int id);
-        Task<UserCompetencyResponse?> AddUserCompetency(UserCompetencyRequest request);
-        Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request);
-        Task<UserCompetencyResponse?> RevokeUserCompetency(int userCompetencyId);
+        Task<UserCompetencyResponse> GetUserCompetencyById(int id);
+        Task<UserCompetencyResponse> AddUserCompetency(UserCompetencyRequest request);
+        Task<UserCompetencyResponse> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request);
+        Task<UserCompetencyResponse> RevokeUserCompetency(int userCompetencyId);
 
         // Resource type competencies
         Task<IEnumerable<ResourceTypeCompetencyResponse>> GetResourceTypeCompetencies(int resourceTypeId);
         Task<IEnumerable<ResourceTypeCompetencyResponse>> SetResourceTypeCompetencies(int resourceTypeId, IEnumerable<SetResourceTypeCompetencyRequest> requirements);
 
         // Approvers
-        Task<CompetencyApproverResponse?> AddApprover(int competencyId, int userId);
-        Task<bool> RemoveApprover(int approverId);
+        Task<CompetencyApproverResponse> AddApprover(int competencyId, int userId);
+        Task RemoveApprover(int approverId);
         Task<bool> IsApprover(int competencyId, int userId);
     }
 }

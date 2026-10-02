@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -19,22 +20,23 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<CompetencyResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAll()
+        public async Task<IEnumerable<CompetencyResponse>> GetAll()
         {
-            return Ok(await CompetencyService.GetCompetencies());
+            return await CompetencyService.GetCompetencies();
         }
 
         [HttpGet("{id}"), Authorize]
         [ProducesResponseType(typeof(CompetencyResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<CompetencyResponse> Get(int id)
         {
-            var competency = await CompetencyService.GetCompetencyById(id);
-            return competency != null ? Ok(competency) : NotFound();
+            return await CompetencyService.GetCompetencyById(id);
         }
 
         [HttpPost]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(CompetencyResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] CompetencyRequest request)
         {
             var competency = await CompetencyService.CreateCompetency(request);
@@ -44,85 +46,89 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(CompetencyResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int id, [FromBody] CompetencyRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<CompetencyResponse> Update(int id, [FromBody] CompetencyRequest request)
         {
-            var competency = await CompetencyService.UpdateCompetency(id, request);
-            return competency != null ? Ok(competency) : NotFound();
+            return await CompetencyService.UpdateCompetency(id, request);
         }
 
         [HttpDelete("{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(CompetencyResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Delete(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<CompetencyResponse> Delete(int id)
         {
-            var competency = await CompetencyService.DeleteCompetency(id);
-            return competency != null ? Ok(competency) : NotFound();
+            return await CompetencyService.DeleteCompetency(id);
         }
 
         [HttpGet("user/{userId}"), Authorize]
         [ProducesResponseType(typeof(IEnumerable<UserCompetencyResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetUserCompetencies(int userId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId)
         {
             if (!CurrentUser.IsAdmin && userId != CurrentUser.UserId)
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+                throw new ForbiddenAccessException();
 
-            return Ok(await CompetencyService.GetUserCompetencies(userId));
+            return await CompetencyService.GetUserCompetencies(userId);
         }
 
         [HttpPost("user"), Authorize]
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> AddUserCompetency([FromBody] UserCompetencyRequest request)
         {
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+                throw new ForbiddenAccessException();
 
             var userCompetency = await CompetencyService.AddUserCompetency(request);
-            return userCompetency != null
-                ? Created($"/api/competencies/user/{userCompetency.Id}", userCompetency)
-                : NotFound();
+            return Created($"/api/competencies/user/{userCompetency.Id}", userCompetency);
         }
 
         [HttpPut("user/{userCompetencyId}/approve"), Authorize]
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> ApproveUserCompetency(int userCompetencyId, [FromBody] ApproveCompetencyRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserCompetencyResponse> ApproveUserCompetency(int userCompetencyId, [FromBody] ApproveCompetencyRequest request)
         {
             var userCompetency = await CompetencyService.GetUserCompetencyById(userCompetencyId);
-            if (userCompetency == null) return NotFound();
 
             if (!CurrentUser.IsAdmin && !await CompetencyService.IsApprover(userCompetency.CompetencyId, CurrentUser.UserId))
-                return new StatusCodeResult(StatusCodes.Status403Forbidden);
+                throw new ForbiddenAccessException();
 
-            var result = await CompetencyService.ApproveUserCompetency(userCompetencyId, request);
-            return result != null ? Ok(result) : NotFound();
+            return await CompetencyService.ApproveUserCompetency(userCompetencyId, request);
         }
 
         [HttpDelete("user/{userCompetencyId}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserCompetencyResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> RevokeUserCompetency(int userCompetencyId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserCompetencyResponse> RevokeUserCompetency(int userCompetencyId)
         {
-            var result = await CompetencyService.RevokeUserCompetency(userCompetencyId);
-            return result != null ? Ok(result) : NotFound();
+            return await CompetencyService.RevokeUserCompetency(userCompetencyId);
         }
 
         [HttpPost("{id}/approvers/{userId}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(CompetencyApproverResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AddApprover(int id, int userId)
         {
             var approver = await CompetencyService.AddApprover(id, userId);
-            return approver != null
-                ? Created($"/api/competencies/{id}/approvers/{approver.Id}", approver)
-                : NotFound();
+            return Created($"/api/competencies/{id}/approvers/{approver.Id}", approver);
         }
 
         [HttpDelete("approvers/{approverId}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<IActionResult> RemoveApprover(int approverId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task RemoveApprover(int approverId)
         {
-            var result = await CompetencyService.RemoveApprover(approverId);
-            return result ? Ok() : NotFound();
+            await CompetencyService.RemoveApprover(approverId);
         }
     }
 }

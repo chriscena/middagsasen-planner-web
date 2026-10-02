@@ -22,10 +22,10 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return competencies.Select(MapCompetency).OrderBy(c => c.Name).ToList();
         }
 
-        public async Task<CompetencyResponse?> GetCompetencyById(int id)
+        public async Task<CompetencyResponse> GetCompetencyById(int id)
         {
-            var competency = await Repository.GetCompetencyById(id);
-            return competency != null ? MapCompetency(competency) : null;
+            var competency = await Repository.GetCompetencyById(id) ?? throw new EntityNotFoundException();
+            return MapCompetency(competency);
         }
 
         public async Task<CompetencyResponse> CreateCompetency(CompetencyRequest request)
@@ -87,10 +87,9 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return MapCompetency(result!);
         }
 
-        public async Task<CompetencyResponse?> UpdateCompetency(int id, CompetencyRequest request)
+        public async Task<CompetencyResponse> UpdateCompetency(int id, CompetencyRequest request)
         {
-            var competency = await Repository.GetCompetencyById(id);
-            if (competency == null) return null;
+            var competency = await Repository.GetCompetencyById(id) ?? throw new EntityNotFoundException();
 
             competency.Name = request.Name;
             competency.Description = request.Description;
@@ -148,10 +147,9 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return MapCompetency(result!);
         }
 
-        public async Task<CompetencyResponse?> DeleteCompetency(int id)
+        public async Task<CompetencyResponse> DeleteCompetency(int id)
         {
-            var competency = await Repository.GetCompetencyById(id);
-            if (competency == null) return null;
+            var competency = await Repository.GetCompetencyById(id) ?? throw new EntityNotFoundException();
 
             competency.Inactive = true;
             await Repository.SaveChangesAsync();
@@ -167,13 +165,13 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             return userCompetencies.Select(MapUserCompetency).ToList();
         }
 
-        public async Task<UserCompetencyResponse?> GetUserCompetencyById(int id)
+        public async Task<UserCompetencyResponse> GetUserCompetencyById(int id)
         {
-            var userCompetency = await Repository.GetUserCompetencyById(id);
-            return userCompetency != null ? MapUserCompetency(userCompetency) : null;
+            var userCompetency = await Repository.GetUserCompetencyById(id) ?? throw new EntityNotFoundException();
+            return MapUserCompetency(userCompetency);
         }
 
-        public async Task<UserCompetencyResponse?> AddUserCompetency(UserCompetencyRequest request)
+        public async Task<UserCompetencyResponse> AddUserCompetency(UserCompetencyRequest request)
         {
             var userCompetency = new UserCompetency
             {
@@ -186,14 +184,13 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             userCompetency = await Repository.AddUserCompetency(userCompetency);
 
             // Re-fetch to include navigation properties
-            var result = await Repository.GetUserCompetencyById(userCompetency.UserCompetencyId);
-            return result != null ? MapUserCompetency(result) : null;
+            var result = await Repository.GetUserCompetencyById(userCompetency.UserCompetencyId) ?? throw new EntityNotFoundException();
+            return MapUserCompetency(result);
         }
 
-        public async Task<UserCompetencyResponse?> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request)
+        public async Task<UserCompetencyResponse> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request)
         {
-            var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId);
-            if (userCompetency == null) return null;
+            var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId) ?? throw new EntityNotFoundException();
 
             userCompetency.Approved = true;
             userCompetency.ApprovedDate = DateTime.UtcNow;
@@ -203,14 +200,13 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             await Repository.SaveChangesAsync();
 
             // Re-fetch to include updated navigation properties
-            var result = await Repository.GetUserCompetencyById(userCompetencyId);
-            return result != null ? MapUserCompetency(result) : null;
+            var result = await Repository.GetUserCompetencyById(userCompetencyId) ?? throw new EntityNotFoundException();
+            return MapUserCompetency(result);
         }
 
-        public async Task<UserCompetencyResponse?> RevokeUserCompetency(int userCompetencyId)
+        public async Task<UserCompetencyResponse> RevokeUserCompetency(int userCompetencyId)
         {
-            var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId);
-            if (userCompetency == null) return null;
+            var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId) ?? throw new EntityNotFoundException();
 
             userCompetency.Approved = false;
             userCompetency.ApprovedDate = null;
@@ -219,8 +215,8 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             await Repository.SaveChangesAsync();
 
             // Re-fetch to include updated navigation properties
-            var result = await Repository.GetUserCompetencyById(userCompetencyId);
-            return result != null ? MapUserCompetency(result) : null;
+            var result = await Repository.GetUserCompetencyById(userCompetencyId) ?? throw new EntityNotFoundException();
+            return MapUserCompetency(result);
         }
 
         // Resource type competencies
@@ -256,10 +252,9 @@ namespace Middagsasen.Planner.Api.Services.Competencies
 
         // Approvers
 
-        public async Task<CompetencyApproverResponse?> AddApprover(int competencyId, int userId)
+        public async Task<CompetencyApproverResponse> AddApprover(int competencyId, int userId)
         {
-            var competency = await Repository.GetCompetencyById(competencyId);
-            if (competency == null) return null;
+            _ = await Repository.GetCompetencyById(competencyId) ?? throw new EntityNotFoundException();
 
             var approver = new CompetencyApprover
             {
@@ -270,19 +265,16 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             approver = await Repository.AddApprover(approver);
 
             // Re-fetch to include navigation properties
-            var result = await Repository.GetApproverById(approver.CompetencyApproverId);
-            return result != null ? MapApprover(result) : null;
+            var result = await Repository.GetApproverById(approver.CompetencyApproverId) ?? throw new EntityNotFoundException();
+            return MapApprover(result);
         }
 
-        public async Task<bool> RemoveApprover(int approverId)
+        public async Task RemoveApprover(int approverId)
         {
-            var approver = await Repository.GetApproverById(approverId);
-            if (approver == null) return false;
+            var approver = await Repository.GetApproverById(approverId) ?? throw new EntityNotFoundException();
 
             approver.Inactive = true;
             await Repository.SaveChangesAsync();
-
-            return true;
         }
 
         public async Task<bool> IsApprover(int competencyId, int userId)

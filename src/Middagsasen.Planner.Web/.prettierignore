@@ -11,3 +11,4 @@ package-lock.json
 # Generert av `npm run gen:api`
 src/types/api.d.ts
 src/types/index.ts
+src/types/enums.ts

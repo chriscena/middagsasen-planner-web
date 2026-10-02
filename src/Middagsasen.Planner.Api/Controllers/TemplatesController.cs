@@ -16,24 +16,24 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("api/templates")]
         [ProducesResponseType(typeof(IEnumerable<EventTemplateResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get()
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<IEnumerable<EventTemplateResponse>> Get()
         {
-            var templates
-                = await TemplatesService.GetEventTemplates();
-            return templates != null ? Ok(templates) : NotFound();
+            return await TemplatesService.GetEventTemplates();
         }
 
         [HttpGet("api/templates/{id}")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventTemplateResponse> Get(int id)
         {
-            var template
-                = await TemplatesService.GetEventTemplateById(id);
-            return template != null ? Ok(template) : NotFound();
+            return await TemplatesService.GetEventTemplateById(id);
         }
 
         [HttpPost("api/templates")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] EventTemplateRequest request)
         {
             var response = await TemplatesService.CreateEventTemplate(request);
@@ -42,23 +42,27 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/templates/{id}")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int id, [FromBody] EventTemplateRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventTemplateResponse> Update(int id, [FromBody] EventTemplateRequest request)
         {
-            var template = await TemplatesService.UpdateEventTemplate(id, request);
-            return (template == null) ? NotFound() : Ok(template);
+            return await TemplatesService.UpdateEventTemplate(id, request);
         }
 
         [HttpDelete("api/templates/{id}")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Delete(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventTemplateResponse> Delete(int id)
         {
-            var template = await TemplatesService.DeleteEventTemplate(id);
-            return (template == null) ? NotFound() : Ok(template);
+            return await TemplatesService.DeleteEventTemplate(id);
         }
 
         [HttpPost("api/events/{id}/template")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateTemplateFromEvent(int id, [FromBody] TemplateFromEventRequest request)
         {
             var response = await TemplatesService.CreateTemplateFromEvent(id, request);

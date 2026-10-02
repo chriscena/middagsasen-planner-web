@@ -17,9 +17,9 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet]
         [ProducesResponseType<IEnumerable<SeasonResponse>>(StatusCodes.Status200OK)]
-        public IActionResult Get()
+        public IEnumerable<SeasonResponse> Get()
         {
-            return Ok(SeasonService.GetSeasons());
+            return SeasonService.GetSeasons();
         }
     }
 }

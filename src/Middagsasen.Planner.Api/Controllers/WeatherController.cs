@@ -8,11 +8,10 @@ namespace Middagsasen.Planner.Api.Controllers
     public class WeatherController(WeatherService weatherService) : ControllerBase
     {
         [HttpGet]
-        public async Task<IActionResult> Get([FromQuery] LocationMeasurementRequest request)
+        [ProducesResponseType(typeof(IEnumerable<LocationMeasurementResponse>), StatusCodes.Status200OK)]
+        public async Task<IEnumerable<LocationMeasurementResponse>> Get([FromQuery] LocationMeasurementRequest request)
         {
-            var response = await weatherService.GetLocationMeasurements(request);
-
-            return Ok(response);
+            return await weatherService.GetLocationMeasurements(request);
         }
 
     }

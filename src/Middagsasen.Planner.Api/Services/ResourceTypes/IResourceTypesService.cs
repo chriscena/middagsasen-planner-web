@@ -2,11 +2,11 @@
 {
     public interface IResourceTypesService
     {
-        Task<ResourceTypeResponse?> CreateResourceType(ResourceTypeRequest request);
-        Task<ResourceTypeResponse?> DeleteResourceType(int id);
-        Task<ResourceTypeResponse?> GetResourceTypeById(int id);
+        Task<ResourceTypeResponse> CreateResourceType(ResourceTypeRequest request);
+        Task<ResourceTypeResponse> DeleteResourceType(int id);
+        Task<ResourceTypeResponse> GetResourceTypeById(int id);
         Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes();
-        Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request);
+        Task<ResourceTypeResponse> UpdateResourceType(int id, ResourceTypeRequest request);
         Task<TrainingResponse?> CreateTraining(int id, TrainingRequest request);
         Task<TrainingResponse?> UpdateTraining(int resourceTypeId, TrainingRequest request);
         Task<FileInfoResponse> AddFile(int id, FileUploadRequest request);
