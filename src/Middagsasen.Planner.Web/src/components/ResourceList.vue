@@ -9,7 +9,7 @@
       <q-item v-for="(resource, index) in visibleResources" :key="index">
         <q-item-section>
           <q-item-label
-            >{{ resource.resourceType.name }}
+            >{{ resource.resourceType?.name }}
             <q-badge> {{ resource.minimumStaff }}</q-badge></q-item-label
           ></q-item-section
         >
@@ -36,6 +36,7 @@
     ></q-card-actions>
     <q-dialog v-model="showingEdit">
       <ResourceForm
+        v-if="selectedResource"
         :model-value="selectedResource"
         :resource-types="props.resourceTypes"
         @cancel="showingEdit = false"
@@ -45,37 +46,36 @@
   </q-card>
 </template>
 
-<script setup>
-import { computed, onMounted, ref } from "vue";
-import { parseISO, format, isValid, addMinutes, parse } from "date-fns";
+<script setup lang="ts">
+import { computed, ref } from "vue";
+import { format, addMinutes, parse } from "date-fns";
 import ResourceForm from "components/ResourceForm.vue";
+import type { ResourceFormModel } from "components/ResourceForm.vue";
+import type { ResourceTypeResponse } from "src/types";
 
-const props = defineProps({
-  modelValue: {
-    type: Array,
-    default: () => [],
-  },
-  resourceTypes: {
-    type: Array,
-    require: true,
-  },
-  startTime: {
-    type: String,
-    require: true,
-  },
-  endTime: {
-    type: String,
-    require: true,
-  },
-});
+// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
+// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
+const props = withDefaults(
+  defineProps<{
+    modelValue?: ResourceFormModel[];
+    resourceTypes: ResourceTypeResponse[];
+    startTime: string | null;
+    endTime: string | null;
+  }>(),
+  {
+    modelValue: () => [],
+  }
+);
 
-const emit = defineEmits(["update:model-value"]);
+const emit = defineEmits<{
+  "update:model-value": [value: ResourceFormModel[]];
+}>();
 
 const visibleResources = computed(() =>
   props.modelValue.filter((r) => !r.isDeleted)
 );
 
-const selectedResource = ref(null);
+const selectedResource = ref<ResourceFormModel | null>(null);
 
 const showingEdit = ref(false);
 
@@ -90,17 +90,18 @@ function addResource() {
   showingEdit.value = true;
 }
 
-function editResource(resource) {
+function editResource(resource: ResourceFormModel) {
   selectedResource.value = resource;
   showingEdit.value = true;
 }
 
-function toDateTime(time) {
-  const datetime = parse(time, "HH:mm", new Date());
+function toDateTime(time: string | null) {
+  // parse(null) og parse("") gir begge Invalid Date.
+  const datetime = parse(time ?? "", "HH:mm", new Date());
   return datetime;
 }
 
-function saveResource(model) {
+function saveResource(model: ResourceFormModel) {
   if (model?.isNew) {
     let resources = [...props.modelValue];
     resources.push({
@@ -111,7 +112,8 @@ function saveResource(model) {
       isDeleted: false,
     });
     emit("update:model-value", resources);
-  } else {
+  } else if (selectedResource.value) {
+    // Dialogen (og dermed save) vises kun når selectedResource er satt.
     selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.startTime = model.startTime;

@@ -227,9 +227,10 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
+import type { TouchSwipeValue } from "quasar";
 import { QCalendarAgenda, today } from "@quasar/quasar-ui-qcalendar";
 import { parseISO, format, isValid, parse } from "date-fns";
 import { nb } from "date-fns/locale";
@@ -241,11 +242,42 @@ import EventItemCard from "components/EventItemCard.vue";
 import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
+import type { EventResponse } from "src/types";
 
-const emit = defineEmits(["toggle-left", "toggle-right"]);
-const props = defineProps({
-  date: { type: String, required: true },
-});
+// Payload fra q-calendar-agenda sitt change-event (pakken typer ikke emits).
+interface CalendarChangeEvent {
+  start: string;
+  end: string;
+}
+
+// Dagen fra q-calendar-agenda (Timestamp); kun date (yyyy-MM-dd) brukes.
+interface DayTimestamp {
+  date: string;
+}
+
+// Payload fra click-head-day. target er dag-elementet menyen skal knyttes til.
+interface HeadDayClickEvent {
+  scope: { timestamp: DayTimestamp };
+  event: { target: Element };
+}
+
+// Payload fra VueDatePicker sitt update-month-year (month er 0-basert).
+// before-show fra q-popup-proxy sender i stedet et Event uten month/year.
+interface MonthYear {
+  month?: number | null;
+  year?: number | null;
+}
+
+// Argumentet til v-touch-swipe-handleren.
+type SwipeDetails = Parameters<Extract<TouchSwipeValue, (...args: never[]) => unknown>>[0];
+
+const emit = defineEmits<{
+  "toggle-left": [];
+  "toggle-right": [];
+}>();
+const props = defineProps<{
+  date: string;
+}>();
 
 const loading = ref(false);
 const selectedDay = ref(today());
@@ -257,7 +289,6 @@ const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
 });
 const isAdmin = computed(() => authStore.isAdmin);
-const currentUser = computed(() => authStore.user);
 
 const eventStore = useEventStore();
 const authStore = useAuthStore();
@@ -282,42 +313,45 @@ onMounted(async () => {
   eventStore.getEventStatuses(month, year);
 });
 
-const calendar = ref(null);
+const calendar = ref<QCalendarAgenda | null>(null);
 
+// Kalenderen rendres alltid (ingen v-if), så ref-en er satt etter mount.
 async function onToday() {
-  await calendar.value.moveToToday();
+  await calendar.value!.moveToToday();
   $router.replace(`/day/${selectedDay.value}`);
 }
 async function onPrev() {
-  await calendar.value.prev();
+  await calendar.value!.prev();
   $router.replace(`/day/${selectedDay.value}`);
 }
 async function onNext() {
-  await calendar.value.next();
+  await calendar.value!.next();
   $router.replace(`/day/${selectedDay.value}`);
 }
 
-async function onChange(event) {
+async function onChange(event: CalendarChangeEvent) {
   try {
     loading.value = true;
     await eventStore.getEventsForDates(event.start, event.end);
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
   } finally {
     loading.value = false;
   }
 }
 
-async function handleSwipe({ evt, ...info }) {
+async function handleSwipe(info: SwipeDetails) {
   if (info.direction === "right") await onPrev();
   if (info.direction === "left") await onNext();
 }
 
-function getEventsForDate(timestamp) {
+function getEventsForDate(timestamp: DayTimestamp) {
   return eventStore.getEventsForDate(timestamp);
 }
 
-async function getEventStatuses(view) {
+async function getEventStatuses(eventOrView?: MonthYear | Event) {
+  // Et Event har verken year eller month, så det faller til selectedDay under.
+  const view = eventOrView as MonthYear | undefined;
   if (
     !view ||
     view.year === undefined ||
@@ -332,9 +366,7 @@ async function getEventStatuses(view) {
   else await eventStore.getEventStatuses(view.month + 1, view.year);
 }
 
-const eventStatusDates = computed(() => eventStore.eventStatusDates);
-
-function getEventColor(date) {
+function getEventColor(date: string) {
   const dateString = format(
     parse(date, "yyyy/MM/dd", new Date()),
     "yyyy-MM-dd"
@@ -354,32 +386,35 @@ const markers = computed(() => {
   });
 });
 
-function setNow(value) {
+function setNow(value: string) {
   selectedDay.value = value;
   $router.replace(`/day/${selectedDay.value}`);
 }
 
-function formatTime(isoDateTime) {
+function formatTime(isoDateTime: string | null | undefined) {
   if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }
 
-function formatStartEndTime(event) {
+function formatStartEndTime(event: EventResponse) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
 
 function onEventSaved() {
   showingEventForm.value = false;
-  calendar.value.updateCurrent();
+  calendar.value!.updateCurrent(); // satt etter mount, se onToday
+  // OBS (#82): formatISO er ikke importert og startDateTime finnes ikke her, så
+  // linjen kaster ReferenceError og navigeringen under skjer aldri.
+  // @ts-expect-error Bevarer eksisterende (feilende) atferd til buggen fikses.
   const date = formatISO(startDateTime.value, {
     representation: "date",
   });
   $router.push(`/day/${date}`);
 }
 
-const selectedEventId = ref(null);
-function editEvent(event) {
+const selectedEventId = ref<number | null>(null);
+function editEvent(event: EventResponse) {
   if (!isAdmin.value) return;
   selectedEventId.value = event.id;
   showingEventForm.value = true;
@@ -398,20 +433,20 @@ const formattedSelectedDay = computed(() =>
     ? format(parse(selectedDay.value, "yyyy-MM-dd", new Date()), "dd.MM")
     : ""
 );
-const dateElement = ref("#dummy");
-function showMenu(data) {
+const dateElement = ref<string | Element>("#dummy");
+function showMenu(data: HeadDayClickEvent) {
   if (!isAdmin.value || !templates.value.length) return;
   selectedDay.value = data?.scope?.timestamp?.date;
   dateElement.value = data?.event?.target;
   showingMenu.value = true;
 }
 
-async function applyTemplate(id) {
+async function applyTemplate(id: number) {
   try {
     loading.value = true;
     await eventStore.createEventFromTemplate(id, selectedDay.value);
     $q.notify({ message: "Vaktlista er lagt til." });
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

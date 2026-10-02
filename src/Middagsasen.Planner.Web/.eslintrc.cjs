@@ -6,8 +6,8 @@ module.exports = {
 
   parserOptions: {
     ecmaVersion: 2021, // Allows for the parsing of modern ECMAScript features
-    // vue-eslint-parser (satt av plugin:vue) delegerer <script> til parseren under:
-    // espree for vanlig JS, @typescript-eslint/parser for .ts og <script lang="ts">
+    // vue-eslint-parser (satt av plugin:vue) delegerer <script lang="ts"> til
+    // @typescript-eslint/parser. espree beholdes for rot-konfigfilene (.cjs/.mjs).
     parser: {
       js: 'espree',
       ts: '@typescript-eslint/parser',
@@ -65,11 +65,20 @@ module.exports = {
 
   overrides: [
     {
-      // TypeScript-regler kun for .ts-filer. *.vue legges til her når
-      // komponentene er konvertert til <script lang="ts">.
-      files: ['*.ts', '*.cts', '*.mts', '*.tsx'],
+      // TypeScript-regler for .ts og .vue (alle komponenter bruker <script setup lang="ts">).
+      files: ['*.ts', '*.cts', '*.mts', '*.tsx', '*.vue'],
       parser: '@typescript-eslint/parser',
       extends: ['plugin:@typescript-eslint/recommended', 'prettier'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'warn',
+      },
+    },
+    {
+      // .vue må beholde vue-eslint-parser som toppnivå-parser (recommended over
+      // setter den til TS-parseren). Den delegerer <script lang="ts"> til
+      // @typescript-eslint/parser via parserOptions.parser.ts.
+      files: ['*.vue'],
+      parser: 'vue-eslint-parser',
     },
   ],
 

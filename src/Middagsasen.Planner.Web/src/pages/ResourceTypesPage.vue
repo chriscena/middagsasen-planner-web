@@ -58,11 +58,11 @@
       <q-card class="full-width full-height">
         <q-card-section class="row"
           ><span class="text-h6">{{
-            !selectedResource.id ? "Ny vakttype" : "Endre vakttype"
+            !selectedResource!.id ? "Ny vakttype" : "Endre vakttype"
           }}</span
           ><q-space></q-space>
           <q-btn
-            v-if="selectedResource.id"
+            v-if="selectedResource!.id"
             color="negative"
             round
             flat
@@ -75,20 +75,20 @@
             autofocus
             outlined
             label="Navn"
-            v-model="selectedResource.name"
+            v-model="selectedResource!.name"
           ></q-input>
           <q-input
             outlined
             label="Antall"
-            v-model="selectedResource.defaultStaff"
+            v-model="selectedResource!.defaultStaff"
             suffix="stk"
-            @focus="(event) => event.target.select()"
+            @focus="(event) => (event.target as HTMLInputElement).select()"
           ></q-input>
 
           <q-input
             outlined
             label="Varsel"
-            v-model="selectedResource.notificationMessage"
+            v-model="selectedResource!.notificationMessage"
             type="textarea"
             autogrow
             clearable
@@ -143,7 +143,7 @@
                     v-model.number="req.minimumRequired"
                     :min="1"
                     label="Min"
-                    @focus="(event) => event.target.select()"
+                    @focus="(event) => (event.target as HTMLInputElement).select()"
                   ></q-input>
                 </q-item-section>
                 <q-item-section side>
@@ -185,7 +185,7 @@
             <q-card-section class="q-py-sm text-subtitle2">Filer</q-card-section
             ><q-separator></q-separator>
             <q-list role="list" separator>
-              <q-item v-for="file in selectedResource.files" :key="file.id">
+              <q-item v-for="file in selectedResource!.files" :key="file.id">
                 <q-item-section
                   ><q-item-label>{{ file.description }}</q-item-label>
                   <q-item-label caption>{{
@@ -291,7 +291,7 @@
               autofocus
               outlined
               clearable
-              v-model="fileInfo.file"
+              v-model="fileInfo!.file"
               accept="application/pdf, .jpg, .jpeg, .gif, .png"
             >
             </q-file>
@@ -300,7 +300,7 @@
               class="col-12"
               label="Beskrivelse"
               outlined
-              v-model="fileInfo.description"
+              v-model="fileInfo!.description"
             >
             </q-input
           ></q-card-section>
@@ -328,7 +328,7 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
@@ -336,8 +336,42 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { computed } from "vue";
+import type {
+  CompetencyResponse,
+  FileInfoResponse,
+  ResourceTypeCompetencyResponse,
+  ResourceTypeRequest,
+  ResourceTypeResponse,
+  ResourceTypeTrainerResponse,
+  UserResponse,
+} from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+// Trener i skjemaet: fra ResourceTypeResponse, evt. markert som slettet.
+// `deleted` settes av addTrainer (se OBS der). fullName kommer da fra
+// UserResponse, der den er valgfri.
+type EditableTrainer = Omit<ResourceTypeTrainerResponse, "fullName"> & {
+  fullName?: null | string | undefined;
+  isDeleted?: boolean;
+  deleted?: boolean;
+};
+
+// Skjemamodell: enten en ny vakttype (emptyResource, uten id/navn/filer) eller
+// en kopi av en ResourceTypeResponse.
+interface EditableResourceType {
+  id: number | null;
+  name: string | null;
+  defaultStaff: number;
+  notificationMessage?: null | string;
+  trainers: EditableTrainer[];
+  files?: FileInfoResponse[];
+}
+
+interface FileForm {
+  file: File | null;
+  description: string | null;
+}
+
+const emit = defineEmits<{ "toggle-right": [] }>();
 const $router = useRouter();
 const eventStore = useEventStore();
 const userStore = useUserStore();
@@ -345,7 +379,7 @@ const competencyStore = useCompetencyStore();
 const $q = useQuasar();
 
 const showingEdit = ref(false);
-const user = ref(null);
+const user = ref<UserResponse | null>(null);
 const loading = ref(false);
 
 onMounted(async () => {
@@ -356,7 +390,7 @@ onMounted(async () => {
       eventStore.getResourceTypes(),
       competencyStore.getCompetencies(),
     ]);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -364,10 +398,13 @@ onMounted(async () => {
 
 const users = computed(() => userStore.users);
 const visibleTrainers = computed(() =>
-  selectedResource.value.trainers.filter((t) => !t.isDeleted)
+  // Evalueres kun fra redigeringsdialogen, når selectedResource er satt.
+  selectedResource.value!.trainers.filter((t) => !t.isDeleted)
 );
 
-const selectedResource = ref(null);
+// null til redigeringsdialogen åpnes; malen bruker `selectedResource!` fordi
+// dialoginnholdet kun rendres når den er satt.
+const selectedResource = ref<EditableResourceType | null>(null);
 function newResourceType() {
   selectedResource.value = emptyResource();
   competencyRequirements.value = [];
@@ -375,7 +412,7 @@ function newResourceType() {
   showingEdit.value = true;
 }
 
-async function editResourceType(resourceType) {
+async function editResourceType(resourceType: ResourceTypeResponse) {
   selectedResource.value = Object.assign({}, resourceType);
   competencyRequirements.value = [];
   selectedCompetency.value = null;
@@ -385,12 +422,21 @@ async function editResourceType(resourceType) {
 
 async function saveResource() {
   try {
-    let resourceTypeId;
-    if (selectedResource.value.id) {
-      await eventStore.updateResourceType(selectedResource.value);
-      resourceTypeId = selectedResource.value.id;
+    // Kalles kun fra redigeringsdialogen, så selectedResource er satt.
+    const resource = selectedResource.value!;
+    // Hele skjemamodellen sendes som request (som i JS-versjonen), inkl.
+    // ekstra felt; name kan være null og trenere fra responsen mangler
+    // isDeleted (backend validerer/bruker default).
+    let resourceTypeId: number | undefined;
+    if (resource.id) {
+      await eventStore.updateResourceType(
+        resource as ResourceTypeRequest & { id: number }
+      );
+      resourceTypeId = resource.id;
     } else {
-      const created = await eventStore.createResourceType(selectedResource.value);
+      const created = await eventStore.createResourceType(
+        resource as ResourceTypeRequest
+      );
       resourceTypeId = created?.id;
     }
     if (resourceTypeId) {
@@ -408,7 +454,7 @@ async function saveResource() {
   }
 }
 
-function emptyResource() {
+function emptyResource(): EditableResourceType {
   return {
     id: null,
     name: null,
@@ -419,12 +465,17 @@ function emptyResource() {
 }
 
 function addTrainer() {
-  selectedResource.value.trainers.push({
+  // Knappen er deaktivert til en bruker er valgt (canAddTrainer), og
+  // dialogen ligger i redigeringsdialogen.
+  const selectedUser = user.value!;
+  selectedResource.value!.trainers.push({
+    // OBS (#82): DTO-feltet heter `isDeleted`, ikke `deleted`. Ufarlig i dag
+    // (manglende isDeleted tolkes som ikke slettet), men feil feltnavn.
     deleted: false,
     id: 0,
-    userId: user.value.id,
-    fullName: user.value.fullName,
-    phoneNo: user.value.phoneNo,
+    userId: selectedUser.id,
+    fullName: selectedUser.fullName,
+    phoneNo: selectedUser.phoneNo,
   });
   user.value = null;
   showingAddTrainer.value = false;
@@ -438,12 +489,12 @@ function showAddTrainer() {
 
 const canAddTrainer = computed(() => !!user.value);
 
-function deleteTrainer(trainer) {
+function deleteTrainer(trainer: EditableTrainer) {
   trainer.isDeleted = true;
 }
 
-const competencyRequirements = ref([]);
-const selectedCompetency = ref(null);
+const competencyRequirements = ref<ResourceTypeCompetencyResponse[]>([]);
+const selectedCompetency = ref<CompetencyResponse | null>(null);
 
 const availableCompetencies = computed(() => {
   const linkedIds = competencyRequirements.value.map((cr) => cr.competencyId);
@@ -453,28 +504,36 @@ const availableCompetencies = computed(() => {
 });
 
 function addCompetencyRequirement() {
+  // Knappen er deaktivert til en kompetanse er valgt.
+  const competency = selectedCompetency.value!;
   competencyRequirements.value.push({
-    competencyId: selectedCompetency.value.id,
-    competencyName: selectedCompetency.value.name,
+    competencyId: competency.id,
+    competencyName: competency.name,
     minimumRequired: 1,
   });
   selectedCompetency.value = null;
 }
 
-function removeCompetencyRequirement(index) {
+function removeCompetencyRequirement(index: number) {
   competencyRequirements.value.splice(index, 1);
 }
 
-async function loadCompetencyRequirements(resourceTypeId) {
+async function loadCompetencyRequirements(resourceTypeId: number) {
   const data = await competencyStore.getResourceTypeCompetencies(resourceTypeId);
-  competencyRequirements.value = data.map((item) => ({
-    competencyId: item.competencyId,
-    competencyName: item.competencyName ?? item.name,
-    minimumRequired: item.minimumRequired,
-  }));
+  // `name` finnes ikke i DTO-en (competencyName er påkrevd); fallbacken er
+  // beholdt fra JS-versjonen.
+  competencyRequirements.value = data.map(
+    (item: ResourceTypeCompetencyResponse & { name?: string }) => ({
+      competencyId: item.competencyId,
+      competencyName: item.competencyName ?? item.name,
+      minimumRequired: item.minimumRequired,
+    })
+  );
 }
 
-const fileInfo = ref(null);
+// null til fildialogen åpnes; malen bruker `fileInfo!` av samme grunn som
+// selectedResource.
+const fileInfo = ref<FileForm | null>(null);
 const showingAddFile = ref(false);
 function showAddFile() {
   fileInfo.value = { file: null, description: null };
@@ -482,7 +541,8 @@ function showAddFile() {
 }
 
 const canAddFile = computed(
-  () => !!(fileInfo.value.file && fileInfo.value.description)
+  // Evalueres kun fra fildialogen, når fileInfo er satt.
+  () => !!(fileInfo.value!.file && fileInfo.value!.description)
 );
 
 const savingFile = ref(false);
@@ -490,10 +550,14 @@ async function addFile() {
   try {
     savingFile.value = true;
     const response = await eventStore.addResourceTypeFile(
-      selectedResource.value,
-      fileInfo.value
+      // OBS (#82): For en ny (ulagret) vakttype er id null, så filen postes
+      // til /api/resourcetypes/null/files, og `files` er undefined, så push
+      // under kaster. «Legg til fil» vises likevel for nye vakttyper.
+      selectedResource.value as Pick<ResourceTypeResponse, "id">,
+      // Knappen er deaktivert til både fil og beskrivelse er satt (canAddFile).
+      fileInfo.value as { file: Blob; description: string }
     );
-    selectedResource.value.files.push(response);
+    selectedResource.value!.files!.push(response);
     showingAddFile.value = false;
     $q.notify({ message: "Filen er lagret." });
   } catch (error) {
@@ -505,13 +569,13 @@ async function addFile() {
 }
 
 const deletingFile = ref(false);
-async function deleteFile(fileInfo) {
+async function deleteFile(fileInfo: FileInfoResponse) {
   try {
     deletingFile.value = true;
     await eventStore.deleteResourceTypeFile(fileInfo);
-    selectedResource.value.files = selectedResource.value.files.filter(
-      (f) => f.id !== fileInfo.id
-    );
+    // Kalles kun fra fillista, så selectedResource og files er satt.
+    const resource = selectedResource.value!;
+    resource.files = resource.files!.filter((f) => f.id !== fileInfo.id);
     showingAddFile.value = false;
     $q.notify({ message: "Filen er slettet." });
   } catch (error) {

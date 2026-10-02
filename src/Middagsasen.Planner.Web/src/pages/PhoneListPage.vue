@@ -72,34 +72,32 @@
   </q-page>
 </template>
 
-<script setup>
-import { computed, onMounted, ref, watch } from "vue";
-import { useQuasar } from "quasar";
+<script setup lang="ts">
+import { computed, onMounted, ref } from "vue";
 import { useUserStore } from "stores/UserStore";
-import { useRouter } from "vue-router";
+import type { PhoneResponse } from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
-const $q = useQuasar();
-const router = useRouter();
 const userStore = useUserStore();
 
-const filter = ref(null);
+const filter = ref<string | null>(null);
 
-const phoneList = computed(() =>
-  !!filter.value
+const phoneList = computed((): PhoneResponse[] => {
+  const filterValue = filter.value;
+  return !!filterValue
     ? userStore.phoneList.filter(
         (p) =>
           !!p.fullName &&
-          p.fullName.toLowerCase().indexOf(filter.value.toLowerCase()) >= 0
+          p.fullName.toLowerCase().indexOf(filterValue.toLowerCase()) >= 0
       )
-    : userStore.phoneList
-);
+    : userStore.phoneList;
+});
 onMounted(async () => {
   try {
     loading.value = true;
     await userStore.getPhoneList();
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

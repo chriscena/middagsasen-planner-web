@@ -2,7 +2,6 @@
   "extends": "./.quasar/tsconfig.json",
   "compilerOptions": {
     "strict": true,
-    "allowJs": true,
-    "checkJs": false
+    "allowJs": false
   }
 }

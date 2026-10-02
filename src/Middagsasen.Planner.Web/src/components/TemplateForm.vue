@@ -20,14 +20,14 @@
           outlined
           label="Navn på mal"
           v-model="name"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         ></q-input>
         <q-input
           hide-bottom-space
           outlined
           label="Navn på vaktliste"
           v-model="eventName"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         ></q-input>
         <TimePickerInput
           :error="!isValidStartTime"
@@ -87,65 +87,95 @@
   </q-card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { parseISO, format, isValid, parse } from "date-fns";
 import TimePickerInput from "components/TimePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
+import type { ResourceFormModel } from "components/ResourceForm.vue";
+import type {
+  EventTemplateResponse,
+  ResourceTemplateRequest,
+  ResourceTypeResponse,
+} from "src/types";
 
-const emit = defineEmits(["cancel", "save", "delete"]);
+// Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
+// mal med id 0 og name null.
+export type TemplateFormValue = Omit<EventTemplateResponse, "name"> & {
+  name: string | null;
+};
 
-const props = defineProps({
-  modelValue: {
-    type: Object,
-    require: true,
-  },
-  resourceTypes: {
-    type: Array,
-    require: true,
-  },
-  loading: {
-    type: Boolean,
-    default: false,
-  },
-});
+// EventTemplateRequest + id (brukes av eventStore.updateTemplate/deleteTemplate).
+// name/eventName kan være null fra skjemaet.
+export interface TemplateFormModel {
+  id: number;
+  name: string | null;
+  eventName: string | null;
+  startTime: string;
+  endTime: string;
+  resourceTemplates: ResourceTemplateRequest[];
+}
+
+const emit = defineEmits<{
+  cancel: [];
+  save: [value: TemplateFormModel];
+  delete: [value: TemplateFormModel];
+}>();
+
+// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
+// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
+const props = withDefaults(
+  defineProps<{
+    modelValue: TemplateFormValue;
+    resourceTypes: ResourceTypeResponse[];
+    loading?: boolean;
+  }>(),
+  {
+    loading: false,
+  }
+);
 
 onMounted(async () => {
   name.value = props.modelValue.name;
   eventName.value = props.modelValue.eventName;
   startTime.value = formatTime(props.modelValue.startTime);
   endTime.value = formatTime(props.modelValue.endTime);
-  resources.value = props.modelValue.resourceTemplates.map((r) => {
-    return {
-      id: r.id,
-      eventId: r.eventId,
-      resourceType: r.resourceType,
-      startTime: formatTime(r.startTime),
-      endTime: formatTime(r.endTime),
-      minimumStaff: r.minimumStaff,
-      isDeleted: false,
-    };
-  });
+  // OBS (#82): resourceTemplates er nullable i DTO-en; null gir TypeError her.
+  resources.value = props.modelValue.resourceTemplates!.map(
+    (r): ResourceFormModel => {
+      return {
+        id: r.id,
+        // OBS (#82): `eventId: r.eventId` fjernet: ResourceTemplateResponse har
+        // ikke eventId, så verdien var alltid undefined (og brukes ikke).
+        resourceType: r.resourceType,
+        startTime: formatTime(r.startTime),
+        endTime: formatTime(r.endTime),
+        minimumStaff: r.minimumStaff,
+        isDeleted: false,
+      };
+    }
+  );
 });
 
-const name = ref(null);
-const eventName = ref(null);
+const name = ref<string | null>(null);
+const eventName = ref<string | null>(null);
 
+// parse(null) og parse("") gir begge Invalid Date.
 const isValidStartTime = computed(() =>
-  isValid(parse(startTime.value, "HH:mm", new Date()))
+  isValid(parse(startTime.value ?? "", "HH:mm", new Date()))
 );
 const isValidEndTime = computed(() =>
-  isValid(parse(endTime.value, "HH:mm", new Date()))
+  isValid(parse(endTime.value ?? "", "HH:mm", new Date()))
 );
 
-function toDateTime(time) {
-  const datetime = parse(time, "HH:mm", new Date());
+function toDateTime(time: string | null) {
+  const datetime = parse(time ?? "", "HH:mm", new Date());
   return datetime;
 }
 
-const startTime = ref("10:00");
-const endTime = ref("17:00");
-const resources = ref([]);
+const startTime = ref<string | null>("10:00");
+const endTime = ref<string | null>("17:00");
+const resources = ref<ResourceFormModel[]>([]);
 
 const canSave = computed(() => {
   return !!(
@@ -156,7 +186,7 @@ const canSave = computed(() => {
   );
 });
 
-function formatTime(isoDateTime) {
+function formatTime(isoDateTime: string | Date) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
   return format(parseISO(isoDateTime), "HH:mm");
 }
@@ -166,8 +196,8 @@ async function saveTemplate() {
   emit("save", model);
 }
 
-function mapToModel() {
-  const model = {
+function mapToModel(): TemplateFormModel {
+  const model: TemplateFormModel = {
     id: props.modelValue.id,
     name: name.value,
     eventName: eventName.value,
@@ -175,19 +205,23 @@ function mapToModel() {
     endTime: formatDateTime(toDateTime(endTime.value)),
     resourceTemplates: resources.value.map((r) => {
       return {
-        id: r.id,
-        resourceTypeId: r.resourceType.id,
+        id: r.id ?? null,
+        // ResourceForm krever vakttype før lagring (canAdd).
+        resourceTypeId: r.resourceType!.id,
         startTime: formatDateTime(toDateTime(r.startTime)),
         endTime: formatDateTime(toDateTime(r.endTime)),
-        minimumStaff: r.minimumStaff,
-        isDeleted: r.isDeleted,
+        // OBS (#82): kan være string fra q-input type="number"; API-et godtar
+        // tall som streng (JsonSerializerDefaults.Web).
+        minimumStaff: r.minimumStaff as number,
+        // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
+        isDeleted: r.isDeleted as boolean,
       };
     }),
   };
   return model;
 }
 
-const showingDelete = ref(null);
+const showingDelete = ref<boolean | null>(null);
 function confirmDeleteEvent() {
   showingDelete.value = true;
 }
@@ -198,7 +232,9 @@ function deleteTemplate() {
   emit("delete", model);
 }
 
-function formatDateTime(date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm", new Date());
+function formatDateTime(date: Date) {
+  // OBS (#82): tredje argument var `new Date()`, men format tar et options-objekt;
+  // fjernet uten endret atferd (Date har ingen av options-feltene).
+  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 </script>

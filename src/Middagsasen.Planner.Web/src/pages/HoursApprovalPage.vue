@@ -399,8 +399,9 @@
             {{ userNameById(foundWorkHour.userId) }}
           </div>
           <q-space></q-space>
+          <!-- OBS (#82): hours kan være null i DTO-en; formatNumber kaster da. -->
           <q-item-label caption class="q-pt-md">
-            {{ formatNumber(foundWorkHour.hours) }}
+            {{ formatNumber(foundWorkHour.hours as number) }}
             t
           </q-item-label>
         </div>
@@ -429,8 +430,9 @@
     </q-card>
   </q-dialog>
 </template>
-<script setup>
+<script setup lang="ts">
 import { useQuasar } from "quasar";
+import type { QTable, QTableColumn, QTableProps } from "quasar";
 import { onMounted, ref, computed, useTemplateRef, nextTick } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useUserStore } from "src/stores/UserStore";
@@ -444,7 +446,18 @@ import {
   getWorkHourErrorMessage,
   summarizeBulkApproval,
 } from "src/shared/workHourDiff";
+import type { BulkApprovalCounts } from "src/shared/workHourDiff";
+import type { UserResponse, WorkHourResponse } from "src/types";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
+
+// Filteret som sendes til q-table (`:filter`) og tilbake i @request.
+interface WorkHourFilter {
+  approved: number;
+  season: number | null;
+  userId: number | null;
+}
+
+type TableRequestProps = Parameters<NonNullable<QTableProps["onRequest"]>>[0];
 
 // store init
 const $router = useRouter();
@@ -456,34 +469,47 @@ const seasonStore = useSeasonStore();
 const $q = useQuasar();
 
 // props and emits
-const emit = defineEmits(["toggle-right", "toggle-left"]);
+const emit = defineEmits<{
+  "toggle-right": [];
+  "toggle-left": [];
+}>();
 
 // refs
 const selectAllBox = ref(false);
 const approvedHours = ref(0);
 const pendingHours = ref(0);
 const rejectedHours = ref(0);
-const foundWorkHour = ref({});
+// Starter tom; settes til raden som åpnes i dialogen.
+const foundWorkHour = ref<Partial<WorkHourResponse>>({});
 const showWorkHourDialog = ref(false);
-const editWorkHour = ref(null);
+const editWorkHour = ref<WorkHourResponse | null>(null);
 const showEditDialog = ref(false);
-const selectedWorkHours = ref([]);
-const tableRef = useTemplateRef("tableRef");
+const selectedWorkHours = ref<WorkHourResponse[]>([]);
+const tableRef = useTemplateRef<QTable>("tableRef");
 const loading = ref(false);
 const seasonsLoaded = ref(false);
-const userOptions = ref([]);
+const userOptions = ref<UserResponse[]>([]);
 const showApprovalDialog = ref(false);
-const userWorkHours = ref([]);
+// OBS (#82): approvalType var ikke deklarert i JS-versjonen (satt implisitt på
+// komponentinstansen fra templaten, ikke-reaktivt). Settes alltid før dialogen åpnes.
+const approvalType = ref<1 | 2>(1);
+const userWorkHours = ref<WorkHourResponse[]>([]);
 const currentPage = ref(1);
 const currentUser = computed(() => authStore.user);
-const pagination = ref({
-  rowsPerPage: Number.isInteger(parseInt($route.query.rowPP))
-    ? parseInt($route.query.rowPP)
+// String(...) gir samme tolkning som parseInt på rå query-verdi (null/array).
+// rowsNumber er utelatt (= undefined) til totalen er hentet; q-table krever
+// at feltet er fraværende fremfor eksplisitt undefined (exactOptionalPropertyTypes).
+const pagination = ref<{
+  rowsPerPage: number;
+  page: number;
+  rowsNumber?: number;
+}>({
+  rowsPerPage: Number.isInteger(parseInt(String($route.query.rowPP)))
+    ? parseInt(String($route.query.rowPP))
     : 15,
-  page: Number.isInteger(parseInt($route.query.page))
-    ? parseInt($route.query.page)
+  page: Number.isInteger(parseInt(String($route.query.page)))
+    ? parseInt(String($route.query.page))
     : 1,
-  rowsNumber: undefined,
 });
 const dialogIcon = ref({
   class: "",
@@ -491,7 +517,7 @@ const dialogIcon = ref({
 });
 
 // constants
-const columns = [
+const columns: QTableColumn<WorkHourResponse>[] = [
   {
     name: "status",
     label: "Status",
@@ -504,7 +530,7 @@ const columns = [
     name: "user",
     label: "Bruker",
     field: (row) => row.userId,
-    format: (val) => userNameById(val),
+    format: (val: number) => userNameById(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -529,7 +555,9 @@ const columns = [
   {
     name: "from",
     label: "Fra",
-    format: (val) => toDateTimeString(val),
+    // `field` er påkrevd i QTableColumn; cellen rendres uansett via #body-cell-from.
+    field: "startTime",
+    format: (val: string | null | undefined) => toDateTimeString(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -537,7 +565,9 @@ const columns = [
   {
     name: "to",
     label: "Til",
-    format: (val) => toDateTimeString(val),
+    // `field` er påkrevd i QTableColumn; cellen rendres uansett via #body-cell-to.
+    field: "endTime",
+    format: (val: string | null | undefined) => toDateTimeString(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -546,7 +576,7 @@ const columns = [
     name: "hours",
     label: "Timer",
     field: (row) => row.hours,
-    format: (val) => formatNumber(val),
+    format: (val: number) => formatNumber(val),
     align: "right",
     headerStyle: "width: 5%",
     style: "width: 5%",
@@ -554,8 +584,8 @@ const columns = [
 ];
 
 // computed
-const visibleColumns = computed(() => {
-  let cols = [];
+const visibleColumns = computed<string[]>(() => {
+  const cols: string[] = [];
   cols.push("user");
   if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("status");
   if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approvedBy");
@@ -568,25 +598,25 @@ const visibleColumns = computed(() => {
 
 const isAdmin = computed(() => currentUser.value?.isAdmin ?? false);
 
-const approvedFilter = computed(() => {
-  return $route.query.a !== undefined ? parseInt($route.query.a) : 3;
+const approvedFilter = computed<number>(() => {
+  return $route.query.a !== undefined ? parseInt(String($route.query.a)) : 3;
 });
 
 // Sesongens startår fra URL (`s`), ellers inneværende sesong.
-const seasonFilter = computed(() => {
-  const fromQuery = parseInt($route.query.s);
+const seasonFilter = computed<number | null>(() => {
+  const fromQuery = parseInt(String($route.query.s));
   return Number.isInteger(fromQuery)
     ? fromQuery
     : seasonStore.currentSeason?.startYear ?? null;
 });
 
 // Valgt bruker fra URL (`u`), null = alle brukere.
-const userFilter = computed(() => {
-  const fromQuery = parseInt($route.query.u);
+const userFilter = computed<number | null>(() => {
+  const fromQuery = parseInt(String($route.query.u));
   return Number.isInteger(fromQuery) ? fromQuery : null;
 });
 
-const filter = computed(() => {
+const filter = computed<WorkHourFilter>(() => {
   return {
     approved: approvedFilter.value,
     season: seasonFilter.value,
@@ -598,11 +628,12 @@ const filter = computed(() => {
 function resetTable() {
   userWorkHours.value = [];
   currentPage.value = 1;
-  pagination.value.rowsNumber = undefined;
+  delete pagination.value.rowsNumber;
 }
 
-async function getUserWorkHours(props) {
-  const filter = props.filter;
+async function getUserWorkHours(props: TableRequestProps) {
+  // q-table sender tilbake objektet fra `:filter` (typet som any av Quasar).
+  const filter = props.filter as WorkHourFilter;
   loading.value = true;
   resetTable();
   try {
@@ -624,7 +655,8 @@ async function getUserWorkHours(props) {
     ]);
 
     userWorkHours.value = response.result;
-    pagination.value.rowsNumber = workHourStore.userWorkHours.totalCount;
+    // Samme objekt som storen nettopp satte i userWorkHours.
+    pagination.value.rowsNumber = response.totalCount;
     pagination.value.page = props.pagination.page;
     pagination.value.rowsPerPage = props.pagination.rowsPerPage;
 
@@ -655,8 +687,8 @@ function onWorkHourSaved() {
   tableRef.value?.requestServerInteraction();
 }
 
-async function approveUpdateRows(status) {
-  const counts = { ok: 0, alreadyProcessed: 0, notFound: 0, failed: 0 };
+async function approveUpdateRows(status: number) {
+  const counts: Required<BulkApprovalCounts> = { ok: 0, alreadyProcessed: 0, notFound: 0, failed: 0 };
   try {
     loading.value = true;
     for (const workHour of selectedWorkHours.value) {
@@ -681,7 +713,7 @@ async function approveUpdateRows(status) {
     const summary = summarizeBulkApproval(counts, status);
     $q.notify({
       type: summary.type,
-      closeBtn: summary.type === "positive" ? undefined : "close",
+      ...(summary.type === "positive" ? {} : { closeBtn: "close" }),
       message: summary.message,
     });
   } finally {
@@ -692,9 +724,14 @@ async function approveUpdateRows(status) {
   }
 }
 
-async function changeStatus(workHourId, status) {
+async function changeStatus(
+  workHourId: number | undefined,
+  status: number | null
+) {
   try {
     loading.value = true;
+    // Dialogen åpnes kun for en funnet føring, så id er alltid satt her.
+    if (workHourId === undefined) return;
     await workHourStore.updateApproval({
       workHourId: workHourId,
       approvalStatus: status,
@@ -727,23 +764,24 @@ async function changeStatus(workHourId, status) {
   }
 }
 
-async function openWorkHours(workHourRow) {
-  foundWorkHour.value = userWorkHours.value?.find(
+async function openWorkHours(workHourRow: WorkHourResponse) {
+  const found = userWorkHours.value?.find(
     (w) => w.workHourId === workHourRow.workHourId
   );
-  if (!foundWorkHour.value) {
+  if (!found) {
     return;
   }
-  if (foundWorkHour.value.approvalStatus === null) {
+  foundWorkHour.value = found;
+  if (found.approvalStatus === null) {
     // Åpen føring: kan redigeres og godkjennes/avslås i skjemaet.
-    editWorkHour.value = { ...foundWorkHour.value };
+    editWorkHour.value = { ...found };
     showEditDialog.value = true;
     return;
   }
-  if (foundWorkHour.value.approvalStatus === 1) {
+  if (found.approvalStatus === 1) {
     dialogIcon.value.class = "green-text";
     dialogIcon.value.name = "check_circle";
-  } else if (foundWorkHour.value.approvalStatus === 2) {
+  } else if (found.approvalStatus === 2) {
     dialogIcon.value.class = "red-text";
     dialogIcon.value.name = "cancel";
   } else {
@@ -753,7 +791,7 @@ async function openWorkHours(workHourRow) {
   showWorkHourDialog.value = true;
 }
 
-function toggleSelectAll(val) {
+function toggleSelectAll(val: boolean) {
   if (val) {
     selectedWorkHours.value = [...userWorkHours.value];
   } else {
@@ -764,7 +802,7 @@ function toggleSelectAll(val) {
 // Oppdaterer URL-query (a, page, rowPP, s, u). Felter som ikke er med i
 // `changes` (approved, season, userId) beholder nåværende verdi; page og rowPP
 // leses fra `pagination`.
-async function setFilter(changes = {}) {
+async function setFilter(changes: Partial<WorkHourFilter> = {}) {
   const approved = changes.approved ?? approvedFilter.value;
   const season = "season" in changes ? changes.season : seasonFilter.value;
   const userId = "userId" in changes ? changes.userId : userFilter.value;
@@ -792,7 +830,7 @@ async function setFilter(changes = {}) {
   });
 }
 
-function filterUsers(val, update) {
+function filterUsers(val: string, update: (callbackFn: () => void) => void) {
   update(() => {
     const needle = (val ?? "").toLowerCase();
     userOptions.value = needle
@@ -803,22 +841,27 @@ function filterUsers(val, update) {
   });
 }
 
-function toDateTimeString(value, options) {
+type DateValue = string | Date | null | undefined;
+
+function toDateTimeString(
+  value: DateValue,
+  options?: { includeSeconds?: boolean }
+) {
   let timeFormat = "dd.MM.yyyy HH:mm";
   if (options && options.includeSeconds) timeFormat = "dd.MM.yyyy HH:mm:ss";
   return value ? format(ensureIsDate(value), timeFormat) : "";
 }
-function ensureIsDate(value) {
+function ensureIsDate(value: string | Date) {
   return value instanceof Date ? value : new Date(value);
 }
-function toTimeString(value) {
+function toTimeString(value: DateValue) {
   return value ? format(ensureIsDate(value), "HH:mm") : "";
 }
-function toDateString(value) {
+function toDateString(value: DateValue) {
   return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
 
-function approvedByText(row) {
+function approvedByText(row: Partial<WorkHourResponse>) {
   if (!row.approvedBy || row.approvalStatus === null) return "";
   const name = row.approvedByName ?? "ukjent";
   return row.approvalStatus === 1
@@ -826,7 +869,7 @@ function approvedByText(row) {
     : `Avslått av: ${name}`;
 }
 
-function userNameById(id) {
+function userNameById(id: number | undefined) {
   const approvedByNameUser = userStore.users.find((u) => u.id === id);
   return approvedByNameUser?.fullName ? approvedByNameUser?.fullName : "";
 }

@@ -20,7 +20,7 @@
           outlined
           label="Navn"
           v-model="name"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         ></q-input>
         <q-input
           :error="!isValidDate"
@@ -29,7 +29,7 @@
           label="Dato"
           mask="##.##.####"
           placeholder="DD.MM.ÅÅÅÅ"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
           v-model="startDate"
           ><template v-slot:append>
             <q-icon name="event" class="cursor-pointer">
@@ -48,7 +48,7 @@
           label="Start"
           mask="##:##"
           placeholder="TT:MM"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
           v-model="startTime"
         >
           <template v-slot:append>
@@ -69,7 +69,7 @@
           placeholder="TT:MM"
           v-model="endTime"
           :error="!isValidEndTime"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
@@ -156,7 +156,7 @@
             flat
             label="Slett"
             color="primary"
-            @click="deleteEvent(props.id)"
+            @click="deleteEvent()"
           ></q-btn>
         </q-card-actions>
       </q-card>
@@ -181,7 +181,7 @@
             label="Lagre"
             color="primary"
             :disable="!templateName"
-            @click="createTemplate(props.id)"
+            @click="createTemplate(props.id!)"
           ></q-btn>
         </q-card-actions>
         <q-inner-loading :showing="savingTemplate">
@@ -195,12 +195,12 @@
           <div>Vakt</div>
           <q-space></q-space>
           <q-btn
-            v-if="selectedResource.id"
+            v-if="selectedResource!.id"
             color="negative"
             flat
             round
             icon="delete"
-            @click="deleteResource(selectedResource)"
+            @click="deleteResource(selectedResource!)"
           ></q-btn>
         </q-card-section>
         <q-card-section class="q-gutter-md">
@@ -211,19 +211,19 @@
             :options="resourceTypes"
             option-label="name"
             option-value="resourceTypeId"
-            v-model="selectedResource.resourceType"
+            v-model="selectedResource!.resourceType"
             @update:model-value="resourceTypeChanged"
           ></q-select>
           <q-input
             outlined
             @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
+              (event) => (event.target as HTMLInputElement | null)?.select?.()
             "
             label="Minste bemanning"
             suffix="stk"
             step="1"
             type="number"
-            v-model="selectedResource.minimumStaff"
+            v-model="selectedResource!.minimumStaff"
           ></q-input>
 
           <q-input
@@ -232,15 +232,15 @@
             mask="##:##"
             placeholder="TT:MM"
             @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
+              (event) => (event.target as HTMLInputElement | null)?.select?.()
             "
-            v-model="selectedResource.startTime"
+            v-model="selectedResource!.startTime"
           >
             <template v-slot:append>
               <q-icon name="access_time" class="cursor-pointer">
                 <q-popup-proxy transition-show="scale" transition-hide="scale">
                   <q-time
-                    v-model="selectedResource.startTime"
+                    v-model="selectedResource!.startTime"
                     format24h
                     mask="HH:mm"
                   >
@@ -256,16 +256,16 @@
             label="Slutt"
             mask="##:##"
             placeholder="TT:MM"
-            v-model="selectedResource.endTime"
+            v-model="selectedResource!.endTime"
             @focus="
-              (event) => (event.target?.select ? event.target.select() : _)
+              (event) => (event.target as HTMLInputElement | null)?.select?.()
             "
           >
             <template v-slot:append>
               <q-icon name="access_time" class="cursor-pointer">
                 <q-popup-proxy transition-show="scale" transition-hide="scale">
                   <q-time
-                    v-model="selectedResource.endTime"
+                    v-model="selectedResource!.endTime"
                     format24h
                     mask="HH:mm"
                   >
@@ -301,7 +301,7 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
@@ -316,23 +316,43 @@ import {
   addDays,
 } from "date-fns";
 import { useRouter } from "vue-router";
+import type { EventRequest, ResourceTypeResponse } from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+// Vakt i skjemaet: lastet fra eventet (med id/eventId), lagt til lokalt, eller
+// en ny vakt under redigering (isNew, uten isDeleted).
+interface ResourceForm {
+  id?: number;
+  eventId?: number;
+  resourceType: ResourceTypeResponse | null;
+  startTime: string | null;
+  endTime: string | null;
+  minimumStaff: number;
+  isDeleted?: boolean;
+  isNew?: boolean;
+}
+
+// Vakt i lista: har alltid vakttype og isDeleted.
+interface ResourceModel extends ResourceForm {
+  resourceType: ResourceTypeResponse;
+  isDeleted: boolean;
+}
+
+defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
 const eventStore = useEventStore();
 
-const props = defineProps({
-  date: {
-    type: String,
-    default: () => formatISO(new Date(), { representation: "date" }),
-  },
-  id: {
-    type: String,
-    default: null,
-  },
-});
+const props = withDefaults(
+  defineProps<{
+    date?: string;
+    id?: string | null;
+  }>(),
+  {
+    date: () => formatISO(new Date(), { representation: "date" }),
+    id: null,
+  }
+);
 
 onMounted(async () => {
   try {
@@ -341,7 +361,8 @@ onMounted(async () => {
 
     if (props.id) {
       await eventStore.getEvent(props.id);
-      const event = eventStore.selectedEvent;
+      // getEvent setter selectedEvent (kaster ellers).
+      const event = eventStore.selectedEvent!;
       name.value = event.name;
       startDate.value = formatDate(new Date(event.startTime));
       startTime.value = formatTime(new Date(event.startTime));
@@ -364,7 +385,7 @@ onMounted(async () => {
       );
       name.value = "Åpningstid";
     }
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -372,7 +393,7 @@ onMounted(async () => {
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
-const name = ref(null);
+const name = ref<string | null>(null);
 
 const isValidDate = computed(() =>
   isValid(parse(startDate.value, "dd.MM.yyyy", new Date()))
@@ -402,8 +423,12 @@ const endDateTime = computed(() => {
   }
 });
 
-function toDateTime(date, time, start) {
+function toDateTime(date: string, time: string | null, start?: Date | null) {
   const datetime = parse(`${date} ${time}`, "dd.MM.yyyy HH:mm", new Date());
+  // OBS (#82): Tilordning til const kaster TypeError når slutt er før start
+  // (over midnatt). endDateTime blir da null, og saveEvent feiler stille
+  // (format(null) kaster, feilen svelges i catch). Beholdt for å bevare atferd.
+  // @ts-expect-error -- se OBS over: const-tilordningen er bevart med vilje.
   if (start && isBefore(datetime, start)) datetime = addDays(datetime, 1);
   return datetime;
 }
@@ -411,7 +436,7 @@ function toDateTime(date, time, start) {
 const startDate = ref(formatDate(new Date()));
 const startTime = ref("10:00");
 const endTime = ref("17:00");
-const resources = ref([]);
+const resources = ref<ResourceModel[]>([]);
 
 const canSave = computed(() => {
   return !!(
@@ -426,12 +451,14 @@ const visibleResources = computed(() =>
   resources.value.filter((r) => !r.isDeleted)
 );
 
-const selectedResource = ref(null);
+// null til vaktdialogen åpnes; malen bruker `selectedResource!` fordi
+// dialoginnholdet kun rendres når den er satt.
+const selectedResource = ref<ResourceForm | null>(null);
 const showingEdit = ref(false);
 
-function resourceTypeChanged(newValue) {
+function resourceTypeChanged(newValue: ResourceTypeResponse | null) {
   if (newValue && newValue.defaultStaff) {
-    selectedResource.value.minimumStaff = newValue.defaultStaff;
+    selectedResource.value!.minimumStaff = newValue.defaultStaff;
   }
 }
 
@@ -450,7 +477,7 @@ function addResource() {
   showingEdit.value = true;
 }
 
-function editResource(resource) {
+function editResource(resource: ResourceModel) {
   selectedResource.value = resource;
   showingEdit.value = true;
 }
@@ -458,7 +485,8 @@ function editResource(resource) {
 function saveResource() {
   if (selectedResource.value?.isNew) {
     resources.value.push({
-      resourceType: selectedResource.value.resourceType,
+      // Lagre-knappen er deaktivert uten vakttype (canAdd).
+      resourceType: selectedResource.value.resourceType!,
       startTime: selectedResource.value.startTime,
       endTime: selectedResource.value.endTime,
       minimumStaff: selectedResource.value.minimumStaff,
@@ -468,26 +496,27 @@ function saveResource() {
   showingEdit.value = false;
 }
 
-function deleteResource(resource) {
+function deleteResource(resource: ResourceForm) {
   resource.isDeleted = true;
   showingEdit.value = false;
 }
 
 const canAdd = computed(() => {
+  // Evalueres kun fra vaktdialogen, når selectedResource er satt.
   return !!(
-    selectedResource.value.resourceType &&
-    selectedResource.value.startTime &&
-    selectedResource.value.endTime &&
-    selectedResource.value.minimumStaff > 0
+    selectedResource.value!.resourceType &&
+    selectedResource.value!.startTime &&
+    selectedResource.value!.endTime &&
+    selectedResource.value!.minimumStaff > 0
   );
 });
 
-function formatTime(isoDateTime) {
+function formatTime(isoDateTime: Date | string) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
   return format(parseISO(isoDateTime), "HH:mm");
 }
 
-function formatDate(isoDateTime) {
+function formatDate(isoDateTime: Date | string) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "dd.MM.yyyy");
   return format(parseISO(isoDateTime), "dd.MM.yyyy");
 }
@@ -495,13 +524,18 @@ function formatDate(isoDateTime) {
 async function saveEvent() {
   try {
     loading.value = true;
-    const model = {
-      name: name.value,
-      startTime: formatDateTime(startDateTime.value),
-      endTime: formatDateTime(endDateTime.value),
+    // `!` på startDateTime/endDateTime: se OBS i toDateTime; null gir samme
+    // kast fra format som i JS-versjonen.
+    const model: EventRequest = {
+      // canSave krever navn.
+      name: name.value!,
+      startTime: formatDateTime(startDateTime.value!),
+      endTime: formatDateTime(endDateTime.value!),
       resources: resources.value.map((r) => {
         return {
-          id: r.id,
+          // `?? null`: id er valgfri i skjemaet, og med
+          // exactOptionalPropertyTypes kan den ikke være undefined.
+          id: r.id ?? null,
           resourceTypeId: r.resourceType.id,
           startTime: formatDateTime(toDateTime(startDate.value, r.startTime)),
           endTime: formatDateTime(toDateTime(startDate.value, r.endTime)),
@@ -522,17 +556,17 @@ async function saveEvent() {
         message: "Vaktlista er lagt til",
       });
     }
-    const date = formatISO(startDateTime.value, {
+    const date = formatISO(startDateTime.value!, {
       representation: "date",
     });
     await $router.push(`/day/${date}`);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
 }
 
-const showingDelete = ref(null);
+const showingDelete = ref<boolean | null>(null);
 function confirmDeleteEvent() {
   showingDelete.value = true;
 }
@@ -541,38 +575,42 @@ async function deleteEvent() {
   try {
     loading.value = true;
     showingDelete.value = false;
-    const event = eventStore.selectedEvent;
+    // Slett-knappen vises kun for et lastet event (props.id).
+    const event = eventStore.selectedEvent!;
     const date = formatISO(parseISO(event.startTime), {
       representation: "date",
     });
     await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
     $router.push(`/day/${date}`);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
 }
 
-function formatDateTime(date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm", new Date());
+function formatDateTime(date: Date) {
+  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 
 const showingCreateTemplate = ref(false);
-const templateName = ref(null);
+const templateName = ref<string | null>(null);
 function showCreateTemplate() {
   templateName.value = null;
   showingCreateTemplate.value = true;
 }
 
 const savingTemplate = ref(false);
-async function createTemplate(id) {
+// id: dialogen åpnes kun via «Opprett mal», som vises når props.id er satt
+// (derav `props.id!` i malen).
+async function createTemplate(id: string) {
   try {
     savingTemplate.value = true;
-    await eventStore.createTemplateFromEvent(id, templateName.value);
+    // Lagre-knappen er deaktivert uten navn.
+    await eventStore.createTemplateFromEvent(id, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Noe feilet mens malen skulle lagres." });
   } finally {
     savingTemplate.value = false;

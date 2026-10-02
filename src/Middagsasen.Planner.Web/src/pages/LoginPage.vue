@@ -86,14 +86,16 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from "vue";
+import { isAxiosError } from "axios";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { isSafeRedirect } from "src/auth/unauthorizedHandler";
+import type { AuthResponse } from "src/types";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();
@@ -101,19 +103,25 @@ const router = useRouter();
 const route = useRoute();
 const $q = useQuasar();
 
-const username = ref(null);
-const password = ref(null);
+const username = ref<string | null>(null);
+const password = ref<string | null>(null);
 const performingLogin = ref(false);
 
-async function login() {
+async function login(): Promise<void> {
   try {
     performingLogin.value = true;
-    const response = await api.post("/api/authentication/authenticate", {
-      userName: username.value,
-      password: password.value,
-    });
+    // Body er ikke typet som AuthRequest: feltene kan være null her, og
+    // backend avviser det med 400 (som før).
+    const response = await api.post<AuthResponse>(
+      "/api/authentication/authenticate",
+      {
+        userName: username.value,
+        password: password.value,
+      }
+    );
 
-    await authStore.setAccessToken(response.data.token);
+    // Backend svarer 200 kun ved AuthStatus.Success, og da er token satt.
+    await authStore.setAccessToken(response.data.token!);
     await userStore.getUser();
 
     // getUser svelger feil (f.eks. 401/500/timeout mot /api/me). Uten bruker
@@ -140,7 +148,7 @@ async function login() {
 
 const showingOtpDialog = ref(false);
 const creatingOtp = ref(false);
-async function createOtp() {
+async function createOtp(): Promise<void> {
   try {
     creatingOtp.value = true;
     await api.post("/api/authentication/otp", {
@@ -149,12 +157,14 @@ async function createOtp() {
     showingOtpDialog.value = false;
     $q.notify({ message: "Engangskode er på vei på SMS 🙌" });
   } catch (error) {
-    if (error?.response?.status === 429)
+    // Backend svarer 429 ved OtpStatus.TooManyRequests og 400 ved
+    // OtpStatus.InvalidPhoneNumber.
+    if (isAxiosError(error) && error.response?.status === 429)
       $q.notify({
         message:
           "Du har nettopp prøvd å hente engangskode, vent 5 min før du prøver igjen ✋",
       });
-    else if (error?.response?.status === 400)
+    else if (isAxiosError(error) && error.response?.status === 400)
       $q.notify({
         message: "Sjekk at telefonnummeret er riktig ✋",
       });

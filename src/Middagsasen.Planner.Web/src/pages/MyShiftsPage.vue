@@ -73,35 +73,57 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { api } from "src/boot/axios";
 import { parse, parseISO, format } from "date-fns";
 import { nb } from "date-fns/locale";
+import type { UserShiftResponse } from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+// /api/me/shifts returnerer ShiftSeasonResponse[] (vakter gruppert per sesong),
+// men [ProducesResponseType] i EventsController oppgir UserShiftResponse[], så
+// typen finnes ikke i det genererte OpenAPI-dokumentet. Speiler
+// Services/Events/UserShiftResponse.cs — hold i synk manuelt.
+interface ShiftSeasonResponse {
+  label: string;
+  shifts: UserShiftResponse[];
+}
+
+interface ViewModel {
+  shifts: ShiftSeasonResponse[];
+}
+
+const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
 
-const viewModel = reactive({
+const viewModel = reactive<ViewModel>({
   shifts: [],
 });
 
-const formattedDay = (dateString) =>
-  format(parse(dateString, "yyyy-MM-dd", new Date()), "EEE", { locale: nb });
-const formattedDate = (dateString) =>
-  format(parse(dateString, "yyyy-MM-dd", new Date()), "dd.MM", { locale: nb });
-const formattedTime = (time) => format(parseISO(time), "HH:mm");
+// OBS (#82): startDate/startTime/endTime er nullable i UserShiftResponse
+// (Shift.StartTime/EndTime er nullable i databasen). Med null gir parse/parseISO
+// Invalid Date og format kaster RangeError — samme som i JS-versjonen.
+const formattedDay = (dateString: string | null | undefined): string =>
+  format(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "EEE", {
+    locale: nb,
+  });
+const formattedDate = (dateString: string | null | undefined): string =>
+  format(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "dd.MM", {
+    locale: nb,
+  });
+const formattedTime = (time: string | null | undefined): string =>
+  format(parseISO(time ?? ""), "HH:mm");
 
 onMounted(async () => {
   try {
     loading.value = true;
-    const response = await api.get("/api/me/shifts");
+    const response = await api.get<ShiftSeasonResponse[]>("/api/me/shifts");
     viewModel.shifts = response.data;
-  } catch (error) {
+  } catch {
     $q.notify({
       type: "negative",
       message: "Klarte ikke å hente vaktene dine 🙈",

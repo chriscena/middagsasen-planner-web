@@ -107,7 +107,7 @@
   </q-card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, reactive, onMounted } from "vue";
 import { addDays, parse, format } from "date-fns";
 import { useWorkHourStore } from "stores/WorkHourStore";
@@ -121,27 +121,53 @@ import {
   getWorkHourErrorKind,
   getWorkHourErrorMessage,
 } from "src/shared/workHourDiff";
+import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
+import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
 
-const props = defineProps({
-  modelValue: {
-    type: Object,
-    default: undefined,
-  },
-  // Viser «Godkjenn»/«Avslå» for admin på åpne føringer (brukes fra godkjenningssiden).
-  allowApproval: {
-    type: Boolean,
-    default: false,
-  },
-});
+interface TimeTrackingViewModel {
+  id: number | null;
+  startDateTime: string | null;
+  endDateTime: string | null;
+  startDate: string | null;
+  // set*-funksjonene tilordner selve strengen (brukes som truthy-sjekk).
+  startDateValid: boolean | string | null;
+  startTime: string | null;
+  startTimeValid: boolean | string | null;
+  endTime: string | null;
+  endTimeValid: boolean | string | null;
+  description: string | null;
+  // Settes fra descriptionIsValid, som er et `&&`-uttrykk (ikke ren boolean).
+  descriptionValid: boolean | string | null;
+  status: number | null | undefined;
+  saving: boolean;
+  deleting: boolean;
+  approving: ApprovalStatus | null;
+  loading: boolean;
+}
 
-const emit = defineEmits(["cancel", "saved"]);
+const props = withDefaults(
+  defineProps<{
+    modelValue?: WorkHourResponse | null | undefined;
+    // Viser «Godkjenn»/«Avslå» for admin på åpne føringer (brukes fra godkjenningssiden).
+    allowApproval?: boolean;
+  }>(),
+  {
+    modelValue: undefined,
+    allowApproval: false,
+  }
+);
+
+const emit = defineEmits<{
+  cancel: [];
+  saved: [value: WorkHourResponse | null];
+}>();
 const $q = useQuasar();
 const workHourStore = useWorkHourStore();
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.isAdmin);
 const loading = ref(false);
 
-const viewModel = reactive({
+const viewModel = reactive<TimeTrackingViewModel>({
   id: null,
   startDateTime: null,
   endDateTime: null,
@@ -161,7 +187,7 @@ const viewModel = reactive({
 });
 
 // Opprinnelige verdier (satt ved mount) for å finne hva som faktisk er endret.
-const original = ref(null);
+const original = ref<WorkHourValues | null>(null);
 
 function setStartDate() {
   viewModel.startDateValid = viewModel.startDate;
@@ -176,14 +202,18 @@ function setEndTime() {
   calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
 }
 
-function calculateTime(startDate, startTime, endTime) {
+function calculateTime(
+  startDate: string | null,
+  startTime: string | null,
+  endTime: string | null
+) {
   if (!startDate || !startTime || !endTime) return;
-  let start, end;
+  let start: Date, end: Date;
   try {
     start = parse(`${startDate} ${startTime}`, "dd.MM.yyyy HH:mm", new Date());
     viewModel.startTimeValid = true;
     viewModel.startDateTime = start.toISOString();
-  } catch (error) {
+  } catch {
     viewModel.startDateTime = null;
     viewModel.startTimeValid = false;
     return;
@@ -195,7 +225,7 @@ function calculateTime(startDate, startTime, endTime) {
     }
     viewModel.endTimeValid = true;
     viewModel.endDateTime = end.toISOString();
-  } catch (error) {
+  } catch {
     viewModel.endDateTime = null;
     viewModel.endTimeValid = false;
   }
@@ -211,7 +241,7 @@ const calculatedHours = computed(() => {
   if (!viewModel.startDateTime || !viewModel.endDateTime) return null;
   const start = new Date(viewModel.startDateTime);
   const end = new Date(viewModel.endDateTime);
-  const diff = (end - start) / (1000 * 60 * 60); // Convert milliseconds to hours
+  const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60); // Convert milliseconds to hours
   const hours = Math.floor(diff);
   const minutes = Math.round((diff - hours) * 60);
   return `${hours}:${minutes.toString().padStart(2, "0")}`;
@@ -270,7 +300,7 @@ function validateContent() {
   return true;
 }
 
-function notifyError(error, fallbackMessage) {
+function notifyError(error: unknown, fallbackMessage: string) {
   const kind = getWorkHourErrorKind(error);
   const defaultMessage =
     kind === "conflict"
@@ -313,7 +343,7 @@ async function createHours() {
       message: "Timer lagret, bra jobba! 🙌",
       color: "positive",
     });
-  } catch (error) {
+  } catch {
     $q.notify({
       message: "Klarte ikke å lagre timer",
       color: "negative",
@@ -331,8 +361,11 @@ const validForm = computed(() => {
   );
 });
 
+// updateHours/approveHours/deleteHours kjøres kun for en eksisterende føring
+// (modelValue satt), så id og original er satt i onMounted.
+// currentValues inneholder kun ISO-strenger/null, så patchen har aldri Date.
 async function updateHours() {
-  const changes = buildWorkHourPatch(original.value, currentValues.value);
+  const changes = buildWorkHourPatch(original.value!, currentValues.value);
   if (Object.keys(changes).length === 0) {
     // Ingen endringer – ikke send tom PATCH.
     emit("cancel");
@@ -341,7 +374,10 @@ async function updateHours() {
   if (!validateContent()) return;
   try {
     viewModel.saving = true;
-    const result = await workHourStore.patchWorkHour(viewModel.id, changes);
+    const result = await workHourStore.patchWorkHour(
+      viewModel.id!,
+      changes as UpdateWorkHourRequest
+    );
     emit("saved", result);
     $q.notify({
       message: "Endringer lagret",
@@ -354,9 +390,9 @@ async function updateHours() {
   }
 }
 
-async function approveHours(approvalStatus) {
+async function approveHours(approvalStatus: ApprovalStatus) {
   const payload = buildWorkHourPatch(
-    original.value,
+    original.value!,
     currentValues.value,
     approvalStatus
   );
@@ -366,7 +402,10 @@ async function approveHours(approvalStatus) {
   if (contentChanged && !validateContent()) return;
   try {
     viewModel.approving = approvalStatus;
-    const result = await workHourStore.patchWorkHour(viewModel.id, payload);
+    const result = await workHourStore.patchWorkHour(
+      viewModel.id!,
+      payload as UpdateWorkHourRequest
+    );
     emit("saved", result);
     $q.notify({
       message:
@@ -388,7 +427,7 @@ async function approveHours(approvalStatus) {
 async function deleteHours() {
   try {
     viewModel.deleting = true;
-    await workHourStore.deleteWorkHourById(viewModel.id);
+    await workHourStore.deleteWorkHourById(viewModel.id!);
     emit("saved", null);
     $q.notify({
       message: "Timeføring slettet",
@@ -423,12 +462,14 @@ const validateDescription = () => {
 
 onMounted(() => {
   if (props.modelValue) {
-    const start = new Date(props.modelValue.startTime);
-    const end = new Date(props.modelValue.endTime);
+    // startTime/endTime er nullable i DTO-en, men alltid satt på lagrede føringer.
+    const start = new Date(props.modelValue.startTime!);
+    const end = new Date(props.modelValue.endTime!);
     viewModel.startDate = format(start, "dd.MM.yyyy");
     viewModel.startTime = format(start, "HH:mm");
     viewModel.endTime = format(end, "HH:mm");
-    viewModel.description = props.modelValue.description;
+    // DTO-en har description som valgfri; null og undefined behandles likt i diffen.
+    viewModel.description = props.modelValue.description ?? null;
     viewModel.id = props.modelValue.workHourId;
     viewModel.status = props.modelValue.approvalStatus;
     calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);

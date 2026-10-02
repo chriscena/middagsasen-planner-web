@@ -25,7 +25,7 @@
       ></q-select>
       <q-input
         outlined
-        @focus="(event) => (event.target?.select ? event.target.select() : _)"
+        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         label="Minste bemanning"
         suffix="stk"
         step="1"
@@ -38,7 +38,7 @@
         label="Start"
         mask="##:##"
         placeholder="TT:MM"
-        @focus="(event) => (event.target?.select ? event.target.select() : _)"
+        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         v-model="startTime"
       >
         <template v-slot:append>
@@ -58,7 +58,7 @@
         mask="##:##"
         placeholder="TT:MM"
         v-model="endTime"
-        @focus="(event) => (event.target?.select ? event.target.select() : _)"
+        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
       >
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">
@@ -91,27 +91,42 @@
   </q-card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import type { ResourceTypeResponse } from "src/types";
 
-const emit = defineEmits(["update:model-value", "cancel", "save"]);
+// Skjemamodell for en vakt (ressurs) i ResourceList/EventForm/TemplateForm.
+// Ikke en DTO: tidene er "HH:mm", og resourceType er hele objektet.
+export interface ResourceFormModel {
+  id?: number | undefined;
+  eventId?: number | undefined;
+  resourceType: ResourceTypeResponse | null;
+  // q-input type="number" sender verdien som string når brukeren skriver.
+  minimumStaff: number | string | null;
+  startTime: string | null;
+  endTime: string | null;
+  isDeleted?: boolean | undefined;
+  isNew?: boolean | undefined;
+}
 
-const props = defineProps({
-  modelValue: {
-    type: Object,
-    require: true,
-  },
-  resourceTypes: {
-    type: Array,
-    require: true,
-  },
-});
+const emit = defineEmits<{
+  "update:model-value": [value: ResourceFormModel];
+  cancel: [];
+  save: [value: ResourceFormModel];
+}>();
 
-const resourceType = ref(null);
-const minimumStaff = ref(1);
-const startTime = ref(null);
-const endTime = ref(null);
-const isDeleted = ref(false);
+// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
+// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
+const props = defineProps<{
+  modelValue: ResourceFormModel;
+  resourceTypes: ResourceTypeResponse[];
+}>();
+
+const resourceType = ref<ResourceTypeResponse | null>(null);
+const minimumStaff = ref<number | string | null>(1);
+const startTime = ref<string | null>(null);
+const endTime = ref<string | null>(null);
+const isDeleted = ref<boolean | undefined>(false);
 onMounted(() => {
   resourceType.value = props.modelValue.resourceType;
   minimumStaff.value = props.modelValue.minimumStaff;
@@ -120,7 +135,7 @@ onMounted(() => {
   isDeleted.value = props.modelValue.isDeleted;
 });
 
-function resourceTypeChanged(newValue) {
+function resourceTypeChanged(newValue: ResourceTypeResponse | null) {
   if (newValue && newValue.defaultStaff) {
     minimumStaff.value = newValue.defaultStaff;
   }
@@ -131,7 +146,8 @@ const canAdd = computed(() => {
     resourceType.value &&
     startTime.value &&
     endTime.value &&
-    minimumStaff.value > 0
+    // Number() gir samme sammenligning som JS-ens implisitte konvertering.
+    Number(minimumStaff.value) > 0
   );
 });
 
@@ -141,7 +157,7 @@ function saveResource() {
   emit("save", model);
 }
 
-function mapToModel() {
+function mapToModel(): ResourceFormModel {
   return {
     id: props.modelValue.id,
     resourceType: resourceType.value,

@@ -166,14 +166,29 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { useUserStore } from "stores/UserStore";
+import type {
+  CompetencyApproverResponse,
+  CompetencyRequest,
+  CompetencyResponse,
+  UserResponse,
+} from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+// Skjemaet i redigeringsdialogen.
+interface CompetencyForm {
+  id: number | null;
+  name: string | null;
+  description: string | null | undefined;
+  hasExpiry: boolean;
+  approvers: CompetencyApproverResponse[];
+}
+
+const emit = defineEmits<{ "toggle-right": [] }>();
 const $router = useRouter();
 const competencyStore = useCompetencyStore();
 const userStore = useUserStore();
@@ -181,8 +196,8 @@ const $q = useQuasar();
 
 const showingEdit = ref(false);
 const loading = ref(false);
-const selected = ref(emptyCompetency());
-const selectedApprover = ref(null);
+const selected = ref<CompetencyForm>(emptyCompetency());
+const selectedApprover = ref<UserResponse | null>(null);
 
 onMounted(async () => {
   try {
@@ -203,7 +218,7 @@ const availableApprovers = computed(() => {
   return userStore.users.filter((u) => !approverUserIds.includes(u.id));
 });
 
-function emptyCompetency() {
+function emptyCompetency(): CompetencyForm {
   return {
     id: null,
     name: null,
@@ -213,12 +228,12 @@ function emptyCompetency() {
   };
 }
 
-function newCompetency() {
+function newCompetency(): void {
   selected.value = emptyCompetency();
   showingEdit.value = true;
 }
 
-async function editCompetency(competency) {
+async function editCompetency(competency: CompetencyResponse): Promise<void> {
   try {
     const full = await competencyStore.getCompetencyById(competency.id);
     selected.value = {
@@ -235,12 +250,16 @@ async function editCompetency(competency) {
   }
 }
 
-async function saveCompetency() {
+async function saveCompetency(): Promise<void> {
+  // Cast: name kan være null og description undefined her; backend avviser
+  // manglende navn med 400 (som før).
+  // OBS (#82): godkjennere lagt til på en ny kompetanse (id 0, kun lokalt)
+  // sendes ikke med — CompetencyRequest har ikke approvers — og går tapt.
   const request = {
     name: selected.value.name,
     description: selected.value.description,
     hasExpiry: selected.value.hasExpiry,
-  };
+  } as CompetencyRequest;
   try {
     if (selected.value.id) {
       await competencyStore.updateCompetency(selected.value.id, request);
@@ -255,9 +274,10 @@ async function saveCompetency() {
   }
 }
 
-async function deleteCompetency() {
+async function deleteCompetency(): Promise<void> {
   try {
-    await competencyStore.deleteCompetency(selected.value.id);
+    // Slett-knappen vises kun når id er satt.
+    await competencyStore.deleteCompetency(selected.value.id!);
     showingEdit.value = false;
     $q.notify({ message: "Kompetansen er slettet." });
   } catch (error) {
@@ -266,12 +286,16 @@ async function deleteCompetency() {
   }
 }
 
-async function addApprover() {
+async function addApprover(): Promise<void> {
+  // Legg til-knappen er deaktivert når ingen bruker er valgt.
+  const approverUser = selectedApprover.value!;
   if (!selected.value.id) {
     selected.value.approvers.push({
       id: 0,
-      userId: selectedApprover.value.id,
-      fullName: selectedApprover.value.fullName,
+      userId: approverUser.id,
+      // fullName er nullable i UserResponse, men UserService setter den alltid
+      // (MapFullName), så `?? ""` er kun for typen.
+      fullName: approverUser.fullName ?? "",
     });
     selectedApprover.value = null;
     return;
@@ -279,7 +303,7 @@ async function addApprover() {
   try {
     const approver = await competencyStore.addApprover(
       selected.value.id,
-      selectedApprover.value.id
+      approverUser.id
     );
     selected.value.approvers.push(approver);
     selectedApprover.value = null;
@@ -290,7 +314,9 @@ async function addApprover() {
   }
 }
 
-async function removeApprover(approver) {
+async function removeApprover(
+  approver: CompetencyApproverResponse
+): Promise<void> {
   if (!selected.value.id || !approver.id) {
     selected.value.approvers = selected.value.approvers.filter(
       (a) => a !== approver
