@@ -1,5 +1,10 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import type {
+  PagedResponseOfWorkHourResponse,
+  WorkHourResponse,
+  WorkHourSumResponse,
+} from 'src/types';
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -15,7 +20,7 @@ vi.mock('boot/axios', () => ({
 import { useWorkHourStore } from 'stores/WorkHourStore';
 
 describe('WorkHourStore', () => {
-  let store;
+  let store: ReturnType<typeof useWorkHourStore>;
 
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -25,15 +30,18 @@ describe('WorkHourStore', () => {
 
   describe('createWorkHour', () => {
     it('sends only startTime, endTime and description and returns data', async () => {
-      const created = { workHourId: 1 };
+      const created: WorkHourResponse = { workHourId: 1, userId: 42 };
       mockApi.post.mockResolvedValue({ data: created });
 
-      const result = await store.createWorkHour({
+      // Ekstra felt (userId) skal ikke sendes videre; lagt i en variabel så
+      // TypeScript tillater feltet utover CreateWorkHourRequest.
+      const model = {
         startTime: 's',
         endTime: 'e',
         description: 'd',
         userId: 42,
-      });
+      };
+      const result = await store.createWorkHour(model);
 
       expect(mockApi.post).toHaveBeenCalledWith('/api/WorkHours', {
         startTime: 's',
@@ -46,7 +54,11 @@ describe('WorkHourStore', () => {
 
   describe('patchWorkHour', () => {
     it('sends changes as-is to PATCH /api/WorkHours/{id}', async () => {
-      const updated = { workHourId: 5, approvalStatus: 1 };
+      const updated: WorkHourResponse = {
+        workHourId: 5,
+        userId: 42,
+        approvalStatus: 1,
+      };
       mockApi.patch.mockResolvedValue({ data: updated });
 
       const result = await store.patchWorkHour(5, { approvalStatus: 1 });
@@ -62,11 +74,13 @@ describe('WorkHourStore', () => {
     it('sends only approvalStatus', async () => {
       mockApi.patch.mockResolvedValue({ data: {} });
 
-      await store.updateApproval({
+      // Ekstra felt (approvedBy) skal ikke sendes videre.
+      const model = {
         workHourId: 7,
         approvalStatus: null,
         approvedBy: 3,
-      });
+      };
+      await store.updateApproval(model);
 
       expect(mockApi.patch).toHaveBeenCalledWith(
         '/api/WorkHours/7/ApprovedBy',
@@ -77,7 +91,11 @@ describe('WorkHourStore', () => {
 
   describe('getWorkHoursSums', () => {
     it('sends userId and season as params', async () => {
-      const sums = { approvedHours: 1, pendingHours: 2, rejectedHours: 3 };
+      const sums: WorkHourSumResponse = {
+        approvedHours: 1,
+        pendingHours: 2,
+        rejectedHours: 3,
+      };
       mockApi.get.mockResolvedValue({ data: sums });
 
       const result = await store.getWorkHoursSums(4, 2025);
@@ -105,7 +123,7 @@ describe('WorkHourStore', () => {
 
   describe('getWorkHours', () => {
     it('forwards season and userId params', async () => {
-      const data = { result: [], totalCount: 0 };
+      const data: PagedResponseOfWorkHourResponse = { result: [], totalCount: 0 };
       mockApi.get.mockResolvedValue({ data });
       const params = { approved: 3, page: 1, pageSize: 15, season: 2025, userId: 7 };
 
@@ -118,7 +136,7 @@ describe('WorkHourStore', () => {
 
   describe('getWorkHoursByUser', () => {
     it('forwards season param', async () => {
-      const data = { result: [], totalCount: 0 };
+      const data: PagedResponseOfWorkHourResponse = { result: [], totalCount: 0 };
       mockApi.get.mockResolvedValue({ data });
       const params = { page: 1, pageSize: 20, season: 2024 };
 

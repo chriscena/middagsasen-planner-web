@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import type { SeasonResponse } from 'src/types';
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -11,13 +12,13 @@ vi.mock('boot/axios', () => ({
 
 import { useSeasonStore } from 'stores/SeasonStore';
 
-const seasons = [
+const seasons: SeasonResponse[] = [
   { startYear: 2026, label: '2026/2027', isCurrent: true },
   { startYear: 2025, label: '2025/2026', isCurrent: false },
 ];
 
 describe('SeasonStore', () => {
-  let store;
+  let store: ReturnType<typeof useSeasonStore>;
 
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -77,7 +78,7 @@ describe('SeasonStore', () => {
         { startYear: 2026, label: '2026/2027', isCurrent: false },
         { startYear: 2025, label: '2025/2026', isCurrent: true },
       ];
-      expect(store.currentSeason.startYear).toBe(2025);
+      expect(store.currentSeason?.startYear).toBe(2025);
     });
 
     it('falls back to the first season when none is current', () => {
@@ -85,7 +86,7 @@ describe('SeasonStore', () => {
         { startYear: 2026, label: '2026/2027', isCurrent: false },
         { startYear: 2025, label: '2025/2026', isCurrent: false },
       ];
-      expect(store.currentSeason.startYear).toBe(2026);
+      expect(store.currentSeason?.startYear).toBe(2026);
     });
 
     it('returns null when there are no seasons', () => {

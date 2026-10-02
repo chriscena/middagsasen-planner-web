@@ -1,5 +1,15 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { setActivePinia, createPinia } from 'pinia';
+import type {
+  ApproveCompetencyRequest,
+  CompetencyApproverResponse,
+  CompetencyRequest,
+  CompetencyResponse,
+  ResourceTypeCompetencyResponse,
+  SetResourceTypeCompetencyRequest,
+  UserCompetencyRequest,
+  UserCompetencyResponse,
+} from 'src/types';
 
 // Mock the axios api - use vi.hoisted so the variable is available in the hoisted vi.mock factory
 const mockApi = vi.hoisted(() => ({
@@ -15,8 +25,41 @@ vi.mock('boot/axios', () => ({
 
 import { useCompetencyStore } from 'stores/CompetencyStore';
 
+function competency(
+  fields: Pick<CompetencyResponse, 'id' | 'name'> & Partial<CompetencyResponse>
+): CompetencyResponse {
+  return {
+    hasExpiry: false,
+    inactive: false,
+    resourceTypes: [],
+    approvers: [],
+    ...fields,
+  };
+}
+
+function competencyRequest(
+  fields: Pick<CompetencyRequest, 'name'> & Partial<CompetencyRequest>
+): CompetencyRequest {
+  return { hasExpiry: false, ...fields };
+}
+
+function userCompetency(
+  fields: Pick<UserCompetencyResponse, 'id'> & Partial<UserCompetencyResponse>
+): UserCompetencyResponse {
+  return {
+    userId: 42,
+    userFullName: 'Ola Nordmann',
+    competencyId: 3,
+    competencyName: 'First Aid',
+    approved: false,
+    isExpired: false,
+    created: '2026-01-01T00:00:00',
+    ...fields,
+  };
+}
+
 describe('CompetencyStore', () => {
-  let store;
+  let store: ReturnType<typeof useCompetencyStore>;
 
   beforeEach(() => {
     setActivePinia(createPinia());
@@ -27,8 +70,8 @@ describe('CompetencyStore', () => {
   describe('getCompetencies', () => {
     it('should fetch competencies and populate state', async () => {
       const competencies = [
-        { id: 1, name: 'First Aid' },
-        { id: 2, name: 'CPR' },
+        competency({ id: 1, name: 'First Aid' }),
+        competency({ id: 2, name: 'CPR' }),
       ];
       mockApi.get.mockResolvedValue({ data: competencies });
 
@@ -39,9 +82,9 @@ describe('CompetencyStore', () => {
     });
 
     it('should replace existing state on re-fetch', async () => {
-      store.competencies = [{ id: 99, name: 'Old' }];
+      store.competencies = [competency({ id: 99, name: 'Old' })];
 
-      const newCompetencies = [{ id: 1, name: 'New' }];
+      const newCompetencies = [competency({ id: 1, name: 'New' })];
       mockApi.get.mockResolvedValue({ data: newCompetencies });
 
       await store.getCompetencies();
@@ -53,20 +96,20 @@ describe('CompetencyStore', () => {
 
   describe('getCompetencyById', () => {
     it('should return competency data', async () => {
-      const competency = { id: 5, name: 'Lifeguard' };
-      mockApi.get.mockResolvedValue({ data: competency });
+      const lifeguard = competency({ id: 5, name: 'Lifeguard' });
+      mockApi.get.mockResolvedValue({ data: lifeguard });
 
       const result = await store.getCompetencyById(5);
 
       expect(mockApi.get).toHaveBeenCalledWith('/api/competencies/5');
-      expect(result).toEqual(competency);
+      expect(result).toEqual(lifeguard);
     });
   });
 
   describe('createCompetency', () => {
     it('should POST and add to state array', async () => {
-      const request = { name: 'New Cert' };
-      const created = { id: 10, name: 'New Cert' };
+      const request = competencyRequest({ name: 'New Cert' });
+      const created = competency({ id: 10, name: 'New Cert' });
       mockApi.post.mockResolvedValue({ data: created });
 
       await store.createCompetency(request);
@@ -76,10 +119,12 @@ describe('CompetencyStore', () => {
     });
 
     it('should return created competency', async () => {
-      const created = { id: 10, name: 'New Cert' };
+      const created = competency({ id: 10, name: 'New Cert' });
       mockApi.post.mockResolvedValue({ data: created });
 
-      const result = await store.createCompetency({ name: 'New Cert' });
+      const result = await store.createCompetency(
+        competencyRequest({ name: 'New Cert' })
+      );
 
       expect(result).toEqual(created);
     });
@@ -88,12 +133,19 @@ describe('CompetencyStore', () => {
   describe('updateCompetency', () => {
     it('should PUT and update existing item in state array', async () => {
       store.competencies = [
-        { id: 1, name: 'Old Name', description: 'Old' },
-        { id: 2, name: 'Other' },
+        competency({ id: 1, name: 'Old Name', description: 'Old' }),
+        competency({ id: 2, name: 'Other' }),
       ];
 
-      const updated = { id: 1, name: 'Updated Name', description: 'New' };
-      const request = { name: 'Updated Name', description: 'New' };
+      const updated = competency({
+        id: 1,
+        name: 'Updated Name',
+        description: 'New',
+      });
+      const request = competencyRequest({
+        name: 'Updated Name',
+        description: 'New',
+      });
       mockApi.put.mockResolvedValue({ data: updated });
 
       const result = await store.updateCompetency(1, request);
@@ -108,21 +160,21 @@ describe('CompetencyStore', () => {
   describe('deleteCompetency', () => {
     it('should DELETE and remove from state array', async () => {
       store.competencies = [
-        { id: 1, name: 'Keep' },
-        { id: 2, name: 'Remove' },
+        competency({ id: 1, name: 'Keep' }),
+        competency({ id: 2, name: 'Remove' }),
       ];
       mockApi.delete.mockResolvedValue({});
 
       await store.deleteCompetency(2);
 
       expect(mockApi.delete).toHaveBeenCalledWith('/api/competencies/2');
-      expect(store.competencies).toEqual([{ id: 1, name: 'Keep' }]);
+      expect(store.competencies).toEqual([competency({ id: 1, name: 'Keep' })]);
     });
   });
 
   describe('getUserCompetencies', () => {
     it('should fetch and store by userId key', async () => {
-      const userComps = [{ id: 1, competencyId: 3, userId: 42 }];
+      const userComps = [userCompetency({ id: 1, competencyId: 3, userId: 42 })];
       mockApi.get.mockResolvedValue({ data: userComps });
 
       await store.getUserCompetencies(42);
@@ -132,7 +184,7 @@ describe('CompetencyStore', () => {
     });
 
     it('should return the data', async () => {
-      const userComps = [{ id: 1, competencyId: 3, userId: 42 }];
+      const userComps = [userCompetency({ id: 1, competencyId: 3, userId: 42 })];
       mockApi.get.mockResolvedValue({ data: userComps });
 
       const result = await store.getUserCompetencies(42);
@@ -143,8 +195,8 @@ describe('CompetencyStore', () => {
 
   describe('addUserCompetency', () => {
     it('should POST and return data', async () => {
-      const request = { userId: 42, competencyId: 3 };
-      const created = { id: 7, userId: 42, competencyId: 3 };
+      const request: UserCompetencyRequest = { userId: 42, competencyId: 3 };
+      const created = userCompetency({ id: 7, userId: 42, competencyId: 3 });
       mockApi.post.mockResolvedValue({ data: created });
 
       const result = await store.addUserCompetency(request);
@@ -156,8 +208,10 @@ describe('CompetencyStore', () => {
 
   describe('approveUserCompetency', () => {
     it('should PUT and return data', async () => {
-      const request = { approvedBy: 'Admin' };
-      const approved = { id: 7, approved: true };
+      const request: ApproveCompetencyRequest = {
+        expiryDate: '2027-06-01T00:00:00',
+      };
+      const approved = userCompetency({ id: 7, approved: true });
       mockApi.put.mockResolvedValue({ data: approved });
 
       const result = await store.approveUserCompetency(7, request);
@@ -172,7 +226,7 @@ describe('CompetencyStore', () => {
 
   describe('revokeUserCompetency', () => {
     it('should DELETE and return data', async () => {
-      const revoked = { id: 7, revoked: true };
+      const revoked = userCompetency({ id: 7 });
       mockApi.delete.mockResolvedValue({ data: revoked });
 
       const result = await store.revokeUserCompetency(7);
@@ -184,7 +238,11 @@ describe('CompetencyStore', () => {
 
   describe('addApprover', () => {
     it('should POST and return data', async () => {
-      const approver = { id: 15, competencyId: 3, userId: 42 };
+      const approver: CompetencyApproverResponse = {
+        id: 15,
+        userId: 42,
+        fullName: 'Ola Nordmann',
+      };
       mockApi.post.mockResolvedValue({ data: approver });
 
       const result = await store.addApprover(3, 42);
@@ -210,7 +268,7 @@ describe('CompetencyStore', () => {
 
   describe('getResourceTypeCompetencies', () => {
     it('should GET and return data', async () => {
-      const requirements = [
+      const requirements: ResourceTypeCompetencyResponse[] = [
         { competencyId: 1, competencyName: 'First Aid', minimumRequired: 2 },
         { competencyId: 2, competencyName: 'CPR', minimumRequired: 1 },
       ];
@@ -225,11 +283,11 @@ describe('CompetencyStore', () => {
 
   describe('setResourceTypeCompetencies', () => {
     it('should PUT and return data', async () => {
-      const requirements = [
+      const requirements: SetResourceTypeCompetencyRequest[] = [
         { competencyId: 1, minimumRequired: 2 },
         { competencyId: 3, minimumRequired: 1 },
       ];
-      const responseData = [
+      const responseData: ResourceTypeCompetencyResponse[] = [
         { competencyId: 1, competencyName: 'First Aid', minimumRequired: 2 },
         { competencyId: 3, competencyName: 'Driving', minimumRequired: 1 },
       ];
