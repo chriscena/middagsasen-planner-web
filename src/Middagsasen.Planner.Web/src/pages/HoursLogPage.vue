@@ -182,8 +182,8 @@ import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
-import { formatNumber } from "src/shared/formatter.js";
-import { getSeasonStartYear } from "src/shared/season.js";
+import { formatNumber } from "src/shared/formatter";
+import { getSeasonStartYear } from "src/shared/season";
 
 // store init
 const $router = useRouter();

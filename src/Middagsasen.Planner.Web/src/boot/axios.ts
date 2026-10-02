@@ -1,4 +1,4 @@
-import { boot } from "quasar/wrappers";
+import { defineBoot } from "#q-app/wrappers";
 import axios from "axios";
 import { Notify } from "quasar";
 import { useAuthStore } from "src/stores/AuthStore";
@@ -17,9 +17,7 @@ api.interceptors.request.use(
     config.signal = AbortSignal.timeout(10000);
     const token = localStorage.getItem("access_token");
     if (token) {
-      config.headers = {
-        Authorization: `Bearer ${token}`,
-      };
+      config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
@@ -29,7 +27,7 @@ api.interceptors.request.use(
   }
 );
 
-export default boot(({ app, router }) => {
+export default defineBoot(({ router }) => {
   api.interceptors.response.use(
     (response) => response,
     (error) =>
@@ -39,16 +37,6 @@ export default boot(({ app, router }) => {
         notify: (opts) => Notify.create(opts),
       })
   );
-
-  // for use inside Vue files (Options API) through this.$axios and this.$api
-
-  app.config.globalProperties.$axios = axios;
-  // ^ ^ ^ this will allow you to use this.$axios (for Vue Options API form)
-  //       so you won't necessarily have to import axios in each vue file
-
-  app.config.globalProperties.$api = api;
-  // ^ ^ ^ this will allow you to use this.$api (for Vue Options API form)
-  //       so you can easily perform requests against your app's API
 });
 
 export { api };

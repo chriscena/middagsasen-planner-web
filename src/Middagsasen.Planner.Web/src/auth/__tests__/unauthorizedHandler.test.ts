@@ -1,17 +1,28 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { handleUnauthorized, isSafeRedirect } from 'src/auth/unauthorizedHandler';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
+import {
+  handleUnauthorized,
+  isSafeRedirect,
+  type UnauthorizedError,
+} from 'src/auth/unauthorizedHandler';
 
-function createError(status, url) {
-  const error = new Error('Request failed');
-  error.config = { url };
+function createError(status: number | undefined, url: string) {
+  const error: Error & UnauthorizedError = Object.assign(new Error('Request failed'), {
+    config: { url },
+  });
   if (status !== undefined) error.response = { status };
   return error;
 }
 
 describe('handleUnauthorized', () => {
-  let authStore;
-  let router;
-  let notify;
+  let authStore: {
+    user: { id: number } | null;
+    removeUserSession: Mock<() => void>;
+  };
+  let router: {
+    currentRoute: { value: { path: string; fullPath: string } };
+    replace: Mock;
+  };
+  let notify: Mock;
 
   function deps() {
     return { authStore, router, notify };

@@ -9,6 +9,7 @@ export const useAuthStore = defineStore("auth", {
     accessToken(state) {
       return localStorage.getItem(tokenItem);
     },
+    /** @returns {Record<string, unknown> | null} */
     user(state) {
       if (!this.loggedInUser) {
         var userJson = localStorage.getItem(userItem);
@@ -16,6 +17,7 @@ export const useAuthStore = defineStore("auth", {
       }
       return this.loggedInUser;
     },
+    /** @returns {boolean | undefined} */
     isAdmin(state) {
       return this.user?.isAdmin;
     },

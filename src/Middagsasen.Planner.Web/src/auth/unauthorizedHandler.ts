@@ -1,8 +1,33 @@
 const LOGIN_PATH = "/login";
 const AUTH_ENDPOINT_PREFIX = "/api/authentication/";
 
+// Minimal del av en axios-feil som håndtereren leser.
+export interface UnauthorizedError {
+  response?: { status?: number | undefined } | undefined;
+  config?: { url?: string | undefined } | undefined;
+}
+
+// Strukturelle typer for avhengighetene, slik at tester kan sende inn fakes.
+export interface UnauthorizedAuthStore {
+  readonly user: unknown;
+  removeUserSession(): void;
+}
+
+export interface UnauthorizedRouter {
+  currentRoute: { value: { path: string; fullPath: string } };
+  replace(to: { path: string; query: { redirect: string } }): unknown;
+}
+
+export type UnauthorizedNotify = (options: { message: string }) => void;
+
+export interface UnauthorizedDeps {
+  authStore: UnauthorizedAuthStore;
+  router: UnauthorizedRouter;
+  notify: UnauthorizedNotify;
+}
+
 // Kun relative stier innenfor appen er gyldige redirect-mål (hindrer open redirect).
-export function isSafeRedirect(path) {
+export function isSafeRedirect(path: unknown): path is string {
   return (
     typeof path === "string" &&
     path.startsWith("/") &&
@@ -13,7 +38,10 @@ export function isSafeRedirect(path) {
 
 // Håndterer 401 fra API-et: rydder sesjonen og sender brukeren til innlogging.
 // Avviser alltid med den opprinnelige feilen slik at kallere kan håndtere den.
-export function handleUnauthorized(error, { authStore, router, notify }) {
+export function handleUnauthorized(
+  error: UnauthorizedError | null | undefined,
+  { authStore, router, notify }: UnauthorizedDeps
+): Promise<never> {
   const isUnauthorized = error?.response?.status === 401;
   const url = error?.config?.url ?? "";
   const isAuthEndpoint = url.startsWith(AUTH_ENDPOINT_PREFIX);

@@ -1,4 +1,4 @@
-import { boot } from "quasar/wrappers";
+import { defineBoot } from "#q-app/wrappers";
 import { Notify } from "quasar";
 import { START_LOCATION } from "vue-router";
 import {
@@ -6,11 +6,12 @@ import {
   reloadOnce,
   decideNavigation,
   isChunkLoadError,
+  type ReloadFn,
 } from "src/shared/appVersion";
 
 const FETCH_TIMEOUT_MS = 5000;
 
-function getSessionStorage() {
+function getSessionStorage(): Storage | null {
   try {
     return window.sessionStorage;
   } catch {
@@ -20,7 +21,10 @@ function getSessionStorage() {
 
 // fetch med tidsavbrudd. Bruker AbortController + setTimeout i stedet for
 // AbortSignal.timeout, som mangler i eldre Safari.
-async function fetchWithTimeout(url, options) {
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -32,7 +36,7 @@ async function fetchWithTimeout(url, options) {
 
 // Oppdager ny deploy og laster appen på nytt, slik at brukere med fanen
 // åpen lenge ikke kjører gammel JS eller får feil ved lasting av chunks.
-export default boot(({ router }) => {
+export default defineBoot(({ router }) => {
   if (process.env.DEV) return;
 
   const currentVersion = __APP_VERSION__.version;
@@ -42,7 +46,7 @@ export default boot(({ router }) => {
   });
 
   // Automatisk reload går via reloadOnce: høyst ett forsøk per nøkkel per økt.
-  const reload = ({ key, path }) =>
+  const reload: ReloadFn = ({ key, path }) =>
     reloadOnce({
       location: window.location,
       storage: getSessionStorage(),
@@ -53,7 +57,7 @@ export default boot(({ router }) => {
   const chunkKey = `chunk:${currentVersion}`;
 
   // Målet for pågående navigering, slik at chunk-feil kan laste riktig rute.
-  let pendingPath = null;
+  let pendingPath: string | null = null;
 
   // Ved navigering: kjent ny versjon gir full sideinnlasting til målet.
   // Venter aldri på nettverket. Registreres etter auth-guarden i

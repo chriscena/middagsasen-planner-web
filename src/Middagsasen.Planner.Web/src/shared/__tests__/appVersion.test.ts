@@ -1,18 +1,19 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
 import {
   createVersionChecker,
   reloadOnce,
   decideNavigation,
   formatVersion,
   isChunkLoadError,
+  type ReloadLocation,
 } from 'src/shared/appVersion';
 
-function jsonResponse(body, ok = true) {
+function jsonResponse(body: unknown, ok = true) {
   return { ok, json: () => Promise.resolve(body) };
 }
 
 describe('createVersionChecker', () => {
-  let time;
+  let time: number;
   const now = () => time;
 
   beforeEach(() => {
@@ -93,17 +94,17 @@ describe('createVersionChecker', () => {
 });
 
 function createStorage() {
-  const data = {};
+  const data: Record<string, string> = {};
   return {
-    getItem: vi.fn((k) => (k in data ? data[k] : null)),
-    setItem: vi.fn((k, v) => {
+    getItem: vi.fn((k: string) => data[k] ?? null),
+    setItem: vi.fn((k: string, v: string) => {
       data[k] = v;
     }),
   };
 }
 
 describe('reloadOnce', () => {
-  let location;
+  let location: { [K in keyof ReloadLocation]: Mock<ReloadLocation[K]> };
   beforeEach(() => {
     location = { assign: vi.fn(), reload: vi.fn() };
   });
@@ -153,12 +154,15 @@ describe('reloadOnce', () => {
 });
 
 describe('decideNavigation', () => {
-  function createChecker({ updateAvailable = false, latestVersion = null } = {}) {
+  function createChecker({
+    updateAvailable = false,
+    latestVersion = null,
+  }: { updateAvailable?: boolean; latestVersion?: string | null } = {}) {
     return {
       updateAvailable,
       latestVersion,
       // Løses aldri: viser at guarden ikke venter på nettverket.
-      check: vi.fn(() => new Promise(() => {})),
+      check: vi.fn(() => new Promise<boolean>(() => {})),
     };
   }
 
@@ -211,7 +215,7 @@ describe('decideNavigation', () => {
 
   it('swallows a rejected background check', async () => {
     const checker = createChecker();
-    checker.check = vi.fn(() => Promise.reject(new Error('boom')));
+    checker.check = vi.fn(() => Promise.reject<boolean>(new Error('boom')));
 
     expect(decideNavigation({ to, from, isStartLocation: false, checker, reload: vi.fn() })).toBe(true);
     await Promise.resolve();

@@ -5,7 +5,7 @@ import {
   getWorkHourErrorKind,
   getWorkHourErrorMessage,
   summarizeBulkApproval,
-} from 'src/shared/workHourDiff.js';
+} from 'src/shared/workHourDiff';
 
 const original = {
   startDateTime: '2026-01-10T08:00:00.000Z',
