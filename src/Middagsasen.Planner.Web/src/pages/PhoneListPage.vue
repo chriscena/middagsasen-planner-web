@@ -73,16 +73,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
-import { useQuasar } from "quasar";
+import { computed, onMounted, ref } from "vue";
 import { useUserStore } from "stores/UserStore";
-import { useRouter } from "vue-router";
 import type { PhoneResponse } from "src/types";
 
 const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
-const $q = useQuasar();
-const router = useRouter();
 const userStore = useUserStore();
 
 const filter = ref<string | null>(null);
@@ -101,7 +97,7 @@ onMounted(async () => {
   try {
     loading.value = true;
     await userStore.getPhoneList();
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

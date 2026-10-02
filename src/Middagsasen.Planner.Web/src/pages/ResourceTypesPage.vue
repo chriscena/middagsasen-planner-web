@@ -390,7 +390,7 @@ onMounted(async () => {
       eventStore.getResourceTypes(),
       competencyStore.getCompetencies(),
     ]);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

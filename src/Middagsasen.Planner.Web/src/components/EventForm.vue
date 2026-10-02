@@ -150,7 +150,6 @@ import {
   isBefore,
   addDays,
 } from "date-fns";
-import { useRouter } from "vue-router";
 import TimePickerInput from "components/TimePickerInput.vue";
 import DatePickerInput from "components/DatePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
@@ -165,7 +164,6 @@ const emit = defineEmits<{
 }>();
 const loading = ref(false);
 const $q = useQuasar();
-const $router = useRouter();
 const eventStore = useEventStore();
 
 const props = withDefaults(
@@ -212,7 +210,7 @@ onMounted(async () => {
       );
       name.value = "Åpningstid";
     }
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -274,8 +272,6 @@ const canSave = computed(() => {
   return !!(name.value && startDate.value && startTime.value && endTime.value);
 });
 
-const selectedResource = ref(null);
-const showingEdit = ref(false);
 
 function formatTime(isoDateTime: string | Date) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
@@ -325,7 +321,7 @@ async function saveEvent() {
       });
     }
     emit("saved", model);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -343,13 +339,10 @@ async function deleteEvent() {
     const event = eventStore.selectedEvent;
     // Tidligere ga null her en TypeError som ble svelget av catch under.
     if (!event) return;
-    const date = formatISO(parseISO(event.startTime), {
-      representation: "date",
-    });
     const model = await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
     emit("deleted", model);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -377,7 +370,7 @@ async function createTemplate(id: number | null) {
     await eventStore.createTemplateFromEvent(id!, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Noe feilet mens malen skulle lagres." });
   } finally {
     savingTemplate.value = false;

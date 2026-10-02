@@ -619,17 +619,6 @@ function showAddButton(timestamp: DayTimestamp, shift: ShiftListItem): boolean {
   return timestamp.date >= today() && (shift?.user?.id ?? 0) === 0;
 }
 
-function showAddAdditionalRow(
-  timestamp: DayTimestamp,
-  resource: ResourceResponse
-): boolean {
-  return (
-    (isTrainer(resource.resourceType) || isAdmin.value) &&
-    timestamp.date >= today() &&
-    resource.shifts.length >= resource.minimumStaff
-  );
-}
-
 async function checkTraining(resource: ResourceResponse): Promise<void> {
   try {
     adding.value = true;
@@ -678,7 +667,7 @@ async function setTraining(needTraining: boolean): Promise<void> {
       currentUser.value,
       needTraining
     );
-  } catch (error) {
+  } catch {
   } finally {
     savingTraining.value = false;
   }
@@ -816,7 +805,7 @@ async function deleteShift(): Promise<void> {
     $q.notify({
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
-  } catch (error) {
+  } catch {
     $q.notify({
       message: "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈",
     });
@@ -852,7 +841,7 @@ async function getUsers(): Promise<void> {
   try {
     loadingUsers.value = true;
     await userStore.getUsers();
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Klarte ikke å hente lista over brukere." });
   } finally {
     loadingUsers.value = false;

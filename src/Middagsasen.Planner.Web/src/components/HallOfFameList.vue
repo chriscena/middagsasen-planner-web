@@ -56,7 +56,7 @@ import type {
 const emit = defineEmits<{
   close: [];
 }>();
-const props = withDefaults(
+withDefaults(
   defineProps<{
     currentUser?: UserResponse | null;
   }>(),
@@ -73,7 +73,7 @@ onMounted(async () => {
     lastRank = 0;
     const response = await api.get<HallOfFameResponse>("/api/halloffame");
     hallOfFamers.value = response.data?.hallOfFamers;
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

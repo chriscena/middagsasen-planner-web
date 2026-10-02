@@ -213,7 +213,7 @@ function calculateTime(
     start = parse(`${startDate} ${startTime}`, "dd.MM.yyyy HH:mm", new Date());
     viewModel.startTimeValid = true;
     viewModel.startDateTime = start.toISOString();
-  } catch (error) {
+  } catch {
     viewModel.startDateTime = null;
     viewModel.startTimeValid = false;
     return;
@@ -225,7 +225,7 @@ function calculateTime(
     }
     viewModel.endTimeValid = true;
     viewModel.endDateTime = end.toISOString();
-  } catch (error) {
+  } catch {
     viewModel.endDateTime = null;
     viewModel.endTimeValid = false;
   }
@@ -343,7 +343,7 @@ async function createHours() {
       message: "Timer lagret, bra jobba! 🙌",
       color: "positive",
     });
-  } catch (error) {
+  } catch {
     $q.notify({
       message: "Klarte ikke å lagre timer",
       color: "negative",

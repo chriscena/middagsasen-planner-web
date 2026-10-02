@@ -224,12 +224,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useQuasar, date as dateUtil } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
-import { useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter";
 import type { UserCompetencyResponse, UserResponse } from "src/types";
 
@@ -247,7 +246,6 @@ interface UserForm {
 const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
 const $q = useQuasar();
-const router = useRouter();
 const userStore = useUserStore();
 const authStore = useAuthStore();
 const competencyStore = useCompetencyStore();
@@ -270,7 +268,7 @@ onMounted(async () => {
   try {
     loading.value = true;
     await Promise.all([userStore.getUsers(), userStore.getWorkHourSums()]);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -439,7 +437,7 @@ async function saveUser(): Promise<void> {
     }
     $q.notify({ message: "Bruker lagret" });
     showingEditDialog.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Klarte ikke å lagre bruker" });
   } finally {
     // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).
@@ -454,7 +452,7 @@ async function deleteUser(): Promise<void> {
     await userStore.deleteUser({ id: selectedUser.value.id! });
     $q.notify({ message: "Bruker slettet" });
     showingEditDialog.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Klarte ikke å slette bruker" });
   } finally {
     // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).

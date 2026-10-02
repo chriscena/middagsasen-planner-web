@@ -140,9 +140,4 @@ function emitDate(value: string | number | null) {
     });
   }
 }
-
-// Ikke i bruk i malen (bevart fra Options API-versjonen).
-function optionsFn(day: string) {
-  return !props.disabledDays.includes(day);
-}
 </script>

@@ -147,7 +147,7 @@ async function saveTemplate(model: TemplateFormModel) {
       });
     }
     showingEditDialog.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({
       message: "Klarte ikke å lagre.",
     });
@@ -164,7 +164,7 @@ async function deleteTemplate(model: TemplateFormModel) {
       message: "Malen er slettet.",
     });
     showingEditDialog.value = false;
-  } catch (error) {
+  } catch {
   } finally {
     savingTemplate.value = false;
   }

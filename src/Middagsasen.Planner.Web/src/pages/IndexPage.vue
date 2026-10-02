@@ -289,7 +289,6 @@ const mode = computed(() => {
   return $q.platform.is.mobile ? "day" : "week";
 });
 const isAdmin = computed(() => authStore.isAdmin);
-const currentUser = computed(() => authStore.user);
 
 const eventStore = useEventStore();
 const authStore = useAuthStore();
@@ -334,14 +333,14 @@ async function onChange(event: CalendarChangeEvent) {
   try {
     loading.value = true;
     await eventStore.getEventsForDates(event.start, event.end);
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
   } finally {
     loading.value = false;
   }
 }
 
-async function handleSwipe({ evt, ...info }: SwipeDetails) {
+async function handleSwipe(info: SwipeDetails) {
   if (info.direction === "right") await onPrev();
   if (info.direction === "left") await onNext();
 }
@@ -366,8 +365,6 @@ async function getEventStatuses(eventOrView?: MonthYear | Event) {
     );
   else await eventStore.getEventStatuses(view.month + 1, view.year);
 }
-
-const eventStatusDates = computed(() => eventStore.eventStatusDates);
 
 function getEventColor(date: string) {
   const dateString = format(
@@ -449,7 +446,7 @@ async function applyTemplate(id: number) {
     loading.value = true;
     await eventStore.createEventFromTemplate(id, selectedDay.value);
     $q.notify({ message: "Vaktlista er lagt til." });
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }

@@ -337,7 +337,7 @@ interface ResourceModel extends ResourceForm {
   isDeleted: boolean;
 }
 
-const emit = defineEmits<{ "toggle-right": [] }>();
+defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
@@ -385,7 +385,7 @@ onMounted(async () => {
       );
       name.value = "Åpningstid";
     }
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -560,7 +560,7 @@ async function saveEvent() {
       representation: "date",
     });
     await $router.push(`/day/${date}`);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -583,7 +583,7 @@ async function deleteEvent() {
     await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
     $router.push(`/day/${date}`);
-  } catch (error) {
+  } catch {
   } finally {
     loading.value = false;
   }
@@ -610,7 +610,7 @@ async function createTemplate(id: string) {
     await eventStore.createTemplateFromEvent(id, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
-  } catch (error) {
+  } catch {
     $q.notify({ message: "Noe feilet mens malen skulle lagres." });
   } finally {
     savingTemplate.value = false;

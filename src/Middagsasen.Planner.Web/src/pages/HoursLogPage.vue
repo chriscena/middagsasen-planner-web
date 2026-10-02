@@ -177,7 +177,7 @@
 <script setup lang="ts">
 import { useQuasar } from "quasar";
 import type { QInfiniteScroll } from "quasar";
-import { ref, computed, useTemplateRef, reactive, onMounted } from "vue";
+import { computed, useTemplateRef, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useSeasonStore } from "src/stores/SeasonStore";

@@ -123,7 +123,7 @@ onMounted(async () => {
     loading.value = true;
     const response = await api.get<ShiftSeasonResponse[]>("/api/me/shifts");
     viewModel.shifts = response.data;
-  } catch (error) {
+  } catch {
     $q.notify({
       type: "negative",
       message: "Klarte ikke å hente vaktene dine 🙈",
