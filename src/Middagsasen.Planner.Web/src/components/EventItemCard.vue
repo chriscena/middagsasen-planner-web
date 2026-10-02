@@ -49,7 +49,7 @@
           formatStartEndTime(resource)
         }}</q-item-section></q-item
       >
-      <q-item v-for="shift in createUserList(resource)" :key="shift.id">
+      <q-item v-for="{ key, shift } in createShiftList(resource)" :key="key">
         <q-item-section
           v-if="isAdmin || (isTrainer(resource.resourceType) && isTaken(shift))"
           avatar
@@ -433,6 +433,7 @@
                 color="primary"
                 no-caps
                 unelevated
+                :disable="!newMessage?.trim()"
                 :loading="savingMessage"
               ></q-btn> </q-card-actions
           ></template>
@@ -452,8 +453,10 @@ import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { getApiErrorMessage } from "src/shared/apiError";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
+import { createShiftList, type ShiftListItem } from "src/shared/shiftList";
 import type {
   EventResponse,
+  MessageRequest,
   MessageResponse,
   ResourceResponse,
   ResourceTypeResponse,
@@ -467,14 +470,6 @@ import type {
 interface DayTimestamp {
   date: string;
 }
-
-// Ledig plass i vaktlista (fylles opp til minimumStaff).
-interface VacantShift {
-  id: number;
-  user: null;
-  comment: null;
-}
-type ShiftListItem = ShiftResponse | VacantShift;
 
 // Bruker på en vakt under redigering: fra vakta selv, eller valgt i q-select
 // (admin), som har userStore.users (UserResponse) som options.
@@ -556,23 +551,6 @@ const currentUserTrainings = computed(() =>
 );
 
 // Methods
-function createUserList(resource: ResourceResponse): ShiftListItem[] {
-  const list: ShiftListItem[] = [];
-  list.push(...resource.shifts);
-  const neededStaff = resource.minimumStaff - list.length;
-
-  if (neededStaff > 0) {
-    for (let i = 0; i < neededStaff; i += 1) {
-      list.push({
-        id: 0,
-        user: null,
-        comment: null,
-      });
-    }
-  }
-  return list;
-}
-
 function formatTime(isoDateTime: string | null | undefined): string | null {
   if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);
@@ -607,7 +585,10 @@ function isTaken(shift: ShiftListItem): shift is ShiftResponse {
   return (shift?.user?.id ?? 0) > 0;
 }
 
-function showEditButton(timestamp: DayTimestamp, shift: ShiftListItem): boolean {
+function showEditButton(
+  timestamp: DayTimestamp,
+  shift: ShiftListItem
+): boolean {
   return (
     timestamp.date >= today() &&
     (shift?.user?.id ?? 0) === currentUser.value?.id
@@ -731,17 +712,11 @@ async function addUserAsResource(
         iconColor: "primary",
         message: resource.resourceType.notificationMessage,
         position: "center",
-        // OBS (#82): Quasar-opsjonen heter `multiLine`; `multiline` ignoreres,
-        // så meldingen vises ikke som flerlinjet. Beholdt for å bevare atferd.
-        // @ts-expect-error ukjent opsjon i QNotifyCreateOptions (se over).
-        multiline: true,
+        multiLine: true,
       });
     }
-    // OBS (#82): training er undefined når ressurstypen ikke har opplæring
-    // (checkTraining). EventStore.addShift leser da `training.trainingComplete`
-    // etter at vakta er lagret og kaster TypeError, så brukeren får
-    // feilmelding selv om vakta ble tatt. `!` bevarer JS-atferden.
-    await eventStore.addShift(resource, currentUser.value, null, training!);
+    // training er undefined når vakttypen ikke har opplæring (checkTraining).
+    await eventStore.addShift(resource, currentUser.value, null, training);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
@@ -876,13 +851,13 @@ function showResourceInfo(resource: ResourceResponse): void {
 
 // Kalles fra ressursinfo-dialogen, der selectedResource er satt.
 async function saveMessage(): Promise<void> {
+  // Hver beskjed er en egen rad i API-et (sletting er et eget endepunkt), så en
+  // tom beskjed har ingen mening og sendes ikke. Lagre er deaktivert da.
+  const message = newMessage.value?.trim();
+  if (!message) return;
   try {
     savingMessage.value = true;
-    const model = {
-      // OBS (#82): newMessage er null når feltet er tomt/nullstilt, og da
-      // sendes `message: null` selv om MessageRequest krever en streng.
-      message: newMessage.value as string,
-    };
+    const model: MessageRequest = { message };
     const response = await eventStore.addMessage(
       selectedResource.value!.id,
       model
@@ -943,7 +918,6 @@ async function addEmptyShift(resource: ResourceResponse): Promise<void> {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "errorOccurred",
     });
   } finally {
@@ -965,7 +939,6 @@ async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "errorOccurred",
     });
   } finally {

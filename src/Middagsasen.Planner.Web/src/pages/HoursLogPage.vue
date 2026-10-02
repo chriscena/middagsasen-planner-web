@@ -146,9 +146,8 @@
               </q-item-label>
             </q-item-section>
             <q-item-section side>
-              <!-- OBS (#82): hours er nullable i DTO-en; null gir TypeError i formatNumber. -->
               <q-item-label>
-                {{ formatNumber(hours.hours!) }} t
+                {{ formatHours(hours.hours) }}
               </q-item-label></q-item-section
             >
           </q-item>
@@ -184,7 +183,7 @@ import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
-import { formatNumber } from "src/shared/formatter";
+import { formatHours, formatNumber } from "src/shared/formatter";
 import { getSeasonStartYear } from "src/shared/season";
 import type { WorkHourResponse } from "src/types";
 
@@ -266,7 +265,6 @@ async function getUserWorkhours(index: number, done: (stop?: boolean) => void) {
     stop = true;
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "Klarte ikke å hente timeføringer",
     });
   } finally {
@@ -346,7 +344,6 @@ onMounted(async () => {
     console.error(e);
     $q.notify({
       type: "negative",
-      closeBtn: "close",
       message: "Klarte ikke å hente sesonger",
     });
   }

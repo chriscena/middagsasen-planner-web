@@ -68,6 +68,8 @@
             flat
             dense
             icon="delete"
+            title="Slett vakttype"
+            @click="confirmDeleteResourceType"
           ></q-btn
         ></q-card-section>
         <q-card-section class="q-gutter-sm">
@@ -98,7 +100,10 @@
               >Opplæringsansvarlig</q-card-section
             ><q-separator></q-separator>
             <q-list role="list" separator>
-              <q-item v-for="trainer in visibleTrainers" :key="trainer.id">
+              <q-item
+                v-for="trainer in visibleTrainers"
+                :key="trainer.clientKey"
+              >
                 <q-item-section>{{ trainer.fullName }}</q-item-section>
                 <q-item-section side
                   ><q-btn
@@ -213,7 +218,12 @@
               </q-item>
             </q-list>
             <q-separator></q-separator>
-            <q-card-actions align="right">
+            <q-card-section
+              v-if="!selectedResource!.id"
+              class="q-py-sm text-caption text-grey-7"
+              >Filer kan legges til når vakttypen er lagret.</q-card-section
+            >
+            <q-card-actions v-if="selectedResource!.id" align="right">
               <q-btn
                 icon="add"
                 label="Legg til fil"
@@ -245,7 +255,7 @@
               placeholder="Velg bruker"
               autofocus
               outlined
-              :options="users"
+              :options="availableTrainerUsers"
               option-label="fullName"
               option-value="id"
               v-model="user"
@@ -335,36 +345,22 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
+import { getApiErrorMessage } from "src/shared/apiError";
+import {
+  newEditableTrainer,
+  toEditableResourceType,
+  toResourceTypeRequest,
+  type EditableResourceType,
+  type EditableTrainer,
+} from "src/shared/resourceTypeForm";
 import { computed } from "vue";
 import type {
   CompetencyResponse,
   FileInfoResponse,
   ResourceTypeCompetencyResponse,
-  ResourceTypeRequest,
   ResourceTypeResponse,
-  ResourceTypeTrainerResponse,
   UserResponse,
 } from "src/types";
-
-// Trener i skjemaet: fra ResourceTypeResponse, evt. markert som slettet.
-// `deleted` settes av addTrainer (se OBS der). fullName kommer da fra
-// UserResponse, der den er valgfri.
-type EditableTrainer = Omit<ResourceTypeTrainerResponse, "fullName"> & {
-  fullName?: null | string | undefined;
-  isDeleted?: boolean;
-  deleted?: boolean;
-};
-
-// Skjemamodell: enten en ny vakttype (emptyResource, uten id/navn/filer) eller
-// en kopi av en ResourceTypeResponse.
-interface EditableResourceType {
-  id: number | null;
-  name: string | null;
-  defaultStaff: number;
-  notificationMessage?: null | string;
-  trainers: EditableTrainer[];
-  files?: FileInfoResponse[];
-}
 
 interface FileForm {
   file: File | null;
@@ -396,7 +392,12 @@ onMounted(async () => {
   }
 });
 
-const users = computed(() => userStore.users);
+// Brukere som ikke allerede er (synlige) opplæringsansvarlige.
+const availableTrainerUsers = computed(() => {
+  const trainerUserIds = visibleTrainers.value.map((t) => t.userId);
+  return userStore.users.filter((u) => !trainerUserIds.includes(u.id));
+});
+
 const visibleTrainers = computed(() =>
   // Evalueres kun fra redigeringsdialogen, når selectedResource er satt.
   selectedResource.value!.trainers.filter((t) => !t.isDeleted)
@@ -413,7 +414,9 @@ function newResourceType() {
 }
 
 async function editResourceType(resourceType: ResourceTypeResponse) {
-  selectedResource.value = Object.assign({}, resourceType);
+  // Kopi på alle nivåer, så en avbrutt dialog ikke endrer trenere/filer i
+  // store-staten.
+  selectedResource.value = toEditableResourceType(resourceType);
   competencyRequirements.value = [];
   selectedCompetency.value = null;
   showingEdit.value = true;
@@ -424,19 +427,13 @@ async function saveResource() {
   try {
     // Kalles kun fra redigeringsdialogen, så selectedResource er satt.
     const resource = selectedResource.value!;
-    // Hele skjemamodellen sendes som request (som i JS-versjonen), inkl.
-    // ekstra felt; name kan være null og trenere fra responsen mangler
-    // isDeleted (backend validerer/bruker default).
+    const request = toResourceTypeRequest(resource);
     let resourceTypeId: number | undefined;
     if (resource.id) {
-      await eventStore.updateResourceType(
-        resource as ResourceTypeRequest & { id: number }
-      );
+      await eventStore.updateResourceType({ ...request, id: resource.id });
       resourceTypeId = resource.id;
     } else {
-      const created = await eventStore.createResourceType(
-        resource as ResourceTypeRequest
-      );
+      const created = await eventStore.createResourceType(request);
       resourceTypeId = created?.id;
     }
     if (resourceTypeId) {
@@ -444,13 +441,43 @@ async function saveResource() {
         competencyId: cr.competencyId,
         minimumRequired: cr.minimumRequired,
       }));
-      await competencyStore.setResourceTypeCompetencies(resourceTypeId, requirements);
+      await competencyStore.setResourceTypeCompetencies(
+        resourceTypeId,
+        requirements
+      );
     }
     showingEdit.value = false;
     $q.notify({ message: "Vakttypen er lagret." });
   } catch (error) {
     console.log(error);
     $q.notify({ message: "Klarte ikke å lagre vakttypen." });
+  }
+}
+
+function confirmDeleteResourceType() {
+  // Slett-knappen vises kun når id er satt.
+  const resource = selectedResource.value!;
+  $q.dialog({
+    title: "Slette vakttype",
+    message: `Vil du slette vakttypen «${resource.name ?? ""}»?`,
+    cancel: { label: "Avbryt", flat: true, noCaps: true },
+    ok: { label: "Slett", noCaps: true, color: "negative", unelevated: true },
+    persistent: true,
+  }).onOk(async () => {
+    await deleteResourceType(resource.id!);
+  });
+}
+
+async function deleteResourceType(id: number) {
+  try {
+    await eventStore.deleteResourceType({ id });
+    showingEdit.value = false;
+    $q.notify({ message: "Vakttypen er slettet." });
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette vakttypen."),
+    });
   }
 }
 
@@ -461,6 +488,7 @@ function emptyResource(): EditableResourceType {
     defaultStaff: 1,
     notificationMessage: null,
     trainers: [],
+    files: [],
   };
 }
 
@@ -468,15 +496,7 @@ function addTrainer() {
   // Knappen er deaktivert til en bruker er valgt (canAddTrainer), og
   // dialogen ligger i redigeringsdialogen.
   const selectedUser = user.value!;
-  selectedResource.value!.trainers.push({
-    // OBS (#82): DTO-feltet heter `isDeleted`, ikke `deleted`. Ufarlig i dag
-    // (manglende isDeleted tolkes som ikke slettet), men feil feltnavn.
-    deleted: false,
-    id: 0,
-    userId: selectedUser.id,
-    fullName: selectedUser.fullName,
-    phoneNo: selectedUser.phoneNo,
-  });
+  selectedResource.value!.trainers.push(newEditableTrainer(selectedUser));
   user.value = null;
   showingAddTrainer.value = false;
 }
@@ -498,9 +518,7 @@ const selectedCompetency = ref<CompetencyResponse | null>(null);
 
 const availableCompetencies = computed(() => {
   const linkedIds = competencyRequirements.value.map((cr) => cr.competencyId);
-  return competencyStore.competencies.filter(
-    (c) => !linkedIds.includes(c.id)
-  );
+  return competencyStore.competencies.filter((c) => !linkedIds.includes(c.id));
 });
 
 function addCompetencyRequirement() {
@@ -519,7 +537,9 @@ function removeCompetencyRequirement(index: number) {
 }
 
 async function loadCompetencyRequirements(resourceTypeId: number) {
-  const data = await competencyStore.getResourceTypeCompetencies(resourceTypeId);
+  const data = await competencyStore.getResourceTypeCompetencies(
+    resourceTypeId
+  );
   // `name` finnes ikke i DTO-en (competencyName er påkrevd); fallbacken er
   // beholdt fra JS-versjonen.
   competencyRequirements.value = data.map(
@@ -547,17 +567,17 @@ const canAddFile = computed(
 
 const savingFile = ref(false);
 async function addFile() {
+  // «Legg til fil» vises kun for en lagret vakttype (id satt).
+  const resource = selectedResource.value!;
+  if (!resource.id) return;
   try {
     savingFile.value = true;
     const response = await eventStore.addResourceTypeFile(
-      // OBS (#82): For en ny (ulagret) vakttype er id null, så filen postes
-      // til /api/resourcetypes/null/files, og `files` er undefined, så push
-      // under kaster. «Legg til fil» vises likevel for nye vakttyper.
-      selectedResource.value as Pick<ResourceTypeResponse, "id">,
+      { id: resource.id },
       // Knappen er deaktivert til både fil og beskrivelse er satt (canAddFile).
       fileInfo.value as { file: Blob; description: string }
     );
-    selectedResource.value!.files!.push(response);
+    resource.files = [...(resource.files ?? []), response];
     showingAddFile.value = false;
     $q.notify({ message: "Filen er lagret." });
   } catch (error) {
@@ -575,7 +595,7 @@ async function deleteFile(fileInfo: FileInfoResponse) {
     await eventStore.deleteResourceTypeFile(fileInfo);
     // Kalles kun fra fillista, så selectedResource og files er satt.
     const resource = selectedResource.value!;
-    resource.files = resource.files!.filter((f) => f.id !== fileInfo.id);
+    resource.files = (resource.files ?? []).filter((f) => f.id !== fileInfo.id);
     showingAddFile.value = false;
     $q.notify({ message: "Filen er slettet." });
   } catch (error) {

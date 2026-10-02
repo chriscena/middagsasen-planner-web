@@ -6,7 +6,7 @@
           <q-item-label>Ingen vakter</q-item-label></q-item-section
         >
       </q-item>
-      <q-item v-for="(resource, index) in visibleResources" :key="index">
+      <q-item v-for="resource in visibleResources" :key="resource.clientKey">
         <q-item-section>
           <q-item-label
             >{{ resource.resourceType?.name }}
@@ -48,13 +48,12 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { format, addMinutes, parse } from "date-fns";
+import { format, addMinutes, isValid, parse } from "date-fns";
 import ResourceForm from "components/ResourceForm.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { ResourceTypeResponse } from "src/types";
+import { newClientKey } from "src/shared/clientKey";
 
-// OBS (#82): runtime-propsene brukte `require: true` (skrivefeil for `required`),
-// så de var i praksis valgfrie. Typene gjør dem påkrevd slik de faktisk brukes.
 const props = withDefaults(
   defineProps<{
     modelValue?: ResourceFormModel[];
@@ -81,9 +80,12 @@ const showingEdit = ref(false);
 
 function addResource() {
   selectedResource.value = {
+    clientKey: newClientKey(),
     resourceType: null,
-    startTime: format(addMinutes(toDateTime(props.startTime), -30), "HH:mm"),
-    endTime: format(addMinutes(toDateTime(props.endTime), 30), "HH:mm"),
+    // Ugyldig start/slutt på vaktlista (f.eks. «1») gir tomt felt i stedet for
+    // RangeError fra format.
+    startTime: offsetTime(props.startTime, -30),
+    endTime: offsetTime(props.endTime, 30),
     minimumStaff: 1,
     isNew: true,
   };
@@ -93,6 +95,13 @@ function addResource() {
 function editResource(resource: ResourceFormModel) {
   selectedResource.value = resource;
   showingEdit.value = true;
+}
+
+function offsetTime(time: string | null, minutes: number): string | null {
+  const datetime = toDateTime(time);
+  return isValid(datetime)
+    ? format(addMinutes(datetime, minutes), "HH:mm")
+    : null;
 }
 
 function toDateTime(time: string | null) {
@@ -105,6 +114,7 @@ function saveResource(model: ResourceFormModel) {
   if (model?.isNew) {
     let resources = [...props.modelValue];
     resources.push({
+      clientKey: model.clientKey,
       resourceType: model.resourceType,
       startTime: model.startTime,
       endTime: model.endTime,
@@ -114,7 +124,6 @@ function saveResource(model: ResourceFormModel) {
     emit("update:model-value", resources);
   } else if (selectedResource.value) {
     // Dialogen (og dermed save) vises kun når selectedResource er satt.
-    selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.startTime = model.startTime;
     selectedResource.value.endTime = model.endTime;

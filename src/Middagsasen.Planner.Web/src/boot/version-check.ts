@@ -94,7 +94,7 @@ export default defineBoot(({ router }) => {
           // inn på nytt i stedet for å gå via reloadOnce.
           handler: () => window.location.reload(),
         },
-        { icon: "close", color: "white", round: true, flat: true, size: "sm" },
+        // Lukk-knappen kommer fra Notify-defaults (boot/notify-defaults.ts).
       ],
     });
   });

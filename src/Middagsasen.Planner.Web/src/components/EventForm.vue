@@ -141,26 +141,21 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
-import {
-  parseISO,
-  format,
-  isValid,
-  formatISO,
-  parse,
-  isBefore,
-  addDays,
-} from "date-fns";
+import { parseISO, format, isValid, formatISO, parse } from "date-fns";
 import TimePickerInput from "components/TimePickerInput.vue";
 import DatePickerInput from "components/DatePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { EventRequest } from "src/types";
+import { toDateTime } from "src/shared/eventDateTime";
+import { toResourceDateTimes } from "src/shared/timeValidation";
+import { getApiErrorMessage } from "src/shared/apiError";
+import { newClientKey } from "src/shared/clientKey";
 
 const emit = defineEmits<{
   cancel: [];
   saved: [value: EventRequest];
-  // eventStore.deleteEvent returnerer ingenting, så verdien er alltid undefined.
-  deleted: [value: void];
+  deleted: [];
 }>();
 const loading = ref(false);
 const $q = useQuasar();
@@ -195,6 +190,7 @@ onMounted(async () => {
       resources.value = event.resources.map((r): ResourceFormModel => {
         return {
           id: r.id,
+          clientKey: newClientKey(r.id),
           eventId: r.eventId,
           resourceType: r.resourceType,
           startTime: formatTime(r.startTime),
@@ -232,36 +228,14 @@ const isValidEndTime = computed(() =>
   isValid(parse(endTime.value ?? "", "HH:mm", new Date()))
 );
 
-const startDateTime = computed(() => {
-  try {
-    return toDateTime(startDate.value, startTime.value);
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-});
+const startDateTime = computed(() =>
+  toDateTime(startDate.value, startTime.value)
+);
 
-const endDateTime = computed(() => {
-  try {
-    return toDateTime(startDate.value, endTime.value, startDateTime.value);
-  } catch (error) {
-    console.log(error);
-    return null;
-  }
-});
-
-function toDateTime(
-  date: string | null,
-  time: string | null,
-  start?: Date | null
-) {
-  const datetime = parse(`${date} ${time}`, "dd.MM.yyyy HH:mm", new Date());
-  // OBS (#82): tilordning til const kaster TypeError når slutt er før start
-  // (vakt over midnatt). endDateTime blir da null og lagring feiler stille.
-  // @ts-expect-error -- bevart bug, se OBS over
-  if (start && isBefore(datetime, start)) datetime = addDays(datetime, 1);
-  return datetime;
-}
+// Slutt før start betyr at vaktlista går over midnatt (neste dag).
+const endDateTime = computed(() =>
+  toDateTime(startDate.value, endTime.value, startDateTime.value)
+);
 
 const startDate = ref<string | null>(formatDate(new Date()));
 const startTime = ref<string | null>("10:00");
@@ -269,9 +243,13 @@ const endTime = ref<string | null>("17:00");
 const resources = ref<ResourceFormModel[]>([]);
 
 const canSave = computed(() => {
-  return !!(name.value && startDate.value && startTime.value && endTime.value);
+  return !!(
+    name.value &&
+    isValidDate.value &&
+    isValidStartTime.value &&
+    isValidEndTime.value
+  );
 });
-
 
 function formatTime(isoDateTime: string | Date) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
@@ -284,6 +262,20 @@ function formatDate(isoDateTime: string | Date) {
 }
 
 async function saveEvent() {
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i formatDateTime.
+  const resourceTimes = resources.value.map((r) =>
+    toResourceDateTimes(startDate.value, r.startTime, r.endTime)
+  );
+  const invalidIndex = resourceTimes.findIndex((t) => t === null);
+  if (invalidIndex >= 0) {
+    const invalid = resources.value[invalidIndex];
+    $q.notify({
+      message: `Vakta «${
+        invalid?.resourceType?.name ?? ""
+      }» har ugyldig start- eller sluttid.`,
+    });
+    return;
+  }
   try {
     loading.value = true;
     const model: EventRequest = {
@@ -292,20 +284,19 @@ async function saveEvent() {
       description: description.value ?? null,
       startTime: formatDateTime(startDateTime.value),
       endTime: formatDateTime(endDateTime.value),
-      resources: resources.value.map((r) => {
+      resources: resources.value.map((r, i) => {
+        // Validert over: ingen er null.
+        const times = resourceTimes[i]!;
         return {
           id: r.id ?? null,
           // ResourceForm krever vakttype før lagring (canAdd).
           resourceTypeId: r.resourceType!.id,
-          startTime: formatDateTime(toDateTime(startDate.value, r.startTime)),
-          endTime: formatDateTime(toDateTime(startDate.value, r.endTime)),
-          // OBS (#82): kan være string fra q-input type="number"; API-et godtar
-          // tall som streng (JsonSerializerDefaults.Web).
-          minimumStaff: r.minimumStaff as number,
+          startTime: formatDateTime(times.start),
+          endTime: formatDateTime(times.end),
+          // q-input type="number" kan gi string; Number() sender et tall.
+          minimumStaff: Number(r.minimumStaff),
           // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
-          isDeleted: r.isDeleted as boolean,
-          // OBS (#82): shifts finnes ikke i ResourceRequest; ignoreres av API-et.
-          shifts: [],
+          isDeleted: r.isDeleted ?? false,
         };
       }),
     };
@@ -321,7 +312,11 @@ async function saveEvent() {
       });
     }
     emit("saved", model);
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre vaktlista."),
+    });
   } finally {
     loading.value = false;
   }
@@ -339,20 +334,21 @@ async function deleteEvent() {
     const event = eventStore.selectedEvent;
     // Tidligere ga null her en TypeError som ble svelget av catch under.
     if (!event) return;
-    const model = await eventStore.deleteEvent(event.id);
+    await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
-    emit("deleted", model);
-  } catch {
+    emit("deleted");
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette vaktlista."),
+    });
   } finally {
     loading.value = false;
   }
 }
 
-function formatDateTime(date: Date | null) {
-  // null (fra catch i startDateTime/endDateTime) gir samme RangeError som før.
-  // OBS (#82): tredje argument var `new Date()`, men format tar et options-objekt;
-  // fjernet uten endret atferd (Date har ingen av options-feltene).
-  return format(date ?? NaN, "yyyy'-'MM'-'dd'T'HH':'mm");
+function formatDateTime(date: Date) {
+  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 
 const showingCreateTemplate = ref(false);

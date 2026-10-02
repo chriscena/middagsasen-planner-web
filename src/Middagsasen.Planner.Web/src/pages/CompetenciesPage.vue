@@ -38,7 +38,11 @@
         <q-item-section side>
           <q-badge color="primary">
             {{ competency.resourceTypes?.length || 0 }}
-            {{ (competency.resourceTypes?.length || 0) === 1 ? "vakttype" : "vakttyper" }}
+            {{
+              (competency.resourceTypes?.length || 0) === 1
+                ? "vakttype"
+                : "vakttyper"
+            }}
           </q-badge>
         </q-item-section>
       </q-item> </q-list
@@ -101,7 +105,7 @@
             <q-list role="list" separator>
               <q-item
                 v-for="approver in selected.approvers"
-                :key="approver.id"
+                :key="approver.userId"
               >
                 <q-item-section>{{ approver.fullName }}</q-item-section>
                 <q-item-section side>
@@ -134,7 +138,9 @@
                       {{ scope.opt.fullName }}
                     </q-item-section>
                     <q-item-section side>
-                      <q-item-label caption>{{ scope.opt.phoneNo }}</q-item-label>
+                      <q-item-label caption>{{
+                        scope.opt.phoneNo
+                      }}</q-item-label>
                     </q-item-section>
                   </q-item>
                 </template>
@@ -172,6 +178,8 @@ import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { useUserStore } from "stores/UserStore";
+import { getApiErrorMessage } from "src/shared/apiError";
+import { applyApproverResults, localApprovers } from "src/shared/approvers";
 import type {
   CompetencyApproverResponse,
   CompetencyRequest,
@@ -253,24 +261,55 @@ async function editCompetency(competency: CompetencyResponse): Promise<void> {
 async function saveCompetency(): Promise<void> {
   // Cast: name kan være null og description undefined her; backend avviser
   // manglende navn med 400 (som før).
-  // OBS (#82): godkjennere lagt til på en ny kompetanse (id 0, kun lokalt)
-  // sendes ikke med — CompetencyRequest har ikke approvers — og går tapt.
   const request = {
     name: selected.value.name,
     description: selected.value.description,
     hasExpiry: selected.value.hasExpiry,
   } as CompetencyRequest;
   try {
-    if (selected.value.id) {
-      await competencyStore.updateCompetency(selected.value.id, request);
+    let id = selected.value.id;
+    if (id) {
+      await competencyStore.updateCompetency(id, request);
     } else {
-      await competencyStore.createCompetency(request);
+      const created = await competencyStore.createCompetency(request);
+      id = created.id;
+      // Settes med en gang, slik at et nytt «Lagre» oppdaterer i stedet for å
+      // opprette kompetansen på nytt.
+      selected.value.id = id;
+    }
+    // Godkjennere lagt til før kompetansen fantes, eller som feilet ved et
+    // tidligere forsøk, ligger kun lokalt (id 0). CompetencyRequest har ikke
+    // approvers, så de legges til etter lagring.
+    const pending = localApprovers(selected.value.approvers);
+    if (pending.length) {
+      const competencyId = id;
+      const results = await Promise.allSettled(
+        pending.map((a) => competencyStore.addApprover(competencyId, a.userId))
+      );
+      const { approvers, failed } = applyApproverResults(
+        selected.value.approvers,
+        pending,
+        results
+      );
+      selected.value.approvers = approvers;
+      if (failed > 0) {
+        results.forEach((r) => {
+          if (r.status === "rejected") console.log(r.reason);
+        });
+        // Dialogen står åpen, så de feilede godkjennerne ikke går tapt.
+        $q.notify({
+          message: `Kompetansen er lagret, men ${failed} av ${pending.length} godkjennere kunne ikke legges til. Trykk «Lagre» for å prøve igjen.`,
+        });
+        return;
+      }
     }
     showingEdit.value = false;
     $q.notify({ message: "Kompetansen er lagret." });
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å lagre kompetansen." });
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre kompetansen."),
+    });
   }
 }
 

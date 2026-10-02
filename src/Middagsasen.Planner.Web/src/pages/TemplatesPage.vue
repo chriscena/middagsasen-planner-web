@@ -85,6 +85,7 @@ import type {
   TemplateFormValue,
 } from "components/TemplateForm.vue";
 import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
+import { getApiErrorMessage } from "src/shared/apiError";
 
 const emit = defineEmits<{
   "toggle-right": [];
@@ -129,12 +130,19 @@ function formatStartEndTime(template: EventTemplateResponse) {
 
 const savingTemplate = ref(false);
 async function saveTemplate(model: TemplateFormModel) {
+  // Lagre er deaktivert i TemplateForm (canSave) uten begge navnene.
+  const { name, eventName } = model;
+  if (!name || !eventName) {
+    $q.notify({ message: "Malen må ha navn og navn på vaktliste." });
+    return;
+  }
   try {
     savingTemplate.value = true;
-    // OBS (#82): skjemaet kan sende name/eventName som null, mens
-    // EventTemplateRequest krever streng. canSave krever name, men eventName
-    // kan være tømt. Castet for å bevare atferd (sendes uendret til API-et).
-    const request = model as EventTemplateRequest & { id: number };
+    const request: EventTemplateRequest & { id: number } = {
+      ...model,
+      name,
+      eventName,
+    };
     if (model.id) {
       await eventStore.updateTemplate(request);
       $q.notify({
@@ -147,16 +155,17 @@ async function saveTemplate(model: TemplateFormModel) {
       });
     }
     showingEditDialog.value = false;
-  } catch {
+  } catch (error) {
+    console.log(error);
     $q.notify({
-      message: "Klarte ikke å lagre.",
+      message: getApiErrorMessage(error, "Klarte ikke å lagre."),
     });
   } finally {
     savingTemplate.value = false;
   }
 }
 
-async function deleteTemplate(model: TemplateFormModel) {
+async function deleteTemplate(model: Pick<TemplateFormModel, "id">) {
   try {
     savingTemplate.value = true;
     await eventStore.deleteTemplate(model);
@@ -164,7 +173,11 @@ async function deleteTemplate(model: TemplateFormModel) {
       message: "Malen er slettet.",
     });
     showingEditDialog.value = false;
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette malen."),
+    });
   } finally {
     savingTemplate.value = false;
   }

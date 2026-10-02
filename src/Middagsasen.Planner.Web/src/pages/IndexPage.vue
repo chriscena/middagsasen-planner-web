@@ -242,7 +242,7 @@ import EventItemCard from "components/EventItemCard.vue";
 import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
-import type { EventResponse } from "src/types";
+import type { EventRequest, EventResponse } from "src/types";
 
 // Payload fra q-calendar-agenda sitt change-event (pakken typer ikke emits).
 interface CalendarChangeEvent {
@@ -269,7 +269,9 @@ interface MonthYear {
 }
 
 // Argumentet til v-touch-swipe-handleren.
-type SwipeDetails = Parameters<Extract<TouchSwipeValue, (...args: never[]) => unknown>>[0];
+type SwipeDetails = Parameters<
+  Extract<TouchSwipeValue, (...args: never[]) => unknown>
+>[0];
 
 const emit = defineEmits<{
   "toggle-left": [];
@@ -401,16 +403,16 @@ function formatStartEndTime(event: EventResponse) {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
 
-function onEventSaved() {
+// EventForm sender EventRequest ved lagring (startTime er "yyyy-MM-ddTHH:mm"
+// i lokal tid) og ingenting ved sletting. Da blir vi stående på valgt dag.
+function onEventSaved(model?: EventRequest) {
   showingEventForm.value = false;
+  const eventDate = model ? parseISO(model.startTime) : null;
+  if (eventDate && isValid(eventDate)) {
+    selectedDay.value = format(eventDate, "yyyy-MM-dd");
+  }
   calendar.value!.updateCurrent(); // satt etter mount, se onToday
-  // OBS (#82): formatISO er ikke importert og startDateTime finnes ikke her, så
-  // linjen kaster ReferenceError og navigeringen under skjer aldri.
-  // @ts-expect-error Bevarer eksisterende (feilende) atferd til buggen fikses.
-  const date = formatISO(startDateTime.value, {
-    representation: "date",
-  });
-  $router.push(`/day/${date}`);
+  $router.push(`/day/${selectedDay.value}`);
 }
 
 const selectedEventId = ref<number | null>(null);
