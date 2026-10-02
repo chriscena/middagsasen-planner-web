@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'src/Middagsasen.Planner.Web/**'
+      - 'src/Middagsasen.Planner.Api/openapi/openapi.json'
       - '.github/workflows/web_pr.yml'
   workflow_dispatch:
 
@@ -27,6 +28,11 @@ jobs:
 
       # postinstall kjører `quasar prepare`, som genererer .quasar/tsconfig.json
       - run: npm ci
+
+      - name: Sjekk at API-typer er i synk med openapi.json
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/types
 
       - run: npm run lint
 

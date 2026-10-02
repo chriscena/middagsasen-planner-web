@@ -1,0 +1,67 @@
+// Autogenerert av npm run gen:api — ikke rediger.
+// Kilde: src/Middagsasen.Planner.Api/openapi/openapi.json
+
+import type { components } from "./api";
+
+type Schemas = components["schemas"];
+
+export type ApproveCompetencyRequest = Schemas["ApproveCompetencyRequest"];
+export type ApprovedByRequest = Schemas["ApprovedByRequest"];
+export type ApprovedByResponse = Schemas["ApprovedByResponse"];
+export type AuthRequest = Schemas["AuthRequest"];
+export type AuthResponse = Schemas["AuthResponse"];
+export { AuthStatus } from "./enums";
+export type CompetencyApproverResponse = Schemas["CompetencyApproverResponse"];
+export type CompetencyRequest = Schemas["CompetencyRequest"];
+export type CompetencyResourceTypeResponse = Schemas["CompetencyResourceTypeResponse"];
+export type CompetencyResponse = Schemas["CompetencyResponse"];
+export type CompetencyWarningResponse = Schemas["CompetencyWarningResponse"];
+export type CreateWorkHourRequest = Schemas["CreateWorkHourRequest"];
+export type EventFromTemplateRequest = Schemas["EventFromTemplateRequest"];
+export type EventRequest = Schemas["EventRequest"];
+export type EventResponse = Schemas["EventResponse"];
+export type EventStatusResponse = Schemas["EventStatusResponse"];
+export type EventTemplateRequest = Schemas["EventTemplateRequest"];
+export type EventTemplateResponse = Schemas["EventTemplateResponse"];
+export type FileInfoResponse = Schemas["FileInfoResponse"];
+export type HallOfFameResponse = Schemas["HallOfFameResponse"];
+export type HallOfFamerResponse = Schemas["HallOfFamerResponse"];
+export type IFormFile = Schemas["IFormFile"];
+export type MessageRequest = Schemas["MessageRequest"];
+export type MessageResponse = Schemas["MessageResponse"];
+export type MinimumStaffRequest = Schemas["MinimumStaffRequest"];
+export type MinimumStaffResponse = Schemas["MinimumStaffResponse"];
+export type OtpRequest = Schemas["OtpRequest"];
+export type OtpResponse = Schemas["OtpResponse"];
+export { OtpStatus } from "./enums";
+export type PagedResponseOfWorkHourResponse = Schemas["PagedResponseOfWorkHourResponse"];
+export type PhoneResponse = Schemas["PhoneResponse"];
+export type ProblemDetails = Schemas["ProblemDetails"];
+export type ResourceRequest = Schemas["ResourceRequest"];
+export type ResourceResponse = Schemas["ResourceResponse"];
+export type ResourceTemplateRequest = Schemas["ResourceTemplateRequest"];
+export type ResourceTemplateResponse = Schemas["ResourceTemplateResponse"];
+export type ResourceTypeCompetencyRequest = Schemas["ResourceTypeCompetencyRequest"];
+export type ResourceTypeCompetencyResponse = Schemas["ResourceTypeCompetencyResponse"];
+export type ResourceTypeRequest = Schemas["ResourceTypeRequest"];
+export type ResourceTypeResponse = Schemas["ResourceTypeResponse"];
+export type ResourceTypeTrainerRequest = Schemas["ResourceTypeTrainerRequest"];
+export type ResourceTypeTrainerResponse = Schemas["ResourceTypeTrainerResponse"];
+export type SeasonResponse = Schemas["SeasonResponse"];
+export type SetResourceTypeCompetencyRequest = Schemas["SetResourceTypeCompetencyRequest"];
+export type ShiftRequest = Schemas["ShiftRequest"];
+export type ShiftResponse = Schemas["ShiftResponse"];
+export type ShiftUserResponse = Schemas["ShiftUserResponse"];
+export type TemplateFromEventRequest = Schemas["TemplateFromEventRequest"];
+export type TrainingRequest = Schemas["TrainingRequest"];
+export type TrainingResponse = Schemas["TrainingResponse"];
+export type UpdateWorkHourRequest = Schemas["UpdateWorkHourRequest"];
+export type UserCompetencyRequest = Schemas["UserCompetencyRequest"];
+export type UserCompetencyResponse = Schemas["UserCompetencyResponse"];
+export type UserRequest = Schemas["UserRequest"];
+export type UserResponse = Schemas["UserResponse"];
+export type UserShiftResponse = Schemas["UserShiftResponse"];
+export type UserTrainingResponse = Schemas["UserTrainingResponse"];
+export type UserWorkHourSumResponse = Schemas["UserWorkHourSumResponse"];
+export type WorkHourResponse = Schemas["WorkHourResponse"];
+export type WorkHourSumResponse = Schemas["WorkHourSumResponse"];

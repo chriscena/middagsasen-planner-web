@@ -5,3 +5,7 @@
 /node_modules
 .eslintrc.js
 /quasar.config.*.temporary.compiled*
+
+# Generert av `npm run gen:api`
+/src/types/api.d.ts
+/src/types/index.ts

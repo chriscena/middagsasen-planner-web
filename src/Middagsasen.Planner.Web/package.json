@@ -8,8 +8,9 @@
   "type": "module",
   "scripts": {
     "lint": "eslint --ext .js,.ts,.vue ./",
-    "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
+    "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .prettierignore",
     "typecheck": "vue-tsc --noEmit",
+    "gen:api": "openapi-typescript ../Middagsasen.Planner.Api/openapi/openapi.json -o src/types/api.d.ts && node scripts/gen-api-aliases.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "quasar dev",
@@ -44,6 +45,7 @@
     "eslint": "^8.10.0",
     "eslint-config-prettier": "^8.1.0",
     "eslint-plugin-vue": "^9.0.0",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.14",
     "prettier": "^2.5.1",
     "typescript": "^6.0.3",
@@ -53,5 +55,10 @@
   "engines": {
     "node": "^22 || ^20",
     "npm": ">= 10.8.2"
+  },
+  "overrides": {
+    "openapi-typescript": {
+      "typescript": "$typescript"
+    }
   }
 }
