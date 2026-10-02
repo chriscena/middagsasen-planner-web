@@ -8,6 +8,9 @@ namespace Middagsasen.Planner.Api.Services.Events
 {
     public class EventsService : IEventsService
     {
+        internal const string MessageEmptyMessage = "Beskjeden kan ikke være tom.";
+        internal static readonly string MessageTooLongMessage = $"Beskjeden kan ikke være lengre enn {MessageRequest.MaxLength} tegn.";
+
         public EventsService(PlannerDbContext dbContext, IResourceTypesService resourceTypesService, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
@@ -557,11 +560,19 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request)
         {
+            // Valideres i servicen også, slik at ugyldig input avvises uavhengig av MVC-modellvalidering.
+            if (string.IsNullOrWhiteSpace(request.Message))
+                throw new DomainValidationException(MessageEmptyMessage);
+
+            var text = request.Message.Trim();
+            if (text.Length > MessageRequest.MaxLength)
+                throw new DomainValidationException(MessageTooLongMessage);
+
             await EnsureEventResourceExists(eventResourceId);
 
             var message = new EventResourceMessage
             {
-                Message = request.Message,
+                Message = text,
                 EventResourceId = eventResourceId,
                 Created = DateTime.UtcNow,
                 CreatedBy = createdBy,

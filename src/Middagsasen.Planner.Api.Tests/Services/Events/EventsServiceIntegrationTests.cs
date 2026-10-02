@@ -654,6 +654,85 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
+        public async Task AddMessage_TrimsMessage()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new MessageRequest
+            {
+                Message = "  Trimmet melding \n",
+            };
+
+            // Act
+            var result = await service.AddMessage(resource.EventResourceId, user.UserId, request);
+
+            // Assert
+            Assert.Equal("Trimmet melding", result.Message);
+
+            // Verify in DB
+            using var verifyContext = _fixture.CreateContext();
+            var dbMessage = await verifyContext.Messages
+                .AsNoTracking()
+                .SingleAsync(m => m.EventResourceMessageId == result.Id);
+            Assert.Equal("Trimmet melding", dbMessage.Message);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task AddMessage_ThrowsDomainValidation_WhenMessageIsBlank(string? text)
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.AddMessage(resource.EventResourceId, user.UserId, new MessageRequest { Message = text! }));
+
+            // Assert
+            Assert.Equal(EventsService.MessageEmptyMessage, ex.Message);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task AddMessage_ThrowsDomainValidation_WhenMessageIsTooLong()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new MessageRequest { Message = new string('a', MessageRequest.MaxLength + 1) };
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.AddMessage(resource.EventResourceId, user.UserId, request));
+
+            // Assert
+            Assert.Equal(EventsService.MessageTooLongMessage, ex.Message);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId));
+        }
+
+        [Fact]
         public async Task DeleteMessage_RemovesFromDatabase()
         {
             // Arrange
