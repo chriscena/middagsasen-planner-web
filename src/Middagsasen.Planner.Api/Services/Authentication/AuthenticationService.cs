@@ -25,14 +25,24 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             return session?.User != null ? Map(session.User) : null;
         }
 
+        /// <summary>
+        /// Sender engangskode på SMS. Finnes ingen bruker med nummeret (normalisert), opprettes en ny.
+        /// </summary>
+        /// <remarks>
+        /// Oppslaget filtrerer ikke på <c>Inactive</c>, så en inaktiv bruker gir aldri en ny rad.
+        /// Oppretter en parallell forespørsel samme bruker samtidig, avviser den unike indeksen på
+        /// <c>Users.UserName</c> den ene. Da har den andre nettopp sendt en kode, og vi svarer
+        /// <see cref="OtpStatus.TooManyRequests"/>.
+        /// </remarks>
         public async Task<OtpResponse> GenerateOtpForUser(OtpRequest request)
         {
+            var userName = request.UserName.ToNormalizedUserName();
+            if (userName == null) return new OtpResponse { Status = OtpStatus.InvalidPhoneNumber };
+
+            // SMS-mottakeren trenger nummeret med landskode.
             var phoneNumber = request.UserName.ToNumericPhoneNo();
-            if (phoneNumber == 0) return new OtpResponse { Status = OtpStatus.InvalidPhoneNumber };
 
-            var userName = phoneNumber.ToUserName();
-
-            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserName == userName);
+            var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync();
 
             if (user != null && user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
             {
@@ -42,11 +52,23 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                 };
             }
 
+            var isNewUser = user == null;
             user ??= DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
 
             user.OneTimePassword = CreateOneTimePassword();
             user.OtpCreated = DateTime.UtcNow;
-            await DbContext.SaveChangesAsync();
+            try
+            {
+                await DbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException) when (isNewUser)
+            {
+                // Sjekk på nytt i stedet for å tolke leverandørspesifikke feilkoder.
+                DbContext.Entry(user).State = EntityState.Detached;
+                if (await DbContext.Users.WhereUserName(userName).AnyAsync())
+                    return new OtpResponse { Status = OtpStatus.TooManyRequests };
+                throw;
+            }
 
             var sms = new SmsMessage
             {
@@ -62,12 +84,10 @@ namespace Middagsasen.Planner.Api.Services.Authentication
 
         public async Task<AuthResponse> Authenticate(AuthRequest request)
         {
-            var phoneNumber = request.UserName.ToNumericPhoneNo();
-            if (phoneNumber == 0) return new AuthResponse { Status = AuthStatus.InvalidUsername };
+            var userName = request.UserName.ToNormalizedUserName();
+            if (userName == null) return new AuthResponse { Status = AuthStatus.InvalidUsername };
 
-            var userName = phoneNumber.ToUserName();
-
-            var user = await DbContext.Users.SingleOrDefaultAsync(user => user.UserName == userName && !user.Inactive);
+            var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync(user => !user.Inactive);
 
             if (user != null)
             {

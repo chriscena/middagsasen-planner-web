@@ -52,16 +52,17 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// Oppretter en ny bruker. Telefonnummeret normaliseres til samme format som lagres og slås opp ved innlogging.
         /// </summary>
         /// <remarks>
-        /// Hvis nummeret (normalisert) tilhører nøyaktig én bruker, og den brukeren er inaktiv (slettet via
-        /// <see cref="Delete"/>), reaktiveres den i stedet for at en ny bruker opprettes. Samme ID beholdes, og:
+        /// Hvis nummeret (normalisert) tilhører en inaktiv bruker (slettet via <see cref="Delete"/>), reaktiveres
+        /// den i stedet for at en ny bruker opprettes. Samme ID beholdes, og:
         /// <list type="bullet">
-        /// <item><c>Inactive</c> settes til <c>false</c>, og brukernavnet lagres normalisert.</item>
+        /// <item><c>Inactive</c> settes til <c>false</c>.</item>
         /// <item>Fornavn og etternavn oppdateres når de er oppgitt (ellers beholdes de gamle).</item>
         /// <item><c>IsAdmin</c> og <c>IsHidden</c> settes fra requesten som for en ny bruker (standard <c>false</c>).</item>
         /// <item>Passordet settes når det er oppgitt.</item>
         /// </list>
         /// <see cref="Delete"/> setter bare <c>Inactive</c>, så opplæringer, vakter og annen historikk følger med tilbake.
-        /// Er nummeret i bruk av en aktiv bruker, eller av flere brukere, avvises det med <see cref="DomainValidationException"/>.
+        /// Er nummeret i bruk av en aktiv bruker, avvises det med <see cref="DomainValidationException"/>. Det gjelder
+        /// også når en parallell forespørsel tar nummeret mellom sjekken og lagringen (den unike indeksen avviser da lagringen).
         /// </remarks>
         public async Task<UserResponse> Create(UserRequest request)
         {
@@ -71,15 +72,11 @@ namespace Middagsasen.Planner.Api.Services.Users
             var userName = request.PhoneNo.ToNormalizedUserName()
                 ?? throw new DomainValidationException(PhoneNoInvalidMessage);
 
-            var matches = await FindUsersWithUserName(userName, excludeUserId: null);
+            var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync();
 
-            User user;
-            if (matches.Count == 1 && matches[0].Inactive)
+            if (user is { Inactive: true })
             {
-                var inactiveUserId = matches[0].UserId;
-                user = await DbContext.Users.SingleAsync(u => u.UserId == inactiveUserId);
                 user.Inactive = false;
-                user.UserName = userName;
                 if (!string.IsNullOrWhiteSpace(request.FirstName))
                     user.FirstName = request.FirstName;
                 if (!string.IsNullOrWhiteSpace(request.LastName))
@@ -88,7 +85,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 user.IsHidden = request.IsHidden ?? false;
                 SetPassword(user, request.Password);
             }
-            else if (matches.Count > 0)
+            else if (user != null)
             {
                 throw new DomainValidationException(PhoneNoInUseMessage);
             }
@@ -105,7 +102,8 @@ namespace Middagsasen.Planner.Api.Services.Users
                 DbContext.Users.Add(user);
             }
 
-            await DbContext.SaveChangesAsync();
+            // En ny bruker har ikke fått ID ennå, så den ekskluderer ingen andre brukere.
+            await SaveChangesCheckingUserName(userName, user.UserId);
 
             return await GetUserById(user.UserId);
         }
@@ -129,7 +127,7 @@ namespace Middagsasen.Planner.Api.Services.Users
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
 
-            await DbContext.SaveChangesAsync();
+            await SaveChangesCheckingUserName(user.UserName, user.UserId);
 
             return await GetUserById(user.UserId);
         }
@@ -189,34 +187,41 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// lagres og slås opp ved innlogging/OTP), og avviser det hvis det er ugyldig eller allerede brukes av en
         /// annen bruker. Inaktive brukere telles med, siden OTP-innlogging slår opp brukernavn uten å filtrere på Inactive.
         /// </summary>
-        private async Task<string> GetAvailableUserName(string phoneNo, int? excludeUserId)
+        private async Task<string> GetAvailableUserName(string phoneNo, int excludeUserId)
         {
             var userName = phoneNo.ToNormalizedUserName()
                 ?? throw new DomainValidationException(PhoneNoInvalidMessage);
 
-            if ((await FindUsersWithUserName(userName, excludeUserId)).Count > 0)
+            if (await IsUserNameInUse(userName, excludeUserId))
                 throw new DomainValidationException(PhoneNoInUseMessage);
 
             return userName;
         }
 
         /// <summary>
-        /// Finner brukere (også inaktive) med brukernavn som normalisert er lik <paramref name="normalizedUserName"/>.
-        /// Eldre data kan ha brukernavn i andre formater (f.eks. "+47 ..."), så begge sider normaliseres med
-        /// samme funksjon. Brukertabellen er liten, så det er greit å hente alle brukernavnene.
+        /// Om en annen bruker (også inaktiv) har brukernavnet. Lagrede brukernavn er normalisert
+        /// (eldre data normaliseres av Script.PreDeployment.sql i databaseprosjektet), så eksakt oppslag holder.
         /// </summary>
-        private async Task<List<(int UserId, bool Inactive)>> FindUsersWithUserName(string normalizedUserName, int? excludeUserId)
-        {
-            var users = await DbContext.Users
-                .AsNoTracking()
-                .Where(u => excludeUserId == null || u.UserId != excludeUserId)
-                .Select(u => new { u.UserId, u.UserName, u.Inactive })
-                .ToListAsync();
+        private Task<bool> IsUserNameInUse(string normalizedUserName, int excludeUserId)
+            => DbContext.Users.WhereUserName(normalizedUserName).AnyAsync(u => u.UserId != excludeUserId);
 
-            return users
-                .Where(u => u.UserName.ToNormalizedUserName() == normalizedUserName)
-                .Select(u => (u.UserId, u.Inactive))
-                .ToList();
+        /// <summary>
+        /// Lagrer, og gjør om brudd på den unike indeksen på <c>Users.UserName</c> til
+        /// <see cref="DomainValidationException"/>. Det skjer når en parallell forespørsel tar nummeret mellom
+        /// sjekken og lagringen. Vi sjekker på nytt i stedet for å tolke leverandørspesifikke feilkoder.
+        /// </summary>
+        private async Task SaveChangesCheckingUserName(string userName, int userId)
+        {
+            try
+            {
+                await DbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                if (await IsUserNameInUse(userName, userId))
+                    throw new DomainValidationException(PhoneNoInUseMessage);
+                throw;
+            }
         }
 
         public async Task<UserResponse> Delete(int id)
@@ -315,6 +320,14 @@ namespace Middagsasen.Planner.Api.Services.Users
             var phoneNumber = (phoneNo ?? "").ToNumericPhoneNo();
             return phoneNumber == 0 ? null : phoneNumber.ToUserName();
         }
+
+        /// <summary>
+        /// Felles oppslag på brukernavn (også inaktive brukere). <paramref name="normalizedUserName"/> må være normalisert
+        /// med <see cref="ToNormalizedUserName"/>. Lagrede brukernavn er normalisert og unike (indeksen
+        /// <c>IX_Users_UserName</c>), så eksakt sammenligning holder og gir høyst én bruker.
+        /// </summary>
+        public static IQueryable<User> WhereUserName(this IQueryable<User> users, string normalizedUserName)
+            => users.Where(u => u.UserName == normalizedUserName);
     }
 
     public enum AuthType

@@ -179,6 +179,7 @@ dotnet run --project src/Middagsasen.Planner.Migration/ -- \
 **Forberedelser før kjøring:**
 - Azure SQL må være tilgjengelig (brannmurregel for din IP)
 - PostgreSQL-skjema må være opprettet FØR kjøring (via EF Core migrations)
+- `Users.UserName` må være normalisert i MSSQL først (pre-deploy-skriptet i databaseprosjektet, se `src/Middagsasen.Planner.Database/README.md`). EF-modellen har en unik indeks på `UserName` (`IX_Users_UserName`, uten filter), som kommer med i PostgreSQL-skjemaet via migrations. Duplikater gjør at innsettingen av `Users` feiler, og unormaliserte brukernavn blir ikke funnet ved innlogging
 - Views (HallOfFame, EventStatuses) må opprettes manuelt i PostgreSQL
 - Stopp applikasjonen mot MSSQL under migrering for å unngå data-drift
 - Anbefalt: ta backup av MSSQL før migrering

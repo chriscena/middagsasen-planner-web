@@ -1,4 +1,4 @@
-create table Users (
+﻿create table Users (
     UserId int not null IDENTITY,
     CONSTRAINT PK_Users PRIMARY key (UserId),
     UserName NVARCHAR(100) not null,
@@ -13,3 +13,8 @@ create table Users (
     Created datetime not null CONSTRAINT DF_Users_Created default GETUTCDATE(),
     Inactive bit not null CONSTRAINT DF_Users_Inactive DEFAULT 0,
 )
+GO
+
+-- Unik også for inaktive brukere, siden de reaktiveres i stedet for å få ny rad.
+-- Eksisterende data normaliseres av Scripts/Script.PreDeployment.sql før indeksen opprettes.
+CREATE UNIQUE INDEX IX_Users_UserName ON Users (UserName)

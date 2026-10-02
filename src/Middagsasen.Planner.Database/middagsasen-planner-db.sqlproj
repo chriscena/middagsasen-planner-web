@@ -10,5 +10,12 @@
   <ItemGroup>
     <Folder Include="Tables" />
     <Folder Include="Views" />
+    <Folder Include="Scripts" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Skriptene i Scripts er ikke en del av databasemodellen. -->
+    <Build Remove="Scripts\**" />
+    <PreDeploy Include="Scripts\Script.PreDeployment.sql" />
+    <None Include="Scripts\FinnBrukernavnKollisjoner.sql" />
   </ItemGroup>
 </Project>
