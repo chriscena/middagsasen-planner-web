@@ -44,7 +44,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
         {
             var user = new User
             {
-                UserName = $"+47{Random.Shared.Next(10000000, 99999999)}",
+                UserName = UniqueName("user"),
                 FirstName = firstName ?? "Test",
                 LastName = lastName ?? "User",
                 Created = DateTime.UtcNow,

@@ -69,9 +69,11 @@ Endre `UseSqlServer(ConnectionString)` til `UseNpgsql(ConnectionString)` i `Crea
 To views brukes via `ToView()` i DbContext. De opprettes IKKE av EF Core `EnsureCreated()`. Vi har to alternativer:
 
 **Alternativ A (anbefalt):** Lag PostgreSQL-kompatible view-definisjoner og kjør dem som del av databaseoppsettet.
-- `GETDATE()` → `NOW()`
+- `GETDATE()` → `NOW()` (men «i dag» i norsk tid, som i HallOfFame: `SYSDATETIMEOFFSET() AT TIME ZONE 'W. Europe Standard Time'` → `now() at time zone 'Europe/Oslo'`)
 - `CAST(... as date)` → `::date`
 - Resten av syntaksen (CTE, COALESCE, CASE WHEN, JOIN) er kompatibel
+
+**Merk – «i dag» i HallOfFame:** Vakttider (`Events`/`EventResources`/`EventResourceUsers.StartTime/EndTime`) lagres som norsk lokal veggklokketid uten tidssone, mens serveren går i UTC. Viewet bruker derfor norsk dato som «i dag»: `EndTime < cast(cast(SYSDATETIMEOFFSET() AT TIME ZONE 'W. Europe Standard Time' as date) as datetime)` (#103). Med `GETDATE()` manglet gårsdagens vakter de første 1–2 timene etter midnatt norsk tid. I PostgreSQL blir ekvivalenten `EndTime < (now() at time zone 'Europe/Oslo')::date` — ikke en direkte oversettelse til `NOW()`.
 
 **Alternativ B:** Omskriv view-logikken til EF Core LINQ-queries i servicen (fjern avhengighet på views helt).
 
