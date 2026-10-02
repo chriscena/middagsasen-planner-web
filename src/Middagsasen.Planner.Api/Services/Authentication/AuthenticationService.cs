@@ -25,16 +25,37 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             return session?.User != null ? Map(session.User) : null;
         }
 
+        /// <summary>
+        /// Sender engangskode på SMS. Finnes ingen bruker med nummeret (normalisert), opprettes en ny.
+        /// </summary>
+        /// <remarks>
+        /// Bare norske numre godtas (se <see cref="UserNameExtensions.ToNormalizedUserName"/>), og SMS-en sendes til
+        /// nummeret som utledes av det normaliserte brukernavnet, så koden går alltid til eieren av brukeren.
+        /// Oppslaget filtrerer ikke på <c>Inactive</c>, så en inaktiv bruker gir aldri en ny rad.
+        /// Oppretter en parallell forespørsel (OTP eller administrator) samme bruker mellom oppslaget og lagringen,
+        /// avviser den unike indeksen på <c>Users.UserName</c> vår rad. Da fortsetter vi med den eksisterende brukeren,
+        /// med samme sjekk mot for mange forespørsler som ellers.
+        /// </remarks>
         public async Task<OtpResponse> GenerateOtpForUser(OtpRequest request)
         {
-            var phoneNumber = request.UserName.ToNumericPhoneNo();
-            if (phoneNumber == 0) return new OtpResponse { Status = OtpStatus.InvalidPhoneNumber };
+            var userName = request.UserName.ToNormalizedUserName();
+            if (userName == null) return new OtpResponse { Status = OtpStatus.InvalidPhoneNumber };
 
-            var userName = phoneNumber.ToUserName();
+            var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync();
 
-            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserName == userName);
+            if (user == null)
+            {
+                var newUser = DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
+                SetOneTimePassword(newUser);
+                if (await DbContext.TrySaveWithUniqueUserName(userName, newUser.UserId))
+                    return await SendOneTimePassword(newUser);
 
-            if (user != null && user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
+                // Brukeren ble opprettet samtidig av en annen forespørsel. Fortsett med den.
+                DbContext.Entry(newUser).State = EntityState.Detached;
+                user = await DbContext.Users.WhereUserName(userName).SingleAsync();
+            }
+
+            if (user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
             {
                 return new OtpResponse
                 {
@@ -42,15 +63,26 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                 };
             }
 
-            user ??= DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
-
-            user.OneTimePassword = CreateOneTimePassword();
-            user.OtpCreated = DateTime.UtcNow;
+            SetOneTimePassword(user);
             await DbContext.SaveChangesAsync();
 
+            return await SendOneTimePassword(user);
+        }
+
+        private void SetOneTimePassword(User user)
+        {
+            user.OneTimePassword = CreateOneTimePassword();
+            user.OtpCreated = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Sender koden til nummeret som utledes av brukerens (normaliserte) brukernavn, ikke til det som ble skrevet inn.
+        /// </summary>
+        private async Task<OtpResponse> SendOneTimePassword(User user)
+        {
             var sms = new SmsMessage
             {
-                ReceiverPhoneNo = phoneNumber,
+                ReceiverPhoneNo = user.UserName.ToSmsPhoneNo(),
                 Body = $"Din engangskode er {user.OneTimePassword}.",
                 SmsNotificationId = Guid.NewGuid(),
             };
@@ -62,12 +94,10 @@ namespace Middagsasen.Planner.Api.Services.Authentication
 
         public async Task<AuthResponse> Authenticate(AuthRequest request)
         {
-            var phoneNumber = request.UserName.ToNumericPhoneNo();
-            if (phoneNumber == 0) return new AuthResponse { Status = AuthStatus.InvalidUsername };
+            var userName = request.UserName.ToNormalizedUserName();
+            if (userName == null) return new AuthResponse { Status = AuthStatus.InvalidUsername };
 
-            var userName = phoneNumber.ToUserName();
-
-            var user = await DbContext.Users.SingleOrDefaultAsync(user => user.UserName == userName && !user.Inactive);
+            var user = await DbContext.Users.WhereUserName(userName).SingleOrDefaultAsync(user => !user.Inactive);
 
             if (user != null)
             {

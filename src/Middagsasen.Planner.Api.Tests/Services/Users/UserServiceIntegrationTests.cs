@@ -162,6 +162,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
 
         private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
 
+        private PlannerDbContext CreateContextWithBeforeSave(Func<Task> beforeSave)
+            => _fixture.CreateContext(new BeforeSaveInterceptor(beforeSave));
+
+        private async Task SeedUserInOtherContext(string phoneNo)
+        {
+            using var otherContext = _fixture.CreateContext();
+            await SeedUserWithPhone(otherContext, phoneNo);
+        }
+
         private static async Task<User> SeedUserWithPhone(PlannerDbContext context, string phoneNo, bool isAdmin = false)
         {
             var user = new User
@@ -284,8 +293,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
             var otherPhoneNo = UniquePhoneNo();
-            // Eldre data: den andre brukeren har nummeret lagret i et annet format.
-            await SeedUserWithPhone(seedContext, $"+47 {otherPhoneNo}");
+            await SeedUserWithPhone(seedContext, otherPhoneNo);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -327,18 +335,31 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         [Fact]
-        public async Task Update_AllowsUnchangedPhoneNo_WhenAnotherUserHasSameNumberInOtherFormat()
+        public async Task Update_AllowsSamePhoneNoInOtherFormat()
         {
             using var seedContext = _fixture.CreateContext();
             var phoneNo = UniquePhoneNo();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
-            await SeedUserWithPhone(seedContext, $"+47 {phoneNo}");
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context).Update(user.UserId, new UserRequest { FirstName = "Endret", PhoneNo = phoneNo });
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { FirstName = "Endret", PhoneNo = $"+47 {phoneNo}" });
 
             Assert.Equal("Endret", result.FirstName);
             Assert.Equal(phoneNo, result.PhoneNo);
+        }
+
+        [Fact]
+        public async Task Update_ThrowsDomainValidation_WhenPhoneNoIsTakenConcurrently()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var newPhoneNo = UniquePhoneNo();
+
+            // En parallell forespørsel tar nummeret mellom sjekken og lagringen.
+            using var context = CreateContextWithBeforeSave(() => SeedUserInOtherContext(newPhoneNo));
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = newPhoneNo }));
+            Assert.Equal(UserService.PhoneNoInUseMessage, ex.Message);
         }
 
         [Fact]
@@ -375,8 +396,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         {
             using var seedContext = _fixture.CreateContext();
             var phoneNo = UniquePhoneNo();
-            // Slettet bruker med nummeret lagret i eldre format.
-            var deleted = await SeedUserWithPhone(seedContext, $"+47 {phoneNo}");
+            var deleted = await SeedUserWithPhone(seedContext, phoneNo);
             deleted.Inactive = true;
             await seedContext.SaveChangesAsync();
 
@@ -385,7 +405,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             {
                 FirstName = "Tilbake",
                 LastName = "Igjen",
-                PhoneNo = phoneNo,
+                PhoneNo = $"+47 {phoneNo}",
                 IsAdmin = true,
                 IsHidden = true,
                 Password = "hemmelig",
@@ -404,23 +424,22 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             Assert.Equal(phoneNo, stored.UserName);
             Assert.NotNull(stored.Salt);
             Assert.True(PasswordHasher.VerifyHash("hemmelig", stored.Salt!, stored.EncryptedPassword!));
-            Assert.Single(verifyContext.Users.Where(u => u.UserName == phoneNo || u.UserName == $"+47 {phoneNo}"));
+            Assert.Single(verifyContext.Users.Where(u => u.UserName == phoneNo));
         }
 
         [Fact]
-        public async Task Create_ThrowsDomainValidation_WhenPhoneNoBelongsToActiveAndInactiveUser()
+        public async Task Create_ThrowsDomainValidation_WhenPhoneNoIsTakenConcurrently()
         {
-            using var seedContext = _fixture.CreateContext();
             var phoneNo = UniquePhoneNo();
-            var deleted = await SeedUserWithPhone(seedContext, $"+47{phoneNo}");
-            deleted.Inactive = true;
-            await SeedUserWithPhone(seedContext, phoneNo);
-            await seedContext.SaveChangesAsync();
 
-            using var context = _fixture.CreateContext();
+            // En parallell forespørsel oppretter brukeren mellom sjekken og lagringen.
+            using var context = CreateContextWithBeforeSave(() => SeedUserInOtherContext(phoneNo));
             var ex = await Assert.ThrowsAsync<DomainValidationException>(
                 () => CreateService(context).Create(new UserRequest { FirstName = "Ny", PhoneNo = phoneNo }));
             Assert.Equal(UserService.PhoneNoInUseMessage, ex.Message);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.Single(verifyContext.Users.Where(u => u.UserName == phoneNo));
         }
 
         [Fact]
@@ -444,6 +463,51 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var ex = await Assert.ThrowsAsync<DomainValidationException>(
                 () => service.Create(new UserRequest { FirstName = "Ny", PhoneNo = "123" }));
             Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
+        }
+
+        [Theory]
+        [InlineData("46{0}")]
+        [InlineData("+46 {0}")]
+        [InlineData("1{0}")]
+        public async Task Create_ThrowsDomainValidation_ForForeignPhoneNo_EvenWhenNorwegianUserWithSameDigitsExists(string format)
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Create(new UserRequest { FirstName = "Ny", PhoneNo = string.Format(format, phoneNo) }));
+            Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task Update_ThrowsDomainValidation_ForForeignPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+46 {phoneNo}" }));
+            Assert.Equal(UserService.PhoneNoInvalidMessage, ex.Message);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.Equal(phoneNo, verifyContext.Users.Single(u => u.UserId == user.UserId).UserName);
+        }
+
+        [Fact]
+        public async Task Update_ChangesInvalidUserName_ToValidPhoneNo()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, $"admin_{Guid.NewGuid():N}");
+            var phoneNo = UniquePhoneNo();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+47 {phoneNo}" });
+
+            Assert.Equal(phoneNo, result.PhoneNo);
         }
 
         [Fact]

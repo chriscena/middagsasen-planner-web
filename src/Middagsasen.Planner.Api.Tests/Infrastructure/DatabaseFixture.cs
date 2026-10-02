@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Middagsasen.Planner.Api.Data;
 using Testcontainers.MsSql;
 
@@ -106,10 +107,11 @@ namespace Middagsasen.Planner.Api.Tests.Infrastructure
             await _container.DisposeAsync();
         }
 
-        public PlannerDbContext CreateContext()
+        public PlannerDbContext CreateContext(params IInterceptor[] interceptors)
         {
             var options = new DbContextOptionsBuilder<PlannerDbContext>()
                 .UseSqlServer(ConnectionString)
+                .AddInterceptors(interceptors)
                 .Options;
             return new PlannerDbContext(options);
         }

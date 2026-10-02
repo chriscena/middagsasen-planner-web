@@ -48,6 +48,8 @@ namespace Middagsasen.Planner.Api.Data
             {
                 entity.HasKey(e => e.UserId);
                 entity.Property(e => e.UserName).HasMaxLength(100);
+                // Unik også for inaktive brukere, siden de reaktiveres i stedet for å få ny rad.
+                entity.HasIndex(e => e.UserName).IsUnique().HasDatabaseName("IX_Users_UserName");
                 entity.Property(e => e.OneTimePassword).HasMaxLength(400);
                 entity.Property(e => e.OtpCreated).HasColumnType("datetime");
                 entity.Property(e => e.OneTimePassword).HasMaxLength(400);
