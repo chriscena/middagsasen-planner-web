@@ -49,7 +49,7 @@
           formatStartEndTime(resource)
         }}</q-item-section></q-item
       >
-      <q-item v-for="shift in createUserList(resource)" :key="shift.id">
+      <q-item v-for="{ key, shift } in createShiftList(resource)" :key="key">
         <q-item-section
           v-if="isAdmin || (isTrainer(resource.resourceType) && isTaken(shift))"
           avatar
@@ -453,6 +453,7 @@ import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { getApiErrorMessage } from "src/shared/apiError";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
+import { createShiftList, type ShiftListItem } from "src/shared/shiftList";
 import type {
   EventResponse,
   MessageRequest,
@@ -469,14 +470,6 @@ import type {
 interface DayTimestamp {
   date: string;
 }
-
-// Ledig plass i vaktlista (fylles opp til minimumStaff).
-interface VacantShift {
-  id: number;
-  user: null;
-  comment: null;
-}
-type ShiftListItem = ShiftResponse | VacantShift;
 
 // Bruker på en vakt under redigering: fra vakta selv, eller valgt i q-select
 // (admin), som har userStore.users (UserResponse) som options.
@@ -558,23 +551,6 @@ const currentUserTrainings = computed(() =>
 );
 
 // Methods
-function createUserList(resource: ResourceResponse): ShiftListItem[] {
-  const list: ShiftListItem[] = [];
-  list.push(...resource.shifts);
-  const neededStaff = resource.minimumStaff - list.length;
-
-  if (neededStaff > 0) {
-    for (let i = 0; i < neededStaff; i += 1) {
-      list.push({
-        id: 0,
-        user: null,
-        comment: null,
-      });
-    }
-  }
-  return list;
-}
-
 function formatTime(isoDateTime: string | null | undefined): string | null {
   if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);

@@ -89,7 +89,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { parseISO, format, isValid, parse } from "date-fns";
+import { parseISO, format, parse } from "date-fns";
 import TimePickerInput from "components/TimePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
@@ -99,6 +99,7 @@ import type {
   ResourceTypeResponse,
 } from "src/types";
 import { newClientKey } from "src/shared/clientKey";
+import { isValidTime } from "src/shared/timeValidation";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
@@ -120,7 +121,7 @@ export interface TemplateFormModel {
 const emit = defineEmits<{
   cancel: [];
   save: [value: TemplateFormModel];
-  delete: [value: TemplateFormModel];
+  delete: [value: Pick<TemplateFormModel, "id">];
 }>();
 
 const props = withDefaults(
@@ -158,12 +159,13 @@ onMounted(async () => {
 const name = ref<string | null>(null);
 const eventName = ref<string | null>(null);
 
-// parse(null) og parse("") gir begge Invalid Date.
-const isValidStartTime = computed(() =>
-  isValid(parse(startTime.value ?? "", "HH:mm", new Date()))
-);
-const isValidEndTime = computed(() =>
-  isValid(parse(endTime.value ?? "", "HH:mm", new Date()))
+const isValidStartTime = computed(() => isValidTime(startTime.value));
+const isValidEndTime = computed(() => isValidTime(endTime.value));
+// Ugyldige tider (f.eks. «1») ville gitt RangeError i formatDateTime.
+const hasValidResourceTimes = computed(() =>
+  resources.value.every(
+    (r) => isValidTime(r.startTime) && isValidTime(r.endTime)
+  )
 );
 
 function toDateTime(time: string | null) {
@@ -180,9 +182,10 @@ const canSave = computed(() => {
   return !!(
     name.value &&
     eventName.value &&
-    startTime.value &&
-    endTime.value &&
-    resources.value.length
+    isValidStartTime.value &&
+    isValidEndTime.value &&
+    resources.value.length &&
+    hasValidResourceTimes.value
   );
 });
 
@@ -192,6 +195,9 @@ function formatTime(isoDateTime: string | Date) {
 }
 
 async function saveTemplate() {
+  // Lagre-knappen er deaktivert uten canSave; sjekken her er et ekstra vern
+  // mot RangeError i mapToModel.
+  if (!canSave.value) return;
   const model = mapToModel();
   emit("save", model);
 }
@@ -226,9 +232,9 @@ function confirmDeleteEvent() {
 }
 
 function deleteTemplate() {
-  const model = mapToModel();
+  // Sletting trenger kun id, så ugyldige tider i skjemaet stopper den ikke.
   showingDelete.value = false;
-  emit("delete", model);
+  emit("delete", { id: props.modelValue.id });
 }
 
 function formatDateTime(date: Date) {

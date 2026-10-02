@@ -124,13 +124,15 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEvent(EventRequest request)
         {
+            var eventStart = DateTime.Parse(request.StartTime);
+            var eventEnd = ResourceTimes.NormalizeEventEnd(eventStart, DateTime.Parse(request.EndTime));
             var newEvent = new Event
             {
                 Name = request.Name,
                 Description = request.Description,
-                StartTime = DateTime.Parse(request.StartTime),
-                EndTime = DateTime.Parse(request.EndTime),
-                Resources = request.Resources.Select(Map).ToList(),
+                StartTime = eventStart,
+                EndTime = eventEnd,
+                Resources = request.Resources.Select(r => Map(r, eventStart, eventEnd)).ToList(),
             };
 
             DbContext.Events.Add(newEvent);
@@ -147,8 +149,10 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             existingEvent.Name = request.Name;
             existingEvent.Description = request.Description;
-            existingEvent.StartTime = DateTime.Parse(request.StartTime);
-            existingEvent.EndTime = DateTime.Parse(request.EndTime);
+            var eventStart = DateTime.Parse(request.StartTime);
+            var eventEnd = ResourceTimes.NormalizeEventEnd(eventStart, DateTime.Parse(request.EndTime));
+            existingEvent.StartTime = eventStart;
+            existingEvent.EndTime = eventEnd;
 
             foreach (var resource in request.Resources)
             {
@@ -160,15 +164,14 @@ namespace Middagsasen.Planner.Api.Services.Events
                 }
                 else if (!resource.Id.HasValue)
                 {
-                    existingEvent.Resources.Add(Map(resource));
+                    existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
                 }
                 else
                 {
                     var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
                     if (resourceToUpdate == null) continue;
                     resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
-                    resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
+                    (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
                     resourceToUpdate.MinimumStaff = resource.MinimumStaff;
                 }
             }
@@ -357,8 +360,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 ?? throw new EntityNotFoundException();
 
             var startTime = startDate.Date + template.StartTime.TimeOfDay;
-            var endTime = startDate.Date + template.EndTime.TimeOfDay;
-            if (startTime > endTime) endTime = endTime.AddDays(1);
+            var endTime = ResourceTimes.NormalizeEventEnd(startTime, startDate.Date + template.EndTime.TimeOfDay);
 
             var newEvent = new Event
             {
@@ -367,9 +369,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 EndTime = endTime,
                 Resources = template.ResourceTemplates.Select(r =>
                 {
-                    var resourceStartTime = startDate.Date + r.StartTime.TimeOfDay;
-                    var resourceEndTime = startDate.Date + r.EndTime.TimeOfDay;
-                    if (resourceStartTime > resourceEndTime) resourceEndTime = resourceEndTime.AddDays(1);
+                    var (resourceStartTime, resourceEndTime) = ResourceTimes.Place(startTime, endTime, r.StartTime.TimeOfDay, r.EndTime.TimeOfDay);
                     return new EventResource
                     {
                         ResourceTypeId = r.ResourceTypeId,
@@ -521,13 +521,20 @@ namespace Middagsasen.Planner.Api.Services.Events
             Trainings = user.Trainings?.Select(Map).ToList(),
         };
 
-        private EventResource Map(ResourceRequest request)
+        /// <summary>
+        /// Bruker kun klokkeslettet fra innsendte ressurstider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
+        /// </summary>
+        private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
+            ResourceTimes.Place(eventStart, eventEnd, DateTime.Parse(request.StartTime).TimeOfDay, DateTime.Parse(request.EndTime).TimeOfDay);
+
+        private EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
         {
+            var (start, end) = PlaceResource(request, eventStart, eventEnd);
             var resource = new EventResource
             {
                 ResourceTypeId = request.ResourceTypeId,
-                StartTime = DateTime.Parse(request.StartTime),
-                EndTime = DateTime.Parse(request.EndTime),
+                StartTime = start,
+                EndTime = end,
                 MinimumStaff = request.MinimumStaff,
             };
             if (request.Id.HasValue)

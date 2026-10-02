@@ -147,7 +147,9 @@ import DatePickerInput from "components/DatePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { EventRequest } from "src/types";
-import { toDateTime, toResourceStartDateTime } from "src/shared/eventDateTime";
+import { toDateTime } from "src/shared/eventDateTime";
+import { toResourceDateTimes } from "src/shared/timeValidation";
+import { getApiErrorMessage } from "src/shared/apiError";
 import { newClientKey } from "src/shared/clientKey";
 
 const emit = defineEmits<{
@@ -260,6 +262,20 @@ function formatDate(isoDateTime: string | Date) {
 }
 
 async function saveEvent() {
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i formatDateTime.
+  const resourceTimes = resources.value.map((r) =>
+    toResourceDateTimes(startDate.value, r.startTime, r.endTime)
+  );
+  const invalidIndex = resourceTimes.findIndex((t) => t === null);
+  if (invalidIndex >= 0) {
+    const invalid = resources.value[invalidIndex];
+    $q.notify({
+      message: `Vakta «${
+        invalid?.resourceType?.name ?? ""
+      }» har ugyldig start- eller sluttid.`,
+    });
+    return;
+  }
   try {
     loading.value = true;
     const model: EventRequest = {
@@ -268,20 +284,15 @@ async function saveEvent() {
       description: description.value ?? null,
       startTime: formatDateTime(startDateTime.value),
       endTime: formatDateTime(endDateTime.value),
-      resources: resources.value.map((r) => {
-        const resourceStart = toResourceStartDateTime(
-          startDate.value,
-          r.startTime,
-          startDateTime.value
-        );
+      resources: resources.value.map((r, i) => {
+        // Validert over: ingen er null.
+        const times = resourceTimes[i]!;
         return {
           id: r.id ?? null,
           // ResourceForm krever vakttype før lagring (canAdd).
           resourceTypeId: r.resourceType!.id,
-          startTime: formatDateTime(resourceStart),
-          endTime: formatDateTime(
-            toDateTime(startDate.value, r.endTime, resourceStart)
-          ),
+          startTime: formatDateTime(times.start),
+          endTime: formatDateTime(times.end),
           // q-input type="number" kan gi string; Number() sender et tall.
           minimumStaff: Number(r.minimumStaff),
           // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
@@ -301,7 +312,11 @@ async function saveEvent() {
       });
     }
     emit("saved", model);
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å lagre vaktlista."),
+    });
   } finally {
     loading.value = false;
   }
@@ -322,7 +337,11 @@ async function deleteEvent() {
     await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
     emit("deleted");
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette vaktlista."),
+    });
   } finally {
     loading.value = false;
   }

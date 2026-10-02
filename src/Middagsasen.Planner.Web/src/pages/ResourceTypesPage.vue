@@ -102,7 +102,7 @@
             <q-list role="list" separator>
               <q-item
                 v-for="trainer in visibleTrainers"
-                :key="trainerKey(trainer)"
+                :key="trainer.clientKey"
               >
                 <q-item-section>{{ trainer.fullName }}</q-item-section>
                 <q-item-section side
@@ -338,7 +338,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, toRaw } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
@@ -346,34 +346,21 @@ import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import { getApiErrorMessage } from "src/shared/apiError";
+import {
+  newEditableTrainer,
+  toEditableResourceType,
+  toResourceTypeRequest,
+  type EditableResourceType,
+  type EditableTrainer,
+} from "src/shared/resourceTypeForm";
 import { computed } from "vue";
 import type {
   CompetencyResponse,
   FileInfoResponse,
   ResourceTypeCompetencyResponse,
-  ResourceTypeRequest,
   ResourceTypeResponse,
-  ResourceTypeTrainerResponse,
   UserResponse,
 } from "src/types";
-
-// Trener i skjemaet: fra ResourceTypeResponse, evt. markert som slettet.
-// Nye trenere (id 0) får fullName fra UserResponse, der den er valgfri.
-type EditableTrainer = Omit<ResourceTypeTrainerResponse, "fullName"> & {
-  fullName?: null | string | undefined;
-  isDeleted?: boolean;
-};
-
-// Skjemamodell: enten en ny vakttype (emptyResource, uten id/navn/filer) eller
-// en kopi av en ResourceTypeResponse.
-interface EditableResourceType {
-  id: number | null;
-  name: string | null;
-  defaultStaff: number;
-  notificationMessage?: null | string;
-  trainers: EditableTrainer[];
-  files?: FileInfoResponse[];
-}
 
 interface FileForm {
   file: File | null;
@@ -411,10 +398,6 @@ const availableTrainerUsers = computed(() => {
   return userStore.users.filter((u) => !trainerUserIds.includes(u.id));
 });
 
-// Nye trenere har id 0, så nøkkelen bygges av userId for dem.
-function trainerKey(trainer: EditableTrainer): string {
-  return trainer.id ? `id-${trainer.id}` : `user-${trainer.userId}`;
-}
 const visibleTrainers = computed(() =>
   // Evalueres kun fra redigeringsdialogen, når selectedResource er satt.
   selectedResource.value!.trainers.filter((t) => !t.isDeleted)
@@ -431,9 +414,9 @@ function newResourceType() {
 }
 
 async function editResourceType(resourceType: ResourceTypeResponse) {
-  // Dyp kopi (rene data fra API-et), så en avbrutt dialog ikke endrer
-  // trenere/filer i store-staten.
-  selectedResource.value = structuredClone(toRaw(resourceType));
+  // Kopi på alle nivåer, så en avbrutt dialog ikke endrer trenere/filer i
+  // store-staten.
+  selectedResource.value = toEditableResourceType(resourceType);
   competencyRequirements.value = [];
   selectedCompetency.value = null;
   showingEdit.value = true;
@@ -444,19 +427,13 @@ async function saveResource() {
   try {
     // Kalles kun fra redigeringsdialogen, så selectedResource er satt.
     const resource = selectedResource.value!;
-    // Hele skjemamodellen sendes som request (som i JS-versjonen), inkl.
-    // ekstra felt; name kan være null og trenere fra responsen mangler
-    // isDeleted (backend validerer/bruker default).
+    const request = toResourceTypeRequest(resource);
     let resourceTypeId: number | undefined;
     if (resource.id) {
-      await eventStore.updateResourceType(
-        resource as ResourceTypeRequest & { id: number }
-      );
+      await eventStore.updateResourceType({ ...request, id: resource.id });
       resourceTypeId = resource.id;
     } else {
-      const created = await eventStore.createResourceType(
-        resource as ResourceTypeRequest
-      );
+      const created = await eventStore.createResourceType(request);
       resourceTypeId = created?.id;
     }
     if (resourceTypeId) {
@@ -519,13 +496,7 @@ function addTrainer() {
   // Knappen er deaktivert til en bruker er valgt (canAddTrainer), og
   // dialogen ligger i redigeringsdialogen.
   const selectedUser = user.value!;
-  selectedResource.value!.trainers.push({
-    isDeleted: false,
-    id: 0,
-    userId: selectedUser.id,
-    fullName: selectedUser.fullName,
-    phoneNo: selectedUser.phoneNo,
-  });
+  selectedResource.value!.trainers.push(newEditableTrainer(selectedUser));
   user.value = null;
   showingAddTrainer.value = false;
 }

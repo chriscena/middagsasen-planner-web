@@ -53,9 +53,9 @@
           <q-item-label caption lines="1">{{ user.phoneNo }}</q-item-label>
         </q-item-section>
         <q-item-section side v-if="getApprovedHours(user.id) > 0">
-          <q-item-label class="text-weight-medium"
-            >{{ formatNumber(getApprovedHours(user.id)) }} t</q-item-label
-          >
+          <q-item-label class="text-weight-medium">{{
+            formatHours(getApprovedHours(user.id))
+          }}</q-item-label>
         </q-item-section>
       </q-item>
     </q-list>
@@ -124,7 +124,12 @@
         <!-- Competency section (only for existing users) -->
         <q-card-section v-if="selectedUser.id">
           <div class="text-subtitle2 q-mb-sm">Kompetanser</div>
-          <q-spinner v-if="loadingUserCompetencies" size="1.5em" color="primary" class="q-mb-sm"></q-spinner>
+          <q-spinner
+            v-if="loadingUserCompetencies"
+            size="1.5em"
+            color="primary"
+            class="q-mb-sm"
+          ></q-spinner>
           <q-list dense separator v-if="editUserCompetencies.length > 0">
             <q-item v-for="uc in editUserCompetencies" :key="uc.id">
               <q-item-section>
@@ -174,7 +179,10 @@
               </q-item-section>
             </q-item>
           </q-list>
-          <div v-else-if="!loadingUserCompetencies" class="text-caption text-grey q-mb-sm">
+          <div
+            v-else-if="!loadingUserCompetencies"
+            class="text-caption text-grey q-mb-sm"
+          >
             Ingen kompetanser registrert
           </div>
           <div class="row items-center q-gutter-sm q-mt-sm">
@@ -229,7 +237,7 @@ import { useQuasar, date as dateUtil } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
-import { formatNumber } from "src/shared/formatter";
+import { formatHours } from "src/shared/formatter";
 import { getApiErrorMessage } from "src/shared/apiError";
 import type { UserCompetencyResponse, UserResponse } from "src/types";
 
@@ -348,7 +356,12 @@ async function approveCompetency(uc: UserCompetencyResponse): Promise<void> {
         type: "date",
       },
       cancel: { label: "Avbryt", flat: true, noCaps: true },
-      ok: { label: "Godkjenn", noCaps: true, color: "primary", unelevated: true },
+      ok: {
+        label: "Godkjenn",
+        noCaps: true,
+        color: "primary",
+        unelevated: true,
+      },
       persistent: true,
     }).onOk(async (expiryDate: string) => {
       await doApprove(uc, expiryDate || null);
@@ -371,7 +384,10 @@ async function doApprove(
     $q.notify({ message: "Kompetanse godkjent" });
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å godkjenne kompetanse", color: "negative" });
+    $q.notify({
+      message: "Klarte ikke å godkjenne kompetanse",
+      color: "negative",
+    });
   } finally {
     approvingId.value = null;
   }
@@ -385,7 +401,10 @@ async function revokeCompetency(uc: UserCompetencyResponse): Promise<void> {
     $q.notify({ message: "Kompetanse trukket tilbake" });
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å trekke tilbake kompetanse", color: "negative" });
+    $q.notify({
+      message: "Klarte ikke å trekke tilbake kompetanse",
+      color: "negative",
+    });
   } finally {
     revokingId.value = null;
   }
@@ -404,7 +423,10 @@ async function adminAddCompetency(): Promise<void> {
     $q.notify({ message: "Kompetanse lagt til" });
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å legge til kompetanse", color: "negative" });
+    $q.notify({
+      message: "Klarte ikke å legge til kompetanse",
+      color: "negative",
+    });
   } finally {
     adminAddingCompetency.value = false;
   }

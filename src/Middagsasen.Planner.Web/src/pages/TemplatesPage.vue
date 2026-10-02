@@ -85,6 +85,7 @@ import type {
   TemplateFormValue,
 } from "components/TemplateForm.vue";
 import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
+import { getApiErrorMessage } from "src/shared/apiError";
 
 const emit = defineEmits<{
   "toggle-right": [];
@@ -154,16 +155,17 @@ async function saveTemplate(model: TemplateFormModel) {
       });
     }
     showingEditDialog.value = false;
-  } catch {
+  } catch (error) {
+    console.log(error);
     $q.notify({
-      message: "Klarte ikke å lagre.",
+      message: getApiErrorMessage(error, "Klarte ikke å lagre."),
     });
   } finally {
     savingTemplate.value = false;
   }
 }
 
-async function deleteTemplate(model: TemplateFormModel) {
+async function deleteTemplate(model: Pick<TemplateFormModel, "id">) {
   try {
     savingTemplate.value = true;
     await eventStore.deleteTemplate(model);
@@ -171,7 +173,11 @@ async function deleteTemplate(model: TemplateFormModel) {
       message: "Malen er slettet.",
     });
     showingEditDialog.value = false;
-  } catch {
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å slette malen."),
+    });
   } finally {
     savingTemplate.value = false;
   }

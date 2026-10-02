@@ -690,6 +690,124 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #endregion
 
+        #region Ressurstider over midnatt
+
+        [Fact]
+        public async Task CreateEventFromTemplate_PlacesResourcesNearestEvent_OverMidnight()
+        {
+            // Arrange — nattmal 22:00–06:00 med vakter 21:30–06:30 og 01:00–03:00
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+            var template = new EventTemplate
+            {
+                Name = UniqueName("NightTemplate"),
+                EventName = UniqueName("Night"),
+                StartTime = new DateTime(2000, 1, 1, 22, 0, 0),
+                EndTime = new DateTime(2000, 1, 1, 6, 0, 0),
+                ResourceTemplates = new List<ResourceTemplate>
+                {
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 21, 30, 0), EndTime = new DateTime(2000, 1, 1, 6, 30, 0), MinimumStaff = 1 },
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 1, 0, 0), EndTime = new DateTime(2000, 1, 1, 3, 0, 0), MinimumStaff = 2 },
+                }
+            };
+            seedContext.EventTemplates.Add(template);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act — nyttårsaften
+            var result = await service.CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = "2026-12-31" });
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events
+                .Include(e => e.Resources)
+                .AsNoTracking()
+                .SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(new DateTime(2026, 12, 31, 22, 0, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2027, 1, 1, 6, 0, 0), dbEvent.EndTime);
+
+            var night = dbEvent.Resources.Single(r => r.MinimumStaff == 1);
+            Assert.Equal(new DateTime(2026, 12, 31, 21, 30, 0), night.StartTime);
+            Assert.Equal(new DateTime(2027, 1, 1, 6, 30, 0), night.EndTime);
+
+            var afterMidnight = dbEvent.Resources.Single(r => r.MinimumStaff == 2);
+            Assert.Equal(new DateTime(2027, 1, 1, 1, 0, 0), afterMidnight.StartTime);
+            Assert.Equal(new DateTime(2027, 1, 1, 3, 0, 0), afterMidnight.EndTime);
+        }
+
+        [Fact]
+        public async Task CreateEvent_PlacesResourcesNearestEvent_IgnoringSubmittedDate()
+        {
+            // Arrange — vaktliste 22:00–06:00 der alle tider sendes med vaktlistedatoen
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var request = new EventRequest
+            {
+                Name = UniqueName("Night"),
+                StartTime = "2026-01-15T22:00:00",
+                EndTime = "2026-01-15T06:00:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = "2026-01-15T01:00:00", EndTime = "2026-01-15T03:00:00", MinimumStaff = 1 },
+                }
+            };
+
+            // Act
+            var result = await service.CreateEvent(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events
+                .Include(e => e.Resources)
+                .AsNoTracking()
+                .SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(new DateTime(2026, 1, 16, 6, 0, 0), dbEvent.EndTime);
+            var resource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 16, 1, 0, 0), resource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 3, 0, 0), resource.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_PlacesExistingResourceNearestEvent_OverMidnight()
+        {
+            // Arrange — eksisterende vaktliste 08:00–16:00 flyttes til natt
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            var request = new EventRequest
+            {
+                Name = evt.Name,
+                StartTime = "2026-01-15T22:00:00",
+                EndTime = "2026-01-16T06:00:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-15T23:45:00", EndTime = "2026-01-15T02:00:00", MinimumStaff = 2 },
+                }
+            };
+
+            // Act
+            await service.UpdateEvent(evt.EventId, request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbResource = await verifyContext.EventResource
+                .AsNoTracking()
+                .SingleAsync(r => r.EventResourceId == resource.EventResourceId);
+            Assert.Equal(new DateTime(2026, 1, 15, 23, 45, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 2, 0, 0), dbResource.EndTime);
+        }
+
+        #endregion
+
         #region MinimumStaff
 
         [Fact]

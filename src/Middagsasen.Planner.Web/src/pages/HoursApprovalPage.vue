@@ -100,9 +100,9 @@
                 label="Ubehandlet"
                 :val="3"
                 @update:model-value="(val) => setFilter({ approved: val })"
-                ><q-badge class="q-ml-xs" v-show="pendingHours > 0"
-                  >{{ formatNumber(pendingHours) }} t</q-badge
-                ></q-radio
+                ><q-badge class="q-ml-xs" v-show="pendingHours > 0">{{
+                  formatHours(pendingHours)
+                }}</q-badge></q-radio
               >
               <div class="text-caption text-grey-7 q-pl-lg">
                 Gjelder alle sesonger
@@ -119,7 +119,7 @@
                 color="positive"
                 class="q-ml-xs"
                 v-show="approvedHours > 0"
-                >{{ formatNumber(approvedHours) }} t</q-badge
+                >{{ formatHours(approvedHours) }}</q-badge
               ></q-radio
             >
             <q-radio
@@ -133,7 +133,7 @@
                 color="warning"
                 class="q-ml-xs"
                 v-show="rejectedHours > 0"
-                >{{ formatNumber(rejectedHours) }} t</q-badge
+                >{{ formatHours(rejectedHours) }}</q-badge
               ></q-radio
             >
           </div>
