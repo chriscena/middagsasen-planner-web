@@ -52,7 +52,7 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
 import { useWeatherStore } from "src/stores/WeatherStore";
 import {
@@ -65,6 +65,7 @@ import {
   Title,
   Tooltip,
 } from "chart.js";
+import type { ChartData, ChartOptions, Point } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { Line } from "vue-chartjs";
 
@@ -79,22 +80,42 @@ ChartJS.register(
   Tooltip
 );
 
-var weatherStore = useWeatherStore();
+const weatherStore = useWeatherStore();
 
-const locations = computed(() =>
+interface MeasurementViewModel {
+  measurementName: string;
+  measurementUnit: unknown;
+  data: ChartData<"line", (number | Point | null)[]>;
+  options: ChartOptions<"line">;
+}
+
+interface LocationViewModel {
+  locationName: string;
+  measurements: MeasurementViewModel[];
+}
+
+const locations = computed((): LocationViewModel[] =>
   weatherStore.locations.map((l) => {
     return {
       locationName: l.locationName,
       measurements: l.measurements.map((m) => {
         return {
           measurementName: m.measurementName,
+          // OBS (#82): feltet heter `unit` i MeasurementResponse, så dette er
+          // alltid undefined. measurementUnit brukes ikke i malen.
+          // @ts-expect-error measurementUnit finnes ikke på MeasurementResponse (se OBS over).
           measurementUnit: m.measurementUnit,
           data: {
             datasets: [
               {
                 //label: m.measurementName,
                 data: m.values.map((v) => {
-                  return { y: v.value, x: new Date(v.measuredTime) };
+                  // Tidsskalaen godtar Date som x, men Chart.js' Point-type
+                  // krever number.
+                  return {
+                    y: v.value,
+                    x: new Date(v.measuredTime),
+                  } as unknown as Point;
                 }),
               },
             ],
@@ -126,10 +147,12 @@ const locations = computed(() =>
               },
               title: {
                 display: true,
-                text: `${m.measurementName}: ${m.lastValue.value} ${
+                // lastValue er nullable i typen, men WeatherService setter den
+                // alltid (values.Last() på en ikke-tom gruppe).
+                text: `${m.measurementName}: ${m.lastValue!.value} ${
                   m.unit
                 } kl. ${new Date(
-                  m.lastValue.measuredTime
+                  m.lastValue!.measuredTime
                 ).toLocaleTimeString()}`,
               },
               // subtitle: {
@@ -146,7 +169,7 @@ const locations = computed(() =>
   })
 );
 
-async function getWeatherData() {
+async function getWeatherData(): Promise<void> {
   try {
     loading.value = true;
     await weatherStore.getLocations();

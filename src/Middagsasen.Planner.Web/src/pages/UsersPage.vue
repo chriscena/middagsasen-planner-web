@@ -113,7 +113,7 @@
           <q-checkbox
             label="Administrator"
             v-model="selectedUser.isAdmin"
-            :disable="currentUser.id === selectedUser.id"
+            :disable="currentUser?.id === selectedUser.id"
           ></q-checkbox
           ><q-checkbox
             label="Skjul fra telefonlista"
@@ -223,7 +223,7 @@
   </q-page>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar, date as dateUtil } from "quasar";
 import { useUserStore } from "stores/UserStore";
@@ -231,8 +231,20 @@ import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter";
+import type { UserCompetencyResponse, UserResponse } from "src/types";
 
-const emit = defineEmits(["toggle-right"]);
+// Skjemaet i redigeringsdialogen. Ved redigering er det en kopi av
+// UserResponse (inkl. øvrige felt), ved ny bruker er id null.
+interface UserForm {
+  id: number | null;
+  phoneNo: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  isAdmin: boolean;
+  isHidden: boolean;
+}
+
+const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
 const $q = useQuasar();
 const router = useRouter();
@@ -240,19 +252,20 @@ const userStore = useUserStore();
 const authStore = useAuthStore();
 const competencyStore = useCompetencyStore();
 
-const filter = ref(null);
+const filter = ref<string | null>(null);
 
 const currentUser = computed(() => authStore.user);
 
-const users = computed(() =>
-  !!filter.value
+const users = computed((): UserResponse[] => {
+  const filterValue = filter.value;
+  return !!filterValue
     ? userStore.users.filter(
         (p) =>
           !!p.fullName &&
-          p.fullName.toLowerCase().indexOf(filter.value.toLowerCase()) >= 0
+          p.fullName.toLowerCase().indexOf(filterValue.toLowerCase()) >= 0
       )
-    : userStore.users
-);
+    : userStore.users;
+});
 onMounted(async () => {
   try {
     loading.value = true;
@@ -263,13 +276,15 @@ onMounted(async () => {
   }
 });
 
-function getApprovedHours(userId) {
+function getApprovedHours(userId: number): number {
   const sum = userStore.workHourSums.find((s) => s.userId === userId);
   return sum ? sum.approvedHours : 0;
 }
 
-const selectedUser = ref(null);
-function emptyUser() {
+// Startverdi emptyUser() i stedet for null slik at malen slipper null-sjekk;
+// dialogen er lukket til editUser/newUser setter en ny verdi.
+const selectedUser = ref<UserForm>(emptyUser());
+function emptyUser(): UserForm {
   return {
     id: null,
     phoneNo: null,
@@ -284,12 +299,12 @@ const showingEditDialog = ref(false);
 
 // Competency management
 const loadingUserCompetencies = ref(false);
-const adminSelectedCompetencyId = ref(null);
+const adminSelectedCompetencyId = ref<number | null>(null);
 const adminAddingCompetency = ref(false);
-const approvingId = ref(null);
-const revokingId = ref(null);
+const approvingId = ref<number | null>(null);
+const revokingId = ref<number | null>(null);
 
-const editUserCompetencies = computed(() => {
+const editUserCompetencies = computed((): UserCompetencyResponse[] => {
   const userId = selectedUser.value?.id;
   if (!userId) return [];
   return competencyStore.userCompetencies[userId] || [];
@@ -300,12 +315,12 @@ const adminAvailableCompetencies = computed(() => {
   return competencyStore.competencies.filter((c) => !existing.includes(c.id));
 });
 
-function formatCompetencyDate(dateStr) {
+function formatCompetencyDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
   return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
 }
 
-async function loadUserCompetencies(userId) {
+async function loadUserCompetencies(userId: number): Promise<void> {
   try {
     loadingUserCompetencies.value = true;
     await Promise.all([
@@ -319,11 +334,11 @@ async function loadUserCompetencies(userId) {
   }
 }
 
-function findCompetencyDef(competencyId) {
+function findCompetencyDef(competencyId: number) {
   return competencyStore.competencies.find((c) => c.id === competencyId);
 }
 
-async function approveCompetency(uc) {
+async function approveCompetency(uc: UserCompetencyResponse): Promise<void> {
   const competencyDef = findCompetencyDef(uc.competencyId);
   if (competencyDef && competencyDef.hasExpiry) {
     $q.dialog({
@@ -336,7 +351,7 @@ async function approveCompetency(uc) {
       cancel: { label: "Avbryt", flat: true, noCaps: true },
       ok: { label: "Godkjenn", noCaps: true, color: "primary", unelevated: true },
       persistent: true,
-    }).onOk(async (expiryDate) => {
+    }).onOk(async (expiryDate: string) => {
       await doApprove(uc, expiryDate || null);
     });
   } else {
@@ -344,11 +359,16 @@ async function approveCompetency(uc) {
   }
 }
 
-async function doApprove(uc, expiryDate) {
+// Kompetanse-seksjonen vises kun for eksisterende brukere, så
+// selectedUser.value.id er satt i funksjonene under (derav `!`).
+async function doApprove(
+  uc: UserCompetencyResponse,
+  expiryDate: string | null
+): Promise<void> {
   try {
     approvingId.value = uc.id;
     await competencyStore.approveUserCompetency(uc.id, { expiryDate });
-    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse godkjent" });
   } catch (error) {
     console.log(error);
@@ -358,11 +378,11 @@ async function doApprove(uc, expiryDate) {
   }
 }
 
-async function revokeCompetency(uc) {
+async function revokeCompetency(uc: UserCompetencyResponse): Promise<void> {
   try {
     revokingId.value = uc.id;
     await competencyStore.revokeUserCompetency(uc.id);
-    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse trukket tilbake" });
   } catch (error) {
     console.log(error);
@@ -372,16 +392,16 @@ async function revokeCompetency(uc) {
   }
 }
 
-async function adminAddCompetency() {
+async function adminAddCompetency(): Promise<void> {
   if (!adminSelectedCompetencyId.value) return;
   try {
     adminAddingCompetency.value = true;
     await competencyStore.addUserCompetency({
-      userId: selectedUser.value.id,
+      userId: selectedUser.value.id!,
       competencyId: adminSelectedCompetencyId.value,
     });
     adminSelectedCompetencyId.value = null;
-    await competencyStore.getUserCompetencies(selectedUser.value.id);
+    await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse lagt til" });
   } catch (error) {
     console.log(error);
@@ -391,7 +411,7 @@ async function adminAddCompetency() {
   }
 }
 
-function editUser(user) {
+function editUser(user: UserResponse): void {
   selectedUser.value = { ...user };
   adminSelectedCompetencyId.value = null;
   showingEditDialog.value = true;
@@ -400,17 +420,20 @@ function editUser(user) {
   }
 }
 
-function newUser() {
+function newUser(): void {
   selectedUser.value = emptyUser();
   showingEditDialog.value = true;
 }
 
 const saving = ref(false);
-async function saveUser() {
+async function saveUser(): Promise<void> {
   try {
     saving.value = true;
     if (selectedUser.value.id) {
-      await userStore.updateUser(selectedUser.value);
+      await userStore.updateUser({
+        ...selectedUser.value,
+        id: selectedUser.value.id,
+      });
     } else {
       await userStore.createUser(selectedUser.value);
     }
@@ -419,19 +442,22 @@ async function saveUser() {
   } catch (error) {
     $q.notify({ message: "Klarte ikke å lagre bruker" });
   } finally {
+    // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).
     saving.value = true;
   }
 }
 
-async function deleteUser() {
+async function deleteUser(): Promise<void> {
   try {
     saving.value = true;
-    await userStore.deleteUser(selectedUser.value);
+    // Slett-knappen vises kun når id er satt. Storen leser kun id.
+    await userStore.deleteUser({ id: selectedUser.value.id! });
     $q.notify({ message: "Bruker slettet" });
     showingEditDialog.value = false;
   } catch (error) {
     $q.notify({ message: "Klarte ikke å slette bruker" });
   } finally {
+    // OBS (#82): skal trolig være false (saving brukes ikke i malen i dag).
     saving.value = true;
   }
 }
