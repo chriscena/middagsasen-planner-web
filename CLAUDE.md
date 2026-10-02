@@ -4,29 +4,34 @@ Vaktplanleggingssystem for skianlegget Middagsåsen. Domene: event/vakt-planlegg
 
 ## Tech stack
 
-- **Frontend:** Vue 3 + Pinia + Quasar 2 (Vite), vue-router 4, axios, vuelidate, chart.js, vue-i18n
-- **Backend:** ASP.NET Core 8.0 Web API, EF Core, JWT-autentisering (custom middleware), Argon2 passord-hashing, Serilog, Swagger
+- **Frontend:** TypeScript (strict), Vue 3 + Pinia + Quasar 2 (Vite), vue-router 4, axios, vuelidate, chart.js, vue-i18n
+- **Backend:** ASP.NET Core 10 Web API, EF Core 10, JWT-autentisering (custom middleware), Argon2 passord-hashing, Serilog, innebygd OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Swagger UI
 - **Database:** MSSQL (SQL Azure), 20 tabeller + 2 views, SQL Server Database Project
 - **Infrastruktur:** Azure (App Insights, Blob Storage), SMS-integrasjon
-- **Test:** xUnit + Moq (backend), Vitest (frontend)
+- **Test:** xUnit + NSubstitute + Testcontainers (MSSQL) (backend), Vitest (frontend)
 
 ## Prosjektstruktur
 
 ```
+Directory.Packages.props            # Sentrale NuGet-versjoner (Central Package Management)
+global.json                         # Låser .NET SDK 10
 docs/                                # Design- og planleggingsdokumenter
 src/
-  Middagsasen.Planner.Api/          # .NET 8 Web API
-    Controllers/                     # 9 controllers (Auth, Events, Competencies, etc.)
-    Entities/                        # 30+ entity-klasser + PlannerDbContext
+  Middagsasen.Planner.Api/          # .NET 10 Web API
+    Controllers/                     # 10 controllers (Auth, Events, Competencies, etc.)
+    Data/                            # Entity-klasser + PlannerDbContext
     Services/                        # Domene-organisert (Authentication, Competencies, Events, etc.)
     Authentication/                  # JwtMiddleware, AuthorizeAttribute
+    Core/OpenApi/                    # OpenAPI-transformere (required, tall, Bearer)
+    openapi/openapi.json             # Generert ved build — sjekkes inn
   Middagsasen.Planner.Api.Tests/    # xUnit tester
-  Middagsasen.Planner.Database/     # SQL Server Database Project (tabeller, views)
+  Middagsasen.Planner.Database/     # SQL Server Database Project (Microsoft.Build.Sql 2.x)
   Middagsasen.Planner.Migration/    # Konsollapp for datamigrering MSSQL → PostgreSQL
-  Middagsasen.Planner.Web/          # Vue 3/Quasar frontend
-    src/pages/                       # 12 sider
-    src/components/                  # 15 komponenter
-    src/stores/                      # 6 Pinia stores
+  Middagsasen.Planner.Web/          # Vue 3/Quasar frontend (TypeScript)
+    src/pages/                       # 13 sider
+    src/components/                  # 10 komponenter
+    src/stores/                      # 7 Pinia stores
+    src/types/                       # API-typer generert fra openapi.json + håndskrevne typer
     src/router/                      # Vue Router config
     src/boot/                        # axios, i18n, notify-defaults, etc.
 ```
@@ -45,6 +50,8 @@ src/
 npm run dev          # Start dev server
 npm run build        # Produksjonsbygg
 npm run lint         # ESLint
+npm run typecheck    # vue-tsc --noEmit
+npm run gen:api      # Generer src/types/ fra backendens openapi.json
 npm run format       # Prettier
 npm run test         # Vitest
 npm run test:watch   # Vitest watch-modus
@@ -52,7 +59,7 @@ npm run test:watch   # Vitest watch-modus
 
 ### Backend (`src/Middagsasen.Planner.Api/`)
 ```bash
-dotnet build
+dotnet build         # Regenererer også openapi/openapi.json
 dotnet run
 dotnet test ../Middagsasen.Planner.Api.Tests/
 ```
@@ -64,12 +71,17 @@ dotnet test ../Middagsasen.Planner.Api.Tests/
 - Kompetansesystemet er referanseimplementasjonen for dette mønsteret
 - Eldre kode bruker services direkte mot `PlannerDbContext` (skal gradvis migreres)
 - DTOs brukes for request/response, ikke entities
+- Pakkeversjoner legges i `Directory.Packages.props`, ikke i csproj
+- Annoter endepunkter med korrekt `[ProducesResponseType]` (eller `ActionResult<T>`) — OpenAPI-dokumentet og frontend-typene genereres fra dem. Ikke-nullable DTO-egenskaper blir `required`.
 - Prioriter database-agnostiske og container-vennlige løsninger; unngå nye Azure-spesifikke avhengigheter
 - `[Authorize]` returnerer allerede 401 hvis bruker mangler — ikke dupliser null-sjekk. Bruk `var user = (UserResponse)HttpContext.Items["User"]!;`
 
 ### Frontend
-- Pinia stores for state management, en per domene
-- Axios med interceptors (boot/axios.js) for API-kall
+- All kode er TypeScript: `.ts` og `<script setup lang="ts">` (strict, inkl. `noUncheckedIndexedAccess` og `exactOptionalPropertyTypes`)
+- API-typer importeres fra `src/types` (`import type { EventResponse } from "src/types"`). `src/types/api.d.ts` og `index.ts` er generert — ikke rediger; kjør `dotnet build` i backend og `npm run gen:api` når DTO-er endres, og sjekk inn begge
+- Type-baserte `defineProps<{ ... }>()` / `defineEmits<{ ... }>()`
+- Pinia stores i options-stil med typet state-interface, en per domene
+- Axios med interceptors (`boot/axios.ts`) for API-kall
 - Quasar-komponenter for UI
 - vue-i18n for oversettelser (`src/i18n/`)
 - Bruk alltid stabil ID fra datamodellen som `:key` i `v-for` — aldri array-index (gir feil DOM-gjenbruk i lister med inputs/sletting/sortering)
