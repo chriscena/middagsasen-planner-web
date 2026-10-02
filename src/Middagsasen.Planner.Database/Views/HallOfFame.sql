@@ -4,4 +4,3 @@ create view HallOfFame as
   join EventResources er on er.EventResourceId = eru.EventResourceId
   Where eru.EndTime < cast(cast(GETDATE() as date) as datetime)
   GROUP by u.UserId, u.FirstName, u.LastName
-  order by Shifts desc, u.FirstName

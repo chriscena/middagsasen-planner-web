@@ -120,7 +120,7 @@ import {
   getWorkHourChanges,
   getWorkHourErrorKind,
   getWorkHourErrorMessage,
-} from "src/shared/workHourDiff.js";
+} from "src/shared/workHourDiff";
 
 const props = defineProps({
   modelValue: {

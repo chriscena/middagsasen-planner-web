@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core.OpenApi;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
@@ -45,8 +46,12 @@ builder.Services.AddSerilog((services, lc) => lc
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddSchemaTransformer<NonNullableRequiredSchemaTransformer>();
+    options.AddSchemaTransformer<StrictNumberSchemaTransformer>();
+    options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+});
 builder.Services.AddCors();
 
 builder.Services.Configure<InfrastructureSettings>(settings =>
@@ -94,8 +99,9 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // OpenAPI-dokumentet serveres på /openapi/v1.json, Swagger UI på /swagger.
+    app.MapOpenApi();
+    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "v1"));
 }
 
 if (!app.Environment.IsDevelopment())

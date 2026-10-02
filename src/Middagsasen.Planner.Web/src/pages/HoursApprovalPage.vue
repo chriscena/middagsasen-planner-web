@@ -438,12 +438,12 @@ import { useAuthStore } from "src/stores/AuthStore";
 import { useSeasonStore } from "src/stores/SeasonStore";
 import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
-import { formatNumber } from "src/shared/formatter.js";
+import { formatNumber } from "src/shared/formatter";
 import {
   getWorkHourErrorKind,
   getWorkHourErrorMessage,
   summarizeBulkApproval,
-} from "src/shared/workHourDiff.js";
+} from "src/shared/workHourDiff";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 
 // store init

@@ -100,7 +100,10 @@ namespace Middagsasen.Planner.Api.Services.Users
 
         public async Task<HallOfFameResponse> GetHallOfFame()
         {
-            var hallOfFamers = await DbContext.HallOfFamers.ToListAsync();
+            var hallOfFamers = await DbContext.HallOfFamers
+                .OrderByDescending(h => h.Shifts)
+                .ThenBy(h => h.FirstName)
+                .ToListAsync();
             return Map(hallOfFamers);
         }
 

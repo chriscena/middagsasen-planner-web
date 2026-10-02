@@ -6,6 +6,13 @@ module.exports = {
 
   parserOptions: {
     ecmaVersion: 2021, // Allows for the parsing of modern ECMAScript features
+    // vue-eslint-parser (satt av plugin:vue) delegerer <script> til parseren under:
+    // espree for vanlig JS, @typescript-eslint/parser for .ts og <script lang="ts">
+    parser: {
+      js: 'espree',
+      ts: '@typescript-eslint/parser',
+    },
+    extraFileExtensions: ['.vue'],
   },
 
   env: {
@@ -55,6 +62,16 @@ module.exports = {
     chrome: 'readonly',
     __APP_VERSION__: 'readonly'
   },
+
+  overrides: [
+    {
+      // TypeScript-regler kun for .ts-filer. *.vue legges til her når
+      // komponentene er konvertert til <script lang="ts">.
+      files: ['*.ts', '*.cts', '*.mts', '*.tsx'],
+      parser: '@typescript-eslint/parser',
+      extends: ['plugin:@typescript-eslint/recommended', 'prettier'],
+    },
+  ],
 
   // add your custom rules here
   rules: {
