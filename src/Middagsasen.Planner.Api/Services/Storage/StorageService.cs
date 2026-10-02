@@ -1,5 +1,4 @@
 ﻿using Azure.Storage.Blobs;
-using System.Net;
 
 namespace Middagsasen.Planner.Api.Services.Storage
 {
@@ -23,7 +22,6 @@ namespace Middagsasen.Planner.Api.Services.Storage
 
         public BlobStorageService(IBlobStorageSettings settings)
         {
-            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             ConnectionString = settings.ConnectionString;
             Container = settings.Container;
         }
@@ -60,7 +58,7 @@ namespace Middagsasen.Planner.Api.Services.Storage
         public async Task<IEnumerable<string>> List(string path)
         {
             var client = new BlobContainerClient(ConnectionString, Container);
-            var pages = client.GetBlobsAsync(Azure.Storage.Blobs.Models.BlobTraits.None, Azure.Storage.Blobs.Models.BlobStates.None, path).AsPages();
+            var pages = client.GetBlobsAsync(new Azure.Storage.Blobs.Models.GetBlobsOptions { Prefix = path }).AsPages();
             var result = new List<string>();
             //await foreach (var blob in blobs)
             //{
