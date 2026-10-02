@@ -101,7 +101,7 @@ describe("getApiErrorMessage", () => {
   it("returns fallback for 5xx", () => {
     expect(
       getApiErrorMessage(
-        axiosError(500, problem(500, "An unexpected error occurred.")),
+        axiosError(500, problem(500, "Det oppstod en uventet feil.")),
         "fallback"
       )
     ).toBe("fallback");
@@ -110,19 +110,27 @@ describe("getApiErrorMessage", () => {
     );
   });
 
-  it("returns first message from ValidationProblemDetails", () => {
+  it("returns fallback for ValidationProblemDetails", () => {
     const error = axiosError(400, {
       type: "https://tools.ietf.org/html/rfc9110#section-15.5.1",
       title: "One or more validation errors occurred.",
       status: 400,
       errors: {
         StartTime: ["The StartTime field is required.", "Second"],
-        EndTime: ["The EndTime field is required."],
+        EndTime: ["The JSON value could not be converted to System.DateTime."],
       },
     });
-    expect(getApiErrorMessage(error, "fallback")).toBe(
-      "The StartTime field is required."
-    );
+    expect(getApiErrorMessage(error, "fallback")).toBe("fallback");
+  });
+
+  it("returns fallback for ValidationProblemDetails even with detail", () => {
+    const error = axiosError(400, {
+      title: "One or more validation errors occurred.",
+      status: 400,
+      detail: "The Message field is required.",
+      errors: { Message: ["The Message field is required."] },
+    });
+    expect(getApiErrorMessage(error, "fallback")).toBe("fallback");
   });
 
   it("returns fallback for ValidationProblemDetails without messages", () => {

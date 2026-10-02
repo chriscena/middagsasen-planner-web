@@ -100,6 +100,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/resources/{id}/messages")]
         [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AddMessage(int id, [FromBody] MessageRequest request)
         {
             var response = await EventsService.AddMessage(id, CurrentUser.UserId, request);

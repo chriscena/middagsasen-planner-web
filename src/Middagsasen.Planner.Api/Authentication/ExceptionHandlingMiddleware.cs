@@ -27,6 +27,13 @@ namespace Middagsasen.Planner.Api.Authentication
             {
                 await _next(context);
             }
+            catch (Exception ex) when (context.Response.HasStarted)
+            {
+                // Responsen er allerede startet (f.eks. under strømming av en fil), så statuskode og
+                // headere kan ikke endres. Logg feilen og kast den videre slik at serveren avbryter svaret.
+                _logger.LogError(ex, "Unhandled exception after the response had started");
+                throw;
+            }
             catch (Exception ex)
             {
                 await HandleExceptionAsync(context, ex);
@@ -41,8 +48,10 @@ namespace Middagsasen.Planner.Api.Authentication
                 ForbiddenAccessException => (StatusCodes.Status403Forbidden, exception.Message),
                 EntityLockedException => (StatusCodes.Status409Conflict, exception.Message),
                 UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, exception.Message),
-                InvalidOperationException => (StatusCodes.Status400BadRequest, exception.Message),
-                _ => (StatusCodes.Status500InternalServerError, "An unexpected error occurred."),
+                DomainValidationException => (StatusCodes.Status400BadRequest, exception.Message),
+                // Øvrige exceptions (inkl. InvalidOperationException fra EF o.l.) er interne feil:
+                // meldingen kan inneholde interne detaljer og vises derfor ikke til brukeren.
+                _ =>(StatusCodes.Status500InternalServerError, "Det oppstod en uventet feil."),
             };
 
             if (statusCode == StatusCodes.Status500InternalServerError)

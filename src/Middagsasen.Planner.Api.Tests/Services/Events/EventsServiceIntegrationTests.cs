@@ -799,6 +799,106 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateMinimumStaff(999999, new MinimumStaffRequest { MinimumStaff = 1 }));
         }
 
+        [Fact]
+        public async Task AddShift_ThrowsEntityNotFound_WhenEventResourceDoesNotExist()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(
+                () => service.AddShift(999999, new ShiftRequest { UserId = user.UserId }));
+        }
+
+        [Fact]
+        public async Task AddMessage_ThrowsEntityNotFound_WhenEventResourceDoesNotExist()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(
+                () => service.AddMessage(999999, user.UserId, new MessageRequest { Message = "Hei" }));
+        }
+
+        [Fact]
+        public async Task AddShift_DoesNotPersistShift_WhenTrainingFails()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (_, resource) = await SeedEventWithResource(seedContext);
+
+            _resourceTypesService
+                .UpdateTraining(Arg.Any<int>(), Arg.Any<TrainingRequest>())
+                .Returns<TrainingResponse?>(_ => throw new EntityNotFoundException("Fant ikke opplæringen."));
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = user.UserId,
+                Comment = UniqueName("Rollback"),
+                Training = new TrainingRequest { Id = 999999, ResourceTypeId = resource.ResourceTypeId, UserId = user.UserId, TrainingCompleted = true },
+            };
+
+            // Act
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.AddShift(resource.EventResourceId, request));
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Shifts.AnyAsync(s => s.Comment == request.Comment));
+        }
+
+        [Fact]
+        public async Task UpdateShift_DoesNotPersistShiftChanges_WhenTrainingFails()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext);
+            var (_, resource) = await SeedEventWithResource(seedContext);
+
+            var shift = new EventResourceUser
+            {
+                EventResourceId = resource.EventResourceId,
+                UserId = user.UserId,
+                Comment = "Original",
+            };
+            seedContext.Shifts.Add(shift);
+            await seedContext.SaveChangesAsync();
+
+            _resourceTypesService
+                .UpdateTraining(Arg.Any<int>(), Arg.Any<TrainingRequest>())
+                .Returns<TrainingResponse?>(_ => throw new EntityNotFoundException("Fant ikke opplæringen."));
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new ShiftRequest
+            {
+                UserId = user.UserId,
+                Comment = "Endret",
+                Training = new TrainingRequest { Id = 999999, ResourceTypeId = resource.ResourceTypeId, UserId = user.UserId, TrainingCompleted = true },
+            };
+
+            // Act
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateShift(shift.EventResourceUserId, request));
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbShift = await verifyContext.Shifts.AsNoTracking().SingleAsync(s => s.EventResourceUserId == shift.EventResourceUserId);
+            Assert.Equal("Original", dbShift.Comment);
+        }
+
         #endregion
     }
 }

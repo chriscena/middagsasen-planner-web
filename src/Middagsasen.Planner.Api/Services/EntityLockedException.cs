@@ -7,15 +7,18 @@ namespace Middagsasen.Planner.Api.Services
     [Serializable]
     public class EntityLockedException : Exception
     {
-        public EntityLockedException()
+        /// <summary>Norsk standardmelding som vises til brukeren når ingen annen melding er gitt.</summary>
+        public const string DefaultMessage = "Dette er låst og kan ikke endres.";
+
+        public EntityLockedException() : base(DefaultMessage)
         {
         }
 
-        public EntityLockedException(string? message) : base(message)
+        public EntityLockedException(string? message) : base(message ?? DefaultMessage)
         {
         }
 
-        public EntityLockedException(string? message, Exception? innerException) : base(message, innerException)
+        public EntityLockedException(string? message, Exception? innerException) : base(message ?? DefaultMessage, innerException)
         {
         }
     }

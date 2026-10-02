@@ -56,17 +56,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -145,17 +145,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               },
               "text/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1735,6 +1735,26 @@
                 }
               }
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -2480,6 +2500,26 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TrainingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }

@@ -159,7 +159,8 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
         {
             if (!request.TrainingCompleted.HasValue || request.Id is not { } trainingId) return null;
 
-            var training = await DbContext.ResourceTypeTrainings.SingleAsync(t => t.ResourceTypeTrainingId == trainingId);
+            var training = await DbContext.ResourceTypeTrainings.SingleOrDefaultAsync(t => t.ResourceTypeTrainingId == trainingId)
+                ?? throw new EntityNotFoundException("Fant ikke opplæringen.");
 
             training.TrainingComplete = request.TrainingCompleted;
             training.Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow;

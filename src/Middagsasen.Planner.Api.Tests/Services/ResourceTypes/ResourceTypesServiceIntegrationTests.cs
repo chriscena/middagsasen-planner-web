@@ -275,6 +275,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
         #region Training
 
         [Fact]
+        public async Task UpdateTraining_ThrowsEntityNotFound_WhenTrainingDoesNotExist()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: 1);
+
+            var request = new TrainingRequest { Id = 999999, ResourceTypeId = 1, UserId = 1, TrainingCompleted = true };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateTraining(1, request));
+        }
+
+        [Fact]
         public async Task CreateTraining_PersistsTrainingRecord()
         {
             // Arrange

@@ -120,7 +120,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, user);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<DomainValidationException>(() =>
                 service.CreateWorkHour(new CreateWorkHourRequest { EndTime = End }));
         }
 
@@ -314,7 +314,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<DomainValidationException>(() =>
                 service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 3 }));
         }
 
@@ -797,7 +797,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var owner = await SeedUser();
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            await Assert.ThrowsAsync<DomainValidationException>(() =>
                 CreateService(context, owner).GetWorkHoursByUser(owner.UserId, null, 9999));
         }
 
@@ -823,7 +823,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, user);
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() =>
                 service.CreateWorkHour(new CreateWorkHourRequest { StartTime = Start, EndTime = Start.AddHours(endOffsetHours) }));
             Assert.Equal(WorkHoursService.EndBeforeStartMessage, ex.Message);
         }
@@ -846,7 +846,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, owner)
                 .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start.AddMinutes(-30) }));
             Assert.Equal(WorkHoursService.EndBeforeStartMessage, ex.Message);
             Assert.Equal(End, (await Reload(wh.WorkHourId)).EndTime);
@@ -859,7 +859,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, owner)
                 .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { StartTime = End.AddHours(1) }));
             Assert.Equal(Start, (await Reload(wh.WorkHourId)).StartTime);
         }
@@ -871,7 +871,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, owner)
                 .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { StartTime = End, EndTime = Start }));
             var db = await Reload(wh.WorkHourId);
             Assert.Equal(Start, db.StartTime);
@@ -885,7 +885,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner)
+            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, owner)
                 .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { EndTime = Start }));
         }
 
@@ -966,7 +966,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, admin)
+            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, admin)
                 .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 3 }));
             Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
         }

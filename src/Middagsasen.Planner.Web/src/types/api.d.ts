@@ -45,9 +45,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": string;
-                        "application/json": string;
-                        "text/json": string;
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -110,9 +110,9 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "text/plain": string;
-                        "application/json": string;
-                        "text/json": string;
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Too Many Requests */
@@ -1222,6 +1222,17 @@ export interface paths {
                         "text/json": components["schemas"]["MessageResponse"];
                     };
                 };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -1716,6 +1727,17 @@ export interface paths {
                         "text/plain": components["schemas"]["TrainingResponse"];
                         "application/json": components["schemas"]["TrainingResponse"];
                         "text/json": components["schemas"]["TrainingResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ProblemDetails"];
+                        "application/json": components["schemas"]["ProblemDetails"];
+                        "text/json": components["schemas"]["ProblemDetails"];
                     };
                 };
             };

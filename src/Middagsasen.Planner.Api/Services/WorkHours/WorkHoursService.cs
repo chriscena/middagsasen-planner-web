@@ -6,7 +6,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public class WorkHoursService : IWorkHoursService
     {
-        internal const string ForbiddenMessage = "Du har ikke tilgang til å utføre denne handlingen.";
+        internal const string ForbiddenMessage = ForbiddenAccessException.DefaultMessage;
         internal const string LockedMessage = "Timeføringen er allerede behandlet og kan ikke endres.";
         internal const string NoStatusToResetMessage = "Timeføringen har ingen status som kan fjernes.";
         internal const string NotFoundMessage = "Timeføringen finnes ikke.";
@@ -28,7 +28,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
             if (!request.StartTime.HasValue)
-                throw new InvalidOperationException(StartTimeRequiredMessage);
+                throw new DomainValidationException(StartTimeRequiredMessage);
             ValidateTimes(request.StartTime, request.EndTime);
 
             var workHour = new WorkHour
@@ -204,12 +204,12 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// Gjør om sesongens startår til et halvåpent intervall [From, To) av UTC-tidspunkter; null = ingen datofilter.
         /// Gyldig sesong er fra <see cref="DateTimeExtensions.FirstSeasonStartYear"/> til og med inneværende sesong + 1.
         /// </summary>
-        /// <exception cref="InvalidOperationException">Ugyldig sesong (gir 400).</exception>
+        /// <exception cref="DomainValidationException">Ugyldig sesong (gir 400).</exception>
         private (DateTime? From, DateTime? To) ToSeasonRange(int? season)
         {
             if (!season.HasValue) return (null, null);
             if (season.Value < DateTimeExtensions.FirstSeasonStartYear || season.Value > CurrentSeasonStartYear() + 1)
-                throw new InvalidOperationException(InvalidSeasonMessage);
+                throw new DomainValidationException(InvalidSeasonMessage);
             var (from, to) = DateTimeExtensions.GetSeasonRangeUtc(season.Value);
             return (from, to);
         }
@@ -241,13 +241,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         private static void ValidateStatus(int? status)
         {
             if (status.HasValue && status is not (WorkHourPolicy.Approved or WorkHourPolicy.Rejected))
-                throw new InvalidOperationException("Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).");
+                throw new DomainValidationException("Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).");
         }
 
         private static void ValidateTimes(DateTime? startTime, DateTime? endTime)
         {
             if (endTime.HasValue && startTime.HasValue && endTime.Value <= startTime.Value)
-                throw new InvalidOperationException(EndBeforeStartMessage);
+                throw new DomainValidationException(EndBeforeStartMessage);
         }
 
         private static void ApplyStatus(WorkHour workHour, int? status, int userId)

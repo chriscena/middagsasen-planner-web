@@ -113,7 +113,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             LoginAs(AdminId, true);
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.GetWorkHours(null, null, season));
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => _sut.GetWorkHours(null, null, season));
             Assert.Equal(WorkHoursService.InvalidSeasonMessage, ex.Message);
         }
 
@@ -123,7 +123,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             LoginAs(OwnerId, false);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.GetWorkHoursByUser(OwnerId, null, season));
+            await Assert.ThrowsAsync<DomainValidationException>(() => _sut.GetWorkHoursByUser(OwnerId, null, season));
         }
 
         [Theory]
@@ -132,7 +132,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             LoginAs(OwnerId, false);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => _sut.GetWorkHoursSum(OwnerId, season));
+            await Assert.ThrowsAsync<DomainValidationException>(() => _sut.GetWorkHoursSum(OwnerId, season));
         }
 
         [Theory]

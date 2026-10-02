@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Middagsasen.Planner.Api.Authentication;
@@ -94,16 +95,82 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         }
 
         [Fact]
-        public async Task Returns400_WhenInvalidOperationExceptionThrown()
+        public async Task Returns400_WhenDomainValidationExceptionThrown()
         {
-            var middleware = CreateMiddleware(_ => throw new InvalidOperationException("Bad request"));
+            var middleware = CreateMiddleware(_ => throw new DomainValidationException("Ugyldig sesong."));
             var context = CreateHttpContext();
 
             await middleware.Invoke(context);
 
             var (statusCode, body) = await GetResponse(context);
             Assert.Equal(StatusCodes.Status400BadRequest, statusCode);
-            Assert.Contains("Bad request", body);
+            Assert.Contains("Ugyldig sesong.", body);
+        }
+
+        [Fact]
+        public async Task Returns500WithGenericDetail_AndLogsError_WhenInvalidOperationExceptionThrown()
+        {
+            var middleware = CreateMiddleware(_ => throw new InvalidOperationException("Sequence contains no elements"));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (statusCode, body) = await GetResponse(context);
+            Assert.Equal(StatusCodes.Status500InternalServerError, statusCode);
+            Assert.DoesNotContain("Sequence contains no elements", body);
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<InvalidOperationException>(),
+                Arg.Any<Func<object, Exception?, string>>());
+        }
+
+        public static TheoryData<Exception, string> ExceptionsWithoutMessage => new()
+        {
+            { new EntityNotFoundException(), "Fant ikke det du lette etter." },
+            { new ForbiddenAccessException(), "Du har ikke tilgang til å utføre denne handlingen." },
+            { new EntityLockedException(), "Dette er låst og kan ikke endres." },
+            { new DomainValidationException(), "Forespørselen er ugyldig." },
+        };
+
+        [Theory]
+        [MemberData(nameof(ExceptionsWithoutMessage))]
+        public async Task UsesNorwegianDefaultDetail_WhenExceptionHasNoMessage(Exception exception, string expectedDetail)
+        {
+            var middleware = CreateMiddleware(_ => throw exception);
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (_, body) = await GetResponse(context);
+            using var json = JsonDocument.Parse(body);
+            Assert.Equal(expectedDetail, json.RootElement.GetProperty("detail").GetString());
+        }
+
+        [Fact]
+        public async Task LogsAndRethrows_WhenResponseHasAlreadyStarted()
+        {
+            var thrown = new EntityNotFoundException("Fant ikke fil.");
+            var middleware = CreateMiddleware(_ => throw thrown);
+            var context = CreateHttpContext();
+            context.Features.Set<IHttpResponseFeature>(new StartedResponseFeature());
+
+            var ex = await Assert.ThrowsAsync<EntityNotFoundException>(() => middleware.Invoke(context));
+
+            Assert.Same(thrown, ex);
+            Assert.Equal(0, context.Response.Body.Length);
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                thrown,
+                Arg.Any<Func<object, Exception?, string>>());
+        }
+
+        private sealed class StartedResponseFeature : HttpResponseFeature
+        {
+            public override bool HasStarted => true;
         }
 
         [Fact]
@@ -116,7 +183,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
 
             var (statusCode, body) = await GetResponse(context);
             Assert.Equal(StatusCodes.Status500InternalServerError, statusCode);
-            Assert.Contains("An unexpected error occurred.", body);
+            Assert.Contains("Det oppstod en uventet feil.", body);
             Assert.DoesNotContain("something secret", body);
         }
 
@@ -150,7 +217,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         [Fact]
         public async Task ResponseContentTypeIsProblemJson()
         {
-            var middleware = CreateMiddleware(_ => throw new InvalidOperationException("test"));
+            var middleware = CreateMiddleware(_ => throw new DomainValidationException("test"));
             var context = CreateHttpContext();
 
             await middleware.Invoke(context);
@@ -187,7 +254,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             var root = json.RootElement;
             Assert.Equal(500, root.GetProperty("status").GetInt32());
             Assert.Equal("Internal Server Error", root.GetProperty("title").GetString());
-            Assert.Equal("An unexpected error occurred.", root.GetProperty("detail").GetString());
+            Assert.Equal("Det oppstod en uventet feil.", root.GetProperty("detail").GetString());
         }
 
         [Fact]

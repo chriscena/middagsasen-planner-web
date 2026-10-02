@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Services.Authentication;
-using Middagsasen.Planner.Api.Services.Events;
 using System.Security.Claims;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -9,6 +8,11 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
+        internal const string InvalidPhoneNumberMessage = "Ugyldig telefonnummer";
+        internal const string AuthenticationFailedMessage = "Feil telefonnummer eller engangskode.";
+        internal const string TooManyRequestsMessage = "For mange forsøk. Vent litt før du ber om en ny engangskode.";
+        internal const string SessionNotFoundMessage = "Fant ingen aktiv innlogging å logge ut.";
+
         public AuthenticationController(IAuthenticationService authService)
         {
             AuthService = authService;
@@ -16,11 +20,9 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IAuthenticationService AuthService { get; }
 
-
-
         [HttpPost("authenticate")]
         [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> Authenticate(AuthRequest request)
         {
@@ -30,16 +32,16 @@ namespace Middagsasen.Planner.Api.Controllers
                 case AuthStatus.Success:
                     return Ok(response);
                 case AuthStatus.InvalidUsername:
-                    return BadRequest("Ugyldig telefonnummer");
+                    return Problem(detail: InvalidPhoneNumberMessage, statusCode: StatusCodes.Status400BadRequest);
                 case AuthStatus.AuthenticationFailed:
                 default:
-                    return Unauthorized();
+                    return Problem(detail: AuthenticationFailedMessage, statusCode: StatusCodes.Status401Unauthorized);
             }
         }
 
         [HttpPost("otp")]
         [ProducesResponseType(typeof(OtpResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
         public async Task<IActionResult> CreateOneTimePassword(OtpRequest request)
         {
@@ -49,10 +51,10 @@ namespace Middagsasen.Planner.Api.Controllers
                 case OtpStatus.Sent:
                     return Ok(response);
                 case OtpStatus.InvalidPhoneNumber:
-                    return BadRequest("Ugyldig telefonnummer");
+                    return Problem(detail: InvalidPhoneNumberMessage, statusCode: StatusCodes.Status400BadRequest);
                 case OtpStatus.TooManyRequests:
                 default:
-                    return new StatusCodeResult(StatusCodes.Status429TooManyRequests);
+                    return Problem(detail: TooManyRequestsMessage, statusCode: StatusCodes.Status429TooManyRequests);
             }
         }
 
@@ -63,8 +65,9 @@ namespace Middagsasen.Planner.Api.Controllers
         {
             var user = HttpContext.User;
             var sessionIdString = user.FindFirstValue(ClaimTypes.Authentication);
-            if (sessionIdString == null) return NotFound();
-            
+            if (sessionIdString == null)
+                return Problem(detail: SessionNotFoundMessage, statusCode: StatusCodes.Status404NotFound);
+
             await AuthService.LogOut(Guid.Parse(sessionIdString));
             return Ok();
         }

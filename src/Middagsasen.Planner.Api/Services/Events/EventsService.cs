@@ -195,7 +195,9 @@ namespace Middagsasen.Planner.Api.Services.Events
         public async Task<ShiftResponse> AddShift(int eventResourceId, ShiftRequest request)
         {
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+                throw new ForbiddenAccessException();
+
+            await EnsureEventResourceExists(eventResourceId);
 
             var newShift = new EventResourceUser
             {
@@ -207,15 +209,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             };
             DbContext.Shifts.Add(newShift);
 
-            await DbContext.SaveChangesAsync();
-
-            if (request.Training != null)
-            {
-                if (request.Training.Id is null or 0)
-                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else
-                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
-            }
+            await SaveShiftWithTraining(request.Training);
 
             var responseShift = await DbContext.Shifts
                 .Include(s => s.Resource)
@@ -232,7 +226,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (request.UserId == 0) request.UserId = CurrentUser.UserId;
 
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+                throw new ForbiddenAccessException();
 
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
                 ?? throw new EntityNotFoundException();
@@ -246,17 +240,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             shift.UserId = request.UserId;
             shift.Comment = request.Comment;
 
-            await DbContext.SaveChangesAsync();
-
-
-
-            if (request.Training != null)
-            {
-                if (request.Training.Id is null or 0)
-                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else
-                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
-            }
+            await SaveShiftWithTraining(request.Training);
 
             var responseShift = await DbContext.Shifts
                 .Include(s => s.Resource)
@@ -266,6 +250,34 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .SingleOrDefaultAsync(s => s.EventResourceUserId == shift.EventResourceUserId)
                 ?? throw new EntityNotFoundException();
             return Map(responseShift);
+        }
+
+        /// <summary>
+        /// Lagrer ventende vaktendringer og eventuell opplæring i én transaksjon, slik at en feil i
+        /// opplæringen ikke etterlater en halvveis lagret vakt. Opplæring uten <c>TrainingCompleted</c>
+        /// ignoreres bevisst av <see cref="IResourceTypesService"/> — vakta lagres da uansett.
+        /// </summary>
+        private async Task SaveShiftWithTraining(TrainingRequest? training)
+        {
+            await using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            await DbContext.SaveChangesAsync();
+
+            if (training != null)
+            {
+                if (training.Id is null or 0)
+                    await ResourceTypesService.CreateTraining(training.ResourceTypeId, training);
+                else
+                    await ResourceTypesService.UpdateTraining(training.ResourceTypeId, training);
+            }
+
+            await transaction.CommitAsync();
+        }
+
+        private async Task EnsureEventResourceExists(int eventResourceId)
+        {
+            if (!await DbContext.EventResource.AnyAsync(er => er.EventResourceId == eventResourceId))
+                throw new EntityNotFoundException("Fant ikke vaktressursen.");
         }
 
         public async Task<ShiftResponse> DeleteShift(int id)
@@ -485,6 +497,8 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request)
         {
+            await EnsureEventResourceExists(eventResourceId);
+
             var message = new EventResourceMessage
             {
                 Message = request.Message,

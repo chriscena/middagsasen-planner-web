@@ -3,6 +3,7 @@
 // Backend svarer med ProblemDetails (`application/problem+json`) ved feil:
 // `{ type, title, status, detail, traceId }`. I tillegg finnes:
 // - ValidationProblemDetails (400) fra modellvalidering: `errors: { felt: string[] }`
+//   (meldingene er engelske og tekniske og vises aldri til bruker)
 // - ren streng som body (f.eks. `BadRequest("Ugyldig telefonnummer")`)
 import type { ProblemDetails } from "src/types";
 
@@ -51,28 +52,21 @@ function nonBlank(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
-// Første ikke-tomme melding fra ValidationProblemDetails.errors.
-function firstValidationError(data: ProblemDetails): string | undefined {
+// ValidationProblemDetails (modellvalidering) har et `errors`-objekt. Meldingene
+// der er engelske og tekniske, og skal ikke vises til bruker.
+function isValidationProblemDetails(data: ProblemDetails): boolean {
   const errors: unknown = (data as Record<string, unknown>).errors;
-  if (typeof errors !== "object" || errors === null) return undefined;
-  for (const messages of Object.values(errors)) {
-    const list: unknown[] = Array.isArray(messages) ? messages : [messages];
-    for (const message of list) {
-      const text = nonBlank(message);
-      if (text) return text;
-    }
-  }
-  return undefined;
+  return typeof errors === "object" && errors !== null;
 }
 
 /**
  * Henter en brukervennlig feilmelding fra en API-feil, i prioritert rekkefølge:
- * 1. ProblemDetails `detail` (ikke-tom, og ikke ved status >= 500, der den er
- *    en generisk engelsk tekst),
- * 2. første melding fra ValidationProblemDetails `errors`,
- * 3. ren streng-body (ikke-tom),
- * 4. ellers `fallback` (f.eks. nettverksfeil, tom body eller 5xx).
- * Ved status >= 500 brukes alltid `fallback`.
+ * 1. status >= 500 gir `fallback` (generisk tekst, proxy-sider o.l.),
+ * 2. ValidationProblemDetails gir `fallback`, også om `detail` er satt
+ *    (meldingene fra modellvalidering er engelske og tekniske),
+ * 3. ProblemDetails `detail` (ikke-tom, norsk melding fra backend),
+ * 4. ren streng-body (ikke-tom),
+ * 5. ellers `fallback` (f.eks. nettverksfeil eller tom body).
  */
 export function getApiErrorMessage(error: unknown, fallback: string): string {
   const response = getErrorResponse(error);
@@ -89,7 +83,8 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
   if (typeof status === "number" && status >= 500) return fallback;
 
   if (isProblemDetails(data)) {
-    return nonBlank(data.detail) ?? firstValidationError(data) ?? fallback;
+    if (isValidationProblemDetails(data)) return fallback;
+    return nonBlank(data.detail) ?? fallback;
   }
 
   return nonBlank(data) ?? fallback;
