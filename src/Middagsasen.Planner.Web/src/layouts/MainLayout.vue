@@ -228,6 +228,7 @@
         @toggle-right="toggleRightDrawer"
       />
     </q-page-container>
+    <!-- Dialogen vises kun når user er satt (showingUserDialog), derav `!`. -->
     <q-dialog v-model="showingUserDialog" persistent>
       <q-card class="full-width">
         <q-form @submit="saveUser">
@@ -235,7 +236,7 @@
           <q-card-section class="row q-col-gutter-sm">
             <q-input
               class="col-12"
-              :model-value="user.phoneNo"
+              :model-value="user!.phoneNo"
               outlined
               label="Mobiltelefon"
               readonly
@@ -295,16 +296,25 @@
   </q-layout>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useUserStore } from "src/stores/UserStore";
 import { useCompetencyStore } from "src/stores/CompetencyStore";
 import { useVuelidate } from "@vuelidate/core";
+import type { ValidationArgs } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar, date as dateUtil } from "quasar";
 import { formatVersion } from "src/shared/appVersion";
+import type { UserCompetencyResponse, UserRequest } from "src/types";
+
+// Skjemaet i brukerinfo-dialogen.
+interface UserForm {
+  firstName: string | null;
+  lastName: string | null;
+  password: string | null;
+}
 
 // Byggversjon vises nederst i menyen.
 const appVersion = formatVersion(__APP_VERSION__);
@@ -321,9 +331,9 @@ const isAdmin = computed(() => user.value?.isAdmin ?? false);
 // Competency management
 const loadingCompetencies = ref(false);
 const addingCompetency = ref(false);
-const selectedCompetencyId = ref(null);
+const selectedCompetencyId = ref<number | null>(null);
 
-const myCompetencies = computed(() => {
+const myCompetencies = computed((): UserCompetencyResponse[] => {
   const userId = user.value?.id;
   if (!userId) return [];
   return competencyStore.userCompetencies[userId] || [];
@@ -334,12 +344,12 @@ const availableCompetencies = computed(() => {
   return competencyStore.competencies.filter((c) => !existing.includes(c.id));
 });
 
-function formatDate(dateStr) {
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return "";
   return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
 }
 
-async function loadMyCompetencies() {
+async function loadMyCompetencies(): Promise<void> {
   const userId = user.value?.id;
   if (!userId) return;
   try {
@@ -355,16 +365,17 @@ async function loadMyCompetencies() {
   }
 }
 
-async function addMyCompetency() {
+// Høyremenyen (med knappen) brukes kun av innloggede brukere, så user er satt.
+async function addMyCompetency(): Promise<void> {
   if (!selectedCompetencyId.value) return;
   try {
     addingCompetency.value = true;
     await competencyStore.addUserCompetency({
-      userId: user.value.id,
+      userId: user.value!.id,
       competencyId: selectedCompetencyId.value,
     });
     selectedCompetencyId.value = null;
-    await competencyStore.getUserCompetencies(user.value.id);
+    await competencyStore.getUserCompetencies(user.value!.id);
     $q.notify({ message: "Kompetanse registrert" });
   } catch (error) {
     console.log(error);
@@ -391,7 +402,7 @@ const showingUserDialog = computed(
     (editingUser.value || !user.value.firstName || !user.value.lastName)
 );
 
-const state = reactive({
+const state = reactive<UserForm>({
   firstName: null,
   lastName: null,
   password: null,
@@ -403,21 +414,23 @@ const rules = {
   firstName: { required },
   lastName: { required },
   password: {},
-};
+} satisfies ValidationArgs<UserForm>;
 
 const v$ = useVuelidate(rules, state);
 
-function editUser() {
-  state.firstName = user.value?.firstName;
-  state.lastName = user.value?.lastName;
+function editUser(): void {
+  // `?? null`: feltene er valgfrie i UserResponse; backend sender null fremfor
+  // å utelate dem, så verdien er den samme som i JS-versjonen.
+  state.firstName = user.value?.firstName ?? null;
+  state.lastName = user.value?.lastName ?? null;
   state.password = null;
   editingUser.value = true;
 }
 
-async function saveUser() {
+async function saveUser(): Promise<void> {
   try {
     saving.value = true;
-    const model = {
+    const model: UserRequest = {
       firstName: state.firstName,
       lastName: state.lastName,
       password: state.password,
@@ -433,10 +446,10 @@ async function saveUser() {
   }
 }
 
-async function updateHidden(isHidden) {
+async function updateHidden(isHidden: boolean): Promise<void> {
   try {
     saving.value = true;
-    const model = {
+    const model: UserRequest = {
       isHidden: isHidden,
     };
     await userStore.saveUser(model);
@@ -454,7 +467,7 @@ async function updateHidden(isHidden) {
   }
 }
 
-async function logout() {
+async function logout(): Promise<void> {
   await userStore.logout();
   $q.notify({ message: "Du er logget ut" });
   router.push("/login");
@@ -462,11 +475,11 @@ async function logout() {
 
 const leftDrawerOpen = ref(false);
 
-function toggleLeftDrawer() {
+function toggleLeftDrawer(): void {
   leftDrawerOpen.value = !leftDrawerOpen.value;
 }
 
-function toggleRightDrawer() {
+function toggleRightDrawer(): void {
   rightDrawerOpen.value = !rightDrawerOpen.value;
 }
 </script>

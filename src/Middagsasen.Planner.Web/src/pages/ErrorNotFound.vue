@@ -20,10 +20,8 @@
   </div>
 </template>
 
-<script>
-import { defineComponent } from "vue";
-
-export default defineComponent({
+<script setup lang="ts">
+defineOptions({
   name: "ErrorNotFound",
 });
 </script>

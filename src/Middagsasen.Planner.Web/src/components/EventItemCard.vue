@@ -143,6 +143,9 @@
   <q-inner-loading :showing="adding">
     <q-spinner size="3em" color="primary"></q-spinner>
   </q-inner-loading>
+  <!-- selectedShift, selectedUserTraining og selectedResource er satt når
+       dialogene under er åpne (q-dialog rendrer ikke innholdet når den er
+       lukket), derav `!` i uttrykkene. -->
   <q-dialog v-model="showingEdit" persistent>
     <q-card class="full-width">
       <q-card-section class="text-h6 row"
@@ -184,7 +187,7 @@
           autofocus
           outlined
           label="Kommentar"
-          v-model="selectedShift.comment"
+          v-model="selectedShift!.comment"
         ></q-input>
         <div
           class="col-12 row items-right items-center"
@@ -193,7 +196,7 @@
           <div class="q-mr-md">Fått opplæring</div>
           <q-btn-toggle
             disable
-            v-model="selectedUserTraining.trainingComplete"
+            v-model="selectedUserTraining!.trainingComplete"
             toggle-color="primary"
             :options="[
               { label: 'Ja', value: true },
@@ -240,7 +243,7 @@
           :loading="loadingUsers"
           option-label="fullName"
           option-value="id"
-          v-model="selectedShift.user"
+          v-model="selectedShift!.user"
           @update:model-value="onUserUpdated"
         >
           <template v-slot:option="scope">
@@ -258,16 +261,16 @@
           :disable="!isAdmin"
           outlined
           label="Kommentar"
-          v-model="selectedShift.comment"
+          v-model="selectedShift!.comment"
         ></q-input>
         <div
           class="row items-right items-center"
-          v-if="selectedResource.resourceType?.hasTraining"
+          v-if="selectedResource!.resourceType?.hasTraining"
         >
           <div class="q-mr-md">Fått opplæring</div>
           <q-btn-toggle
-            v-model="selectedUserTraining.trainingComplete"
-            :disable="!selectedShift.user"
+            v-model="selectedUserTraining!.trainingComplete"
+            :disable="!selectedShift!.user"
             toggle-color="primary"
             :options="[
               { label: 'Ja', value: true },
@@ -288,7 +291,7 @@
           label="Lagre"
           no-caps
           @click="updateShift"
-          :disable="!selectedShift.user"
+          :disable="!selectedShift!.user"
         ></q-btn> </q-card-actions
       ><q-inner-loading :showing="saving">
         <q-spinner size="3em" color="primary"></q-spinner>
@@ -336,7 +339,7 @@
           title="Lukk"
         ></q-btn>
         <div class="text-h6">
-          {{ selectedResource.resourceType.name }}
+          {{ selectedResource!.resourceType.name }}
         </div>
       </q-card-section>
       <q-separator></q-separator>
@@ -344,7 +347,7 @@
         <q-card
           flat
           bordered
-          v-if="selectedResource.resourceType.files?.length"
+          v-if="selectedResource!.resourceType.files?.length"
         >
           <q-card-section class="q-py-sm text-subtitle2">
             Nyttig info
@@ -352,7 +355,7 @@
           <q-separator></q-separator>
           <q-list>
             <q-item
-              v-for="file in selectedResource.resourceType.files"
+              v-for="file in selectedResource!.resourceType.files"
               :key="file.id"
               clickable
               :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
@@ -374,7 +377,7 @@
           <q-separator></q-separator>
           <q-list separator>
             <q-item
-              v-for="message in selectedResource.messages"
+              v-for="message in selectedResource!.messages"
               :key="message.id"
             >
               <q-item-section>
@@ -436,7 +439,7 @@
   </q-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import { today } from "@quasar/quasar-ui-qcalendar";
@@ -444,13 +447,62 @@ import { parseISO, format } from "date-fns";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
+import type {
+  EventResponse,
+  MessageResponse,
+  ResourceResponse,
+  ResourceTypeResponse,
+  ShiftResponse,
+  ShiftUserResponse,
+  TrainingResponse,
+  UserResponse,
+} from "src/types";
+
+// Dagen fra q-calendar-agenda (Timestamp); kun date (yyyy-MM-dd) brukes.
+interface DayTimestamp {
+  date: string;
+}
+
+// Ledig plass i vaktlista (fylles opp til minimumStaff).
+interface VacantShift {
+  id: number;
+  user: null;
+  comment: null;
+}
+type ShiftListItem = ShiftResponse | VacantShift;
+
+// Bruker på en vakt under redigering: fra vakta selv, eller valgt i q-select
+// (admin), som har userStore.users (UserResponse) som options.
+type ShiftUser = ShiftUserResponse | UserResponse;
+
+// Kopi av vakta (eller den ledige plassen) som redigeres i dialogene.
+interface EditableShift {
+  id: number;
+  userId?: number;
+  user: ShiftUser | null;
+  comment?: null | string;
+  startTime?: null | string;
+  endTime?: null | string;
+}
+
+// Opplæringsstatus i dialogene: en opplæring fra brukeren eller en tom
+// plassholder (trainingComplete: null).
+type SelectedTraining = Pick<
+  TrainingResponse,
+  "id" | "resourceTypeId" | "trainingComplete"
+> & { userId?: number };
 
 // props and emits
-const props = defineProps({
-  modelValue: { type: Object, require: true },
-  isAdmin: { type: Boolean, default: false },
-  timestamp: { type: Object, require: true },
-});
+// NB: modelValue og timestamp hadde `require: true` (skrivefeil for
+// `required`) i JS-versjonen; de er påkrevd her, slik det var ment.
+const props = withDefaults(
+  defineProps<{
+    modelValue: EventResponse;
+    isAdmin?: boolean;
+    timestamp: DayTimestamp;
+  }>(),
+  { isAdmin: false }
+);
 
 // Storeinit
 const $q = useQuasar();
@@ -460,7 +512,7 @@ const authStore = useAuthStore();
 const userStore = useUserStore();
 
 //Const
-const emptyUserTraining = () => {
+const emptyUserTraining = (): SelectedTraining & { userId: number } => {
   return {
     id: 0,
     resourceTypeId: 0,
@@ -474,13 +526,13 @@ const adding = ref(false);
 const deletingMessage = ref(false);
 const loading = ref(false);
 const loadingUsers = ref(false);
-const newMessage = ref(null);
+const newMessage = ref<string | null>(null);
 const saving = ref(false);
 const savingMessage = ref(false);
 const savingTraining = ref(false);
-const selectedResource = ref(null);
-const selectedShift = ref(null);
-const selectedUserTraining = ref(emptyUserTraining());
+const selectedResource = ref<ResourceResponse | null>(null);
+const selectedShift = ref<EditableShift | null>(null);
+const selectedUserTraining = ref<SelectedTraining | null>(emptyUserTraining());
 const showingAdminEdit = ref(false);
 const showingEdit = ref(false);
 const showingResourceInfo = ref(false);
@@ -490,14 +542,16 @@ const showingTrainingDialog = ref(false);
 const users = computed(() => userStore.users);
 const isPast = computed(() => props.timestamp.date < today());
 const event = computed(() => props.modelValue);
-const currentUser = computed(() => authStore.user);
+// Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
+const currentUser = computed(() => authStore.user!);
 const currentUserTrainings = computed(() =>
-  currentUser.value.trainings.map((t) => t.resourceTypeId)
+  // trainings er nullable i DTO-en; JS-versjonen antok at den alltid er satt.
+  currentUser.value.trainings!.map((t) => t.resourceTypeId)
 );
 
 // Methods
-function createUserList(resource) {
-  const list = [];
+function createUserList(resource: ResourceResponse): ShiftListItem[] {
+  const list: ShiftListItem[] = [];
   list.push(...resource.shifts);
   const neededStaff = resource.minimumStaff - list.length;
 
@@ -513,16 +567,19 @@ function createUserList(resource) {
   return list;
 }
 
-function formatTime(isoDateTime) {
+function formatTime(isoDateTime: string | null | undefined): string | null {
   if (!isoDateTime) return null;
   const date = parseISO(isoDateTime);
   return format(date, "HH:mm");
 }
 
-function formatStartEndTime(event) {
+function formatStartEndTime(event: ResourceResponse): string {
   return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
 }
-function resourceClasses(timestamp, resource) {
+function resourceClasses(
+  timestamp: DayTimestamp,
+  resource: ResourceResponse
+): string {
   return (
     "q-mt-sm q-mx-sm " +
     (timestamp.date < today()
@@ -533,32 +590,38 @@ function resourceClasses(timestamp, resource) {
   );
 }
 
-function isVacant(shift) {
-  return (shift?.user?.id ?? 0) === 0 ?? false;
+// `?? false` er fjernet: venstresiden er alltid en boolean.
+function isVacant(shift: ShiftListItem): boolean {
+  return (shift?.user?.id ?? 0) === 0;
 }
 
-function isTaken(shift) {
-  return shift?.user?.id > 0 ?? false;
+// Type guard: en tatt vakt er en ShiftResponse med bruker. `?? 0` i stedet
+// for `?? false`: `undefined > 0` og `0 > 0` gir begge false.
+function isTaken(shift: ShiftListItem): shift is ShiftResponse {
+  return (shift?.user?.id ?? 0) > 0;
 }
 
-function showEditButton(timestamp, shift) {
+function showEditButton(timestamp: DayTimestamp, shift: ShiftListItem): boolean {
   return (
     timestamp.date >= today() &&
     (shift?.user?.id ?? 0) === currentUser.value?.id
   );
 }
 
-function showCallButton(shift) {
+function showCallButton(shift: ShiftListItem): boolean {
   return (
     (shift?.user?.id ?? 0) > 0 &&
     (shift?.user?.id ?? 0) !== currentUser.value?.id
   );
 }
-function showAddButton(timestamp, shift) {
+function showAddButton(timestamp: DayTimestamp, shift: ShiftListItem): boolean {
   return timestamp.date >= today() && (shift?.user?.id ?? 0) === 0;
 }
 
-function showAddAdditionalRow(timestamp, resource) {
+function showAddAdditionalRow(
+  timestamp: DayTimestamp,
+  resource: ResourceResponse
+): boolean {
   return (
     (isTrainer(resource.resourceType) || isAdmin.value) &&
     timestamp.date >= today() &&
@@ -566,7 +629,7 @@ function showAddAdditionalRow(timestamp, resource) {
   );
 }
 
-async function checkTraining(resource) {
+async function checkTraining(resource: ResourceResponse): Promise<void> {
   try {
     adding.value = true;
     selectedResource.value = resource;
@@ -594,20 +657,23 @@ async function checkTraining(resource) {
   }
 }
 
-function isMissingTrainingInfo(resource) {
-  const resourceType =
-    resource?.resourceType ?? selectedResource.value?.resourceType;
+// Uten argument brukes selectedResource (kalles slik fra redigeringsdialogen,
+// der den alltid er satt).
+function isMissingTrainingInfo(resource?: ResourceResponse): boolean {
+  const resourceType = (resource?.resourceType ??
+    selectedResource.value?.resourceType)!;
   return (
     resourceType.hasTraining &&
     !currentUserTrainings.value.includes(resourceType.id)
   );
 }
 
-async function setTraining(needTraining) {
+async function setTraining(needTraining: boolean): Promise<void> {
   try {
     savingTraining.value = true;
+    // Dialogen vises kun når selectedResource er satt.
     await eventStore.addTraining(
-      selectedResource.value,
+      selectedResource.value!,
       currentUser.value,
       needTraining
     );
@@ -617,35 +683,44 @@ async function setTraining(needTraining) {
   }
 }
 
-function onUserUpdated() {
-  selectedShift.value.userId = selectedShift.value?.user?.id ?? 0;
-  const resourceTypeId = selectedResource.value?.resourceType.id;
-  const training = selectedShift.value?.user.trainings.find(
+// Kalles fra admin-dialogen når en bruker er valgt i q-select (ikke clearable),
+// så selectedShift, dens user og selectedResource er satt.
+function onUserUpdated(): void {
+  const shift = selectedShift.value!;
+  shift.userId = shift?.user?.id ?? 0;
+  const resourceTypeId = selectedResource.value!.resourceType.id;
+  // trainings er nullable i UserResponse; JS-versjonen antok at den er satt.
+  const training = shift?.user!.trainings!.find(
     (t) => t.resourceTypeId === resourceTypeId
   );
   selectedUserTraining.value = training ?? {
     id: 0,
     resourceTypeId: resourceTypeId,
-    userId: selectedShift.value.userId,
+    userId: shift.userId,
     trainingComplete: null,
   };
 }
 
-async function addUserAsResourceWithTraining() {
+async function addUserAsResourceWithTraining(): Promise<void> {
   showingTrainingDialog.value = false;
-  let training = emptyUserTraining();
+  const training = emptyUserTraining();
   training.trainingComplete = false;
-  await addUserAsResource(selectedResource.value, training);
+  // Dialogen åpnes av checkTraining, som setter selectedResource.
+  await addUserAsResource(selectedResource.value!, training);
 }
 
-async function addUserAsResourceWithoutTraining() {
+async function addUserAsResourceWithoutTraining(): Promise<void> {
   showingTrainingDialog.value = false;
-  let training = emptyUserTraining();
+  const training = emptyUserTraining();
   training.trainingComplete = true;
-  await addUserAsResource(selectedResource.value, training);
+  // Dialogen åpnes av checkTraining, som setter selectedResource.
+  await addUserAsResource(selectedResource.value!, training);
 }
 
-async function addUserAsResource(resource, training) {
+async function addUserAsResource(
+  resource: ResourceResponse,
+  training?: SelectedTraining
+): Promise<void> {
   try {
     adding.value = true;
     if (resource.resourceType.notificationMessage) {
@@ -654,10 +729,17 @@ async function addUserAsResource(resource, training) {
         iconColor: "primary",
         message: resource.resourceType.notificationMessage,
         position: "center",
+        // OBS (#82): Quasar-opsjonen heter `multiLine`; `multiline` ignoreres,
+        // så meldingen vises ikke som flerlinjet. Beholdt for å bevare atferd.
+        // @ts-expect-error ukjent opsjon i QNotifyCreateOptions (se over).
         multiline: true,
       });
     }
-    await eventStore.addShift(resource, currentUser.value, null, training);
+    // OBS (#82): training er undefined når ressurstypen ikke har opplæring
+    // (checkTraining). EventStore.addShift leser da `training.trainingComplete`
+    // etter at vakta er lagret og kaster TypeError, så brukeren får
+    // feilmelding selv om vakta ble tatt. `!` bevarer JS-atferden.
+    await eventStore.addShift(resource, currentUser.value, null, training!);
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
@@ -671,32 +753,36 @@ async function addUserAsResource(resource, training) {
   }
 }
 
-function edit(shift, resource) {
+// Kalles kun for brukerens egen vakt (showEditButton), så user er satt.
+function edit(shift: ShiftListItem, resource: ResourceResponse): void {
   selectedResource.value = resource;
   selectedShift.value = Object.assign({}, shift);
   const resourceTypeId = resource?.resourceType.id;
   const training =
-    selectedShift.value?.user.trainings.find(
+    selectedShift.value?.user!.trainings!.find(
       (t) => t.resourceTypeId === resourceTypeId
     ) ?? emptyUserTraining();
   selectedUserTraining.value = training;
   showingEdit.value = true;
 }
 
-async function updateShift() {
+// Kalles fra dialogene, der selectedResource, selectedShift og
+// selectedUserTraining er satt. Lagre i admin-dialogen er deaktivert uten
+// bruker, og en eksisterende vakt (id > 0) har alltid en bruker.
+async function updateShift(): Promise<void> {
   try {
     saving.value = true;
-    if (isAdmin.value && selectedShift.value.id === 0) {
+    if (isAdmin.value && selectedShift.value!.id === 0) {
       await eventStore.addShift(
-        selectedResource.value,
-        selectedShift.value.user,
-        selectedShift.value.comment,
-        selectedUserTraining.value
+        selectedResource.value!,
+        selectedShift.value!.user!,
+        selectedShift.value!.comment ?? null,
+        selectedUserTraining.value!
       );
     } else {
       await eventStore.updateShift(
-        selectedResource.value,
-        selectedShift.value,
+        selectedResource.value!,
+        selectedShift.value as EditableShift & { user: ShiftUser },
         selectedUserTraining.value
       );
     }
@@ -719,10 +805,11 @@ async function updateShift() {
   }
 }
 
-async function deleteShift() {
+async function deleteShift(): Promise<void> {
   try {
     saving.value = true;
-    await eventStore.deleteShift(selectedShift.value);
+    // Kalles fra dialogene, der selectedShift er satt.
+    await eventStore.deleteShift(selectedShift.value!);
     showingEdit.value = false;
     showingAdminEdit.value = false;
     $q.notify({
@@ -737,17 +824,22 @@ async function deleteShift() {
   }
 }
 
-function isTrainer(resourceType) {
+function isTrainer(resourceType: ResourceTypeResponse): boolean {
   const trainerIds = resourceType.trainers.map((t) => t.userId);
   return trainerIds.includes(currentUser.value.id);
 }
 
-async function editShift(resource, shift) {
+async function editShift(
+  resource: ResourceResponse,
+  shift: ShiftListItem
+): Promise<void> {
   selectedShift.value = Object.assign({ userId: 0 }, shift);
   selectedResource.value = resource;
   const resourceTypeId = resource?.resourceType.id;
+  // trainings er nullable i DTO-en; JS-versjonen antok at den er satt når
+  // vakta har en bruker.
   const training =
-    selectedShift.value?.user?.trainings.find(
+    selectedShift.value?.user?.trainings!.find(
       (t) => t.resourceTypeId === resourceTypeId
     ) ?? emptyUserTraining();
   selectedUserTraining.value = training;
@@ -755,7 +847,7 @@ async function editShift(resource, shift) {
   if (isAdmin.value) await getUsers();
 }
 
-async function getUsers() {
+async function getUsers(): Promise<void> {
   try {
     loadingUsers.value = true;
     await userStore.getUsers();
@@ -766,22 +858,25 @@ async function getUsers() {
   }
 }
 
-function showResourceInfo(resource) {
+function showResourceInfo(resource: ResourceResponse): void {
   selectedResource.value = resource;
   showingResourceInfo.value = true;
 }
 
-async function saveMessage() {
+// Kalles fra ressursinfo-dialogen, der selectedResource er satt.
+async function saveMessage(): Promise<void> {
   try {
     savingMessage.value = true;
     const model = {
-      message: newMessage.value,
+      // OBS (#82): newMessage er null når feltet er tomt/nullstilt, og da
+      // sendes `message: null` selv om MessageRequest krever en streng.
+      message: newMessage.value as string,
     };
     const response = await eventStore.addMessage(
-      selectedResource.value.id,
+      selectedResource.value!.id,
       model
     );
-    selectedResource.value.messages.push(response);
+    selectedResource.value!.messages.push(response);
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er lagret. 📨" });
   } catch (error) {
@@ -792,11 +887,12 @@ async function saveMessage() {
   }
 }
 
-async function deleteMessage(message) {
+// Kalles fra ressursinfo-dialogen, der selectedResource er satt.
+async function deleteMessage(message: MessageResponse): Promise<void> {
   try {
     deletingMessage.value = true;
     await eventStore.deleteMessage(message);
-    selectedResource.value.messages = selectedResource.value.messages.filter(
+    selectedResource.value!.messages = selectedResource.value!.messages.filter(
       (m) => m.id !== message.id
     );
     newMessage.value = null;
@@ -809,13 +905,13 @@ async function deleteMessage(message) {
   }
 }
 
-function canDeleteMessage(message) {
+function canDeleteMessage(message: MessageResponse): boolean {
   return (
     !isPast.value &&
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }
-async function addEmptyShift(resource) {
+async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   try {
     loading.value = true;
 
@@ -841,7 +937,7 @@ async function addEmptyShift(resource) {
     loading.value = false;
   }
 }
-async function deleteEmptyShift(resource) {
+async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
   try {
     loading.value = true;
 

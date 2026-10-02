@@ -249,9 +249,13 @@ export const useEventStore = defineStore("events", {
         }
       });
     },
+    // shift er en redigert kopi fra EventItemCard; i admin-dialogen kan user
+    // være en UserResponse valgt i q-select, så kun feltene som leses kreves.
     async updateShift(
       parentResource: ResourceResponse,
-      shift: ShiftResponse,
+      shift: Pick<ShiftResponse, "id" | "startTime" | "endTime" | "comment"> & {
+        user: Pick<UserResponse, "id">;
+      },
       training: ShiftTraining | null
     ): Promise<void> {
       console.log(shift);
