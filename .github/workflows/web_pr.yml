@@ -1,0 +1,35 @@
+name: Web PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/Middagsasen.Planner.Web/**'
+      - '.github/workflows/web_pr.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    name: Lint, typecheck og test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Middagsasen.Planner.Web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Middagsasen.Planner.Web/package-lock.json
+
+      # postinstall kjører `quasar prepare`, som genererer .quasar/tsconfig.json
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test

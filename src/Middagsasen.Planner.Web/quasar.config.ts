@@ -1,4 +1,5 @@
-import { configure } from "quasar/wrappers";
+import { defineConfig } from "#q-app/wrappers";
+import type { Plugin } from "vite";
 import { fileURLToPath } from "node:url";
 
 // Versjons-ID for bygget. Brukes både i bundelen (__APP_VERSION__) og i
@@ -9,7 +10,7 @@ const version = sha ? `${builtAt}-${sha}` : builtAt;
 const appVersion = { version, builtAt, sha };
 
 // Skriver version.json til roten av output-mappen ved produksjonsbygg.
-function versionJsonPlugin() {
+function versionJsonPlugin(): Plugin {
   return {
     name: "app-version-json",
     apply: "build",
@@ -23,7 +24,7 @@ function versionJsonPlugin() {
   };
 }
 
-export default configure((/* ctx */) => {
+export default defineConfig((/* ctx */) => {
   return {
     eslint: {
       // fix: true,
@@ -61,6 +62,12 @@ export default configure((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#build
     build: {
+      // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#build
+      typescript: {
+        strict: true,
+        vueShim: true,
+      },
+
       target: {
         browser: ["es2019", "edge88", "firefox78", "chrome87", "safari13.1"],
         node: "node16",
@@ -175,7 +182,7 @@ export default configure((/* ctx */) => {
 
     // https://v2.quasar.dev/quasar-cli-vite/developing-pwa/configuring-pwa
     pwa: {
-      workboxMode: "generateSW", // or 'injectManifest'
+      workboxMode: "GenerateSW", // or "InjectManifest"
       injectPwaMetaTags: true,
       swFilename: "sw.js",
       manifestFilename: "manifest.json",
@@ -227,7 +234,7 @@ export default configure((/* ctx */) => {
 
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex
     bex: {
-      contentScripts: ["my-content-script"],
+      // extraScripts: [],
 
       // extendBexScriptsConf (esbuildConf) {}
       // extendBexManifestJson (json) {}

@@ -7,12 +7,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "lint": "eslint --ext .js,.vue ./",
-    "format": "prettier --write \"**/*.{js,vue,scss,html,md,json}\" --ignore-path .gitignore",
+    "lint": "eslint --ext .js,.ts,.vue ./",
+    "format": "prettier --write \"**/*.{js,ts,vue,scss,html,md,json}\" --ignore-path .gitignore",
+    "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "quasar dev",
-    "build": "quasar build"
+    "build": "quasar build",
+    "postinstall": "quasar prepare"
   },
   "dependencies": {
     "@date-fns/utc": "^2.1.0",
@@ -35,6 +37,8 @@
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^5.2.0",
     "@quasar/app-vite": "^2.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "@typescript-eslint/parser": "^8.71.0",
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.2",
     "eslint": "^8.10.0",
@@ -42,7 +46,9 @@
     "eslint-plugin-vue": "^9.0.0",
     "postcss": "^8.4.14",
     "prettier": "^2.5.1",
-    "vitest": "^4.1.2"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.2",
+    "vue-tsc": "^3.3.12"
   },
   "engines": {
     "node": "^22 || ^20",
