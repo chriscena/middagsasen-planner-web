@@ -27,7 +27,7 @@
           outlined
           label="Navn"
           v-model="name"
-          @focus="(event) => (event.target?.select ? event.target.select() : _)"
+          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         ></q-input>
         <q-input
           outlined
@@ -98,7 +98,7 @@
             flat
             label="Slett"
             color="primary"
-            @click="deleteEvent(props.id)"
+            @click="deleteEvent()"
           ></q-btn>
         </q-card-actions>
       </q-card>
@@ -137,7 +137,7 @@
   </q-card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
@@ -154,23 +154,30 @@ import { useRouter } from "vue-router";
 import TimePickerInput from "components/TimePickerInput.vue";
 import DatePickerInput from "components/DatePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
+import type { ResourceFormModel } from "components/ResourceForm.vue";
+import type { EventRequest } from "src/types";
 
-const emit = defineEmits(["cancel", "saved", "deleted"]);
+const emit = defineEmits<{
+  cancel: [];
+  saved: [value: EventRequest];
+  // eventStore.deleteEvent returnerer ingenting, så verdien er alltid undefined.
+  deleted: [value: void];
+}>();
 const loading = ref(false);
 const $q = useQuasar();
 const $router = useRouter();
 const eventStore = useEventStore();
 
-const props = defineProps({
-  date: {
-    type: String,
-    default: () => formatISO(new Date(), { representation: "date" }),
-  },
-  id: {
-    type: Number,
-    default: null,
-  },
-});
+const props = withDefaults(
+  defineProps<{
+    date?: string;
+    id?: number | null;
+  }>(),
+  {
+    date: () => formatISO(new Date(), { representation: "date" }),
+    id: null,
+  }
+);
 
 onMounted(async () => {
   try {
@@ -180,12 +187,14 @@ onMounted(async () => {
     if (props.id) {
       await eventStore.getEvent(props.id);
       const event = eventStore.selectedEvent;
+      // Tidligere ga null her en TypeError som ble svelget av catch under.
+      if (!event) return;
       name.value = event.name;
       description.value = event.description;
       startDate.value = formatDate(new Date(event.startTime));
       startTime.value = formatTime(new Date(event.startTime));
       endTime.value = formatTime(new Date(event.endTime));
-      resources.value = event.resources.map((r) => {
+      resources.value = event.resources.map((r): ResourceFormModel => {
         return {
           id: r.id,
           eventId: r.eventId,
@@ -211,17 +220,18 @@ onMounted(async () => {
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
-const name = ref(null);
-const description = ref(null);
+const name = ref<string | null>(null);
+const description = ref<string | null | undefined>(null);
 
+// parse(null) og parse("") gir begge Invalid Date.
 const isValidDate = computed(() =>
-  isValid(parse(startDate.value, "dd.MM.yyyy", new Date()))
+  isValid(parse(startDate.value ?? "", "dd.MM.yyyy", new Date()))
 );
 const isValidStartTime = computed(() =>
-  isValid(parse(startTime.value, "HH:mm", new Date()))
+  isValid(parse(startTime.value ?? "", "HH:mm", new Date()))
 );
 const isValidEndTime = computed(() =>
-  isValid(parse(endTime.value, "HH:mm", new Date()))
+  isValid(parse(endTime.value ?? "", "HH:mm", new Date()))
 );
 
 const startDateTime = computed(() => {
@@ -242,16 +252,23 @@ const endDateTime = computed(() => {
   }
 });
 
-function toDateTime(date, time, start) {
+function toDateTime(
+  date: string | null,
+  time: string | null,
+  start?: Date | null
+) {
   const datetime = parse(`${date} ${time}`, "dd.MM.yyyy HH:mm", new Date());
+  // OBS (#82): tilordning til const kaster TypeError når slutt er før start
+  // (vakt over midnatt). endDateTime blir da null og lagring feiler stille.
+  // @ts-expect-error -- bevart bug, se OBS over
   if (start && isBefore(datetime, start)) datetime = addDays(datetime, 1);
   return datetime;
 }
 
-const startDate = ref(formatDate(new Date()));
-const startTime = ref("10:00");
-const endTime = ref("17:00");
-const resources = ref([]);
+const startDate = ref<string | null>(formatDate(new Date()));
+const startTime = ref<string | null>("10:00");
+const endTime = ref<string | null>("17:00");
+const resources = ref<ResourceFormModel[]>([]);
 
 const canSave = computed(() => {
   return !!(name.value && startDate.value && startTime.value && endTime.value);
@@ -260,12 +277,12 @@ const canSave = computed(() => {
 const selectedResource = ref(null);
 const showingEdit = ref(false);
 
-function formatTime(isoDateTime) {
+function formatTime(isoDateTime: string | Date) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
   return format(parseISO(isoDateTime), "HH:mm");
 }
 
-function formatDate(isoDateTime) {
+function formatDate(isoDateTime: string | Date) {
   if (isoDateTime instanceof Date) return format(isoDateTime, "dd.MM.yyyy");
   return format(parseISO(isoDateTime), "dd.MM.yyyy");
 }
@@ -273,19 +290,25 @@ function formatDate(isoDateTime) {
 async function saveEvent() {
   try {
     loading.value = true;
-    const model = {
-      name: name.value,
-      description: description.value,
+    const model: EventRequest = {
+      // Lagre-knappen er deaktivert uten navn (canSave).
+      name: name.value!,
+      description: description.value ?? null,
       startTime: formatDateTime(startDateTime.value),
       endTime: formatDateTime(endDateTime.value),
       resources: resources.value.map((r) => {
         return {
-          id: r.id,
-          resourceTypeId: r.resourceType.id,
+          id: r.id ?? null,
+          // ResourceForm krever vakttype før lagring (canAdd).
+          resourceTypeId: r.resourceType!.id,
           startTime: formatDateTime(toDateTime(startDate.value, r.startTime)),
           endTime: formatDateTime(toDateTime(startDate.value, r.endTime)),
-          minimumStaff: r.minimumStaff,
-          isDeleted: r.isDeleted,
+          // OBS (#82): kan være string fra q-input type="number"; API-et godtar
+          // tall som streng (JsonSerializerDefaults.Web).
+          minimumStaff: r.minimumStaff as number,
+          // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
+          isDeleted: r.isDeleted as boolean,
+          // OBS (#82): shifts finnes ikke i ResourceRequest; ignoreres av API-et.
           shifts: [],
         };
       }),
@@ -308,7 +331,7 @@ async function saveEvent() {
   }
 }
 
-const showingDelete = ref(null);
+const showingDelete = ref<boolean | null>(null);
 function confirmDeleteEvent() {
   showingDelete.value = true;
 }
@@ -318,6 +341,8 @@ async function deleteEvent() {
     loading.value = true;
     showingDelete.value = false;
     const event = eventStore.selectedEvent;
+    // Tidligere ga null her en TypeError som ble svelget av catch under.
+    if (!event) return;
     const date = formatISO(parseISO(event.startTime), {
       representation: "date",
     });
@@ -330,22 +355,26 @@ async function deleteEvent() {
   }
 }
 
-function formatDateTime(date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm", new Date());
+function formatDateTime(date: Date | null) {
+  // null (fra catch i startDateTime/endDateTime) gir samme RangeError som før.
+  // OBS (#82): tredje argument var `new Date()`, men format tar et options-objekt;
+  // fjernet uten endret atferd (Date har ingen av options-feltene).
+  return format(date ?? NaN, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 
 const showingCreateTemplate = ref(false);
-const templateName = ref(null);
+const templateName = ref<string | null>(null);
 function showCreateTemplate() {
   templateName.value = null;
   showingCreateTemplate.value = true;
 }
 
 const savingTemplate = ref(false);
-async function createTemplate(id) {
+async function createTemplate(id: number | null) {
   try {
     savingTemplate.value = true;
-    await eventStore.createTemplateFromEvent(id, templateName.value);
+    // Knappen vises kun med id, og Lagre er deaktivert uten malnavn.
+    await eventStore.createTemplateFromEvent(id!, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
   } catch (error) {

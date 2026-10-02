@@ -6,9 +6,9 @@
     mask="##.##.####"
     placeholder="DD.MM.ÅÅÅÅ"
     :readonly="props.readonly"
-    @focus="(event) => (event.target?.select ? event.target.select() : _)"
+    @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
     :model-value="props.modelValue"
-    @update:model-value="(val) => emit('update:model-value', val)"
+    @update:model-value="(val) => emit('update:model-value', val as string | null)"
     ><template v-slot:append v-if="!props.readonly">
       <q-icon name="event" class="cursor-pointer">
         <q-popup-proxy transition-show="scale" transition-hide="scale">
@@ -27,16 +27,20 @@
   ></q-input>
 </template>
 
-<script setup>
-const props = defineProps({
-  modelValue: {
-    type: String,
-    default: undefined,
-  },
-  readonly: {
-    type: Boolean,
-    default: false,
-  },
-});
-const emit = defineEmits(["update:model-value"]);
+<script setup lang="ts">
+// Wrapper rundt q-input; QInput typer verdien som string | number | null,
+// men uten type="number" sender den aldri number.
+const props = withDefaults(
+  defineProps<{
+    modelValue?: string | null | undefined;
+    readonly?: boolean;
+  }>(),
+  {
+    modelValue: undefined,
+    readonly: false,
+  }
+);
+const emit = defineEmits<{
+  "update:model-value": [value: string | null];
+}>();
 </script>

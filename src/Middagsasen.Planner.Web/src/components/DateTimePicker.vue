@@ -2,7 +2,7 @@
   <q-input
     :model-value="formattedDate"
     @update:model-value="emitDate"
-    :label="label"
+    :label="label ?? undefined"
     :readonly="readonly"
     filled
     mask="##.##.#### ##:##"
@@ -58,99 +58,91 @@
   </q-input>
 </template>
 
-<script>
+<script setup lang="ts">
+import { computed, getCurrentInstance, ref, watch } from "vue";
 import { format, formatISO, parse } from "date-fns";
 
 const dateMask = "DD.MM.YYYY HH:mm";
 const dateFormat = "dd.MM.yyyy HH:mm";
-export default {
-  // name: 'ComponentName',
-  props: {
-    modelValue: {
-      type: String,
-      default: () => null,
-    },
-    label: {
-      type: String,
-      default: () => null,
-    },
-    dense: {
-      type: Boolean,
-      default: () => false,
-    },
-    disable: {
-      type: Boolean,
-      default: () => false,
-    },
-    readonly: {
-      type: Boolean,
-      default: () => false,
-    },
-    status: {
-      type: Number,
-      default: () => null,
-    },
-    disabledDays: {
-      type: Array,
-      default: () => [],
-    },
-    defaultDate: {
-      type: String,
-      default: "",
-    },
+
+const props = withDefaults(
+  defineProps<{
+    modelValue?: string | null;
+    label?: string | null;
+    dense?: boolean;
+    disable?: boolean;
+    readonly?: boolean;
+    status?: number | null;
+    disabledDays?: string[];
+    defaultDate?: string;
+  }>(),
+  {
+    modelValue: null,
+    label: null,
+    dense: false,
+    disable: false,
+    readonly: false,
+    status: null,
+    disabledDays: () => [],
+    defaultDate: "",
+  }
+);
+
+const emit = defineEmits<{
+  "update:modelValue": [value: string | null];
+}>();
+
+const instance = getCurrentInstance();
+
+const formattedDefaultDate = computed(() => {
+  return props.defaultDate
+    ? format(new Date(props.defaultDate), "yyyy/MM/dd")
+    : format(new Date(), "yyyy/MM/dd");
+});
+
+const formattedDate = computed(() => {
+  return props.modelValue
+    ? format(new Date(props.modelValue), dateFormat)
+    : null;
+});
+
+const selectedDate = ref<string | null>(null);
+
+watch(
+  () => props.modelValue,
+  (newValue, oldValue) => {
+    if (!newValue) selectedDate.value = null;
+    // new Date(null) === new Date(0); `?? 0` gir samme verdi uten å sende null til Date.
+    if (newValue !== oldValue)
+      selectedDate.value = format(new Date(newValue ?? 0), dateFormat);
   },
-  emits: ["update:modelValue"],
-  computed: {
-    formattedDefaultDate() {
-      return this.defaultDate
-        ? format(new Date(this.defaultDate), "yyyy/MM/dd")
-        : format(new Date(), "yyyy/MM/dd");
-    },
-    dateFormat() {
-      return dateFormat;
-    },
-    dateMask() {
-      return dateMask;
-    },
-    formattedDate() {
-      return this.modelValue
-        ? format(new Date(this.modelValue), dateFormat)
-        : null;
-    },
-  },
-  watch: {
-    modelValue: {
-      handler(newValue, oldValue) {
-        if (!newValue) this.selectedDate = null;
-        if (newValue !== oldValue)
-          this.selectedDate = format(new Date(newValue), dateFormat);
-      },
-      immediate: true,
-    },
-  },
-  data() {
-    return {
-      selectedDate: null,
-    };
-  },
-  methods: {
-    emitDate(value) {
-      if (!value) this.$emit("update:modelValue", null);
-      try {
-        const defaultDate = this.defaultDate
-          ? new Date(this.defaultDate)
-          : new Date();
-        this.$emit(
-          "update:modelValue",
-          formatISO(parse(value, "dd.MM.yyyy HH:mm", defaultDate))
-        );
-      } catch (error) {
-        this.$appInsights.trackException({ exception: new Error(error) });
-      }
-    },
-    optionsFn(day) {
-      return !this.disabledDays.includes(day);
-    },
-  },
-};
+  { immediate: true }
+);
+
+function emitDate(value: string | number | null) {
+  // OBS (#82): mangler return etter null-emit; parse/formatISO kjøres også for tom verdi.
+  if (!value) emit("update:modelValue", null);
+  try {
+    const defaultDate = props.defaultDate
+      ? new Date(props.defaultDate)
+      : new Date();
+    emit(
+      "update:modelValue",
+      // date-fns parse gjør String() på input selv; eksplisitt her for typene.
+      formatISO(parse(String(value), "dd.MM.yyyy HH:mm", defaultDate))
+    );
+  } catch (error) {
+    // OBS (#82): $appInsights er ikke registrert noe sted (ingen boot-fil), så dette
+    // kallet kaster TypeError. Komponenten er heller ikke i bruk.
+    // @ts-expect-error -- $appInsights finnes ikke på ComponentCustomProperties (se OBS over)
+    instance?.proxy?.$appInsights.trackException({
+      exception: new Error(String(error)),
+    });
+  }
+}
+
+// Ikke i bruk i malen (bevart fra Options API-versjonen).
+function optionsFn(day: string) {
+  return !props.disabledDays.includes(day);
+}
 </script>

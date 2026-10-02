@@ -44,25 +44,34 @@
   </q-card>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { api } from "boot/axios";
+import type {
+  HallOfFameResponse,
+  HallOfFamerResponse,
+  UserResponse,
+} from "src/types";
 
-const emit = defineEmits(["close"]);
-const props = defineProps({
-  currentUser: {
-    type: Object,
-    default: null,
-  },
-});
+const emit = defineEmits<{
+  close: [];
+}>();
+const props = withDefaults(
+  defineProps<{
+    currentUser?: UserResponse | null;
+  }>(),
+  {
+    currentUser: null,
+  }
+);
 
-const hallOfFamers = ref([]);
+const hallOfFamers = ref<HallOfFamerResponse[]>([]);
 const loading = ref(false);
 onMounted(async () => {
   try {
     loading.value = true;
     lastRank = 0;
-    const response = await api.get("/api/halloffame");
+    const response = await api.get<HallOfFameResponse>("/api/halloffame");
     hallOfFamers.value = response.data?.hallOfFamers;
   } catch (error) {
   } finally {
@@ -71,7 +80,7 @@ onMounted(async () => {
 });
 
 let lastRank = 0;
-function rank(shifts, index) {
+function rank(shifts: number, index: number): string | number {
   if (shifts !== lastRank) {
     lastRank = shifts;
     if (index === 0) return "🥇";
