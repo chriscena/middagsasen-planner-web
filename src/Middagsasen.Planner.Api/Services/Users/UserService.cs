@@ -44,13 +44,22 @@ namespace Middagsasen.Planner.Api.Services.Users
             return Map(user);
         }
 
+        internal const string PhoneNoInUseMessage = "Telefonnummeret er allerede i bruk.";
+        internal const string PhoneNoInvalidMessage = "Telefonnummeret er ugyldig.";
+        internal const string PhoneNoRequiredMessage = "Telefonnummer må fylles ut.";
+
         public async Task<UserResponse> Create(UserRequest request)
         {
+            if (string.IsNullOrWhiteSpace(request.PhoneNo))
+                throw new DomainValidationException(PhoneNoRequiredMessage);
+
+            var userName = await GetAvailableUserName(request.PhoneNo, excludeUserId: null);
+
             var user = new User
             {
                 FirstName = request.FirstName,
                 LastName = request.LastName,
-                UserName = request.PhoneNo,
+                UserName = userName,
                 IsAdmin = request.IsAdmin ?? false,
                 IsHidden = request.IsHidden ?? false,
             };
@@ -65,27 +74,74 @@ namespace Middagsasen.Planner.Api.Services.Users
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id)
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
 
-            if (!string.IsNullOrWhiteSpace(request.FirstName))
-                user.FirstName = request.FirstName;
-            if (!string.IsNullOrWhiteSpace(request.LastName))
-                user.LastName = request.LastName;
-            if (!string.IsNullOrWhiteSpace(request.PhoneNo))
-                user.UserName = request.PhoneNo;
+            await ApplyCommonFields(user, request.FirstName, request.LastName, request.PhoneNo, request.Password);
             if (request.IsAdmin.HasValue)
                 user.IsAdmin = request.IsAdmin.Value;
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
-            if (!string.IsNullOrWhiteSpace(request.Password))
-            {
-                var salt = PasswordHasher.CreateSalt();
-                var password = PasswordHasher.HashPassword(request.Password, salt);
-                user.Salt = salt;
-                user.EncryptedPassword = password;
-            }
 
             await DbContext.SaveChangesAsync();
 
             return Map(user);
+        }
+
+        public async Task<UserResponse> UpdateMe(int userId, UpdateMeRequest request)
+        {
+            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == userId)
+                ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {userId}");
+
+            await ApplyCommonFields(user, request.FirstName, request.LastName, request.PhoneNo, request.Password);
+            if (request.IsHidden.HasValue)
+                user.IsHidden = request.IsHidden.Value;
+
+            await DbContext.SaveChangesAsync();
+
+            return Map(user);
+        }
+
+        /// <summary>
+        /// Felt som både brukeren selv og administrator kan endre. Tomme verdier ignoreres.
+        /// </summary>
+        private async Task ApplyCommonFields(User user, string? firstName, string? lastName, string? phoneNo, string? password)
+        {
+            if (!string.IsNullOrWhiteSpace(firstName))
+                user.FirstName = firstName;
+            if (!string.IsNullOrWhiteSpace(lastName))
+                user.LastName = lastName;
+            if (!string.IsNullOrWhiteSpace(phoneNo))
+                user.UserName = await GetAvailableUserName(phoneNo, user.UserId);
+            if (!string.IsNullOrWhiteSpace(password))
+            {
+                var salt = PasswordHasher.CreateSalt();
+                var hash = PasswordHasher.HashPassword(password, salt);
+                user.Salt = salt;
+                user.EncryptedPassword = hash;
+            }
+        }
+
+        /// <summary>
+        /// Normaliserer telefonnummeret til samme format som brukes ved innlogging (8 siffer uten landkode),
+        /// og avviser nummeret hvis det er ugyldig eller allerede brukes av en annen bruker.
+        /// Inaktive brukere telles med, siden OTP-innlogging slår opp brukernavn uten å filtrere på Inactive.
+        /// </summary>
+        private async Task<string> GetAvailableUserName(string phoneNo, int? excludeUserId)
+        {
+            var phoneNumber = phoneNo.ToNumericPhoneNo();
+            if (phoneNumber == 0)
+                throw new DomainValidationException(PhoneNoInvalidMessage);
+
+            // Eldre data kan ha brukernavn i andre formater (f.eks. "+47 ..."), så sammenligningen gjøres
+            // på normalisert nummer. Brukertabellen er liten, så det er greit å hente alle brukernavnene.
+            var otherUserNames = await DbContext.Users
+                .AsNoTracking()
+                .Where(u => excludeUserId == null || u.UserId != excludeUserId)
+                .Select(u => u.UserName)
+                .ToListAsync();
+
+            if (otherUserNames.Any(existing => existing.ToNumericPhoneNo() == phoneNumber))
+                throw new DomainValidationException(PhoneNoInUseMessage);
+
+            return phoneNumber.ToUserName();
         }
 
         public async Task<UserResponse> Delete(int id)

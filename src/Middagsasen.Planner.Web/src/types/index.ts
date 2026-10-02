@@ -61,6 +61,7 @@ export type SystemDiagnosticsResponse = Schemas["SystemDiagnosticsResponse"];
 export type TemplateFromEventRequest = Schemas["TemplateFromEventRequest"];
 export type TrainingRequest = Schemas["TrainingRequest"];
 export type TrainingResponse = Schemas["TrainingResponse"];
+export type UpdateMeRequest = Schemas["UpdateMeRequest"];
 export type UpdateWorkHourRequest = Schemas["UpdateWorkHourRequest"];
 export type UserCompetencyRequest = Schemas["UserCompetencyRequest"];
 export type UserCompetencyResponse = Schemas["UserCompetencyResponse"];

@@ -198,8 +198,7 @@
                     round
                     icon="download"
                     title="Last ned fil"
-                    type="a"
-                    :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+                    @click="downloadFile(file)"
                   ></q-btn> </q-item-section
                 ><q-item-section side>
                   <q-btn
@@ -335,6 +334,8 @@ import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
+import { getApiErrorMessage } from "src/shared/apiError";
+import { downloadResourceTypeFile } from "src/shared/fileDownload";
 import { computed } from "vue";
 import type {
   CompetencyResponse,
@@ -565,6 +566,17 @@ async function addFile() {
     console.log(error);
   } finally {
     savingFile.value = false;
+  }
+}
+
+async function downloadFile(fileInfo: FileInfoResponse) {
+  try {
+    await downloadResourceTypeFile(fileInfo);
+  } catch (error) {
+    console.log(error);
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å hente filen."),
+    });
   }
 }
 

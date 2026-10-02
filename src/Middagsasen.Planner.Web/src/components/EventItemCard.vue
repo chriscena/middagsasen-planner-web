@@ -361,7 +361,7 @@
               v-for="file in selectedResource!.resourceType.files"
               :key="file.id"
               clickable
-              :href="`/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`"
+              @click="downloadFile(file)"
             >
               <q-item-section
                 ><q-item-label lines="1">{{
@@ -451,8 +451,10 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { getApiErrorMessage } from "src/shared/apiError";
+import { downloadResourceTypeFile } from "src/shared/fileDownload";
 import type {
   EventResponse,
+  FileInfoResponse,
   MessageResponse,
   ResourceResponse,
   ResourceTypeResponse,
@@ -914,6 +916,17 @@ async function deleteMessage(message: MessageResponse): Promise<void> {
     console.log(error);
   } finally {
     deletingMessage.value = false;
+  }
+}
+
+async function downloadFile(file: FileInfoResponse): Promise<void> {
+  try {
+    await downloadResourceTypeFile(file);
+  } catch (error) {
+    $q.notify({
+      message: getApiErrorMessage(error, "Klarte ikke å hente filen."),
+    });
+    console.log(error);
   }
 }
 

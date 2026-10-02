@@ -96,8 +96,9 @@ namespace Middagsasen.Planner.Api.Controllers
             return Created($"{response.ResourceTypeId}/files/{response.Id}", response);
         }
 
-        [HttpGet("{resourceTypeId}/files/{id}")]
+        [HttpGet("{resourceTypeId}/files/{id}"), Authorize]
         [ProducesResponseType(typeof(Stream), StatusCodes.Status200OK, "application/octet-stream")]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFile(int resourceTypeId, int id)
         {
