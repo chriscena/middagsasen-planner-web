@@ -4404,6 +4404,14 @@
         }
       },
       "ResourceTypeResponse": {
+        "required": [
+          "id",
+          "name",
+          "defaultStaff",
+          "trainers",
+          "hasTraining",
+          "files"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -4611,6 +4619,11 @@
         }
       },
       "ShiftUserResponse": {
+        "required": [
+          "id",
+          "phoneNumber",
+          "trainings"
+        ],
         "type": "object",
         "properties": {
           "id": {
@@ -4658,6 +4671,13 @@
         }
       },
       "TrainingRequest": {
+        "required": [
+          "id",
+          "resourceTypeId",
+          "userId",
+          "startTime",
+          "confirmedBy"
+        ],
         "type": "object",
         "properties": {
           "id": {
