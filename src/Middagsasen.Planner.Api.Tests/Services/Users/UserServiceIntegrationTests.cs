@@ -1,4 +1,5 @@
 ﻿using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.SmsSender;
@@ -23,11 +24,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
+        /// <summary>
+        /// Dagens dato i norsk tid. Vakttider lagres som norsk lokal tid, så testdataene må ikke avhenge av
+        /// tidssonen til maskinen som kjører testene.
+        /// </summary>
+        private static DateTime NorwegianToday()
+            => TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, DateTimeExtensions.SeasonTimeZone).Date;
+
         private static async Task<User> SeedUser(PlannerDbContext context, string firstName)
         {
             var user = new User
             {
-                UserName = $"+47{Random.Shared.Next(10000000, 99999999)}",
+                // Brukernavnet er unikt i databasen, så det må ikke kunne kollidere med andre testers brukere.
+                UserName = UniqueName("hof"),
                 FirstName = firstName,
                 LastName = "HallOfFame",
                 Created = DateTime.UtcNow,
@@ -46,7 +55,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();
 
-            var start = DateTime.Today.AddDays(daysFromToday).AddHours(8);
+            var start = NorwegianToday().AddDays(daysFromToday).AddHours(8);
             var end = start.AddHours(8);
             var evt = new Event
             {
@@ -86,6 +95,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             {
                 events.Add(await SeedEvent(seedContext, daysFromToday: -i));
             }
+            var todayEvent = await SeedEvent(seedContext, daysFromToday: 0);
             var futureEvent = await SeedEvent(seedContext, daysFromToday: 7);
 
             // Fornavnene har felles prefiks så rekkefølgen mellom dem er entydig uavhengig av andre testers data.
@@ -95,6 +105,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var tiedA = await SeedUser(seedContext, $"{prefix}_Anne");
             var least = await SeedUser(seedContext, $"{prefix}_Ada");
             var futureOnly = await SeedUser(seedContext, $"{prefix}_Fremtid");
+            var todayOnly = await SeedUser(seedContext, $"{prefix}_IDag");
 
             // most: tre arrangementer, inkludert to vakter på samme arrangement (telles én gang).
             await SeedShift(seedContext, events[0].Resources.First(), most);
@@ -114,6 +125,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             // futureOnly: kun fremtidige vakter, skal ikke være med.
             await SeedShift(seedContext, futureEvent.Resources.First(), futureOnly);
 
+            // todayOnly: kun vakt i dag (norsk dato), skal ikke være med før dagen er omme.
+            await SeedShift(seedContext, todayEvent.Resources.First(), todayOnly);
+
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
 
@@ -128,7 +142,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
                     $"Listen er ikke sortert synkende på antall vakter: {all[i - 1].Shifts} før {all[i].Shifts}");
             }
 
-            var seededIds = new[] { most.UserId, tiedA.UserId, tiedB.UserId, least.UserId, futureOnly.UserId };
+            var seededIds = new[] { most.UserId, tiedA.UserId, tiedB.UserId, least.UserId, futureOnly.UserId, todayOnly.UserId };
             var seeded = all.Where(h => seededIds.Contains(h.Id)).ToList();
 
             Assert.Equal(

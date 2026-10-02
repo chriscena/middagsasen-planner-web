@@ -40,7 +40,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var user = new User
             {
-                UserName = $"+47{Random.Shared.Next(10000000, 99999999)}",
+                UserName = $"user_{Guid.NewGuid():N}",
                 FirstName = firstName,
                 LastName = lastName,
                 IsAdmin = isAdmin,
