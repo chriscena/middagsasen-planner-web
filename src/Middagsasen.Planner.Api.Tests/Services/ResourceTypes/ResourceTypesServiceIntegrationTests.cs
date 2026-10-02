@@ -294,7 +294,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUser(seedContext, "Trainee", "Person");
             var confirmer = await SeedUser(seedContext, "Confirmer", "Person");
-            var resourceType = await SeedResourceType(seedContext, name: UniqueName("Training"));
+            // Bekrefteren er trener for ressurstypen og kan derfor sette opplæring for andre.
+            var resourceType = await SeedResourceType(seedContext, name: UniqueName("Training"), trainerUserIds: new List<int> { confirmer.UserId });
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: confirmer.UserId);
@@ -421,5 +422,186 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
         }
 
         #endregion
+        #region Tilgang til opplæring (#94)
+
+        private async Task<ResourceTypeTraining> SeedTraining(PlannerDbContext context, int resourceTypeId, int userId, bool? completed = false)
+        {
+            var training = new ResourceTypeTraining { ResourceTypeId = resourceTypeId, UserId = userId, TrainingComplete = completed };
+            context.ResourceTypeTrainings.Add(training);
+            await context.SaveChangesAsync();
+            return training;
+        }
+
+        [Fact]
+        public async Task CreateTraining_AllowsUser_ToMarkOwnTrainingCompleted()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Self", "Declared");
+            var resourceType = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            var request = new TrainingRequest { UserId = user.UserId, ResourceTypeId = resourceType.ResourceTypeId, TrainingCompleted = true };
+
+            var result = await service.CreateTraining(resourceType.ResourceTypeId, request);
+
+            Assert.NotNull(result);
+            Assert.True(result.TrainingComplete);
+            Assert.Equal(user.UserId, result.ConfirmedById);
+        }
+
+        [Fact]
+        public async Task CreateTraining_ThrowsForbidden_WhenUserSetsTrainingForOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Regular");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var resourceType = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            // Både fullført og ikke fullført er avvist for andre brukere.
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.CreateTraining(resourceType.ResourceTypeId,
+                new TrainingRequest { UserId = otherUser.UserId, ResourceTypeId = resourceType.ResourceTypeId, TrainingCompleted = true }));
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.CreateTraining(resourceType.ResourceTypeId,
+                new TrainingRequest { UserId = otherUser.UserId, ResourceTypeId = resourceType.ResourceTypeId, TrainingCompleted = false }));
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.ResourceTypeTrainings.AnyAsync(t => t.UserId == otherUser.UserId && t.ResourceTypeId == resourceType.ResourceTypeId));
+        }
+
+        [Fact]
+        public async Task CreateTraining_ThrowsForbidden_WhenTrainerForOtherResourceType()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var trainee = await SeedUser(seedContext, "Trainee");
+            var resourceType = await SeedResourceType(seedContext);
+            await SeedResourceType(seedContext, trainerUserIds: new List<int> { trainer.UserId });
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.CreateTraining(resourceType.ResourceTypeId,
+                new TrainingRequest { UserId = trainee.UserId, ResourceTypeId = resourceType.ResourceTypeId, TrainingCompleted = true }));
+        }
+
+        [Fact]
+        public async Task CreateTraining_AllowsAdmin_ToSetTrainingForOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var admin = await SeedUser(seedContext, "Admin");
+            var trainee = await SeedUser(seedContext, "Trainee");
+            var resourceType = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: admin.UserId, isAdmin: true);
+
+            var result = await service.CreateTraining(resourceType.ResourceTypeId,
+                new TrainingRequest { UserId = trainee.UserId, ResourceTypeId = resourceType.ResourceTypeId, TrainingCompleted = true });
+
+            Assert.NotNull(result);
+            Assert.Equal(admin.UserId, result.ConfirmedById);
+        }
+
+        [Fact]
+        public async Task UpdateTraining_AllowsTrainer_ToCompleteOtherUsersTraining()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var trainee = await SeedUser(seedContext, "Trainee");
+            var resourceType = await SeedResourceType(seedContext, trainerUserIds: new List<int> { trainer.UserId });
+            var training = await SeedTraining(seedContext, resourceType.ResourceTypeId, trainee.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var result = await service.UpdateTraining(resourceType.ResourceTypeId, new TrainingRequest
+            {
+                Id = training.ResourceTypeTrainingId,
+                UserId = trainee.UserId,
+                ResourceTypeId = resourceType.ResourceTypeId,
+                TrainingCompleted = true,
+            });
+
+            Assert.NotNull(result);
+            using var verifyContext = _fixture.CreateContext();
+            var dbTraining = await verifyContext.ResourceTypeTrainings.AsNoTracking().SingleAsync(t => t.ResourceTypeTrainingId == training.ResourceTypeTrainingId);
+            Assert.True(dbTraining.TrainingComplete);
+            Assert.Equal(trainer.UserId, dbTraining.ConfirmedBy);
+        }
+
+        [Fact]
+        public async Task UpdateTraining_ThrowsForbidden_WhenTrainingBelongsToOtherUser_EvenIfRequestClaimsOwnUserId()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Regular");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var resourceType = await SeedResourceType(seedContext);
+            var training = await SeedTraining(seedContext, resourceType.ResourceTypeId, otherUser.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: user.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.UpdateTraining(resourceType.ResourceTypeId, new TrainingRequest
+            {
+                Id = training.ResourceTypeTrainingId,
+                UserId = user.UserId,
+                ResourceTypeId = resourceType.ResourceTypeId,
+                TrainingCompleted = true,
+            }));
+
+            using var verifyContext = _fixture.CreateContext();
+            var dbTraining = await verifyContext.ResourceTypeTrainings.AsNoTracking().SingleAsync(t => t.ResourceTypeTrainingId == training.ResourceTypeTrainingId);
+            Assert.False(dbTraining.TrainingComplete);
+        }
+
+        [Fact]
+        public async Task UpdateTraining_ThrowsDomainValidation_WhenUserIdDoesNotMatchTraining()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var trainee = await SeedUser(seedContext, "Trainee");
+            var otherUser = await SeedUser(seedContext, "Other");
+            var resourceType = await SeedResourceType(seedContext, trainerUserIds: new List<int> { trainer.UserId });
+            var training = await SeedTraining(seedContext, resourceType.ResourceTypeId, trainee.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            await Assert.ThrowsAsync<DomainValidationException>(() => service.UpdateTraining(resourceType.ResourceTypeId, new TrainingRequest
+            {
+                Id = training.ResourceTypeTrainingId,
+                UserId = otherUser.UserId,
+                ResourceTypeId = resourceType.ResourceTypeId,
+                TrainingCompleted = true,
+            }));
+        }
+
+        [Fact]
+        public async Task UpdateTraining_ThrowsDomainValidation_WhenResourceTypeIdDoesNotMatchTraining()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var trainee = await SeedUser(seedContext, "Trainee");
+            var resourceType = await SeedResourceType(seedContext);
+            var otherResourceType = await SeedResourceType(seedContext);
+            var training = await SeedTraining(seedContext, resourceType.ResourceTypeId, trainee.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainee.UserId);
+
+            await Assert.ThrowsAsync<DomainValidationException>(() => service.UpdateTraining(otherResourceType.ResourceTypeId, new TrainingRequest
+            {
+                Id = training.ResourceTypeTrainingId,
+                UserId = trainee.UserId,
+                ResourceTypeId = otherResourceType.ResourceTypeId,
+                TrainingCompleted = true,
+            }));
+        }
+
+        #endregion
+
     }
 }

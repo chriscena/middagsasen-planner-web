@@ -197,6 +197,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
                 throw new ForbiddenAccessException();
 
+            // En vanlig bruker kan bare sende med opplæring for seg selv når vakta tas.
+            if (!CurrentUser.IsAdmin && request.Training != null && request.Training.UserId != request.UserId)
+                throw new ForbiddenAccessException();
+
             await EnsureEventResourceExists(eventResourceId);
 
             var newShift = new EventResourceUser
@@ -221,24 +225,40 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(responseShift);
         }
 
+        /// <summary>
+        /// Oppdaterer en vakt. Tilgang:
+        /// <list type="bullet">
+        /// <item>Admin kan endre alt, også flytte vakta til en annen bruker.</item>
+        /// <item>Eieren kan endre tider, kommentar og egen opplæring, men ikke flytte vakta til en annen bruker.</item>
+        /// <item>En trener for vaktas ressurstype kan bare oppdatere opplæringen til eieren. Vaktfeltene
+        /// (tider, kommentar, bruker) ignoreres stille, siden klienten sender hele objektet. Uten
+        /// <see cref="ShiftRequest.Training"/> er kallet en no-op som returnerer vakta uendret.</item>
+        /// <item>Alle andre får 403.</item>
+        /// </list>
+        /// </summary>
         public async Task<ShiftResponse> UpdateShift(int id, ShiftRequest request)
         {
             if (request.UserId == 0) request.UserId = CurrentUser.UserId;
 
-            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException();
-
-            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
+            var shift = await DbContext.Shifts
+                .Include(s => s.User)
+                .Include(s => s.Resource)
+                .SingleOrDefaultAsync(s => s.EventResourceUserId == id)
                 ?? throw new EntityNotFoundException();
 
-            if (request.StartTime.HasValue)
-                shift.StartTime = request.StartTime;
+            var canEditShift = await EnsureCanUpdateShift(shift, request);
 
-            if (request.EndTime.HasValue)
-                shift.EndTime = request.EndTime;
+            if (canEditShift)
+            {
+                if (request.StartTime.HasValue)
+                    shift.StartTime = request.StartTime;
 
-            shift.UserId = request.UserId;
-            shift.Comment = request.Comment;
+                if (request.EndTime.HasValue)
+                    shift.EndTime = request.EndTime;
+
+                shift.UserId = request.UserId;
+                shift.Comment = request.Comment;
+            }
 
             await SaveShiftWithTraining(request.Training);
 
@@ -272,6 +292,39 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
 
             await transaction.CommitAsync();
+        }
+
+        /// <summary>
+        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan gjøre endringen.
+        /// Returnerer <c>true</c> hvis selve vaktfeltene kan endres, og <c>false</c> hvis bare
+        /// opplæringen kan oppdateres (trener som ikke eier vakta).
+        /// </summary>
+        private async Task<bool> EnsureCanUpdateShift(EventResourceUser shift, ShiftRequest request)
+        {
+            if (CurrentUser.IsAdmin) return true;
+
+            if (shift.UserId == CurrentUser.UserId)
+            {
+                // Eieren kan ikke flytte vakta til en annen bruker, og opplæringen må gjelde eieren selv.
+                if (request.UserId != CurrentUser.UserId)
+                    throw new ForbiddenAccessException();
+                if (request.Training != null && request.Training.UserId != shift.UserId)
+                    throw new ForbiddenAccessException();
+                return true;
+            }
+
+            var resourceTypeId = shift.Resource.ResourceTypeId;
+            var isTrainer = await DbContext.ResourceTypeTrainers
+                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == CurrentUser.UserId);
+            if (!isTrainer)
+                throw new ForbiddenAccessException();
+
+            // Treneren kan bare oppdatere opplæringen til eieren av vakta, på vaktas ressurstype.
+            if (request.Training != null
+                && (request.Training.UserId != shift.UserId || request.Training.ResourceTypeId != resourceTypeId))
+                throw new ForbiddenAccessException();
+
+            return false;
         }
 
         private async Task EnsureEventResourceExists(int eventResourceId)
@@ -522,6 +575,9 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .Include(m => m.CreatedByUser)
                 .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id)
                 ?? throw new EntityNotFoundException();
+
+            if (!CurrentUser.IsAdmin && message.CreatedBy != CurrentUser.UserId)
+                throw new ForbiddenAccessException();
 
             DbContext.Remove(message);
             await DbContext.SaveChangesAsync();

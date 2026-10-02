@@ -111,6 +111,8 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
         {
             if (!request.TrainingCompleted.HasValue) return null;
 
+            await EnsureCanManageTraining(resourceTypeId, request.UserId);
+
             var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
             {
                 UserId = request.UserId,
@@ -161,6 +163,12 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
             var training = await DbContext.ResourceTypeTrainings.SingleOrDefaultAsync(t => t.ResourceTypeTrainingId == trainingId)
                 ?? throw new EntityNotFoundException("Fant ikke opplæringen.");
+
+            // Tilgangen avgjøres ut fra den lagrede opplæringen, ikke ut fra verdiene i forespørselen.
+            await EnsureCanManageTraining(training.ResourceTypeId, training.UserId);
+
+            if (request.UserId != training.UserId || request.ResourceTypeId != training.ResourceTypeId || resourceTypeId != training.ResourceTypeId)
+                throw new DomainValidationException("Opplæringen tilhører en annen bruker eller ressurstype.");
 
             training.TrainingComplete = request.TrainingCompleted;
             training.Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow;
@@ -265,6 +273,21 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
             var responseFile = DbContext.Remove(fileToDelete);
             await DbContext.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Admin kan sette opplæring for alle, en trener for ressurstypen kan sette opplæring for alle
+        /// brukere på den ressurstypen, og en vanlig bruker bare for seg selv (inkludert selverklæringen
+        /// «trenger ikke opplæring»). Ellers kastes <see cref="ForbiddenAccessException"/>.
+        /// </summary>
+        private async Task EnsureCanManageTraining(int resourceTypeId, int userId)
+        {
+            if (CurrentUser.IsAdmin || userId == CurrentUser.UserId) return;
+
+            var isTrainer = await DbContext.ResourceTypeTrainers
+                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == CurrentUser.UserId);
+            if (!isTrainer)
+                throw new ForbiddenAccessException();
         }
 
         private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
