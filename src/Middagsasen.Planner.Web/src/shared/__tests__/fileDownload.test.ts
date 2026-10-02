@@ -10,8 +10,10 @@ vi.mock("boot/axios", () => ({
 }));
 
 import {
+  DOWNLOAD_ERROR_FALLBACK,
   DOWNLOAD_TIMEOUT_MS,
   downloadResourceTypeFile,
+  downloadResourceTypeFileOrNotify,
   REVOKE_DELAY_MS,
 } from "src/shared/fileDownload";
 
@@ -130,5 +132,44 @@ describe("downloadResourceTypeFile", () => {
     expect(getApiErrorMessage(error, "Klarte ikke å hente filen.")).toBe(
       "Klarte ikke å hente filen."
     );
+  });
+});
+
+describe("downloadResourceTypeFileOrNotify", () => {
+  const file = { id: 7, resourceTypeId: 3, fileName: "instruks.pdf" };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.spyOn(console, "log").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("viser ProblemDetails-meldingen fra backend via notify", async () => {
+    const problem = { status: 403, detail: "Ingen tilgang." };
+    mockApi.get.mockRejectedValue({
+      response: {
+        status: 403,
+        data: new Blob([JSON.stringify(problem)]),
+      },
+    });
+    const notify = vi.fn();
+
+    await expect(
+      downloadResourceTypeFileOrNotify(file, notify)
+    ).resolves.toBeUndefined();
+
+    expect(notify).toHaveBeenCalledWith({ message: "Ingen tilgang." });
+  });
+
+  it("viser fallback-melding ved nettverksfeil", async () => {
+    mockApi.get.mockRejectedValue(new Error("Network Error"));
+    const notify = vi.fn();
+
+    await downloadResourceTypeFileOrNotify(file, notify);
+
+    expect(notify).toHaveBeenCalledWith({ message: DOWNLOAD_ERROR_FALLBACK });
   });
 });

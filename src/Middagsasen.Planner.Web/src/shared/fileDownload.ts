@@ -3,7 +3,7 @@
 // En vanlig `<a href>` sender ikke Bearer-token, så filen hentes via `api`
 // (interceptoren legger på tokenet) som en Blob, og lagres så lokalt.
 import { api } from "boot/axios";
-import { getErrorResponse } from "src/shared/apiError";
+import { getApiErrorMessage, getErrorResponse } from "src/shared/apiError";
 import type { FileInfoResponse } from "src/types";
 
 // Hvor lenge object-URL-en lever etter klikket. Noen nettlesere (Firefox)
@@ -13,6 +13,12 @@ export const REVOKE_DELAY_MS = 1000;
 // Filer kan være store og nettet tregt, så nedlasting får en mye rausere
 // grense enn standard-timeouten på 10 s (se `shared/requestDefaults.ts`).
 export const DOWNLOAD_TIMEOUT_MS = 120_000;
+
+export const DOWNLOAD_ERROR_FALLBACK = "Klarte ikke å hente filen.";
+
+// Tas inn som avhengighet (som i `unauthorizedHandler`), slik at tester kan
+// sende inn en fake i stedet for `$q.notify`.
+export type DownloadNotify = (options: { message: string }) => void;
 
 /**
  * Med `responseType: "blob"` blir også feil-bodyen en Blob. Gjør den om til
@@ -59,7 +65,8 @@ export function saveBlob(blob: Blob, fileName: string): void {
 
 /**
  * Henter en fil for en vakttype (med innlogging) og laster den ned med
- * riktig filnavn. Kaster videre ved feil; bruk `getApiErrorMessage` hos kalleren.
+ * riktig filnavn. Kaster videre ved feil; komponenter bruker
+ * `downloadResourceTypeFileOrNotify`.
  */
 export async function downloadResourceTypeFile(
   file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">
@@ -79,4 +86,20 @@ export async function downloadResourceTypeFile(
     throw error;
   }
   saveBlob(blob, file.fileName);
+}
+
+/**
+ * Som `downloadResourceTypeFile`, men viser feilen til brukeren via `notify`
+ * i stedet for å kaste. Brukes direkte fra klikk-handlere.
+ */
+export async function downloadResourceTypeFileOrNotify(
+  file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">,
+  notify: DownloadNotify
+): Promise<void> {
+  try {
+    await downloadResourceTypeFile(file);
+  } catch (error) {
+    console.log(error);
+    notify({ message: getApiErrorMessage(error, DOWNLOAD_ERROR_FALLBACK) });
+  }
 }

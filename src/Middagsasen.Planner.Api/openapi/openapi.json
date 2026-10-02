@@ -6522,12 +6522,6 @@
               "string"
             ]
           },
-          "phoneNo": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
           "password": {
             "type": [
               "null",

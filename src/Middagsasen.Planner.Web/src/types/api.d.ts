@@ -3830,7 +3830,6 @@ export interface components {
         UpdateMeRequest: {
             firstName?: null | string;
             lastName?: null | string;
-            phoneNo?: null | string;
             password?: null | string;
             isHidden?: null | boolean;
         };

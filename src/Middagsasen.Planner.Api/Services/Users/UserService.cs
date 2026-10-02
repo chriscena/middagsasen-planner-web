@@ -48,33 +48,82 @@ namespace Middagsasen.Planner.Api.Services.Users
         internal const string PhoneNoInvalidMessage = "Telefonnummeret er ugyldig.";
         internal const string PhoneNoRequiredMessage = "Telefonnummer må fylles ut.";
 
+        /// <summary>
+        /// Oppretter en ny bruker. Telefonnummeret normaliseres til samme format som lagres og slås opp ved innlogging.
+        /// </summary>
+        /// <remarks>
+        /// Hvis nummeret (normalisert) tilhører nøyaktig én bruker, og den brukeren er inaktiv (slettet via
+        /// <see cref="Delete"/>), reaktiveres den i stedet for at en ny bruker opprettes. Samme ID beholdes, og:
+        /// <list type="bullet">
+        /// <item><c>Inactive</c> settes til <c>false</c>, og brukernavnet lagres normalisert.</item>
+        /// <item>Fornavn og etternavn oppdateres når de er oppgitt (ellers beholdes de gamle).</item>
+        /// <item><c>IsAdmin</c> og <c>IsHidden</c> settes fra requesten som for en ny bruker (standard <c>false</c>).</item>
+        /// <item>Passordet settes når det er oppgitt.</item>
+        /// </list>
+        /// <see cref="Delete"/> setter bare <c>Inactive</c>, så opplæringer, vakter og annen historikk følger med tilbake.
+        /// Er nummeret i bruk av en aktiv bruker, eller av flere brukere, avvises det med <see cref="DomainValidationException"/>.
+        /// </remarks>
         public async Task<UserResponse> Create(UserRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.PhoneNo))
                 throw new DomainValidationException(PhoneNoRequiredMessage);
 
-            var userName = await GetAvailableUserName(request.PhoneNo, excludeUserId: null);
+            var userName = request.PhoneNo.ToNormalizedUserName()
+                ?? throw new DomainValidationException(PhoneNoInvalidMessage);
 
-            var user = new User
+            var matches = await FindUsersWithUserName(userName, excludeUserId: null);
+
+            User user;
+            if (matches.Count == 1 && matches[0].Inactive)
             {
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                UserName = userName,
-                IsAdmin = request.IsAdmin ?? false,
-                IsHidden = request.IsHidden ?? false,
-            };
-            DbContext.Users.Add(user);
+                var inactiveUserId = matches[0].UserId;
+                user = await DbContext.Users.SingleAsync(u => u.UserId == inactiveUserId);
+                user.Inactive = false;
+                user.UserName = userName;
+                if (!string.IsNullOrWhiteSpace(request.FirstName))
+                    user.FirstName = request.FirstName;
+                if (!string.IsNullOrWhiteSpace(request.LastName))
+                    user.LastName = request.LastName;
+                user.IsAdmin = request.IsAdmin ?? false;
+                user.IsHidden = request.IsHidden ?? false;
+                SetPassword(user, request.Password);
+            }
+            else if (matches.Count > 0)
+            {
+                throw new DomainValidationException(PhoneNoInUseMessage);
+            }
+            else
+            {
+                user = new User
+                {
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    UserName = userName,
+                    IsAdmin = request.IsAdmin ?? false,
+                    IsHidden = request.IsHidden ?? false,
+                };
+                DbContext.Users.Add(user);
+            }
+
             await DbContext.SaveChangesAsync();
 
-            return Map(user);
+            return await GetUserById(user.UserId);
         }
 
+        /// <summary>
+        /// Oppdaterer en bruker (administrator). Telefonnummeret valideres, sjekkes mot andre brukere og lagres
+        /// bare når det faktisk endres, det vil si når <c>PhoneNo</c> er satt og verken er lik lagret brukernavn
+        /// direkte eller normalisert lik det. Ellers står brukernavnet urørt, også når det ikke er et gyldig
+        /// telefonnummer (f.eks. eldre brukere med brukernavn «admin»).
+        /// </summary>
         public async Task<UserResponse> Update(int id, UserRequest request)
         {
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id)
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
 
-            await ApplyCommonFields(user, request.FirstName, request.LastName, request.PhoneNo, request.Password);
+            ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);
+            if (IsPhoneNoChanged(user.UserName, request.PhoneNo))
+                user.UserName = await GetAvailableUserName(request.PhoneNo!, user.UserId);
             if (request.IsAdmin.HasValue)
                 user.IsAdmin = request.IsAdmin.Value;
             if (request.IsHidden.HasValue)
@@ -82,66 +131,92 @@ namespace Middagsasen.Planner.Api.Services.Users
 
             await DbContext.SaveChangesAsync();
 
-            return Map(user);
+            return await GetUserById(user.UserId);
         }
 
+        /// <summary>
+        /// Oppdaterer innlogget bruker. Brukernavn (telefonnummer) og admin kan ikke endres her.
+        /// </summary>
         public async Task<UserResponse> UpdateMe(int userId, UpdateMeRequest request)
         {
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == userId)
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {userId}");
 
-            await ApplyCommonFields(user, request.FirstName, request.LastName, request.PhoneNo, request.Password);
+            ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
 
             await DbContext.SaveChangesAsync();
 
-            return Map(user);
+            return await GetUserById(user.UserId);
         }
 
         /// <summary>
         /// Felt som både brukeren selv og administrator kan endre. Tomme verdier ignoreres.
         /// </summary>
-        private async Task ApplyCommonFields(User user, string? firstName, string? lastName, string? phoneNo, string? password)
+        private static void ApplyCommonFields(User user, string? firstName, string? lastName, string? password)
         {
             if (!string.IsNullOrWhiteSpace(firstName))
                 user.FirstName = firstName;
             if (!string.IsNullOrWhiteSpace(lastName))
                 user.LastName = lastName;
-            if (!string.IsNullOrWhiteSpace(phoneNo))
-                user.UserName = await GetAvailableUserName(phoneNo, user.UserId);
-            if (!string.IsNullOrWhiteSpace(password))
-            {
-                var salt = PasswordHasher.CreateSalt();
-                var hash = PasswordHasher.HashPassword(password, salt);
-                user.Salt = salt;
-                user.EncryptedPassword = hash;
-            }
+            SetPassword(user, password);
+        }
+
+        private static void SetPassword(User user, string? password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+                return;
+            var salt = PasswordHasher.CreateSalt();
+            user.Salt = salt;
+            user.EncryptedPassword = PasswordHasher.HashPassword(password, salt);
         }
 
         /// <summary>
-        /// Normaliserer telefonnummeret til samme format som brukes ved innlogging (8 siffer uten landkode),
-        /// og avviser nummeret hvis det er ugyldig eller allerede brukes av en annen bruker.
-        /// Inaktive brukere telles med, siden OTP-innlogging slår opp brukernavn uten å filtrere på Inactive.
+        /// Nummeret regnes som endret når det er satt og verken er lik lagret brukernavn direkte
+        /// eller normalisert lik det.
+        /// </summary>
+        private static bool IsPhoneNoChanged(string storedUserName, string? phoneNo)
+        {
+            if (string.IsNullOrWhiteSpace(phoneNo) || phoneNo == storedUserName)
+                return false;
+            var normalized = phoneNo.ToNormalizedUserName();
+            return normalized == null || normalized != storedUserName.ToNormalizedUserName();
+        }
+
+        /// <summary>
+        /// Normaliserer telefonnummeret med <see cref="UserNameExtensions.ToNormalizedUserName"/> (samme format som
+        /// lagres og slås opp ved innlogging/OTP), og avviser det hvis det er ugyldig eller allerede brukes av en
+        /// annen bruker. Inaktive brukere telles med, siden OTP-innlogging slår opp brukernavn uten å filtrere på Inactive.
         /// </summary>
         private async Task<string> GetAvailableUserName(string phoneNo, int? excludeUserId)
         {
-            var phoneNumber = phoneNo.ToNumericPhoneNo();
-            if (phoneNumber == 0)
-                throw new DomainValidationException(PhoneNoInvalidMessage);
+            var userName = phoneNo.ToNormalizedUserName()
+                ?? throw new DomainValidationException(PhoneNoInvalidMessage);
 
-            // Eldre data kan ha brukernavn i andre formater (f.eks. "+47 ..."), så sammenligningen gjøres
-            // på normalisert nummer. Brukertabellen er liten, så det er greit å hente alle brukernavnene.
-            var otherUserNames = await DbContext.Users
-                .AsNoTracking()
-                .Where(u => excludeUserId == null || u.UserId != excludeUserId)
-                .Select(u => u.UserName)
-                .ToListAsync();
-
-            if (otherUserNames.Any(existing => existing.ToNumericPhoneNo() == phoneNumber))
+            if ((await FindUsersWithUserName(userName, excludeUserId)).Count > 0)
                 throw new DomainValidationException(PhoneNoInUseMessage);
 
-            return phoneNumber.ToUserName();
+            return userName;
+        }
+
+        /// <summary>
+        /// Finner brukere (også inaktive) med brukernavn som normalisert er lik <paramref name="normalizedUserName"/>.
+        /// Eldre data kan ha brukernavn i andre formater (f.eks. "+47 ..."), så begge sider normaliseres med
+        /// samme funksjon. Brukertabellen er liten, så det er greit å hente alle brukernavnene.
+        /// </summary>
+        private async Task<List<(int UserId, bool Inactive)>> FindUsersWithUserName(string normalizedUserName, int? excludeUserId)
+        {
+            var users = await DbContext.Users
+                .AsNoTracking()
+                .Where(u => excludeUserId == null || u.UserId != excludeUserId)
+                .Select(u => new { u.UserId, u.UserName, u.Inactive })
+                .ToListAsync();
+
+            return users
+                .Where(u => u.UserName.ToNormalizedUserName() == normalizedUserName)
+                .Select(u => (u.UserId, u.Inactive))
+                .ToList();
         }
 
         public async Task<UserResponse> Delete(int id)
@@ -228,6 +303,17 @@ namespace Middagsasen.Planner.Api.Services.Users
         public static string ToUserName(this long phoneNumber)
         {
             return phoneNumber.ToString().Substring(2);
+        }
+
+        /// <summary>
+        /// Normaliserer et telefonnummer/brukernavn til formatet som lagres i <c>Users.UserName</c> og slås opp
+        /// ved innlogging og OTP (<c>ToNumericPhoneNo().ToUserName()</c>). Returnerer <c>null</c> hvis verdien
+        /// ikke er et gyldig telefonnummer (f.eks. brukernavnet «admin»).
+        /// </summary>
+        public static string? ToNormalizedUserName(this string? phoneNo)
+        {
+            var phoneNumber = (phoneNo ?? "").ToNumericPhoneNo();
+            return phoneNumber == 0 ? null : phoneNumber.ToUserName();
         }
     }
 
