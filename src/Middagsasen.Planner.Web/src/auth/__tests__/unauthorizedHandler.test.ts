@@ -58,6 +58,30 @@ describe('handleUnauthorized', () => {
     });
   });
 
+  it('handles 401 with a ProblemDetails body', async () => {
+    const error = Object.assign(new Error('Request failed'), {
+      config: { url: '/api/events' },
+      response: {
+        status: 401,
+        data: {
+          type: 'https://tools.ietf.org/html/rfc9110#section-15.5.2',
+          title: 'Unauthorized',
+          status: 401,
+          detail: 'Bruker er ikke autentisert.',
+          traceId: '00-abc',
+        },
+      },
+    });
+
+    await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
+
+    expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
+    expect(router.replace).toHaveBeenCalledWith({
+      path: '/login',
+      query: { redirect: '/hours' },
+    });
+  });
+
   it('only notifies and redirects for the first of several parallel 401s', async () => {
     const first = createError(401, '/api/events');
     const second = createError(401, '/api/me');

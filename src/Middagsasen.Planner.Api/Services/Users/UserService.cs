@@ -35,12 +35,13 @@ namespace Middagsasen.Planner.Api.Services.Users
             return users.Select(Map).OrderBy(u => u.FullName).ToList();
         }
 
-        public async Task<UserResponse?> GetUserById(int id)
+        public async Task<UserResponse> GetUserById(int id)
         {
             var user = await Users
                 .AsNoTracking()
-                .SingleOrDefaultAsync(u => u.UserId == id);
-            return user != null ? Map(user) : null;
+                .SingleOrDefaultAsync(u => u.UserId == id)
+                ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
+            return Map(user);
         }
 
         public async Task<UserResponse> Create(UserRequest request)
@@ -59,10 +60,10 @@ namespace Middagsasen.Planner.Api.Services.Users
             return Map(user);
         }
 
-        public async Task<UserResponse?> Update(int id, UserRequest request)
+        public async Task<UserResponse> Update(int id, UserRequest request)
         {
-            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id);
-            if (user == null) return null;
+            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id)
+                ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
 
             if (!string.IsNullOrWhiteSpace(request.FirstName))
                 user.FirstName = request.FirstName;
@@ -87,10 +88,10 @@ namespace Middagsasen.Planner.Api.Services.Users
             return Map(user);
         }
 
-        public async Task<UserResponse?> Delete(int id)
+        public async Task<UserResponse> Delete(int id)
         {
-            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id);
-            if (user == null) return null;
+            var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == id)
+                ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
 
             user.Inactive = true;
             await DbContext.SaveChangesAsync();

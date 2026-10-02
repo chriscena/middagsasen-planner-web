@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
-using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -10,6 +10,8 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class ResourceTypesController : ControllerBase
     {
+        internal const string TrainingCompletedRequiredMessage = "Du må oppgi om opplæringen er fullført.";
+
         public ResourceTypesController(IResourceTypesService resourceTypesService, ICompetencyService competencyService)
         {
             ResourceTypesService = resourceTypesService;
@@ -21,22 +23,23 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<ResourceTypeResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetAll()
+        public async Task<IEnumerable<ResourceTypeResponse>> GetAll()
         {
-            return Ok(await ResourceTypesService.GetResourceTypes());
+            return await ResourceTypesService.GetResourceTypes();
         }
 
         [HttpGet("{id}"), Authorize]
-        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get(int id)
+        [ProducesResponseType(typeof(ResourceTypeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ResourceTypeResponse> Get(int id)
         {
-            var resourceType = await ResourceTypesService.GetResourceTypeById(id);
-            return resourceType != null ? Ok(resourceType) : NotFound();
+            return await ResourceTypesService.GetResourceTypeById(id);
         }
 
         [HttpPost]
         [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ResourceTypeResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create(ResourceTypeRequest request)
         {
             var resourceType = await ResourceTypesService.CreateResourceType(request);
@@ -45,33 +48,41 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("{id}")]
         [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int id, [FromBody]ResourceTypeRequest request)
+        [ProducesResponseType(typeof(ResourceTypeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ResourceTypeResponse> Update(int id, [FromBody]ResourceTypeRequest request)
         {
-            var resourceType = await ResourceTypesService.UpdateResourceType(id, request);
-            return (resourceType == null) ? NotFound() : Ok(resourceType);
+            return await ResourceTypesService.UpdateResourceType(id, request);
         }
 
         [HttpDelete("{id}")]
         [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Delete(int id)
+        [ProducesResponseType(typeof(ResourceTypeResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ResourceTypeResponse> Delete(int id)
         {
-            var resourceType = await ResourceTypesService.DeleteResourceType(id);
-            return (resourceType == null) ? NotFound() : Ok(resourceType);
+            return await ResourceTypesService.DeleteResourceType(id);
         }
 
         [HttpPost("{id}/training"), Authorize]
         [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
         {
-            var training = await ResourceTypesService.CreateTraining(id, request);
+            // Servicen ignorerer bevisst opplæring uten TrainingCompleted (brukt fra vakt-endepunktene),
+            // men her er opplæringen selve ressursen som opprettes, så da er forespørselen ugyldig.
+            var training = await ResourceTypesService.CreateTraining(id, request)
+                ?? throw new DomainValidationException(TrainingCompletedRequiredMessage);
+
             return Created($"{training.ResourceTypeId}/training/{training.Id}", training);
         }
 
         [HttpPost("{id}/files")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> UploadFile(int id, IFormFile file, [FromForm] string description)
         {
             var request = new FileUploadRequest
@@ -85,39 +96,39 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         [HttpGet("{resourceTypeId}/files/{id}")]
+        [ProducesResponseType(typeof(Stream), StatusCodes.Status200OK, "application/octet-stream")]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetFile(int resourceTypeId, int id)
         {
             var response = await ResourceTypesService.GetFile(id, resourceTypeId);
-            
-            if (response == null) return NotFound();
 
             return File(response.Data, response.MimeType, response.FileName);
         }
 
         [HttpDelete("{resourceTypeId}/files/{id}")]
         [Authorize(Role = Roles.Administrator)]
-        public async Task<IActionResult> DeleteFile(int resourceTypeId, int id)
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task DeleteFile(int resourceTypeId, int id)
         {
             await ResourceTypesService.DeleteFile(id, resourceTypeId);
-
-            return Ok();
         }
 
         [HttpGet("{id}/competencies"), Authorize]
         [ProducesResponseType(typeof(IEnumerable<ResourceTypeCompetencyResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetCompetencies(int id)
+        public async Task<IEnumerable<ResourceTypeCompetencyResponse>> GetCompetencies(int id)
         {
-            var competencies = await CompetencyService.GetResourceTypeCompetencies(id);
-            return Ok(competencies);
+            return await CompetencyService.GetResourceTypeCompetencies(id);
         }
 
         [HttpPut("{id}/competencies")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(IEnumerable<ResourceTypeCompetencyResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> SetCompetencies(int id, [FromBody] IEnumerable<SetResourceTypeCompetencyRequest> requirements)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<IEnumerable<ResourceTypeCompetencyResponse>> SetCompetencies(int id, [FromBody] IEnumerable<SetResourceTypeCompetencyRequest> requirements)
         {
-            var result = await CompetencyService.SetResourceTypeCompetencies(id, requirements);
-            return Ok(result);
+            return await CompetencyService.SetResourceTypeCompetencies(id, requirements);
         }
     }
 

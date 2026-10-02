@@ -64,7 +64,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     .ThenInclude(r => r.Messages)
                         .ThenInclude(t => t.CreatedByUser);
 
-        public async Task<IEnumerable<EventResponse?>> GetEvents()
+        public async Task<IEnumerable<EventResponse>> GetEvents()
         {
             var events = await Events
                 .AsNoTracking()
@@ -73,7 +73,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             return events.Select(Map).ToList();
         }
 
-        public async Task<IEnumerable<EventResponse?>> GetEvents(DateTime start, DateTime end)
+        public async Task<IEnumerable<EventResponse>> GetEvents(DateTime start, DateTime end)
         {
             var events = await Events
                 .AsNoTracking()
@@ -110,7 +110,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     StartDate = s.StartTime?.ToString("yyyy'-'MM'-'dd"),
                     StartTime = s.StartTime.ToSimpleIsoString(),
                     EndTime = s.EndTime.ToSimpleIsoString(),
-                    ResourceName = s.Resource?.ResourceType?.Name,
+                    ResourceName = s.Resource.ResourceType.Name,
                     Season = s.StartTime.ToSeason(),
                     Comment = s.Comment,
                 })
@@ -139,12 +139,11 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
-        public async Task<EventResponse?> UpdateEvent(int eventId, EventRequest request)
+        public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
             var existingEvent = await Events
-            .SingleOrDefaultAsync(e => e.EventId == eventId);
-
-            if (existingEvent == null) return null;
+            .SingleOrDefaultAsync(e => e.EventId == eventId)
+            ?? throw new EntityNotFoundException();
 
             existingEvent.Name = request.Name;
             existingEvent.Description = request.Description;
@@ -176,16 +175,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             await DbContext.SaveChangesAsync();
 
             var response = await Events
-            .SingleOrDefaultAsync(e => e.EventId == eventId);
+            .SingleOrDefaultAsync(e => e.EventId == eventId)
+            ?? throw new EntityNotFoundException();
 
-            return response != null ? Map(response) : null;
+            return Map(response);
         }
 
-        public async Task<EventResponse?> DeleteEvent(int id)
+        public async Task<EventResponse> DeleteEvent(int id)
         {
-            var existingEvent = await DbContext.Events.SingleOrDefaultAsync(e => e.EventId == id);
-
-            if (existingEvent == null) return null;
+            var existingEvent = await DbContext.Events.SingleOrDefaultAsync(e => e.EventId == id)
+                ?? throw new EntityNotFoundException();
 
             DbContext.Events.Remove(existingEvent);
 
@@ -193,15 +192,12 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(existingEvent);
         }
 
-        public async Task<ShiftResponse?> AddShift(int eventResourceId, ShiftRequest request)
+        public async Task<ShiftResponse> AddShift(int eventResourceId, ShiftRequest request)
         {
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+                throw new ForbiddenAccessException();
 
-            if (request.Training != null)
-            {
-                request.Training.ConfirmedBy = CurrentUser.UserId;
-            }
+            await EnsureEventResourceExists(eventResourceId);
 
             var newShift = new EventResourceUser
             {
@@ -213,39 +209,27 @@ namespace Middagsasen.Planner.Api.Services.Events
             };
             DbContext.Shifts.Add(newShift);
 
-            await DbContext.SaveChangesAsync();
-
-            if (request.Training != null)
-            {
-                if (request.Training.Id == 0)
-                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else
-                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
-            }
+            await SaveShiftWithTraining(request.Training);
 
             var responseShift = await DbContext.Shifts
                 .Include(s => s.Resource)
                 .Include(s => s.User)
                     .ThenInclude(u => u.Trainings)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId);
-            return responseShift == null ? null : Map(responseShift);
+                .SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId)
+                ?? throw new EntityNotFoundException();
+            return Map(responseShift);
         }
 
-        public async Task<ShiftResponse?> UpdateShift(int id, ShiftRequest request)
+        public async Task<ShiftResponse> UpdateShift(int id, ShiftRequest request)
         {
             if (request.UserId == 0) request.UserId = CurrentUser.UserId;
 
             if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+                throw new ForbiddenAccessException();
 
-            if (request.Training != null)
-            {
-                request.Training.ConfirmedBy = CurrentUser.UserId;
-            }
-
-            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
-            if (shift == null) return null;
+            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
+                ?? throw new EntityNotFoundException();
 
             if (request.StartTime.HasValue)
                 shift.StartTime = request.StartTime;
@@ -256,31 +240,50 @@ namespace Middagsasen.Planner.Api.Services.Events
             shift.UserId = request.UserId;
             shift.Comment = request.Comment;
 
-            await DbContext.SaveChangesAsync();
-
-
-
-            if (request.Training != null)
-            {
-                if (request.Training.Id == 0)
-                    await ResourceTypesService.CreateTraining(request.Training.ResourceTypeId, request.Training);
-                else
-                    await ResourceTypesService.UpdateTraining(request.Training.ResourceTypeId, request.Training);
-            }
+            await SaveShiftWithTraining(request.Training);
 
             var responseShift = await DbContext.Shifts
                 .Include(s => s.Resource)
                 .Include(s => s.User)
                         .ThenInclude(u => u.Trainings)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(s => s.EventResourceUserId == shift.EventResourceUserId);
-            return responseShift == null ? null : Map(responseShift);
+                .SingleOrDefaultAsync(s => s.EventResourceUserId == shift.EventResourceUserId)
+                ?? throw new EntityNotFoundException();
+            return Map(responseShift);
         }
 
-        public async Task<ShiftResponse?> DeleteShift(int id)
+        /// <summary>
+        /// Lagrer ventende vaktendringer og eventuell opplæring i én transaksjon, slik at en feil i
+        /// opplæringen ikke etterlater en halvveis lagret vakt. Opplæring uten <c>TrainingCompleted</c>
+        /// ignoreres bevisst av <see cref="IResourceTypesService"/> — vakta lagres da uansett.
+        /// </summary>
+        private async Task SaveShiftWithTraining(TrainingRequest? training)
         {
-            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id);
-            if (shift == null) return null;
+            await using var transaction = await DbContext.Database.BeginTransactionAsync();
+
+            await DbContext.SaveChangesAsync();
+
+            if (training != null)
+            {
+                if (training.Id is null or 0)
+                    await ResourceTypesService.CreateTraining(training.ResourceTypeId, training);
+                else
+                    await ResourceTypesService.UpdateTraining(training.ResourceTypeId, training);
+            }
+
+            await transaction.CommitAsync();
+        }
+
+        private async Task EnsureEventResourceExists(int eventResourceId)
+        {
+            if (!await DbContext.EventResource.AnyAsync(er => er.EventResourceId == eventResourceId))
+                throw new EntityNotFoundException("Fant ikke vaktressursen.");
+        }
+
+        public async Task<ShiftResponse> DeleteShift(int id)
+        {
+            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
+                ?? throw new EntityNotFoundException();
             if (!CurrentUser.IsAdmin && shift.UserId != CurrentUser.UserId)
                 throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
 
@@ -290,16 +293,15 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(shift);
         }
 
-        public async Task<EventResponse?> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
+        public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
         {
             var startDate = DateTime.Parse(request.StartDate);
 
             var template = await DbContext.EventTemplates
                 .Include(e => e.ResourceTemplates)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventTemplateId == templateId);
-
-            if (template == null) return null;
+                .SingleOrDefaultAsync(e => e.EventTemplateId == templateId)
+                ?? throw new EntityNotFoundException();
 
             var startTime = startDate.Date + template.StartTime.TimeOfDay;
             var endTime = startDate.Date + template.EndTime.TimeOfDay;
@@ -493,16 +495,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             return messages.Select(Map).ToList();
         }
 
-        public async Task<MessageResponse?> AddMessage(int id, MessageRequest request)
+        public async Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request)
         {
-            request.CreatedBy = CurrentUser.UserId;
+            await EnsureEventResourceExists(eventResourceId);
 
             var message = new EventResourceMessage
             {
                 Message = request.Message,
-                EventResourceId = id,
+                EventResourceId = eventResourceId,
                 Created = DateTime.UtcNow,
-                CreatedBy = request.CreatedBy,
+                CreatedBy = createdBy,
             };
             DbContext.Messages.Add(message);
             await DbContext.SaveChangesAsync();
@@ -514,13 +516,12 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(response);
         }
 
-        public async Task<MessageResponse?> DeleteMessage(int id, int eventResourceId)
+        public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
         {
             var message = await DbContext.Messages
                 .Include(m => m.CreatedByUser)
-                .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id);
-
-            if (message == null) return null;
+                .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id)
+                ?? throw new EntityNotFoundException();
 
             DbContext.Remove(message);
             await DbContext.SaveChangesAsync();
@@ -528,12 +529,11 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(message);
         }
 
-        public async Task<MinimumStaffResponse?> UpdateMinimumStaff(int id, MinimumStaffRequest request)
+        public async Task<MinimumStaffResponse> UpdateMinimumStaff(int id, MinimumStaffRequest request)
         {
             var eventResource = await DbContext.EventResource
-                .SingleOrDefaultAsync(er => er.EventResourceId == id);
-
-            if (eventResource == null) return null;
+                .SingleOrDefaultAsync(er => er.EventResourceId == id)
+                ?? throw new EntityNotFoundException();
 
             eventResource.MinimumStaff = request.MinimumStaff;
             await DbContext.SaveChangesAsync();

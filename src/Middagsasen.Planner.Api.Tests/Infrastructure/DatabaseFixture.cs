@@ -86,7 +86,20 @@ namespace Middagsasen.Planner.Api.Tests.Infrastructure
                 .Options;
             using var context = new TestPlannerDbContext(options);
             await context.Database.EnsureCreatedAsync();
+
+            // EnsureCreated hopper over entiteter mappet med ToView, så viewene må opprettes manuelt.
+            // Definisjonen er hentet fra Middagsasen.Planner.Database/Views/HallOfFame.sql.
+            await context.Database.ExecuteSqlRawAsync(HallOfFameViewSql);
         }
+
+        private const string HallOfFameViewSql = """
+            create view HallOfFame as
+              select u.UserId, u.FirstName, u.LastName, count(distinct er.EventId) Shifts  from Users u
+              join EventResourceUsers eru on eru.UserId = u.UserId
+              join EventResources er on er.EventResourceId = eru.EventResourceId
+              Where eru.EndTime < cast(cast(GETDATE() as date) as datetime)
+              GROUP by u.UserId, u.FirstName, u.LastName
+            """;
 
         public async Task DisposeAsync()
         {

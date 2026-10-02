@@ -76,8 +76,6 @@ export const useUserStore = defineStore("users", {
       this.workHourSums = response.data;
     },
     async getPhoneList(): Promise<void> {
-      // OpenAPI oppgir én PhoneResponse, men backend returnerer en liste
-      // (IEnumerable<PhoneResponse>) — feil [ProducesResponseType] i UsersController.
       const response = await api.get<PhoneResponse[]>("/api/users/phone");
       this.phoneList = response.data;
     },

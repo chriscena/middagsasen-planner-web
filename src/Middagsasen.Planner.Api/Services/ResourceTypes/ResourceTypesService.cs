@@ -36,15 +36,16 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return resourceTypes.Select(Map).ToList();
         }
 
-        public async Task<ResourceTypeResponse?> GetResourceTypeById(int id)
+        public async Task<ResourceTypeResponse> GetResourceTypeById(int id)
         {
             var resourceType = await ResourceTypes
                 .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            return (resourceType == null) ? null : Map(resourceType);
+                .SingleOrDefaultAsync(r => r.ResourceTypeId == id)
+                ?? throw new EntityNotFoundException();
+            return Map(resourceType);
         }
 
-        public async Task<ResourceTypeResponse?> CreateResourceType(ResourceTypeRequest request)
+        public async Task<ResourceTypeResponse> CreateResourceType(ResourceTypeRequest request)
         {
             var resourceType = new ResourceType
             {
@@ -60,12 +61,12 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return await GetResourceTypeById(resourceType.ResourceTypeId);
         }
 
-        public async Task<ResourceTypeResponse?> UpdateResourceType(int id, ResourceTypeRequest request)
+        public async Task<ResourceTypeResponse> UpdateResourceType(int id, ResourceTypeRequest request)
         {
             var resourceType = await DbContext.ResourceTypes
                 .Include(r => r.Trainers)
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            if (resourceType == null) { return null; }
+                .SingleOrDefaultAsync(r => r.ResourceTypeId == id)
+                ?? throw new EntityNotFoundException();
 
             resourceType.Name = request.Name;
             resourceType.DefaultStaff = request.DefaultStaff;
@@ -95,10 +96,10 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return await GetResourceTypeById(resourceType.ResourceTypeId);
         }
 
-        public async Task<ResourceTypeResponse?> DeleteResourceType(int id)
+        public async Task<ResourceTypeResponse> DeleteResourceType(int id)
         {
-            var resourceType = await DbContext.ResourceTypes.SingleOrDefaultAsync(r => r.ResourceTypeId == id);
-            if (resourceType == null) { return null; }
+            var resourceType = await DbContext.ResourceTypes.SingleOrDefaultAsync(r => r.ResourceTypeId == id)
+                ?? throw new EntityNotFoundException();
 
             resourceType.Inactive = true;
 
@@ -108,11 +109,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
         public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
         {
-            if (request.TrainingCompleted.HasValue && request.TrainingCompleted.Value)
-            {
-                request.ConfirmedBy = CurrentUser.UserId;
-            }
-
             if (!request.TrainingCompleted.HasValue) return null;
 
             var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
@@ -121,7 +117,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
                 ResourceTypeId = resourceTypeId,
                 TrainingComplete = request.TrainingCompleted,
                 Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow,
-                ConfirmedBy = !request.TrainingCompleted.Value ? null : request.ConfirmedBy,
+                ConfirmedBy = !request.TrainingCompleted.Value ? null : CurrentUser.UserId,
             }).Entity;
 
             await DbContext.SaveChangesAsync();
@@ -161,14 +157,14 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
         public async Task<TrainingResponse?> UpdateTraining(int resourceTypeId, TrainingRequest request)
         {
-            if (!request.TrainingCompleted.HasValue) return null;
+            if (!request.TrainingCompleted.HasValue || request.Id is not { } trainingId) return null;
 
-
-            var training = await DbContext.ResourceTypeTrainings.SingleAsync(t => t.ResourceTypeTrainingId == request.Id);
+            var training = await DbContext.ResourceTypeTrainings.SingleOrDefaultAsync(t => t.ResourceTypeTrainingId == trainingId)
+                ?? throw new EntityNotFoundException("Fant ikke opplæringen.");
 
             training.TrainingComplete = request.TrainingCompleted;
             training.Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow;
-            training.ConfirmedBy = !request.TrainingCompleted.Value ? null : request.ConfirmedBy;
+            training.ConfirmedBy = !request.TrainingCompleted.Value ? null : CurrentUser.UserId;
 
             await DbContext.SaveChangesAsync();
 
@@ -247,9 +243,10 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
         public async Task<FileResponse> GetFile(int id, int resourceTypeId)
         {
-            var responseFile = DbContext.ResourceTypeFiles
+            var responseFile = await DbContext.ResourceTypeFiles
                 .AsNoTracking()
-                .Single(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId);
+                .SingleOrDefaultAsync(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId)
+                ?? throw new EntityNotFoundException();
 
             var containerPath = GetContainerPath(responseFile.Created);
             var fileContent = await Storage.Read($"{containerPath}/{responseFile.StorageName}");
@@ -259,8 +256,9 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
         public async Task DeleteFile(int id, int resourceTypeId)
         {
-            var fileToDelete = DbContext.ResourceTypeFiles
-                .Single(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId);
+            var fileToDelete = await DbContext.ResourceTypeFiles
+                .SingleOrDefaultAsync(f => f.ResourceTypeFileId == id && f.ResourceTypeId == resourceTypeId)
+                ?? throw new EntityNotFoundException();
 
             var containerPath = GetContainerPath(fileToDelete.Created);
             await Storage.Delete($"{containerPath}/{fileToDelete.StorageName}");

@@ -2,7 +2,7 @@ import { defineStore } from "pinia";
 import { api } from "boot/axios";
 import { UTCDate } from "@date-fns/utc";
 import { formatISO, subHours } from "date-fns";
-import type { LocationMeasurementResponse } from "src/types/weather";
+import type { LocationMeasurementResponse } from "src/types";
 
 interface WeatherState {
   locations: LocationMeasurementResponse[];

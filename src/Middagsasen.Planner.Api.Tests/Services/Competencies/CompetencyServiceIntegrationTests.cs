@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
@@ -736,17 +737,26 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var service = CreateService(context);
 
             // Act
-            var removed = await service.RemoveApprover(approverId);
+            await service.RemoveApprover(approverId);
 
             // Assert
-            Assert.True(removed);
-
             // Verify in DB - still exists but inactive
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.CompetencyApprovers
                 .AsNoTracking()
                 .SingleAsync(ca => ca.CompetencyApproverId == approverId);
             Assert.True(dbEntity.Inactive);
+        }
+
+        [Fact]
+        public async Task RemoveApprover_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.RemoveApprover(int.MaxValue));
         }
 
         [Fact]

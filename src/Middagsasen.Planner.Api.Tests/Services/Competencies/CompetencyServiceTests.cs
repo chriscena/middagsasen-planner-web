@@ -1,5 +1,6 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
 using NSubstitute;
 
@@ -95,16 +96,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task GetCompetencyById_ReturnsNull_WhenNotFound()
+        public async Task GetCompetencyById_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             _repository.GetCompetencyById(999).Returns((Competency?)null);
 
-            // Act
-            var result = await _sut.GetCompetencyById(999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.GetCompetencyById(999));
         }
 
         #endregion
@@ -228,16 +226,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task UpdateCompetency_ReturnsNull_WhenCompetencyNotFound()
+        public async Task UpdateCompetency_ThrowsEntityNotFound_WhenCompetencyNotFound()
         {
             // Arrange
             _repository.GetCompetencyById(999).Returns((Competency?)null);
 
-            // Act
-            var result = await _sut.UpdateCompetency(999, new CompetencyRequest { Name = "X" });
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.UpdateCompetency(999, new CompetencyRequest { Name = "X" }));
         }
 
         [Fact]
@@ -316,16 +311,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task DeleteCompetency_ReturnsNull_WhenNotFound()
+        public async Task DeleteCompetency_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             _repository.GetCompetencyById(999).Returns((Competency?)null);
 
-            // Act
-            var result = await _sut.DeleteCompetency(999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.DeleteCompetency(999));
         }
 
         #endregion
@@ -452,16 +444,27 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task ApproveUserCompetency_ReturnsNull_WhenNotFound()
+        public async Task ApproveUserCompetency_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             _repository.GetUserCompetencyById(999).Returns((UserCompetency?)null);
 
-            // Act
-            var result = await _sut.ApproveUserCompetency(999, new ApproveCompetencyRequest());
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.ApproveUserCompetency(999, new ApproveCompetencyRequest()));
+        }
 
-            // Assert
-            Assert.Null(result);
+        #endregion
+
+        #region GetUserCompetencyById
+
+        [Fact]
+        public async Task GetUserCompetencyById_ThrowsEntityNotFound_WhenNotFound()
+        {
+            // Arrange
+            _repository.GetUserCompetencyById(999).Returns((UserCompetency?)null);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.GetUserCompetencyById(999));
         }
 
         #endregion
@@ -492,16 +495,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task RevokeUserCompetency_ReturnsNull_WhenNotFound()
+        public async Task RevokeUserCompetency_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             _repository.GetUserCompetencyById(999).Returns((UserCompetency?)null);
 
-            // Act
-            var result = await _sut.RevokeUserCompetency(999);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.RevokeUserCompetency(999));
         }
 
         #endregion
@@ -540,16 +540,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task AddApprover_ReturnsNull_WhenCompetencyNotFound()
+        public async Task AddApprover_ThrowsEntityNotFound_WhenCompetencyNotFound()
         {
             // Arrange
             _repository.GetCompetencyById(999).Returns((Competency?)null);
 
-            // Act
-            var result = await _sut.AddApprover(999, 1);
-
-            // Assert
-            Assert.Null(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.AddApprover(999, 1));
         }
 
         #endregion
@@ -570,25 +567,21 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             _repository.GetApproverById(1).Returns(approver);
 
             // Act
-            var result = await _sut.RemoveApprover(1);
+            await _sut.RemoveApprover(1);
 
             // Assert
-            Assert.True(result);
             Assert.True(approver.Inactive);
             await _repository.Received(1).SaveChangesAsync();
         }
 
         [Fact]
-        public async Task RemoveApprover_ReturnsFalse_WhenNotFound()
+        public async Task RemoveApprover_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
             _repository.GetApproverById(999).Returns((CompetencyApprover?)null);
 
-            // Act
-            var result = await _sut.RemoveApprover(999);
-
-            // Assert
-            Assert.False(result);
+            // Act & Assert
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.RemoveApprover(999));
         }
 
         #endregion

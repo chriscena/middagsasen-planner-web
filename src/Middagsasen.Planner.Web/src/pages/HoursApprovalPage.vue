@@ -443,9 +443,9 @@ import { useRoute, useRouter } from "vue-router";
 import { formatNumber } from "src/shared/formatter";
 import {
   getWorkHourErrorKind,
-  getWorkHourErrorMessage,
   summarizeBulkApproval,
 } from "src/shared/workHourDiff";
+import { getApiErrorMessage } from "src/shared/apiError";
 import type { BulkApprovalCounts } from "src/shared/workHourDiff";
 import type { UserResponse, WorkHourResponse } from "src/types";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
@@ -746,7 +746,7 @@ async function changeStatus(
     $q.notify({
       type: "negative",
       closeBtn: "close",
-      message: getWorkHourErrorMessage(
+      message: getApiErrorMessage(
         e,
         kind === "conflict"
           ? "Statusen kunne ikke endres fordi føringen er endret av noen andre"

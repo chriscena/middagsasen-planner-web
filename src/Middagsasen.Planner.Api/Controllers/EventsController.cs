@@ -20,40 +20,37 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("api/eventstatus")]
         [ProducesResponseType(typeof(IEnumerable<EventStatusResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get([FromQuery] int month, [FromQuery] int year)
+        public async Task<IEnumerable<EventStatusResponse>> Get([FromQuery] int month, [FromQuery] int year)
         {
-            var statuses = await EventsService.GetEventStatuses(month, year);
-            return Ok(statuses);
+            return await EventsService.GetEventStatuses(month, year);
         }
 
         [HttpGet("api/me/shifts")]
-        [ProducesResponseType(typeof(IEnumerable<UserShiftResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetMyShifts()
+        [ProducesResponseType(typeof(IEnumerable<ShiftSeasonResponse>), StatusCodes.Status200OK)]
+        public async Task<IEnumerable<ShiftSeasonResponse>> GetMyShifts()
         {
-            var shifts = await EventsService.GetShiftsByUserId(CurrentUser.UserId);
-            return Ok(shifts);
+            return await EventsService.GetShiftsByUserId(CurrentUser.UserId);
         }
 
         [HttpGet("api/events")]
         [ProducesResponseType(typeof(IEnumerable<EventResponse>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get([FromQuery] DateTime start, [FromQuery] DateTime end)
+        public async Task<IEnumerable<EventResponse>> Get([FromQuery] DateTime start, [FromQuery] DateTime end)
         {
-            var events = await EventsService.GetEvents(start, end);
-            return Ok(events);
+            return await EventsService.GetEvents(start, end);
         }
 
         [HttpGet("api/events/{id}")]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Get(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventResponse> Get(int id)
         {
-            var existingEvent
-                = await EventsService.GetEventById(id);
-            return existingEvent != null ? Ok(existingEvent) : NotFound();
+            return await EventsService.GetEventById(id);
         }
 
         [HttpPost("api/events")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] EventRequest request)
         {
             var response = await EventsService.CreateEvent(request);
@@ -63,6 +60,8 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("api/events/template/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateFromTemplate(int id, [FromBody] EventFromTemplateRequest request)
         {
             var response = await EventsService.CreateEventFromTemplate(id, request);
@@ -72,71 +71,76 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("api/events/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int id, [FromBody] EventRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventResponse> Update(int id, [FromBody] EventRequest request)
         {
-            var response = await EventsService.UpdateEvent(id, request);
-            return (response == null) ? NotFound() : Ok(response);
+            return await EventsService.UpdateEvent(id, request);
         }
 
         [HttpDelete("api/events/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Delete(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<EventResponse> Delete(int id)
         {
-            var response = await EventsService.DeleteEvent(id);
-            return (response == null) ? NotFound() : Ok(response);
+            return await EventsService.DeleteEvent(id);
         }
 
         [HttpPost("api/resources/{id}/shifts")]
-        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
         {
             var response = await EventsService.AddShift(id, request);
-            if (response == null) return NotFound();
             return Created($"/api/shifts/{response.Id}", response);
         }
 
         [HttpPost("api/resources/{id}/messages")]
-        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AddMessage(int id, [FromBody] MessageRequest request)
         {
-            var response = await EventsService.AddMessage(id, request);
-            if (response == null) return NotFound();
+            var response = await EventsService.AddMessage(id, CurrentUser.UserId, request);
             return Created($"/api/resources/{response.EventResourceId}/messages/{response.Id}", response);
         }
 
         [HttpDelete("api/resources/{eventResourceId}/messages/{id}")]
         [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> DeleteMessage(int id, int eventResourceId)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
         {
-            var response = await EventsService.DeleteMessage(id, eventResourceId);
-            if (response == null) return NotFound();
-            return Ok(response);
+            return await EventsService.DeleteMessage(id, eventResourceId);
         }
 
         [HttpPut("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateShift(int id, [FromBody] ShiftRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ShiftResponse> UpdateShift(int id, [FromBody] ShiftRequest request)
         {
-            var shift = await EventsService.UpdateShift(id, request);
-            return (shift == null) ? NotFound() : Ok(shift);
+            return await EventsService.UpdateShift(id, request);
         }
 
         [HttpDelete("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> DeleteShift(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ShiftResponse> DeleteShift(int id)
         {
-            var shift = await EventsService.DeleteShift(id);
-            return (shift == null) ? NotFound() : Ok(shift);
+            return await EventsService.DeleteShift(id);
         }
 
         [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(MinimumStaffResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Update(int eventResourceId, MinimumStaffRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<MinimumStaffResponse> Update(int eventResourceId, MinimumStaffRequest request)
         {
-            var response = await EventsService.UpdateMinimumStaff(eventResourceId, request);
-            return response == null ? NotFound() : Ok(response);
+            return await EventsService.UpdateMinimumStaff(eventResourceId, request);
         }
     }
 }

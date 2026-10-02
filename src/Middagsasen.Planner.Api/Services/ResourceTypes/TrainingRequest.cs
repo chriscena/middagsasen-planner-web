@@ -2,11 +2,13 @@
 {
     public class TrainingRequest
     {
-        public int Id { get; set; }
+        /// <summary>
+        /// Id til eksisterende opplæring som skal oppdateres. Utelates (eller 0) for ny opplæring.
+        /// </summary>
+        public int? Id { get; set; }
         public int ResourceTypeId { get; set; }
         public int UserId { get; set; }
         public DateTime StartTime { get; set; }
         public bool? TrainingCompleted { get; set; }
-        public int ConfirmedBy { get; set; }
     }
 }

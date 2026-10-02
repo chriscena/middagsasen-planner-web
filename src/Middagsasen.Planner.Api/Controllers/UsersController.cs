@@ -18,53 +18,50 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpGet("api/me")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Me()
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserResponse> Me()
         {
-            var response = await UserService.GetUserById(CurrentUser.UserId);
-            return Ok(response);
+            return await UserService.GetUserById(CurrentUser.UserId);
         }
 
         [HttpPut("api/me")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateMe([FromBody]UserRequest request)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserResponse> UpdateMe([FromBody]UserRequest request)
         {
-            var response = await UserService.Update(CurrentUser.UserId, request);
-            if (response == null) return NotFound($"Fant ikke bruker med ID {CurrentUser.UserId}");
-
-            return Ok(response);
+            return await UserService.Update(CurrentUser.UserId, request);
         }
 
         [HttpGet("api/users/phone")]
-        [ProducesResponseType(typeof(PhoneResponse), 200)]
-        public async Task<IActionResult> GetPhoneList()
+        [ProducesResponseType(typeof(IEnumerable<PhoneResponse>), StatusCodes.Status200OK)]
+        public async Task<IEnumerable<PhoneResponse>> GetPhoneList()
         {
-            var response = await UserService.GetPhoneList();
-            return Ok(response);
+            return await UserService.GetPhoneList();
         }
 
         [HttpGet("api/users")]
         [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(IEnumerable<UserResponse>), 200)]
-        public async Task<IActionResult> GetUsers()
+        [ProducesResponseType(typeof(IEnumerable<UserResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        public async Task<IEnumerable<UserResponse>> GetUsers()
         {
-            var response = await UserService.GetUsers();
-            return Ok(response);
+            return await UserService.GetUsers();
         }
 
         [HttpGet("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetUser(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserResponse> GetUser(int id)
         {
-            var response = await UserService.GetUserById(id);
-            if (response == null) return NotFound($"Fant ikke bruker med ID {id}");
-
-            return Ok(response);
+            return await UserService.GetUserById(id);
         }
 
         [HttpPost("api/users")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> CreateUser(UserRequest user)
         {
             var response = await UserService.Create(user);
@@ -74,29 +71,28 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> UpdateUser(int id, UserRequest user)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserResponse> UpdateUser(int id, UserRequest user)
         {
-            var response = await UserService.Update(id, user);
-            if (response == null) return NotFound($"Fant ikke bruker med ID {id}");
-            return Ok(response);
+            return await UserService.Update(id, user);
         }
 
         [HttpDelete("api/users/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> DeleteUser(int id)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<UserResponse> DeleteUser(int id)
         {
-            var response = await UserService.Delete(id);
-            if (response == null) return NotFound($"Fant ikke bruker med ID {id}");
-            return Ok(response);
+            return await UserService.Delete(id);
         }
 
         [HttpGet("api/halloffame")]
         [ProducesResponseType(typeof(HallOfFameResponse), StatusCodes.Status200OK)]
-        public async Task<IActionResult> GetHallOfFame()
+        public async Task<HallOfFameResponse> GetHallOfFame()
         {
-            var response = await UserService.GetHallOfFame();
-            return Ok(response);
+            return await UserService.GetHallOfFame();
         }
     }
 }

@@ -26,15 +26,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             return templates.Select(Map).ToList();
         }
 
-        public async Task<EventTemplateResponse?> GetEventTemplateById(int id)
+        public async Task<EventTemplateResponse> GetEventTemplateById(int id)
         {
             var template = await EventTemplates
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventTemplateId == id);
-            return template != null ? Map(template) : null;
+                .SingleOrDefaultAsync(e => e.EventTemplateId == id)
+                ?? throw new EntityNotFoundException();
+            return Map(template);
         }
 
-        public async Task<EventTemplateResponse?> CreateEventTemplate(EventTemplateRequest request)
+        public async Task<EventTemplateResponse> CreateEventTemplate(EventTemplateRequest request)
         {
             var newEvent = new EventTemplate
             {
@@ -51,12 +52,11 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventTemplateById(newEvent.EventTemplateId);
         }
 
-        public async Task<EventTemplateResponse?> UpdateEventTemplate(int id, EventTemplateRequest request)
+        public async Task<EventTemplateResponse> UpdateEventTemplate(int id, EventTemplateRequest request)
         {
             var existingEvent = await EventTemplates
-            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
-
-            if (existingEvent == null) return null;
+            .SingleOrDefaultAsync(e => e.EventTemplateId == id)
+            ?? throw new EntityNotFoundException();
 
             existingEvent.Name = request.Name;
             existingEvent.EventName = request.EventName;
@@ -88,16 +88,16 @@ namespace Middagsasen.Planner.Api.Services.Events
             await DbContext.SaveChangesAsync();
 
             var response = await EventTemplates
-            .SingleOrDefaultAsync(e => e.EventTemplateId == id);
+            .SingleOrDefaultAsync(e => e.EventTemplateId == id)
+            ?? throw new EntityNotFoundException();
 
-            return response != null ? Map(response) : null;
+            return Map(response);
         }
 
-        public async Task<EventTemplateResponse?> DeleteEventTemplate(int id)
+        public async Task<EventTemplateResponse> DeleteEventTemplate(int id)
         {
-            var existingTemplate = await DbContext.EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id);
-
-            if (existingTemplate == null) return null;
+            var existingTemplate = await DbContext.EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id)
+                ?? throw new EntityNotFoundException();
 
             DbContext.EventTemplates.Remove(existingTemplate);
 
@@ -105,14 +105,13 @@ namespace Middagsasen.Planner.Api.Services.Events
             return Map(existingTemplate);
         }
 
-        public async Task<EventTemplateResponse?> CreateTemplateFromEvent(int id, TemplateFromEventRequest request)
+        public async Task<EventTemplateResponse> CreateTemplateFromEvent(int id, TemplateFromEventRequest request)
         {
             var existingEvent = await DbContext.Events
                 .Include(e => e.Resources)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == id);
-
-            if (existingEvent == null) return null;
+                .SingleOrDefaultAsync(e => e.EventId == id)
+                ?? throw new EntityNotFoundException();
 
             var template = new EventTemplate
             {

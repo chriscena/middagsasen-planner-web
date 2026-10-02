@@ -39,13 +39,6 @@ interface EventState {
 // fra brukeren eller en tom plassholder ({ id: 0, trainingComplete: null }).
 type ShiftTraining = Pick<TrainingResponse, "id" | "trainingComplete">;
 
-// TrainingRequest slik den faktisk sendes: confirmedBy settes av backend
-// (CurrentUser) og sendes ikke, selv om DTO-en har feltet som påkrevd.
-type ShiftTrainingRequest = Omit<TrainingRequest, "confirmedBy">;
-type ShiftModel = Omit<ShiftRequest, "training"> & {
-  training: ShiftTrainingRequest | null;
-};
-
 export const useEventStore = defineStore("events", {
   state: (): EventState => ({
     selectedEvent: null,
@@ -115,8 +108,6 @@ export const useEventStore = defineStore("events", {
     async createResourceType(
       resourceType: ResourceTypeRequest
     ): Promise<ResourceTypeResponse> {
-      // OpenAPI oppgir EventTemplateResponse (feil [ProducesResponseType]),
-      // men backend returnerer ResourceTypeResponse.
       const response = await api.post<ResourceTypeResponse>(
         "/api/resourcetypes",
         resourceType
@@ -152,9 +143,7 @@ export const useEventStore = defineStore("events", {
       user: Pick<UserResponse, "id">,
       needTraining: boolean
     ): Promise<void> {
-      // id og confirmedBy er påkrevd i TrainingRequest, men sendes ikke
-      // (confirmedBy settes av backend).
-      const model: Omit<TrainingRequest, "id" | "confirmedBy"> = {
+      const model: TrainingRequest = {
         userId: user.id,
         resourceTypeId: resource.resourceType.id,
         startTime: resource.startTime,
@@ -191,7 +180,7 @@ export const useEventStore = defineStore("events", {
       comment: string | null,
       training: ShiftTraining
     ): Promise<void> {
-      const model: ShiftModel = {
+      const model: ShiftRequest = {
         startTime: parentResource.startTime,
         endTime: parentResource.endTime,
         userId: user.id,
@@ -262,7 +251,7 @@ export const useEventStore = defineStore("events", {
       // `?? null`: feltene er valgfrie i ShiftResponse, og med
       // exactOptionalPropertyTypes kan ikke undefined tilordnes direkte. Backend
       // sender alltid null fremfor å utelate feltet, så verdien er den samme.
-      const model: ShiftModel = {
+      const model: ShiftRequest = {
         startTime: shift.startTime ?? null,
         endTime: shift.endTime ?? null,
         userId: shift.user.id,
@@ -379,14 +368,10 @@ export const useEventStore = defineStore("events", {
       );
       await this.getResourceTypes();
     },
-    // Kun `message` sendes: eventResourceId tas fra URL-en og createdBy settes
-    // av backend, selv om MessageRequest har dem som påkrevd.
     async addMessage(
       eventResourceId: number,
-      message: Pick<MessageRequest, "message">
+      message: MessageRequest
     ): Promise<MessageResponse> {
-      // OpenAPI oppgir ShiftResponse (feil [ProducesResponseType]), men
-      // backend returnerer MessageResponse.
       const response = await api.post<MessageResponse>(
         `/api/resources/${eventResourceId}/messages`,
         message

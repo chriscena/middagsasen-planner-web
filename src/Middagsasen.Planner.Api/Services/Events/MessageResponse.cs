@@ -4,8 +4,8 @@
     {
         public int Id { get; set; }
         public int EventResourceId { get; set; }
-        public ShiftUserResponse CreatedBy { get; set; } 
-        public string Created { get; set; }
-        public string Message { get; set; }
+        public ShiftUserResponse CreatedBy { get; set; } = null!;
+        public string Created { get; set; } = null!;
+        public string Message { get; set; } = null!;
     }
 }

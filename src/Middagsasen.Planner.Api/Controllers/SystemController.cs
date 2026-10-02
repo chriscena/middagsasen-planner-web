@@ -15,9 +15,10 @@ namespace Middagsasen.Planner.Api.Controllers
         public ISystemService SystemService { get; }
 
         [HttpGet]
-        public IActionResult Get()
+        [ProducesResponseType(typeof(SystemDiagnosticsResponse), StatusCodes.Status200OK)]
+        public SystemDiagnosticsResponse Get()
         {
-            return Ok(SystemService.GetDiagnostics());
+            return SystemService.GetDiagnostics();
         }
     }
 }
