@@ -218,6 +218,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
         private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
         {
             Id = training.ResourceTypeTrainingId,
+            UserId = training.UserId,
             ResourceTypeId = training.ResourceTypeId,
             ResourceTypeName = training.ResourceType?.Name,
             TrainingComplete = training.TrainingComplete,

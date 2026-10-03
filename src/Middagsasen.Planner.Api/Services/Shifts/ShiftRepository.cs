@@ -106,6 +106,13 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 .ToListAsync();
         }
 
+        public async Task SetMinimumStaff(int resourceId, int minimumStaff)
+        {
+            await DbContext.EventResource
+                .Where(r => r.EventResourceId == resourceId)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, minimumStaff));
+        }
+
         public void AddShift(EventResourceUser shift) => DbContext.Shifts.Add(shift);
 
         public void RemoveShift(EventResourceUser shift) => DbContext.Shifts.Remove(shift);

@@ -324,21 +324,5 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             return ResourceMapper.MapMessage(message);
         }
-
-        public async Task<MinimumStaffResponse> UpdateMinimumStaff(int id, MinimumStaffRequest request)
-        {
-            var eventResource = await DbContext.EventResource
-                .SingleOrDefaultAsync(er => er.EventResourceId == id)
-                ?? throw new EntityNotFoundException();
-
-            eventResource.MinimumStaff = request.MinimumStaff;
-            await DbContext.SaveChangesAsync();
-
-            return new MinimumStaffResponse
-            {
-                EventResourceId = eventResource.EventResourceId,
-                MinimumStaff = eventResource.MinimumStaff
-            };
-        }
     }
 }

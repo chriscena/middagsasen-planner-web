@@ -1,6 +1,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 
 namespace Middagsasen.Planner.Api.Services.Shifts
@@ -208,6 +209,22 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             });
 
             return await BuildResult(resourceId, null, []);
+        }
+
+        public async Task<ResourceResponse> SetMinimumStaff(int resourceId, MinimumStaffRequest request)
+        {
+            var actor = CurrentUser.ToActor();
+            if (!actor.IsAdmin)
+                throw new ForbiddenAccessException();
+
+            await Repository.InResourceLock(resourceId, async () =>
+            {
+                await Repository.SetMinimumStaff(resourceId, request.MinimumStaff);
+                return true;
+            });
+
+            var result = await BuildResult(resourceId, null, []);
+            return result.Resource;
         }
 
         private async Task<(ResourceFacts Resource, ShiftFacts Shift)> GetFacts(int resourceId, int shiftId)

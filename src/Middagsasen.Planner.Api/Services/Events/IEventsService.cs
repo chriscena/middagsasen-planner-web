@@ -14,6 +14,5 @@
         Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId);
         Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request);
         Task<MessageResponse> DeleteMessage(int id, int eventResourceId);
-        Task<MinimumStaffResponse> UpdateMinimumStaff(int id, MinimumStaffRequest request);
     }
 }

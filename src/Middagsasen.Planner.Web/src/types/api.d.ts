@@ -1370,78 +1370,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/resources/{eventResourceId}/minimumStaff": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    eventResourceId: number;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MinimumStaffRequest"];
-                    "text/json": components["schemas"]["MinimumStaffRequest"];
-                    "application/*+json": components["schemas"]["MinimumStaffRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["MinimumStaffResponse"];
-                        "application/json": components["schemas"]["MinimumStaffResponse"];
-                        "text/json": components["schemas"]["MinimumStaffResponse"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-                /** @description Not Found */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-            };
-        };
-        trace?: never;
-    };
     "/api/ResourceTypes": {
         parameters: {
             query?: never;
@@ -2377,6 +2305,78 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/resources/{eventResourceId}/minimumStaff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    eventResourceId: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MinimumStaffRequest"];
+                    "text/json": components["schemas"]["MinimumStaffRequest"];
+                    "application/*+json": components["schemas"]["MinimumStaffRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ResourceResponse"];
+                        "application/json": components["schemas"]["ResourceResponse"];
+                        "text/json": components["schemas"]["ResourceResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         trace?: never;
     };
     "/api/System": {
@@ -4069,12 +4069,6 @@ export interface components {
             /** Format: int32 */
             minimumStaff: number;
         };
-        MinimumStaffResponse: {
-            /** Format: int32 */
-            minimumStaff: number;
-            /** Format: int32 */
-            eventResourceId: number;
-        };
         OtpRequest: {
             userName: string;
         };
@@ -4283,6 +4277,8 @@ export interface components {
         TrainingResponse: {
             /** Format: int32 */
             id: number;
+            /** Format: int32 */
+            userId: number;
             /** Format: int32 */
             resourceTypeId: number;
             resourceTypeName?: null | string;

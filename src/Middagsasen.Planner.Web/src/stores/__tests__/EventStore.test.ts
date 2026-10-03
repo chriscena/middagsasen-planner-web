@@ -14,6 +14,7 @@ const mockApi = vi.hoisted(() => ({
   post: vi.fn(),
   put: vi.fn(),
   delete: vi.fn(),
+  patch: vi.fn(),
 }));
 
 vi.mock("boot/axios", () => ({
@@ -75,8 +76,11 @@ function resource(
   };
 }
 
-function training(trainingComplete: boolean): TrainingResponse {
-  return { id: 100, resourceTypeId: TYPE_ID, trainingComplete };
+function training(
+  trainingComplete: boolean,
+  userId: number = CURRENT_USER_ID
+): TrainingResponse {
+  return { id: 100, userId, resourceTypeId: TYPE_ID, trainingComplete };
 }
 
 function result(
@@ -143,7 +147,7 @@ describe("EventStore", () => {
         ]),
       ];
 
-      store.applyShiftResult(result(resource(10, [])), CURRENT_USER_ID);
+      store.applyShiftResult(result(resource(10, [])));
 
       expect(store.events[0]!.resources[1]!.mustAnswerTraining).toBe(true);
     });
@@ -161,8 +165,7 @@ describe("EventStore", () => {
       ];
 
       store.applyShiftResult(
-        result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false)),
-        CURRENT_USER_ID
+        result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false))
       );
 
       const [sameType, untouched] = store.events[1]!.resources;
@@ -187,7 +190,7 @@ describe("EventStore", () => {
                 user: {
                   id: OTHER_USER_ID,
                   phoneNumber: "2",
-                  trainings: [training(false)],
+                  trainings: [training(false, OTHER_USER_ID)],
                 },
               }),
               shift(3, 11, 3, {
@@ -201,15 +204,19 @@ describe("EventStore", () => {
       ];
 
       store.applyShiftResult(
-        result(resource(10, [shift(1, 10, OTHER_USER_ID)]), training(true)),
-        OTHER_USER_ID
+        result(
+          resource(10, [shift(1, 10, OTHER_USER_ID)]),
+          training(true, OTHER_USER_ID)
+        )
       );
 
       const other = store.events[0]!.resources[1]!;
       const [ownerShift, otherUserShift] = other.shifts;
       expect(ownerShift!.needsTraining).toBe(false);
       expect(ownerShift!.canConfirmTraining).toBe(false);
-      expect(ownerShift!.user.trainings).toEqual([training(true)]);
+      expect(ownerShift!.user.trainings).toEqual([
+        training(true, OTHER_USER_ID),
+      ]);
       expect(otherUserShift!.needsTraining).toBe(true);
       expect(otherUserShift!.canConfirmTraining).toBe(true);
       // Gjelder ikke innlogget bruker.
@@ -219,7 +226,7 @@ describe("EventStore", () => {
   });
 
   describe("vaktoperasjoner", () => {
-    it("signUp poster requesten og bruker innlogget bruker for opplæringen", async () => {
+    it("signUp poster requesten og bruker changedTraining.userId for opplæringen", async () => {
       store.events = [eventWith(1, [resource(10, []), resource(11, [])])];
       const response = result(
         resource(10, [shift(1, 10, CURRENT_USER_ID)]),
@@ -241,7 +248,7 @@ describe("EventStore", () => {
       mockApi.post.mockResolvedValue({
         data: result(
           resource(10, [shift(1, 10, OTHER_USER_ID)]),
-          training(false)
+          training(false, OTHER_USER_ID)
         ),
       });
 
@@ -251,7 +258,7 @@ describe("EventStore", () => {
       expect(authStore.loggedInUser!.trainings).toEqual([]);
     });
 
-    it("setTraining bruker eieren av vakta fra svaret", async () => {
+    it("setTraining bruker changedTraining.userId", async () => {
       store.events = [
         eventWith(1, [
           resource(10, []),
@@ -261,7 +268,7 @@ describe("EventStore", () => {
       mockApi.put.mockResolvedValue({
         data: result(
           resource(10, [shift(7, 10, OTHER_USER_ID)]),
-          training(true)
+          training(true, OTHER_USER_ID)
         ),
       });
 
@@ -300,6 +307,39 @@ describe("EventStore", () => {
 
       expect(mockApi.delete).toHaveBeenCalledWith("/api/shifts/1");
       expect(store.events[0]!.resources[0]!.shifts).toEqual([]);
+    });
+  });
+
+  describe("patchMinimumStaff", () => {
+    it("sender ny verdi og legger ressursen med flagg i cachen", async () => {
+      store.events = [
+        eventWith(1, [
+          resource(10, [shift(1, 10, CURRENT_USER_ID)], {
+            minimumStaff: 2,
+            isMissingStaff: true,
+            isFull: false,
+          }),
+        ]),
+      ];
+      const held = store.events[0]!.resources[0]!;
+      const updated = resource(10, [shift(1, 10, CURRENT_USER_ID)], {
+        minimumStaff: 1,
+        isMissingStaff: false,
+        isFull: true,
+      });
+      mockApi.patch.mockResolvedValue({ data: updated });
+
+      const returned = await store.patchMinimumStaff(10, 1);
+
+      expect(mockApi.patch).toHaveBeenCalledWith(
+        "/api/resources/10/minimumStaff",
+        { minimumStaff: 1 }
+      );
+      expect(returned).toBe(updated);
+      expect(store.events[0]!.resources[0]).toBe(held);
+      expect(held.minimumStaff).toBe(1);
+      expect(held.isMissingStaff).toBe(false);
+      expect(held.isFull).toBe(true);
     });
   });
 

@@ -206,6 +206,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             Assert.NotNull(result.ChangedTraining);
             Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining.Id);
+            Assert.Equal(user.UserId, result.ChangedTraining.UserId);
+            Assert.Equal(resource.ResourceTypeId, result.ChangedTraining.ResourceTypeId);
             Assert.False(result.ChangedTraining.TrainingComplete);
             Assert.False(result.Resource.MustAnswerTraining);
             Assert.True(Assert.Single(result.Resource.Shifts).NeedsTraining);
@@ -675,7 +677,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(trainer.UserId, training.ConfirmedBy);
             Assert.NotNull(training.Confirmed);
 
-            Assert.Equal(trainer.UserId, result.ChangedTraining!.ConfirmedById);
+            Assert.Equal(owner.UserId, result.ChangedTraining!.UserId);
+            Assert.Equal(trainer.UserId, result.ChangedTraining.ConfirmedById);
             Assert.Equal("Trener Bruker", result.ChangedTraining.ConfirmedByName);
             var responseShift = Assert.Single(result.Resource.Shifts);
             Assert.False(responseShift.NeedsTraining);
@@ -695,12 +698,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var shift = await SeedShift(seed, resource, owner.UserId);
 
             using var context = _fixture.CreateContext();
-            await CreateService(context, admin.UserId, isAdmin: true, now: AfterResourceInNorway)
+            var result = await CreateService(context, admin.UserId, isAdmin: true, now: AfterResourceInNorway)
                 .SetTraining(shift.EventResourceUserId, new SetTrainingRequest { TrainingCompleted = true });
 
             var training = await GetTraining(owner.UserId, resource.ResourceTypeId);
             Assert.True(training!.TrainingComplete);
             Assert.Equal(admin.UserId, training.ConfirmedBy);
+            // Opplæringen gjelder eieren av vakta, ikke admin som satte den.
+            Assert.Equal(owner.UserId, result.ChangedTraining!.UserId);
         }
 
         [Fact]
@@ -829,6 +834,89 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<EntityNotFoundException>(() => CreateService(context, user.UserId).Withdraw(999999));
+        }
+
+        #endregion
+
+        #region MinimumStaff
+
+        private async Task<int> GetMinimumStaff(int resourceId)
+        {
+            using var verify = _fixture.CreateContext();
+            return await verify.EventResource.AsNoTracking().Where(r => r.EventResourceId == resourceId).Select(r => r.MinimumStaff).SingleAsync();
+        }
+
+        [Fact]
+        public async Task SetMinimumStaff_Admin_IncreasesOnFullResource_ReturnsResourceThatIsNoLongerFull()
+        {
+            using var seed = _fixture.CreateContext();
+            var first = await SeedUser(seed);
+            var user = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 1);
+            await SeedShift(seed, resource, first.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 2 });
+
+            Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(resource.EventResourceId, result.Id);
+            Assert.Equal(2, result.MinimumStaff);
+            Assert.False(result.IsFull);
+            Assert.True(result.IsMissingStaff);
+            Assert.True(result.CanSignUp);
+            Assert.Single(result.Shifts);
+
+            // Samme mapper som GET api/events: en vanlig bruker kan nå ta vakt.
+            using var userContext = _fixture.CreateContext();
+            var mapper = await CreateService(userContext, user.UserId).CreateResourceMapper();
+            var forUser = mapper.Map((await new ShiftRepository(userContext).GetResource(resource.EventResourceId))!);
+            Assert.False(forUser.IsFull);
+            Assert.True(forUser.CanSignUp);
+        }
+
+        [Fact]
+        public async Task SetMinimumStaff_Admin_DecreasesToShiftCount_ReturnsFullResource()
+        {
+            using var seed = _fixture.CreateContext();
+            var first = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 2);
+            await SeedShift(seed, resource, first.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 1 });
+
+            Assert.Equal(1, result.MinimumStaff);
+            Assert.True(result.IsFull);
+            Assert.False(result.IsMissingStaff);
+            Assert.True(result.CanSignUp); // admin kan overbooke
+        }
+
+        [Fact]
+        public async Task SetMinimumStaff_ThrowsForbidden_WhenNotAdmin()
+        {
+            using var seed = _fixture.CreateContext();
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed, minimumStaff: 2);
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => CreateService(context, user.UserId).SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 5 }));
+            Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task SetMinimumStaff_ThrowsEntityNotFound_WhenResourceDoesNotExist()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<EntityNotFoundException>(
+                () => CreateService(context, admin.UserId, isAdmin: true).SetMinimumStaff(999999, new MinimumStaffRequest { MinimumStaff = 1 }));
         }
 
         #endregion

@@ -1,6 +1,5 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays } from "date-fns";
-import type { AxiosResponse } from "axios";
 import { api } from "boot/axios";
 import { useAuthStore } from "src/stores/AuthStore";
 import type {
@@ -15,7 +14,7 @@ import type {
   MessageRequest,
   MessageResponse,
   MinimumStaffRequest,
-  MinimumStaffResponse,
+  ResourceResponse,
   ResourceTypeRequest,
   ResourceTypeResponse,
   SetTrainingRequest,
@@ -168,9 +167,7 @@ export const useEventStore = defineStore("events", {
         request
       );
       const result = response.data;
-      // Opplæringen gjelder brukeren som ble satt opp.
-      const userId = request.userId ?? useAuthStore().user?.id ?? null;
-      this.applyShiftResult(result, userId);
+      this.applyShiftResult(result);
       return result;
     },
     // Endre tider, kommentar og (kun admin) eier. Endrer aldri opplæringen.
@@ -196,9 +193,7 @@ export const useEventStore = defineStore("events", {
         { trainingCompleted } satisfies SetTrainingRequest
       );
       const result = response.data;
-      // Opplæringen gjelder alltid eieren av vakta, som finnes i svaret.
-      const owner = result.resource.shifts.find((s) => s.id === shiftId)?.user;
-      this.applyShiftResult(result, owner?.id ?? null);
+      this.applyShiftResult(result);
       return result;
     },
     // Trekke seg fra / slette vakta.
@@ -208,25 +203,24 @@ export const useEventStore = defineStore("events", {
       this.applyShiftResult(result);
       return result;
     },
-    // Legger svaret fra en vaktoperasjon i cachen.
-    // - Ressursen med samme id (i alle events) oppdateres med Object.assign, så
-    //   objektet beholder identiteten: komponenter og dialoger som holder på
-    //   ressursen (f.eks. selectedResource) ser de nye verdiene.
-    // - changedTraining gjelder alle ressurser av samme ressurstype. Den har
-    //   ingen userId, så kalleren sender inn brukeren den gjelder
-    //   (trainingUserId). Uten bruker oppdateres bare ressursen selv.
-    applyShiftResult(
-      result: ShiftResult,
-      trainingUserId: number | null = null
-    ): void {
-      const updated = result.resource;
+    // Erstatter ressursen med samme id (i alle events) med svaret fra serveren.
+    // Object.assign, så objektet beholder identiteten: komponenter og dialoger
+    // som holder på ressursen (f.eks. selectedResource) ser de nye verdiene.
+    applyResource(updated: ResourceResponse): void {
       for (const event of this.events) {
         const resource = event.resources.find((r) => r.id === updated.id);
         if (resource) Object.assign(resource, updated);
       }
+    },
+    // Legger svaret fra en vaktoperasjon i cachen: ressursen via applyResource,
+    // og changedTraining (for brukeren i training.userId) på alle ressurser av
+    // samme ressurstype.
+    applyShiftResult(result: ShiftResult): void {
+      this.applyResource(result.resource);
 
       const training = result.changedTraining;
-      if (!training || trainingUserId == null) return;
+      if (!training) return;
+      const trainingUserId = training.userId;
 
       const authStore = useAuthStore();
       const currentUser = authStore.user;
@@ -348,15 +342,18 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${message.eventResourceId}/messages/${message.id}`
       );
     },
-    // Returnerer hele axios-responsen (kallerne leser res.data). eventResourceId
-    // sendes også i body, men brukes kun i URL-en.
+    // Kun admin. Svaret er hele ressursen med flagg (isMissingStaff, isFull
+    // osv.), som legges i cachen via applyResource og returneres.
     async patchMinimumStaff(
-      model: MinimumStaffRequest & { eventResourceId: number }
-    ): Promise<AxiosResponse<MinimumStaffResponse>> {
-      return await api.patch<MinimumStaffResponse>(
-        `/api/resources/${model.eventResourceId}/minimumStaff`,
-        model
+      eventResourceId: number,
+      minimumStaff: number
+    ): Promise<ResourceResponse> {
+      const response = await api.patch<ResourceResponse>(
+        `/api/resources/${eventResourceId}/minimumStaff`,
+        { minimumStaff } satisfies MinimumStaffRequest
       );
+      this.applyResource(response.data);
+      return response.data;
     },
   },
 });

@@ -1,3 +1,5 @@
+using Middagsasen.Planner.Api.Services.Events;
+
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
     /// <summary>
@@ -23,6 +25,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>Trekker eieren fra vakta (sletter den).</summary>
         Task<ShiftResult> Withdraw(int shiftId);
+
+        /// <summary>
+        /// Endrer minimum bemanning på ressursen (kun admin), under ressurslåsen siden kapasitetsreglene avhenger av den.
+        /// Returnerer ressursen etter endringen med flagg for innlogget bruker.
+        /// </summary>
+        /// <exception cref="EntityNotFoundException">Ressursen finnes ikke.</exception>
+        /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
+        Task<ResourceResponse> SetMinimumStaff(int resourceId, MinimumStaffRequest request);
 
         /// <summary>
         /// Lager en mapper som gir ressurser med flagg for innlogget bruker. Brukes av lesesiden (EventsService),

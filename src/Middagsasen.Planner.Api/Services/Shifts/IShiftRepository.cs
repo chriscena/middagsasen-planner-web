@@ -35,6 +35,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Ressurstypene brukeren har en opplæringsrad for (uansett status).</summary>
         Task<IReadOnlyList<int>> GetTrainingResourceTypeIds(int userId);
 
+        /// <summary>Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges).</summary>
+        Task SetMinimumStaff(int resourceId, int minimumStaff);
+
         void AddShift(EventResourceUser shift);
         void RemoveShift(EventResourceUser shift);
         void AddTraining(ResourceTypeTraining training);

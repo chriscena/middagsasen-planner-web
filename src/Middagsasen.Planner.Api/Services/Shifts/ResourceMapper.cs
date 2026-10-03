@@ -139,6 +139,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal static TrainingResponse MapTraining(ResourceTypeTraining training) => new()
         {
             Id = training.ResourceTypeTrainingId,
+            UserId = training.UserId,
             ResourceTypeId = training.ResourceTypeId,
             ResourceTypeName = training.ResourceType?.Name,
             TrainingComplete = training.TrainingComplete,

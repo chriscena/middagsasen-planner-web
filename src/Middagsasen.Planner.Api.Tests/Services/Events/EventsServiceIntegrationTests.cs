@@ -648,39 +648,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #endregion
 
-        #region MinimumStaff
-
-        [Fact]
-        public async Task UpdateMinimumStaff_UpdatesValue()
-        {
-            // Arrange
-            using var seedContext = _fixture.CreateContext();
-            var (evt, resource) = await SeedEventWithResource(seedContext);
-            Assert.Equal(2, resource.MinimumStaff); // precondition
-
-            using var context = _fixture.CreateContext();
-            var service = CreateService(context);
-
-            var request = new MinimumStaffRequest { MinimumStaff = 5 };
-
-            // Act
-            var result = await service.UpdateMinimumStaff(resource.EventResourceId, request);
-
-            // Assert
-            Assert.NotNull(result);
-            Assert.Equal(5, result.MinimumStaff);
-            Assert.Equal(resource.EventResourceId, result.EventResourceId);
-
-            // Verify in DB
-            using var verifyContext = _fixture.CreateContext();
-            var dbResource = await verifyContext.EventResource
-                .AsNoTracking()
-                .SingleAsync(r => r.EventResourceId == resource.EventResourceId);
-            Assert.Equal(5, dbResource.MinimumStaff);
-        }
-
-        #endregion
-
         #region NotFound
 
         [Fact]
@@ -725,17 +692,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteMessage(999999, 999999));
-        }
-
-        [Fact]
-        public async Task UpdateMinimumStaff_ThrowsEntityNotFound_WhenNotFound()
-        {
-            // Arrange
-            using var context = _fixture.CreateContext();
-            var service = CreateService(context);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateMinimumStaff(999999, new MinimumStaffRequest { MinimumStaff = 1 }));
         }
 
         [Fact]

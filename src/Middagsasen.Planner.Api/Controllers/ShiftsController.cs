@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Shifts;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -7,6 +8,7 @@ namespace Middagsasen.Planner.Api.Controllers
     /// <summary>
     /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele ressursen etter endringen
     /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er ressursen, ikke en ny vakt.
+    /// Endring av minimum bemanning ligger også her, siden den påvirker kapasitetsreglene, og returnerer ressursen.
     /// </summary>
     [ApiController, Authorize]
     public class ShiftsController : ControllerBase
@@ -60,6 +62,17 @@ namespace Middagsasen.Planner.Api.Controllers
         public async Task<ShiftResult> Withdraw(int id)
         {
             return await ShiftService.Withdraw(id);
+        }
+
+        /// <summary>Endre minimum bemanning på ressursen (kun admin). Returnerer ressursen med oppdaterte flagg.</summary>
+        [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(ResourceResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ResourceResponse> SetMinimumStaff(int eventResourceId, [FromBody] MinimumStaffRequest request)
+        {
+            return await ShiftService.SetMinimumStaff(eventResourceId, request);
         }
     }
 }

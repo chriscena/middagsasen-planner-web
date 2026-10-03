@@ -3,6 +3,8 @@
     public class TrainingResponse
     {
         public int Id { get; set; }
+        /// <summary>Brukeren opplæringen gjelder.</summary>
+        public int UserId { get; set; }
         public int ResourceTypeId { get; set; }
         public string? ResourceTypeName { get; set; }
         public string? Confirmed { get; set; }

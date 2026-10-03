@@ -104,15 +104,5 @@ namespace Middagsasen.Planner.Api.Controllers
         {
             return await EventsService.DeleteMessage(id, eventResourceId);
         }
-
-        [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
-        [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(MinimumStaffResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<MinimumStaffResponse> Update(int eventResourceId, MinimumStaffRequest request)
-        {
-            return await EventsService.UpdateMinimumStaff(eventResourceId, request);
-        }
     }
 }

@@ -942,29 +942,17 @@ function canDeleteMessage(message: MessageResponse): boolean {
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }
-// patchMinimumStaff returnerer ikke ressursen med flagg, så isMissingStaff og
-// isFull oppdateres her med samme formel som ShiftRules.IsMissingStaff i
-// backend. canSignUp påvirkes ikke for admin (som kan overbooke).
-function updateStaffFlags(resource: ResourceResponse): void {
-  resource.isMissingStaff = resource.shifts.length < resource.minimumStaff;
-  resource.isFull = !resource.isMissingStaff;
-}
+// patchMinimumStaff legger svaret (ressursen med flagg) i cachen, så her
+// regnes bare ut ny verdi som sendes.
 async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   try {
     loading.value = true;
 
-    if (resource.minimumStaff < resource.shifts.length)
-      resource.minimumStaff = resource.shifts.length + 1;
-    else {
-      resource.minimumStaff++;
-    }
-    const model = {
-      eventResourceId: resource.id,
-      minimumStaff: resource.minimumStaff,
-    };
-    const res = await eventStore.patchMinimumStaff(model);
-    resource.minimumStaff = res.data.minimumStaff;
-    updateStaffFlags(resource);
+    const minimumStaff =
+      resource.minimumStaff < resource.shifts.length
+        ? resource.shifts.length + 1
+        : resource.minimumStaff + 1;
+    await eventStore.patchMinimumStaff(resource.id, minimumStaff);
   } catch (e) {
     console.error(e);
     $q.notify({
@@ -979,14 +967,11 @@ async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
   try {
     loading.value = true;
 
-    if (resource.minimumStaff > resource.shifts.length) resource.minimumStaff--;
-    const model = {
-      eventResourceId: resource.id,
-      minimumStaff: resource.minimumStaff,
-    };
-    const res = await eventStore.patchMinimumStaff(model);
-    resource.minimumStaff = res.data.minimumStaff;
-    updateStaffFlags(resource);
+    const minimumStaff =
+      resource.minimumStaff > resource.shifts.length
+        ? resource.minimumStaff - 1
+        : resource.minimumStaff;
+    await eventStore.patchMinimumStaff(resource.id, minimumStaff);
   } catch (e) {
     console.error(e);
     $q.notify({
