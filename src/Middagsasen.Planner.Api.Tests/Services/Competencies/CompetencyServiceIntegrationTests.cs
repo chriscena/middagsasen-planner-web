@@ -375,7 +375,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var competency = await SeedCompetency(seedContext, name: UniqueName("UC-Add"));
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId);
 
             var request = new UserCompetencyRequest
             {
@@ -428,7 +428,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var service = CreateService(context, userId: user.UserId + 1, isAdmin: true);
 
             // Act
             var result = (await service.GetUserCompetencies(user.UserId)).ToList();
@@ -448,6 +448,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var approver = await SeedUser(seedContext, "Approve", "By");
             var competency = await SeedCompetency(seedContext, name: UniqueName("UC-Approve"));
 
+            seedContext.CompetencyApprovers.Add(new CompetencyApprover
+            {
+                CompetencyId = competency.CompetencyId,
+                UserId = approver.UserId,
+            });
             seedContext.UserCompetencies.Add(new UserCompetency
             {
                 UserId = user.UserId,
@@ -507,7 +512,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var expiryDate = DateTime.UtcNow.AddYears(1).Date;
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context, userId: approver.UserId);
+            var service = CreateService(context, userId: approver.UserId, isAdmin: true);
 
             // Act
             var result = await service.ApproveUserCompetency(ucId, new ApproveCompetencyRequest
@@ -525,6 +530,171 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 .AsNoTracking()
                 .SingleAsync(uc => uc.UserCompetencyId == ucId);
             Assert.Equal(expiryDate, dbEntity.ExpiryDate);
+        }
+
+        [Fact]
+        public async Task GetUserCompetencies_ThrowsForbidden_WhenNonAdminReadsOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Read", "Target");
+            var other = await SeedUser(seedContext, "Read", "Other");
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: other.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.GetUserCompetencies(user.UserId));
+        }
+
+        [Fact]
+        public async Task AddUserCompetency_ThrowsForbidden_WhenNonAdminAddsForOtherUser()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Add", "Target");
+            var other = await SeedUser(seedContext, "Add", "Other");
+            var competency = await SeedCompetency(seedContext, name: UniqueName("UC-AddForbidden"));
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: other.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.AddUserCompetency(new UserCompetencyRequest
+            {
+                UserId = user.UserId,
+                CompetencyId = competency.CompetencyId,
+            }));
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.UserCompetencies.AnyAsync(uc => uc.CompetencyId == competency.CompetencyId));
+        }
+
+        [Theory]
+        [InlineData(false)] // ikke godkjenner i det hele tatt
+        [InlineData(true)]  // inaktiv godkjenner
+        public async Task ApproveUserCompetency_ThrowsForbidden_WhenNotActiveApprover(bool inactiveApprover)
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Approve", "Target");
+            var notApprover = await SeedUser(seedContext, "Approve", "NotApprover");
+            var competency = await SeedCompetency(seedContext, name: UniqueName("UC-ApproveForbidden"));
+
+            if (inactiveApprover)
+            {
+                seedContext.CompetencyApprovers.Add(new CompetencyApprover
+                {
+                    CompetencyId = competency.CompetencyId,
+                    UserId = notApprover.UserId,
+                    Inactive = true,
+                });
+            }
+            var userCompetency = new UserCompetency
+            {
+                UserId = user.UserId,
+                CompetencyId = competency.CompetencyId,
+                Approved = false,
+                Created = DateTime.UtcNow,
+            };
+            seedContext.UserCompetencies.Add(userCompetency);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: notApprover.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => service.ApproveUserCompetency(userCompetency.UserCompetencyId, new ApproveCompetencyRequest()));
+
+            using var verifyContext = _fixture.CreateContext();
+            var dbEntity = await verifyContext.UserCompetencies
+                .AsNoTracking()
+                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId);
+            Assert.False(dbEntity.Approved);
+            Assert.Null(dbEntity.ApprovedBy);
+        }
+
+        [Fact]
+        public async Task ApproveUserCompetency_ThrowsForbidden_WhenApproverForOtherCompetency()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUser(seedContext, "Approve", "Target");
+            var approver = await SeedUser(seedContext, "Approve", "OtherComp");
+            var competency = await SeedCompetency(seedContext, name: UniqueName("UC-ApproveTarget"));
+            var otherCompetency = await SeedCompetency(seedContext, name: UniqueName("UC-ApproveOther"));
+
+            seedContext.CompetencyApprovers.Add(new CompetencyApprover
+            {
+                CompetencyId = otherCompetency.CompetencyId,
+                UserId = approver.UserId,
+            });
+            var userCompetency = new UserCompetency
+            {
+                UserId = user.UserId,
+                CompetencyId = competency.CompetencyId,
+                Approved = false,
+                Created = DateTime.UtcNow,
+            };
+            seedContext.UserCompetencies.Add(userCompetency);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: approver.UserId);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => service.ApproveUserCompetency(userCompetency.UserCompetencyId, new ApproveCompetencyRequest()));
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task ApproveUserCompetency_OwnCompetency_ForbiddenForApprover_AllowedForAdmin(bool isAdmin)
+        {
+            // Arrange: brukeren er aktiv godkjenner for kompetansen og eier selv brukerkompetansen
+            using var seedContext = _fixture.CreateContext();
+            var approver = await SeedUser(seedContext, "Approve", "Self");
+            var competency = await SeedCompetency(seedContext, name: UniqueName("UC-ApproveSelf"));
+
+            seedContext.CompetencyApprovers.Add(new CompetencyApprover
+            {
+                CompetencyId = competency.CompetencyId,
+                UserId = approver.UserId,
+            });
+            var userCompetency = new UserCompetency
+            {
+                UserId = approver.UserId,
+                CompetencyId = competency.CompetencyId,
+                Approved = false,
+                Created = DateTime.UtcNow,
+            };
+            seedContext.UserCompetencies.Add(userCompetency);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: approver.UserId, isAdmin: isAdmin);
+
+            // Act & Assert
+            if (isAdmin)
+            {
+                var result = await service.ApproveUserCompetency(userCompetency.UserCompetencyId, new ApproveCompetencyRequest());
+                Assert.True(result.Approved);
+            }
+            else
+            {
+                await Assert.ThrowsAsync<ForbiddenAccessException>(
+                    () => service.ApproveUserCompetency(userCompetency.UserCompetencyId, new ApproveCompetencyRequest()));
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            var dbEntity = await verifyContext.UserCompetencies
+                .AsNoTracking()
+                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId);
+            Assert.Equal(isAdmin, dbEntity.Approved);
+        }
+
+        [Fact]
+        public async Task ApproveUserCompetency_ThrowsEntityNotFound_BeforeAccessCheck()
+        {
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: int.MaxValue);
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(
+                () => service.ApproveUserCompetency(int.MaxValue, new ApproveCompetencyRequest()));
         }
 
         [Fact]
@@ -575,7 +745,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task GetUserCompetencyById_ReturnsCorrectRecord()
+        public async Task Repository_GetUserCompetencyById_ReturnsCorrectRecord()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -596,17 +766,17 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 .UserCompetencyId;
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var repository = new CompetencyRepository(context);
 
             // Act
-            var result = await service.GetUserCompetencyById(ucId);
+            var result = await repository.GetUserCompetencyById(ucId);
 
             // Assert
             Assert.NotNull(result);
-            Assert.Equal(ucId, result.Id);
+            Assert.Equal(ucId, result.UserCompetencyId);
             Assert.Equal(user.UserId, result.UserId);
             Assert.Equal(competency.CompetencyId, result.CompetencyId);
-            Assert.Equal(competency.Name, result.CompetencyName);
+            Assert.Equal(competency.Name, result.Competency.Name);
         }
 
         #endregion
@@ -760,7 +930,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
-        public async Task IsApprover_ReturnsTrueForActiveApprover()
+        public async Task Repository_IsApprover_ReturnsTrueForActiveApprover()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -776,17 +946,17 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var repository = new CompetencyRepository(context);
 
             // Act
-            var result = await service.IsApprover(competency.CompetencyId, user.UserId);
+            var result = await repository.IsApprover(competency.CompetencyId, user.UserId);
 
             // Assert
             Assert.True(result);
         }
 
         [Fact]
-        public async Task IsApprover_ReturnsFalseForInactiveApprover()
+        public async Task Repository_IsApprover_ReturnsFalseForInactiveApprover()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -802,10 +972,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             await seedContext.SaveChangesAsync();
 
             using var context = _fixture.CreateContext();
-            var service = CreateService(context);
+            var repository = new CompetencyRepository(context);
 
             // Act
-            var result = await service.IsApprover(competency.CompetencyId, user.UserId);
+            var result = await repository.IsApprover(competency.CompetencyId, user.UserId);
 
             // Assert
             Assert.False(result);

@@ -47,8 +47,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> UpdateWorkHour(int workHourId, UpdateWorkHourRequest request)
         {
             var workHour = await GetTracked(workHourId);
-            var userId = CurrentUser.UserId;
-            var isAdmin = CurrentUser.IsAdmin;
+            var actor = CurrentUser.ToActor();
+            var userId = actor.UserId;
 
             // «Innhold» betyr felter som faktisk endres i forhold til lagret verdi — en PATCH med
             // uendrede verdier oppfører seg som en tom PATCH (også på låste føringer).
@@ -60,15 +60,15 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             if (!hasContent && !hasStatus)
             {
-                if (!WorkHourPolicy.CanRead(workHour, isAdmin, userId))
+                if (!WorkHourPolicy.CanRead(workHour, actor))
                     throw new ForbiddenAccessException(ForbiddenMessage);
                 return Map(workHour);
             }
 
             // Rekkefølge: 404 (over) → 403 → 409 → 400. Tilgangssjekker gjøres mot tilstanden FØR endring.
             Ensure(LockedMessage,
-                hasContent ? WorkHourPolicy.CanEdit(workHour, isAdmin, userId) : WorkHourAccess.Allowed,
-                hasStatus ? WorkHourPolicy.CanSetStatus(workHour, isAdmin, userId, request.ApprovalStatus) : WorkHourAccess.Allowed);
+                hasContent ? WorkHourPolicy.CanEdit(workHour, actor) : WorkHourAccess.Allowed,
+                hasStatus ? WorkHourPolicy.CanSetStatus(workHour, actor, request.ApprovalStatus) : WorkHourAccess.Allowed);
 
             ValidateStatus(request.ApprovalStatus);
             // Valider mot resulterende verdier (request-verdi hvis sendt, ellers lagret verdi).
@@ -107,7 +107,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             Ensure(
                 request.ApprovalStatus.HasValue ? LockedMessage : NoStatusToResetMessage,
-                WorkHourPolicy.CanSetStatus(workHour, CurrentUser.IsAdmin, userId, request.ApprovalStatus));
+                WorkHourPolicy.CanSetStatus(workHour, CurrentUser.ToActor(), request.ApprovalStatus));
             ValidateStatus(request.ApprovalStatus);
 
             ApplyStatus(workHour, request.ApprovalStatus, userId);
@@ -125,7 +125,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> DeleteWorkHour(int workHourId)
         {
             var workHour = await GetTracked(workHourId);
-            Ensure(LockedMessage, WorkHourPolicy.CanEdit(workHour, CurrentUser.IsAdmin, CurrentUser.UserId));
+            Ensure(LockedMessage, WorkHourPolicy.CanEdit(workHour, CurrentUser.ToActor()));
 
             var response = Map(workHour);
             Repository.Remove(workHour);
@@ -150,7 +150,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             var workHour = await Repository.GetWorkHourByIdReadOnly(workHourId)
                 ?? throw new EntityNotFoundException(NotFoundMessage);
 
-            if (!WorkHourPolicy.CanRead(workHour, CurrentUser.IsAdmin, CurrentUser.UserId))
+            if (!WorkHourPolicy.CanRead(workHour, CurrentUser.ToActor()))
                 throw new ForbiddenAccessException(ForbiddenMessage);
 
             return Map(workHour);
@@ -276,13 +276,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         private void EnsureAdmin()
         {
-            if (!CurrentUser.IsAdmin)
+            if (!CurrentUser.ToActor().IsAdmin)
                 throw new ForbiddenAccessException(ForbiddenMessage);
         }
 
         private void EnsureAdminOrSelf(int userId)
         {
-            if (!CurrentUser.IsAdmin && CurrentUser.UserId != userId)
+            if (!CurrentUser.ToActor().IsAdminOrSelf(userId))
                 throw new ForbiddenAccessException(ForbiddenMessage);
         }
 

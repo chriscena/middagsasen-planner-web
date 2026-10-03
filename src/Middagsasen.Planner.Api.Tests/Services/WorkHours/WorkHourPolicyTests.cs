@@ -1,4 +1,5 @@
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.WorkHours;
 
 namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
@@ -15,12 +16,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
         private static WorkHour Entry(int? status) => new() { WorkHourId = 1, UserId = OwnerId, ApprovalStatus = status };
 
-        private static WorkHourAccess Evaluate(WorkHour entry, bool isAdmin, int userId, Action action) => action switch
+        private static WorkHourAccess Evaluate(WorkHour entry, Actor actor, Action action) => action switch
         {
-            Action.Edit or Action.Delete => WorkHourPolicy.CanEdit(entry, isAdmin, userId),
-            Action.Approve => WorkHourPolicy.CanSetStatus(entry, isAdmin, userId, 1),
-            Action.Reject => WorkHourPolicy.CanSetStatus(entry, isAdmin, userId, 2),
-            Action.Unlock => WorkHourPolicy.CanSetStatus(entry, isAdmin, userId, null),
+            Action.Edit or Action.Delete => WorkHourPolicy.CanEdit(entry, actor),
+            Action.Approve => WorkHourPolicy.CanSetStatus(entry, actor, 1),
+            Action.Reject => WorkHourPolicy.CanSetStatus(entry, actor, 2),
+            Action.Unlock => WorkHourPolicy.CanSetStatus(entry, actor, null),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 
@@ -94,7 +95,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var userId = isOwner ? OwnerId : OtherId;
 
-            var result = Evaluate(Entry(status), isAdmin, userId, action);
+            var result = Evaluate(Entry(status), new Actor(userId, isAdmin), action);
 
             Assert.Equal(expected, result);
         }
@@ -114,7 +115,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var userId = isOwner ? OwnerId : OtherId;
 
-            Assert.Equal(expected, WorkHourPolicy.CanRead(Entry(status), isAdmin, userId));
+            Assert.Equal(expected, WorkHourPolicy.CanRead(Entry(status), new Actor(userId, isAdmin)));
         }
 
         // Policyen vurderer kun tilgang/tilstand; verdien valideres av servicen etterpå (403 → 409 → 400).
@@ -128,7 +129,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         [InlineData(3, true, Approved, WorkHourAccess.Locked)]
         public void CanSetStatus_IgnoresStatusValue(int status, bool isAdmin, int? current, WorkHourAccess expected)
         {
-            Assert.Equal(expected, WorkHourPolicy.CanSetStatus(Entry(current), isAdmin, OwnerId, status));
+            Assert.Equal(expected, WorkHourPolicy.CanSetStatus(Entry(current), new Actor(OwnerId, isAdmin), status));
         }
     }
 }

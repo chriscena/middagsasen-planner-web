@@ -26,16 +26,16 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public static bool IsOwner(WorkHour entry, int userId) => entry.UserId == userId;
 
         /// <summary>Admin kan lese alt; vanlig bruker kun egne føringer.</summary>
-        public static bool CanRead(WorkHour entry, bool isAdmin, int userId)
-            => isAdmin || IsOwner(entry, userId);
+        public static bool CanRead(WorkHour entry, Actor actor)
+            => actor.IsAdminOrSelf(entry.UserId);
 
         /// <summary>
         /// Redigere innhold (starttid, sluttid, beskrivelse) eller slette.
         /// Eier eller admin, og kun når føringen er åpen.
         /// </summary>
-        public static WorkHourAccess CanEdit(WorkHour entry, bool isAdmin, int userId)
+        public static WorkHourAccess CanEdit(WorkHour entry, Actor actor)
         {
-            if (!isAdmin && !IsOwner(entry, userId)) return WorkHourAccess.Forbidden;
+            if (!actor.IsAdminOrSelf(entry.UserId)) return WorkHourAccess.Forbidden;
             return IsOpen(entry) ? WorkHourAccess.Allowed : WorkHourAccess.Locked;
         }
 
@@ -46,9 +46,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// behandles som godkjenn/avslå. Servicen validerer verdien etter policyen, slik at
         /// tilgang (403) og låsing (409) vurderes før ugyldig verdi (400).
         /// </summary>
-        public static WorkHourAccess CanSetStatus(WorkHour entry, bool isAdmin, int userId, int? newStatus)
+        public static WorkHourAccess CanSetStatus(WorkHour entry, Actor actor, int? newStatus)
         {
-            if (!isAdmin) return WorkHourAccess.Forbidden;
+            if (!actor.IsAdmin) return WorkHourAccess.Forbidden;
 
             if (newStatus is null)
                 return IsOpen(entry) ? WorkHourAccess.Locked : WorkHourAccess.Allowed;

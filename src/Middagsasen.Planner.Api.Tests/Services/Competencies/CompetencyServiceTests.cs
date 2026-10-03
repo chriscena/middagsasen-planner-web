@@ -328,7 +328,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         public async Task AddUserCompetency_CreatesUserCompetencyWithApprovedFalse()
         {
             // Arrange
-            var request = new UserCompetencyRequest { UserId = 1, CompetencyId = 2 };
+            var request = new UserCompetencyRequest { UserId = 50, CompetencyId = 2 };
 
             _repository.AddUserCompetency(Arg.Any<UserCompetency>()).Returns(callInfo =>
             {
@@ -339,7 +339,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             _repository.GetUserCompetencyById(100).Returns(new UserCompetency
             {
                 UserCompetencyId = 100,
-                UserId = 1,
+                UserId = 50,
                 CompetencyId = 2,
                 Approved = false,
                 Created = DateTime.UtcNow,
@@ -350,7 +350,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
 
             // Assert
             await _repository.Received(1).AddUserCompetency(Arg.Is<UserCompetency>(uc =>
-                uc.UserId == 1 &&
+                uc.UserId == 50 &&
                 uc.CompetencyId == 2 &&
                 uc.Approved == false));
             Assert.NotNull(result);
@@ -361,7 +361,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         public async Task AddUserCompetency_SetsCreatedToApproximatelyUtcNow()
         {
             // Arrange
-            var request = new UserCompetencyRequest { UserId = 1, CompetencyId = 2 };
+            var request = new UserCompetencyRequest { UserId = 50, CompetencyId = 2 };
             var before = DateTime.UtcNow;
 
             _repository.AddUserCompetency(Arg.Any<UserCompetency>()).Returns(callInfo =>
@@ -375,7 +375,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 return new UserCompetency
                 {
                     UserCompetencyId = 100,
-                    UserId = 1,
+                    UserId = 50,
                     CompetencyId = 2,
                     Approved = false,
                     Created = DateTime.UtcNow,
@@ -389,6 +389,38 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             // Assert
             await _repository.Received(1).AddUserCompetency(Arg.Is<UserCompetency>(uc =>
                 uc.Created >= before && uc.Created <= after));
+        }
+
+        [Fact]
+        public async Task AddUserCompetency_ThrowsForbidden_WhenNonAdminAddsForOtherUser()
+        {
+            // Arrange
+            var request = new UserCompetencyRequest { UserId = 1, CompetencyId = 2 };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.AddUserCompetency(request));
+            await _repository.DidNotReceive().AddUserCompetency(Arg.Any<UserCompetency>());
+        }
+
+        #endregion
+
+        #region GetUserCompetencies
+
+        [Fact]
+        public async Task GetUserCompetencies_ThrowsForbidden_WhenNonAdminReadsOtherUser()
+        {
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.GetUserCompetencies(1));
+            await _repository.DidNotReceive().GetUserCompetencies(Arg.Any<int>());
+        }
+
+        [Fact]
+        public async Task GetUserCompetencies_ReturnsOwnCompetencies()
+        {
+            _repository.GetUserCompetencies(50).Returns(new List<UserCompetency>());
+
+            var result = await _sut.GetUserCompetencies(50);
+
+            Assert.Empty(result);
         }
 
         #endregion
@@ -407,6 +439,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
             };
             _repository.GetUserCompetencyById(1).Returns(userCompetency);
+            _repository.IsApprover(20, 50).Returns(true);
             var request = new ApproveCompetencyRequest { ExpiryDate = null };
             var before = DateTime.UtcNow;
 
@@ -433,6 +466,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
             };
             _repository.GetUserCompetencyById(1).Returns(userCompetency);
+            _repository.IsApprover(20, 50).Returns(true);
             var expiryDate = new DateTime(2027, 6, 15, 0, 0, 0, DateTimeKind.Utc);
             var request = new ApproveCompetencyRequest { ExpiryDate = expiryDate };
 
@@ -444,6 +478,68 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         }
 
         [Fact]
+        public async Task ApproveUserCompetency_ThrowsForbidden_AndDoesNotSave_WhenNotApprover()
+        {
+            // Arrange
+            var userCompetency = new UserCompetency
+            {
+                UserCompetencyId = 1,
+                UserId = 10,
+                CompetencyId = 20,
+                Approved = false,
+            };
+            _repository.GetUserCompetencyById(1).Returns(userCompetency);
+            _repository.IsApprover(20, 50).Returns(false);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.ApproveUserCompetency(1, new ApproveCompetencyRequest()));
+            Assert.False(userCompetency.Approved);
+            await _repository.DidNotReceive().SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task ApproveUserCompetency_ThrowsForbidden_AndDoesNotSave_WhenApproverApprovesOwnCompetency()
+        {
+            // Arrange
+            var userCompetency = new UserCompetency
+            {
+                UserCompetencyId = 1,
+                UserId = 50,
+                CompetencyId = 20,
+                Approved = false,
+            };
+            _repository.GetUserCompetencyById(1).Returns(userCompetency);
+            _repository.IsApprover(20, 50).Returns(true);
+
+            // Act & Assert
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.ApproveUserCompetency(1, new ApproveCompetencyRequest()));
+            Assert.False(userCompetency.Approved);
+            await _repository.DidNotReceive().SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task ApproveUserCompetency_AllowsAdmin_WhenNotApprover()
+        {
+            // Arrange
+            _currentUser.IsAdmin.Returns(true);
+            var userCompetency = new UserCompetency
+            {
+                UserCompetencyId = 1,
+                UserId = 10,
+                CompetencyId = 20,
+                Approved = false,
+            };
+            _repository.GetUserCompetencyById(1).Returns(userCompetency);
+            _repository.IsApprover(20, 50).Returns(false);
+
+            // Act
+            await _sut.ApproveUserCompetency(1, new ApproveCompetencyRequest());
+
+            // Assert
+            Assert.True(userCompetency.Approved);
+        }
+
+        [Fact]
         public async Task ApproveUserCompetency_ThrowsEntityNotFound_WhenNotFound()
         {
             // Arrange
@@ -451,20 +547,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.ApproveUserCompetency(999, new ApproveCompetencyRequest()));
-        }
-
-        #endregion
-
-        #region GetUserCompetencyById
-
-        [Fact]
-        public async Task GetUserCompetencyById_ThrowsEntityNotFound_WhenNotFound()
-        {
-            // Arrange
-            _repository.GetUserCompetencyById(999).Returns((UserCompetency?)null);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.GetUserCompetencyById(999));
         }
 
         #endregion

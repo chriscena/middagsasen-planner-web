@@ -161,18 +161,18 @@ namespace Middagsasen.Planner.Api.Services.Competencies
 
         public async Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId)
         {
+            if (!CompetencyPolicy.CanReadUserCompetencies(CurrentUser.ToActor(), userId))
+                throw new ForbiddenAccessException();
+
             var userCompetencies = await Repository.GetUserCompetencies(userId);
             return userCompetencies.Select(MapUserCompetency).ToList();
         }
 
-        public async Task<UserCompetencyResponse> GetUserCompetencyById(int id)
-        {
-            var userCompetency = await Repository.GetUserCompetencyById(id) ?? throw new EntityNotFoundException();
-            return MapUserCompetency(userCompetency);
-        }
-
         public async Task<UserCompetencyResponse> AddUserCompetency(UserCompetencyRequest request)
         {
+            if (!CompetencyPolicy.CanAddUserCompetency(CurrentUser.ToActor(), request.UserId))
+                throw new ForbiddenAccessException();
+
             var userCompetency = new UserCompetency
             {
                 UserId = request.UserId,
@@ -191,6 +191,11 @@ namespace Middagsasen.Planner.Api.Services.Competencies
         public async Task<UserCompetencyResponse> ApproveUserCompetency(int userCompetencyId, ApproveCompetencyRequest request)
         {
             var userCompetency = await Repository.GetUserCompetencyById(userCompetencyId) ?? throw new EntityNotFoundException();
+
+            var actor = CurrentUser.ToActor();
+            var isApprover = await Repository.IsApprover(userCompetency.CompetencyId, actor.UserId);
+            if (!CompetencyPolicy.CanApprove(actor, userCompetency.UserId, isApprover))
+                throw new ForbiddenAccessException();
 
             userCompetency.Approved = true;
             userCompetency.ApprovedDate = DateTime.UtcNow;
@@ -275,11 +280,6 @@ namespace Middagsasen.Planner.Api.Services.Competencies
 
             approver.Inactive = true;
             await Repository.SaveChangesAsync();
-        }
-
-        public async Task<bool> IsApprover(int competencyId, int userId)
-        {
-            return await Repository.IsApprover(competencyId, userId);
         }
 
         // Mapping methods

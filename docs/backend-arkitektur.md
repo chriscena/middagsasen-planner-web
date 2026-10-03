@@ -19,3 +19,12 @@
 6. **Strukturert feilhåndtering** — custom exceptions, global exception middleware
 
 Koden er vanskelig å teste og vedlikeholde pga. tight coupling og mangel på abstraksjoner. Følg stegene i rekkefølge — steg 1 og 2 er grunnlaget for resten.
+
+## Tilgangsregler (policy-mønsteret)
+
+Tilgangsregler samles i rene, statiske policy-klasser per domene, f.eks. `WorkHourPolicy`, `ShiftPolicy`, `MessagePolicy`, `TrainingPolicy` og `CompetencyPolicy`. Referanseimplementasjonen er `Services/WorkHours/WorkHourPolicy.cs`.
+
+- **Policyen er ren:** ingen I/O, ingen `HttpContext` og ingen DbContext. Innlogget bruker sendes inn som `Actor(UserId, IsAdmin)` (fra `CurrentUser.ToActor()`). Avgjørelser tas ut fra den **lagrede** entiteten der det finnes, ikke fra verdiene i forespørselen.
+- **Servicen slår opp fakta** som krever database (er trener, er godkjenner) uten å kortslutte for admin eller eier, sender dem inn som `bool`, og kaster `ForbiddenAccessException` (403) når policyen sier nei.
+- **Controllere har ingen tilgangslogikk** utover `[Authorize]` / `[Authorize(Role = Roles.Administrator)]`. `AuthorizeAttribute` kaster `NotAuthenticatedException` (401) og `ForbiddenAccessException` (403), slik at `ExceptionHandlingMiddleware` skriver svaret som ProblemDetails. 401/403 dokumenteres automatisk i OpenAPI av `AuthorizeProblemResponsesConvention`, og alle ProblemDetails-svar dokumenteres som `application/problem+json` av `ProblemDetailsContentTypeConvention`. `UnauthorizedAccessException` (som også kastes av I/O-feil) gir 500 og logges.
+- **Hver policy har rene enhetstester** (uten database) med tillatt og avvist for hver regel, og hver service har integrasjonstester for avviste forespørsler.

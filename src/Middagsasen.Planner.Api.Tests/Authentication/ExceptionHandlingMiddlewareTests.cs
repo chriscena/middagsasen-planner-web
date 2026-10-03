@@ -82,16 +82,37 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         }
 
         [Fact]
-        public async Task Returns401_WhenUnauthorizedAccessExceptionThrown()
+        public async Task Returns401_WhenNotAuthenticatedExceptionThrown()
         {
-            var middleware = CreateMiddleware(_ => throw new UnauthorizedAccessException("Unauthorized"));
+            var middleware = CreateMiddleware(_ => throw new NotAuthenticatedException("Ikke innlogget"));
             var context = CreateHttpContext();
 
             await middleware.Invoke(context);
 
             var (statusCode, body) = await GetResponse(context);
             Assert.Equal(StatusCodes.Status401Unauthorized, statusCode);
-            Assert.Contains("Unauthorized", body);
+            Assert.Contains("Ikke innlogget", body);
+        }
+
+        [Fact]
+        public async Task Returns500_AndLogsError_WhenUnauthorizedAccessExceptionThrown()
+        {
+            // UnauthorizedAccessException kastes også av vanlige I/O-feil (f.eks. tilgang nektet til en fil),
+            // og skal derfor ikke gi 401 (som logger brukeren ut i frontend), men 500 og logges.
+            var middleware = CreateMiddleware(_ => throw new UnauthorizedAccessException("Access to the path '/secret/file' is denied."));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (statusCode, body) = await GetResponse(context);
+            Assert.Equal(StatusCodes.Status500InternalServerError, statusCode);
+            Assert.DoesNotContain("secret", body);
+            _logger.Received(1).Log(
+                LogLevel.Error,
+                Arg.Any<EventId>(),
+                Arg.Any<object>(),
+                Arg.Any<UnauthorizedAccessException>(),
+                Arg.Any<Func<object, Exception?, string>>());
         }
 
         [Fact]
@@ -132,6 +153,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             { new ForbiddenAccessException(), "Du har ikke tilgang til å utføre denne handlingen." },
             { new EntityLockedException(), "Dette er låst og kan ikke endres." },
             { new DomainValidationException(), "Forespørselen er ugyldig." },
+            { new NotAuthenticatedException(), "Du må være innlogget." },
         };
 
         [Theory]
