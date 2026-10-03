@@ -200,11 +200,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<ShiftResponse> AddShift(int eventResourceId, ShiftRequest request)
         {
-            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException();
-
-            // En vanlig bruker kan bare sende med opplæring for seg selv når vakta tas.
-            if (!CurrentUser.IsAdmin && request.Training != null && request.Training.UserId != request.UserId)
+            if (!ShiftPolicy.CanAdd(CurrentUser.ToActor(), request.UserId, request.Training?.UserId))
                 throw new ForbiddenAccessException();
 
             await EnsureEventResourceExists(eventResourceId);
@@ -232,25 +228,18 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>
-        /// Oppdaterer en vakt. Tilgang:
-        /// <list type="bullet">
-        /// <item>Admin kan endre alt, også flytte vakta til en annen bruker.</item>
-        /// <item>Eieren kan endre tider, kommentar og egen opplæring, men ikke flytte vakta til en annen bruker.</item>
-        /// <item>En trener for vaktas ressurstype kan bare oppdatere opplæringen til eieren. Vaktfeltene
-        /// (tider, kommentar, bruker) ignoreres stille, siden klienten sender hele objektet. Uten
-        /// <see cref="ShiftRequest.Training"/> er kallet en no-op som returnerer vakta uendret.</item>
-        /// <item>Alle andre får 403.</item>
-        /// </list>
+        /// Oppdaterer en vakt. Tilgangsreglene er beskrevet i <see cref="ShiftPolicy.CanUpdate"/>.
         /// </summary>
         public async Task<ShiftResponse> UpdateShift(int id, ShiftRequest request)
         {
-            if (request.UserId == 0) request.UserId = CurrentUser.UserId;
-
             var shift = await DbContext.Shifts
                 .Include(s => s.User)
                 .Include(s => s.Resource)
                 .SingleOrDefaultAsync(s => s.EventResourceUserId == id)
                 ?? throw new EntityNotFoundException();
+
+            // 0 betyr «behold eieren», slik at f.eks. en admin ikke tar over vakta ved et uhell.
+            if (request.UserId == 0) request.UserId = shift.UserId;
 
             var canEditShift = await EnsureCanUpdateShift(shift, request);
 
@@ -301,36 +290,26 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>
-        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan gjøre endringen.
-        /// Returnerer <c>true</c> hvis selve vaktfeltene kan endres, og <c>false</c> hvis bare
-        /// opplæringen kan oppdateres (trener som ikke eier vakta).
+        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan gjøre endringen
+        /// (se <see cref="ShiftPolicy.CanUpdate"/>). Returnerer <c>true</c> hvis selve vaktfeltene kan endres,
+        /// og <c>false</c> hvis bare opplæringen kan oppdateres (trener som ikke eier vakta).
         /// </summary>
         private async Task<bool> EnsureCanUpdateShift(EventResourceUser shift, ShiftRequest request)
         {
-            if (CurrentUser.IsAdmin) return true;
-
-            if (shift.UserId == CurrentUser.UserId)
-            {
-                // Eieren kan ikke flytte vakta til en annen bruker, og opplæringen må gjelde eieren selv.
-                if (request.UserId != CurrentUser.UserId)
-                    throw new ForbiddenAccessException();
-                if (request.Training != null && request.Training.UserId != shift.UserId)
-                    throw new ForbiddenAccessException();
-                return true;
-            }
-
+            var actor = CurrentUser.ToActor();
             var resourceTypeId = shift.Resource.ResourceTypeId;
+
             var isTrainer = await DbContext.ResourceTypeTrainers
-                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == CurrentUser.UserId);
-            if (!isTrainer)
-                throw new ForbiddenAccessException();
+                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == actor.UserId);
 
-            // Treneren kan bare oppdatere opplæringen til eieren av vakta, på vaktas ressurstype.
-            if (request.Training != null
-                && (request.Training.UserId != shift.UserId || request.Training.ResourceTypeId != resourceTypeId))
-                throw new ForbiddenAccessException();
+            var training = request.Training is { } tr ? (tr.UserId, tr.ResourceTypeId) : ((int, int)?)null;
 
-            return false;
+            return ShiftPolicy.CanUpdate(actor, shift.UserId, resourceTypeId, isTrainer, request.UserId, training) switch
+            {
+                ShiftUpdateAccess.Full => true,
+                ShiftUpdateAccess.TrainingOnly => false,
+                _ => throw new ForbiddenAccessException(),
+            };
         }
 
         private async Task EnsureEventResourceExists(int eventResourceId)
@@ -343,8 +322,8 @@ namespace Middagsasen.Planner.Api.Services.Events
         {
             var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
                 ?? throw new EntityNotFoundException();
-            if (!CurrentUser.IsAdmin && shift.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException("Du har ikke tilgang til å utføre denne handlingen.");
+            if (!ShiftPolicy.CanDelete(CurrentUser.ToActor(), shift))
+                throw new ForbiddenAccessException();
 
             DbContext.Shifts.Remove(shift);
             await DbContext.SaveChangesAsync();
@@ -594,7 +573,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id)
                 ?? throw new EntityNotFoundException();
 
-            if (!CurrentUser.IsAdmin && message.CreatedBy != CurrentUser.UserId)
+            if (!MessagePolicy.CanDelete(CurrentUser.ToActor(), message))
                 throw new ForbiddenAccessException();
 
             DbContext.Remove(message);

@@ -47,10 +47,11 @@ namespace Middagsasen.Planner.Api.Authentication
                 EntityNotFoundException => (StatusCodes.Status404NotFound, exception.Message),
                 ForbiddenAccessException => (StatusCodes.Status403Forbidden, exception.Message),
                 EntityLockedException => (StatusCodes.Status409Conflict, exception.Message),
-                UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, exception.Message),
+                NotAuthenticatedException => (StatusCodes.Status401Unauthorized, exception.Message),
                 DomainValidationException => (StatusCodes.Status400BadRequest, exception.Message),
-                // Øvrige exceptions (inkl. InvalidOperationException fra EF o.l.) er interne feil:
-                // meldingen kan inneholde interne detaljer og vises derfor ikke til brukeren.
+                // Øvrige exceptions (inkl. InvalidOperationException fra EF og UnauthorizedAccessException
+                // fra I/O o.l.) er interne feil: meldingen kan inneholde interne detaljer og vises derfor
+                // ikke til brukeren, og feilen logges.
                 _ =>(StatusCodes.Status500InternalServerError, "Det oppstod en uventet feil."),
             };
 

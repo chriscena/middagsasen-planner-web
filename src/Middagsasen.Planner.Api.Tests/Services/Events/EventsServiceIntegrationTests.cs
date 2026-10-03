@@ -482,7 +482,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task UpdateShift_DefaultsUserIdToCurrentUser_WhenZero()
+        public async Task UpdateShift_Owner_KeepsOwner_WhenUserIdIsZero()
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
@@ -504,7 +504,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             var request = new ShiftRequest
             {
-                UserId = 0, // Should default to currentUserId
+                UserId = 0, // 0 betyr «behold eieren»
                 Comment = "Zero user test",
             };
 
@@ -1390,6 +1390,50 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal("Admin endret", dbShift.Comment);
             Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbShift.StartTime);
             Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbShift.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Admin_KeepsOwner_WhenUserIdIsZero()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var admin = await SeedUser(seedContext, "Admin", isAdmin: true);
+            var owner = await SeedUser(seedContext, "Owner");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: admin.UserId, isAdmin: true);
+
+            // Uten UserId skal admin ikke ta over vakta, bare endre feltene.
+            var result = await service.UpdateShift(shift.EventResourceUserId, new ShiftRequest { UserId = 0, Comment = "Admin endret" });
+
+            Assert.Equal(owner.UserId, result.User.Id);
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Admin endret", dbShift.Comment);
+        }
+
+        [Fact]
+        public async Task UpdateShift_Trainer_WithUserIdZero_UpdatesTrainingWithoutChangingShift()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var owner = await SeedUser(seedContext, "Owner");
+            var trainer = await SeedUser(seedContext, "Trainer");
+            var (_, resource) = await SeedEventWithResource(seedContext);
+            await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
+            var shift = await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, userId: trainer.UserId);
+
+            var training = new TrainingRequest { Id = 4242, ResourceTypeId = resource.ResourceTypeId, UserId = owner.UserId, TrainingCompleted = true };
+            var result = await service.UpdateShift(shift.EventResourceUserId, new ShiftRequest { UserId = 0, Comment = "Trener endret", Training = training });
+
+            Assert.Equal(owner.UserId, result.User.Id);
+            await _resourceTypesService.Received(1).UpdateTraining(resource.ResourceTypeId, training);
+            var dbShift = await GetShiftFromDb(shift.EventResourceUserId);
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Original", dbShift.Comment);
         }
 
         [Fact]

@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
-using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Competencies;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -9,14 +8,12 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class CompetenciesController : ControllerBase
     {
-        public CompetenciesController(ICompetencyService competencyService, ICurrentUserService currentUser)
+        public CompetenciesController(ICompetencyService competencyService)
         {
             CompetencyService = competencyService;
-            CurrentUser = currentUser;
         }
 
         public ICompetencyService CompetencyService { get; }
-        public ICurrentUserService CurrentUser { get; }
 
         [HttpGet, Authorize]
         [ProducesResponseType(typeof(IEnumerable<CompetencyResponse>), StatusCodes.Status200OK)]
@@ -68,9 +65,6 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IEnumerable<UserCompetencyResponse>> GetUserCompetencies(int userId)
         {
-            if (!CurrentUser.IsAdmin && userId != CurrentUser.UserId)
-                throw new ForbiddenAccessException();
-
             return await CompetencyService.GetUserCompetencies(userId);
         }
 
@@ -79,9 +73,6 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> AddUserCompetency([FromBody] UserCompetencyRequest request)
         {
-            if (!CurrentUser.IsAdmin && request.UserId != CurrentUser.UserId)
-                throw new ForbiddenAccessException();
-
             var userCompetency = await CompetencyService.AddUserCompetency(request);
             return Created($"/api/competencies/user/{userCompetency.Id}", userCompetency);
         }
@@ -92,11 +83,6 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<UserCompetencyResponse> ApproveUserCompetency(int userCompetencyId, [FromBody] ApproveCompetencyRequest request)
         {
-            var userCompetency = await CompetencyService.GetUserCompetencyById(userCompetencyId);
-
-            if (!CurrentUser.IsAdmin && !await CompetencyService.IsApprover(userCompetency.CompetencyId, CurrentUser.UserId))
-                throw new ForbiddenAccessException();
-
             return await CompetencyService.ApproveUserCompetency(userCompetencyId, request);
         }
 

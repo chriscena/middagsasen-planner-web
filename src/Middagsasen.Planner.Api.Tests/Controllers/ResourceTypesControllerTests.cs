@@ -68,9 +68,8 @@ namespace Middagsasen.Planner.Api.Tests.Controllers
             var actionContext = new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor());
             var context = new AuthorizationFilterContext(actionContext, new List<IFilterMetadata>());
 
-            GetFileAuthorizeAttribute()!.OnAuthorization(context);
-
-            Assert.IsType<UnauthorizedResult>(context.Result);
+            // Kaster i stedet for å sette context.Result, slik at svaret blir ProblemDetails (401).
+            Assert.Throws<NotAuthenticatedException>(() => GetFileAuthorizeAttribute()!.OnAuthorization(context));
         }
     }
 }

@@ -276,17 +276,17 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
         }
 
         /// <summary>
-        /// Admin kan sette opplæring for alle, en trener for ressurstypen kan sette opplæring for alle
-        /// brukere på den ressurstypen, og en vanlig bruker bare for seg selv (inkludert selverklæringen
-        /// «trenger ikke opplæring»). Ellers kastes <see cref="ForbiddenAccessException"/>.
+        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan sette opplæring
+        /// for brukeren på ressurstypen (se <see cref="TrainingPolicy.CanManage"/>).
         /// </summary>
         private async Task EnsureCanManageTraining(int resourceTypeId, int userId)
         {
-            if (CurrentUser.IsAdmin || userId == CurrentUser.UserId) return;
+            var actor = CurrentUser.ToActor();
 
             var isTrainer = await DbContext.ResourceTypeTrainers
-                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == CurrentUser.UserId);
-            if (!isTrainer)
+                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == actor.UserId);
+
+            if (!TrainingPolicy.CanManage(actor, userId, isTrainer))
                 throw new ForbiddenAccessException();
         }
 

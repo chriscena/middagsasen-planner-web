@@ -45,7 +45,11 @@ builder.Services.AddSerilog((services, lc) => lc
     );
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    options.Conventions.Add(new AuthorizeProblemResponsesConvention());
+    options.Conventions.Add(new ProblemDetailsContentTypeConvention());
+});
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi(options =>
 {

@@ -4,6 +4,9 @@
     /// Feltene en innlogget bruker selv kan endre via <c>PUT api/me</c>.
     /// Felt som ikke er satt (eller er tomme) blir ikke endret.
     /// Inneholder bevisst ikke IsAdmin eller PhoneNo – de kan kun endres av administrator.
+    /// Typen er selve tilgangsregelen for egen bruker: en bruker kan bare endre seg selv via denne
+    /// requesten, og øvrige brukerendepunkter krever <c>[Authorize(Role = Roles.Administrator)]</c>.
+    /// Derfor finnes det ingen egen UserPolicy (se issue #96).
     /// </summary>
     public class UpdateMeRequest
     {
