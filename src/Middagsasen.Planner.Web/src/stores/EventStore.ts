@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import { parseISO, formatISO, addDays } from "date-fns";
 import { api } from "boot/axios";
+import { nextDay, toDayKey } from "src/shared/time";
 import type {
   ChangeShiftRequest,
   EventFromTemplateRequest,
@@ -27,7 +27,8 @@ interface EventState {
   events: EventResponse[];
   resourceTypes: ResourceTypeResponse[];
   templates: EventTemplateResponse[];
-  // Dato (yyyy-MM-dd) -> om vaktlistene den dagen mangler mannskap.
+  // Dato (yyyy/MM/dd, se parseEventStatusDate) -> om vaktlistene den dagen
+  // mangler mannskap.
   eventStatuses: Record<string, boolean>;
   // Siste periode hentet med getEventsForDates (det kalenderen viser), så
   // events kan hentes på nytt etter en endring som påvirker flere ressurser.
@@ -71,12 +72,8 @@ export const useEventStore = defineStore("events", {
       }
     },
     async getEventsForDates(start: string, end: string): Promise<void> {
-      const startDate = encodeURIComponent(
-        formatISO(parseISO(start), { representation: "date" })
-      );
-      const endDate = encodeURI(
-        formatISO(addDays(parseISO(end), 1), { representation: "date" })
-      );
+      const startDate = encodeURIComponent(toDayKey(start));
+      const endDate = encodeURIComponent(toDayKey(nextDay(end)));
       this.eventsRange = { start, end };
       const request = ++latestEventsRequest;
       const response = await api.get<EventResponse[]>(

@@ -17,7 +17,7 @@
             :model-value="props.modelValue"
             @update:model-value="(val) => emit('update:model-value', val)"
             format24h
-            mask="HH:mm"
+            :mask="QUASAR_TIME_MASK"
             now-btn
           >
             <div class="row items-center justify-end">
@@ -30,6 +30,8 @@
 </template>
 
 <script setup lang="ts">
+import { QUASAR_TIME_MASK } from "src/shared/time";
+
 // Wrapper rundt q-input; QInput typer verdien som string | number | null,
 // men uten type="number" sender den aldri number.
 const props = withDefaults(

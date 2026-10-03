@@ -46,9 +46,9 @@
         >
           <q-item-section avatar class="items-center">
             <q-item-label caption>{{
-              formattedDay(shift.startDate)
+              formatWeekday(shift.startDate)
             }}</q-item-label>
-            <q-item-label>{{ formattedDate(shift.startDate) }}</q-item-label>
+            <q-item-label>{{ formatDayMonth(shift.startDate) }}</q-item-label>
           </q-item-section>
 
           <q-item-section>
@@ -58,11 +58,9 @@
             <q-item-label caption>{{ shift.comment }}</q-item-label>
           </q-item-section>
           <q-item-section side>
-            <q-item-label
-              >{{ formattedTime(shift.startTime) }}-{{
-                formattedTime(shift.endTime)
-              }}</q-item-label
-            ></q-item-section
+            <q-item-label>{{
+              formatTimeRange(shift.startTime, shift.endTime)
+            }}</q-item-label></q-item-section
           >
         </q-item>
       </template>
@@ -78,9 +76,12 @@ import { onMounted, reactive, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { api } from "src/boot/axios";
-import { parse, parseISO, format, isValid } from "date-fns";
-import { nb } from "date-fns/locale";
 import type { ShiftSeasonResponse } from "src/types";
+import {
+  formatDayMonth,
+  formatTimeRange,
+  formatWeekday,
+} from "src/shared/time";
 
 interface ViewModel {
   shifts: ShiftSeasonResponse[];
@@ -96,17 +97,8 @@ const viewModel = reactive<ViewModel>({
 });
 
 // startDate/startTime/endTime er nullable i UserShiftResponse (Shift.StartTime/
-// EndTime er nullable i databasen). format kaster RangeError for Invalid Date,
-// så manglende/ugyldige verdier vises som tomt felt.
-function formatOrEmpty(date: Date, pattern: string): string {
-  return isValid(date) ? format(date, pattern, { locale: nb }) : "";
-}
-const formattedDay = (dateString: string | null | undefined): string =>
-  formatOrEmpty(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "EEE");
-const formattedDate = (dateString: string | null | undefined): string =>
-  formatOrEmpty(parse(dateString ?? "", "yyyy-MM-dd", new Date()), "dd.MM");
-const formattedTime = (time: string | null | undefined): string =>
-  formatOrEmpty(parseISO(time ?? ""), "HH:mm");
+// EndTime er nullable i databasen). Manglende/ugyldige verdier vises som tomt
+// felt (formatfunksjonene i shared/time gir tom streng).
 
 onMounted(async () => {
   try {

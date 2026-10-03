@@ -15,7 +15,7 @@
           <q-date
             :model-value="props.modelValue"
             @update:model-value="(val) => emit('update:model-value', val)"
-            mask="DD.MM.YYYY"
+            :mask="QUASAR_DATE_MASK"
             today-btn
           >
             <div class="row items-center justify-end">
@@ -28,6 +28,8 @@
 </template>
 
 <script setup lang="ts">
+import { QUASAR_DATE_MASK } from "src/shared/time";
+
 // Wrapper rundt q-input; QInput typer verdien som string | number | null,
 // men uten type="number" sender den aldri number.
 const props = withDefaults(

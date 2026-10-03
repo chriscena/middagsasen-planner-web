@@ -40,7 +40,7 @@
           label="Dato"
           autofocus
           v-model="startDate"
-          :error="!isValidDate"
+          :error="!isValidStartDate"
         ></DatePickerInput>
         <TimePickerInput
           label="Start"
@@ -141,13 +141,21 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
-import { parseISO, format, isValid, formatISO, parse } from "date-fns";
 import TimePickerInput from "components/TimePickerInput.vue";
 import DatePickerInput from "components/DatePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { EventRequest } from "src/types";
-import { toDateTime } from "src/shared/eventDateTime";
+import {
+  formatDate,
+  formatTime,
+  intervalOn,
+  isDayKey,
+  isValidDate,
+  isValidTime,
+  toLocalWire,
+  today,
+} from "src/shared/time";
 import { toResourceDateTimes } from "src/shared/timeValidation";
 import { getApiErrorMessage } from "src/shared/apiError";
 import { newClientKey } from "src/shared/clientKey";
@@ -167,7 +175,7 @@ const props = withDefaults(
     id?: number | null;
   }>(),
   {
-    date: () => formatISO(new Date(), { representation: "date" }),
+    date: () => today(),
     id: null,
   }
 );
@@ -184,9 +192,9 @@ onMounted(async () => {
       if (!event) return;
       name.value = event.name;
       description.value = event.description;
-      startDate.value = formatDate(new Date(event.startTime));
-      startTime.value = formatTime(new Date(event.startTime));
-      endTime.value = formatTime(new Date(event.endTime));
+      startDate.value = formatDate(event.startTime);
+      startTime.value = formatTime(event.startTime);
+      endTime.value = formatTime(event.endTime);
       resources.value = event.resources.map((r): ResourceFormModel => {
         return {
           id: r.id,
@@ -200,10 +208,8 @@ onMounted(async () => {
         };
       });
     } else {
-      startDate.value = format(
-        parse(props.date, "yyyy-MM-dd", new Date()),
-        "dd.MM.yyyy"
-      );
+      // Ugyldig dato i URL-en (/create/:date) gir dagens dato.
+      startDate.value = formatDate(isDayKey(props.date) ? props.date : today());
       name.value = "Åpningstid";
     }
   } catch {
@@ -217,24 +223,13 @@ const resourceTypes = computed(() => eventStore.resourceTypes);
 const name = ref<string | null>(null);
 const description = ref<string | null | undefined>(null);
 
-// parse(null) og parse("") gir begge Invalid Date.
-const isValidDate = computed(() =>
-  isValid(parse(startDate.value ?? "", "dd.MM.yyyy", new Date()))
-);
-const isValidStartTime = computed(() =>
-  isValid(parse(startTime.value ?? "", "HH:mm", new Date()))
-);
-const isValidEndTime = computed(() =>
-  isValid(parse(endTime.value ?? "", "HH:mm", new Date()))
-);
-
-const startDateTime = computed(() =>
-  toDateTime(startDate.value, startTime.value)
-);
+const isValidStartDate = computed(() => isValidDate(startDate.value));
+const isValidStartTime = computed(() => isValidTime(startTime.value));
+const isValidEndTime = computed(() => isValidTime(endTime.value));
 
 // Slutt før start betyr at vaktlista går over midnatt (neste dag).
-const endDateTime = computed(() =>
-  toDateTime(startDate.value, endTime.value, startDateTime.value)
+const interval = computed(() =>
+  intervalOn(startDate.value, startTime.value, endTime.value)
 );
 
 const startDate = ref<string | null>(formatDate(new Date()));
@@ -245,24 +240,14 @@ const resources = ref<ResourceFormModel[]>([]);
 const canSave = computed(() => {
   return !!(
     name.value &&
-    isValidDate.value &&
+    isValidStartDate.value &&
     isValidStartTime.value &&
     isValidEndTime.value
   );
 });
 
-function formatTime(isoDateTime: string | Date) {
-  if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
-  return format(parseISO(isoDateTime), "HH:mm");
-}
-
-function formatDate(isoDateTime: string | Date) {
-  if (isoDateTime instanceof Date) return format(isoDateTime, "dd.MM.yyyy");
-  return format(parseISO(isoDateTime), "dd.MM.yyyy");
-}
-
 async function saveEvent() {
-  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i formatDateTime.
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toLocalWire.
   const resourceTimes = resources.value.map((r) =>
     toResourceDateTimes(startDate.value, r.startTime, r.endTime)
   );
@@ -282,8 +267,8 @@ async function saveEvent() {
       // Lagre-knappen er deaktivert uten navn (canSave).
       name: name.value!,
       description: description.value ?? null,
-      startTime: formatDateTime(startDateTime.value),
-      endTime: formatDateTime(endDateTime.value),
+      startTime: toLocalWire(interval.value.start),
+      endTime: toLocalWire(interval.value.end),
       resources: resources.value.map((r, i) => {
         // Validert over: ingen er null.
         const times = resourceTimes[i]!;
@@ -291,8 +276,8 @@ async function saveEvent() {
           id: r.id ?? null,
           // ResourceForm krever vakttype før lagring (canAdd).
           resourceTypeId: r.resourceType!.id,
-          startTime: formatDateTime(times.start),
-          endTime: formatDateTime(times.end),
+          startTime: toLocalWire(times.start),
+          endTime: toLocalWire(times.end),
           // q-input type="number" kan gi string; Number() sender et tall.
           minimumStaff: Number(r.minimumStaff),
           // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
@@ -345,10 +330,6 @@ async function deleteEvent() {
   } finally {
     loading.value = false;
   }
-}
-
-function formatDateTime(date: Date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 
 const showingCreateTemplate = ref(false);

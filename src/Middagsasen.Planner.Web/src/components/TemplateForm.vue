@@ -89,7 +89,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { parseISO, format, parse } from "date-fns";
 import TimePickerInput from "components/TimePickerInput.vue";
 import ResourceList from "components/ResourceList.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
@@ -99,7 +98,12 @@ import type {
   ResourceTypeResponse,
 } from "src/types";
 import { newClientKey } from "src/shared/clientKey";
-import { isValidTime } from "src/shared/timeValidation";
+import {
+  formatTime,
+  isValidTime,
+  parseTime,
+  toLocalWire,
+} from "src/shared/time";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
@@ -161,17 +165,12 @@ const eventName = ref<string | null>(null);
 
 const isValidStartTime = computed(() => isValidTime(startTime.value));
 const isValidEndTime = computed(() => isValidTime(endTime.value));
-// Ugyldige tider (f.eks. «1») ville gitt RangeError i formatDateTime.
+// Ugyldige tider (f.eks. «1») ville gitt RangeError i toLocalWire.
 const hasValidResourceTimes = computed(() =>
   resources.value.every(
     (r) => isValidTime(r.startTime) && isValidTime(r.endTime)
   )
 );
-
-function toDateTime(time: string | null) {
-  const datetime = parse(time ?? "", "HH:mm", new Date());
-  return datetime;
-}
 
 const startTime = ref<string | null>("10:00");
 const endTime = ref<string | null>("17:00");
@@ -189,11 +188,6 @@ const canSave = computed(() => {
   );
 });
 
-function formatTime(isoDateTime: string | Date) {
-  if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
-  return format(parseISO(isoDateTime), "HH:mm");
-}
-
 async function saveTemplate() {
   // Lagre-knappen er deaktivert uten canSave; sjekken her er et ekstra vern
   // mot RangeError i mapToModel.
@@ -207,15 +201,16 @@ function mapToModel(): TemplateFormModel {
     id: props.modelValue.id,
     name: name.value,
     eventName: eventName.value,
-    startTime: formatDateTime(toDateTime(startTime.value)),
-    endTime: formatDateTime(toDateTime(endTime.value)),
+    // Malen lagrer bare klokkeslettet; datoen (i dag) brukes ikke.
+    startTime: toLocalWire(parseTime(startTime.value)),
+    endTime: toLocalWire(parseTime(endTime.value)),
     resourceTemplates: resources.value.map((r) => {
       return {
         id: r.id ?? null,
         // ResourceForm krever vakttype før lagring (canAdd).
         resourceTypeId: r.resourceType!.id,
-        startTime: formatDateTime(toDateTime(r.startTime)),
-        endTime: formatDateTime(toDateTime(r.endTime)),
+        startTime: toLocalWire(parseTime(r.startTime)),
+        endTime: toLocalWire(parseTime(r.endTime)),
         // q-input type="number" kan gi string; Number() sender et tall.
         minimumStaff: Number(r.minimumStaff),
         // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
@@ -235,9 +230,5 @@ function deleteTemplate() {
   // Sletting trenger kun id, så ugyldige tider i skjemaet stopper den ikke.
   showingDelete.value = false;
   emit("delete", { id: props.modelValue.id });
-}
-
-function formatDateTime(date: Date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 </script>

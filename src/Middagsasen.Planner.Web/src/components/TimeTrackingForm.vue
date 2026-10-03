@@ -109,7 +109,6 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from "vue";
-import { addDays, parse, format } from "date-fns";
 import { useWorkHourStore } from "stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
@@ -121,6 +120,15 @@ import {
   getWorkHourErrorKind,
 } from "src/shared/workHourDiff";
 import { getApiErrorMessage } from "src/shared/apiError";
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  intervalOn,
+  isValidDate,
+  isValidTime,
+  toInstantWire,
+} from "src/shared/time";
 import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
 import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
 
@@ -171,11 +179,11 @@ const viewModel = reactive<TimeTrackingViewModel>({
   id: null,
   startDateTime: null,
   endDateTime: null,
-  startDate: format(new Date(), "dd.MM.yyyy"),
+  startDate: formatDate(new Date()),
   startDateValid: true,
-  startTime: format(new Date(), "HH:mm"),
+  startTime: formatTime(new Date()),
   startTimeValid: true,
-  endTime: format(new Date(), "HH:mm"),
+  endTime: formatTime(new Date()),
   endTimeValid: true,
   description: null,
   descriptionValid: true,
@@ -208,32 +216,25 @@ function calculateTime(
   endTime: string | null
 ) {
   if (!startDate || !startTime || !endTime) return;
-  let start: Date, end: Date;
-  try {
-    start = parse(`${startDate} ${startTime}`, "dd.MM.yyyy HH:mm", new Date());
-    viewModel.startTimeValid = true;
-    viewModel.startDateTime = start.toISOString();
-  } catch {
+  // Hvert felt valideres for seg, slik at det er feltet med feil som
+  // markeres (ikke starttid når det er datoen som er ugyldig).
+  viewModel.startDateValid = isValidDate(startDate);
+  viewModel.startTimeValid = isValidTime(startTime);
+  viewModel.endTimeValid = isValidTime(endTime);
+  if (!viewModel.startDateValid || !viewModel.startTimeValid) {
     viewModel.startDateTime = null;
-    viewModel.startTimeValid = false;
+    viewModel.endDateTime = null;
     return;
   }
-  try {
-    end = parse(`${startDate} ${endTime}`, "dd.MM.yyyy HH:mm", new Date());
-    if (end < start) {
-      end = addDays(end, 1);
-    }
-    viewModel.endTimeValid = true;
-    viewModel.endDateTime = end.toISOString();
-  } catch {
-    viewModel.endDateTime = null;
-    viewModel.endTimeValid = false;
-  }
+  // Slutt før start betyr at føringen går over midnatt (neste dag).
+  const { start, end } = intervalOn(startDate, startTime, endTime);
+  viewModel.startDateTime = toInstantWire(start);
+  viewModel.endDateTime = viewModel.endTimeValid ? toInstantWire(end) : null;
 }
 
 const endDate = computed(() => {
   if (!viewModel.endDateTime) return undefined;
-  let endDate = format(new Date(viewModel.endDateTime), "dd.MM.yyyy");
+  const endDate = formatDate(viewModel.endDateTime);
   return endDate != viewModel.startDate ? `Sluttdato: ${endDate}` : undefined;
 });
 
@@ -269,13 +270,17 @@ const modifiedByText = computed(() => {
   if (!model?.modifiedBy) return null;
   const name = model.modifiedByName ?? "ukjent";
   const time = model.modifiedTime
-    ? ` ${format(new Date(model.modifiedTime), "dd.MM.yyyy HH:mm")}`
+    ? ` ${formatDateTime(model.modifiedTime)}`
     : "";
   return `Endret av ${name}${time}`;
 });
 
 function validateContent() {
-  if (!viewModel.startTimeValid || !viewModel.endTimeValid) {
+  if (
+    !viewModel.startDateValid ||
+    !viewModel.startTimeValid ||
+    !viewModel.endTimeValid
+  ) {
     $q.notify({
       message: "Vennligst sjekk at tidspunktene er gyldige",
       color: "negative",
@@ -355,6 +360,7 @@ async function createHours() {
 
 const validForm = computed(() => {
   return (
+    viewModel.startDateValid &&
     viewModel.startTimeValid &&
     viewModel.endTimeValid &&
     descriptionIsValid.value
@@ -463,11 +469,9 @@ const validateDescription = () => {
 onMounted(() => {
   if (props.modelValue) {
     // startTime/endTime er nullable i DTO-en, men alltid satt på lagrede føringer.
-    const start = new Date(props.modelValue.startTime!);
-    const end = new Date(props.modelValue.endTime!);
-    viewModel.startDate = format(start, "dd.MM.yyyy");
-    viewModel.startTime = format(start, "HH:mm");
-    viewModel.endTime = format(end, "HH:mm");
+    viewModel.startDate = formatDate(props.modelValue.startTime);
+    viewModel.startTime = formatTime(props.modelValue.startTime);
+    viewModel.endTime = formatTime(props.modelValue.endTime);
     // DTO-en har description som valgfri; null og undefined behandles likt i diffen.
     viewModel.description = props.modelValue.description ?? null;
     viewModel.id = props.modelValue.workHourId;

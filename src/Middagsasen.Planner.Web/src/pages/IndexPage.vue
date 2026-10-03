@@ -75,7 +75,7 @@
               <div class="row">
                 <span class="col"> {{ event.name }}</span
                 ><span class="col text-right">{{
-                  formatStartEndTime(event)
+                  formatTimeRange(event.startTime, event.endTime)
                 }}</span>
               </div>
               <div class="row">
@@ -178,7 +178,7 @@
           >
             <VueDatePicker
               inline
-              model-type="yyyy-MM-dd"
+              :model-type="DAY_KEY_FORMAT"
               v-model="selectedDay"
               week-numbers
               auto-apply
@@ -233,9 +233,7 @@ import type { TouchSwipeValue } from "quasar";
 // QCalendarAgenda brukes både som komponent (q-calendar-agenda) og som
 // instanstype for ref-en (prev/next/moveToToday/updateCurrent).
 import { QCalendarAgenda } from "@quasar/quasar-ui-qcalendar";
-import { today } from "@timestamp-js/core";
 import type { Timestamp } from "@timestamp-js/core";
-import { parseISO, format, isValid, parse } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
 import { useEventStore } from "stores/EventStore";
@@ -246,7 +244,18 @@ import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
 import type { EventRequest, EventResponse } from "src/types";
-import { parseDayParam } from "src/shared/dayParam";
+import {
+  DAY_KEY_FORMAT,
+  formatDayMonth,
+  formatTimeRange,
+  formatWeekNumber,
+  fromDayKey,
+  isDayKey,
+  isPast,
+  parseEventStatusDate,
+  toDayKey,
+  today,
+} from "src/shared/time";
 
 // Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke
 // emits-payloadene, så vi beskriver kun feltene vi bruker.
@@ -287,7 +296,7 @@ const props = defineProps<{
 const loading = ref(false);
 // Initialiseres direkte fra URL-en, slik at kalenderen starter på riktig uke
 // og ikke først sender change for dagens uke.
-const selectedDay = ref(parseDayParam(props.date) ?? today());
+const selectedDay = ref(isDayKey(props.date) ? props.date : today());
 
 const $q = useQuasar();
 const $router = useRouter();
@@ -303,8 +312,7 @@ const userStore = useUserStore();
 
 const weekNumber = computed(() => {
   // selectedDay er alltid en gyldig dato, i motsetning til props.date.
-  const date = parseISO(selectedDay.value);
-  return format(date, "w", { locale: nb });
+  return formatWeekNumber(selectedDay.value);
 });
 
 const showingEventForm = ref(false);
@@ -313,8 +321,8 @@ const showingHallOfFame = ref(false);
 onMounted(async () => {
   userStore.getUser();
   if (isAdmin.value) eventStore.getTemplates();
-  if (!parseDayParam(props.date)) await $router.replace(`/day/${today()}`);
-  const date = parse(selectedDay.value, "yyyy-MM-dd", new Date());
+  if (!isDayKey(props.date)) await $router.replace(`/day/${today()}`);
+  const date = fromDayKey(selectedDay.value);
   const month = date.getMonth() + 1;
   const year = date.getFullYear();
   eventStore.getEventStatuses(month, year);
@@ -334,8 +342,7 @@ watch(selectedDay, (day) => {
 watch(
   () => props.date,
   (date) => {
-    const day = parseDayParam(date);
-    if (day && day !== selectedDay.value) selectedDay.value = day;
+    if (isDayKey(date) && date !== selectedDay.value) selectedDay.value = date;
   }
 );
 
@@ -389,18 +396,15 @@ async function getEventStatuses(eventOrView?: MonthYear | Event) {
     view.month === null
   )
     await eventStore.getEventStatuses(
-      parseISO(selectedDay.value).getMonth() + 1,
-      parseISO(selectedDay.value).getFullYear()
+      fromDayKey(selectedDay.value).getMonth() + 1,
+      fromDayKey(selectedDay.value).getFullYear()
     );
   else await eventStore.getEventStatuses(view.month + 1, view.year);
 }
 
+// date er på formen fra /api/eventstatus (yyyy/MM/dd).
 function getEventColor(date: string) {
-  const dateString = format(
-    parse(date, "yyyy/MM/dd", new Date()),
-    "yyyy-MM-dd"
-  );
-  if (dateString < today()) return "#bdbdbd"; // grey-5
+  if (isPast(parseEventStatusDate(date))) return "#bdbdbd"; // grey-5
   const status = eventStore.eventStatuses[date];
   return status ? "#e57373" /* red-4 */ : "#81c784" /* green-4 */;
 }
@@ -420,24 +424,12 @@ function setNow(value: string) {
   selectedDay.value = value;
 }
 
-function formatTime(isoDateTime: string | null | undefined) {
-  if (!isoDateTime) return null;
-  const date = parseISO(isoDateTime);
-  return format(date, "HH:mm");
-}
-
-function formatStartEndTime(event: EventResponse) {
-  return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
-}
-
 // EventForm sender EventRequest ved lagring (startTime er "yyyy-MM-ddTHH:mm"
 // i lokal tid) og ingenting ved sletting. Da blir vi stående på valgt dag.
 function onEventSaved(model?: EventRequest) {
   showingEventForm.value = false;
-  const eventDate = model ? parseISO(model.startTime) : null;
-  if (eventDate && isValid(eventDate)) {
-    selectedDay.value = format(eventDate, "yyyy-MM-dd");
-  }
+  const eventDay = model ? toDayKey(model.startTime) : "";
+  if (eventDay) selectedDay.value = eventDay;
   calendar.value!.updateCurrent(); // satt etter mount, se onToday
   // URL-en oppdateres av watch(selectedDay).
 }
@@ -457,11 +449,7 @@ function addEvent() {
 
 const templates = computed(() => eventStore.templates);
 const showingMenu = ref(false);
-const formattedSelectedDay = computed(() =>
-  selectedDay.value
-    ? format(parse(selectedDay.value, "yyyy-MM-dd", new Date()), "dd.MM")
-    : ""
-);
+const formattedSelectedDay = computed(() => formatDayMonth(selectedDay.value));
 const dateElement = ref<string | Element>("#dummy");
 function showMenu(data: HeadDayClickEvent) {
   if (!isAdmin.value || !templates.value.length) return;

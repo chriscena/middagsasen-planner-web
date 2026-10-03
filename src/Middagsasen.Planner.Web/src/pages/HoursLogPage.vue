@@ -136,9 +136,9 @@
 
             <q-item-section>
               <q-item-label
-                >{{ toDateString(hours.startTime) }}
-                {{ toTimeString(hours.startTime) }} -
-                {{ toTimeString(hours.endTime) }}
+                >{{ formatDate(hours.startTime) }}
+                {{ formatTime(hours.startTime) }} -
+                {{ formatTime(hours.endTime) }}
               </q-item-label>
               <q-item-label caption>{{ hours.description }}</q-item-label>
               <q-item-label caption v-if="hours.modifiedBy" class="text-italic">
@@ -180,10 +180,10 @@ import { computed, useTemplateRef, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useSeasonStore } from "src/stores/SeasonStore";
-import { format } from "date-fns";
 import { useRouter } from "vue-router";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import { formatHours, formatNumber } from "src/shared/formatter";
+import { formatDate, formatTime } from "src/shared/time";
 import { getSeasonStartYear } from "src/shared/season";
 import type { WorkHourResponse } from "src/types";
 
@@ -284,16 +284,6 @@ async function getWorkHoursSums() {
   viewModel.approvedHoursSum = response.approvedHours;
   viewModel.pendingHoursSum = response.pendingHours;
   viewModel.rejectedHoursSum = response.rejectedHours;
-}
-
-function ensureIsDate(value: Date | string) {
-  return value instanceof Date ? value : new Date(value);
-}
-function toTimeString(value: Date | string | null | undefined) {
-  return value ? format(ensureIsDate(value), "HH:mm") : "";
-}
-function toDateString(value: Date | string | null | undefined) {
-  return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
 
 function editWorkHour(hours: WorkHourResponse) {

@@ -206,10 +206,10 @@
                 <div class="text-h6 q-pr-lg">
                   <q-item-label caption>
                     <span>
-                      <span> {{ toDateString(props.row.startTime) }} </span>
+                      <span> {{ formatDate(props.row.startTime) }} </span>
                       <span>
-                        {{ toTimeString(props.row.startTime) }} -
-                        {{ toTimeString(props.row.endTime) }}
+                        {{ formatTime(props.row.startTime) }} -
+                        {{ formatTime(props.row.endTime) }}
                       </span>
                     </span>
                   </q-item-label>
@@ -271,14 +271,14 @@
         </template>
         <template #body-cell-from="props">
           <q-td :props="props">
-            {{ toDateString(props.row.startTime) }}
-            {{ toTimeString(props.row.startTime) }}
+            {{ formatDate(props.row.startTime) }}
+            {{ formatTime(props.row.startTime) }}
           </q-td>
         </template>
         <template #body-cell-to="props">
           <q-td :props="props">
-            {{ toDateString(props.row.endTime) }}
-            {{ toTimeString(props.row.endTime) }}
+            {{ formatDate(props.row.endTime) }}
+            {{ formatTime(props.row.endTime) }}
           </q-td>
         </template>
         <template #body-cell-hours="props">
@@ -368,29 +368,29 @@
             <q-item-label caption>
               <span
                 v-if="
-                  toDateString(foundWorkHour.startTime) ==
-                  toDateString(foundWorkHour.endTime)
+                  formatDate(foundWorkHour.startTime) ==
+                  formatDate(foundWorkHour.endTime)
                 "
               >
-                <span> {{ toDateString(foundWorkHour.startTime) }} | </span>
+                <span> {{ formatDate(foundWorkHour.startTime) }} | </span>
                 <span>
-                  {{ toTimeString(foundWorkHour.startTime) }} -
-                  {{ toTimeString(foundWorkHour.endTime) }}
+                  {{ formatTime(foundWorkHour.startTime) }} -
+                  {{ formatTime(foundWorkHour.endTime) }}
                 </span>
               </span>
               <span
                 v-if="
-                  toDateString(foundWorkHour.startTime) !=
-                  toDateString(foundWorkHour.endTime)
+                  formatDate(foundWorkHour.startTime) !=
+                  formatDate(foundWorkHour.endTime)
                 "
               >
                 <div>
-                  Fra: {{ toDateString(foundWorkHour.startTime) }} |
-                  {{ toTimeString(foundWorkHour.startTime) }}
+                  Fra: {{ formatDate(foundWorkHour.startTime) }} |
+                  {{ formatTime(foundWorkHour.startTime) }}
                 </div>
                 <div>
-                  Til: {{ toDateString(foundWorkHour.endTime) }} |
-                  {{ toTimeString(foundWorkHour.endTime) }}
+                  Til: {{ formatDate(foundWorkHour.endTime) }} |
+                  {{ formatTime(foundWorkHour.endTime) }}
                 </div>
               </span>
             </q-item-label>
@@ -409,7 +409,7 @@
         </q-item-label>
         <q-item-label v-if="foundWorkHour.modifiedBy" caption class="q-pt-sm">
           Endret av {{ foundWorkHour.modifiedByName ?? "ukjent" }}
-          {{ toDateTimeString(foundWorkHour.modifiedTime) }}
+          {{ formatDateTime(foundWorkHour.modifiedTime) }}
         </q-item-label>
       </q-card-section>
       <q-separator></q-separator>
@@ -434,9 +434,9 @@ import { useWorkHourStore } from "src/stores/WorkHourStore";
 import { useUserStore } from "src/stores/UserStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import { useSeasonStore } from "src/stores/SeasonStore";
-import { format } from "date-fns";
 import { useRoute, useRouter } from "vue-router";
 import { formatHours, formatNumber } from "src/shared/formatter";
+import { formatDate, formatDateTime, formatTime } from "src/shared/time";
 import {
   getWorkHourErrorKind,
   summarizeBulkApproval,
@@ -552,7 +552,7 @@ const columns: QTableColumn<WorkHourResponse>[] = [
     label: "Fra",
     // `field` er påkrevd i QTableColumn; cellen rendres uansett via #body-cell-from.
     field: "startTime",
-    format: (val: string | null | undefined) => toDateTimeString(val),
+    format: (val: string | null | undefined) => formatDateTime(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -562,7 +562,7 @@ const columns: QTableColumn<WorkHourResponse>[] = [
     label: "Til",
     // `field` er påkrevd i QTableColumn; cellen rendres uansett via #body-cell-to.
     field: "endTime",
-    format: (val: string | null | undefined) => toDateTimeString(val),
+    format: (val: string | null | undefined) => formatDateTime(val),
     align: "left",
     headerStyle: "width: 15%",
     style: "width: 15%",
@@ -836,26 +836,6 @@ function filterUsers(val: string, update: (callbackFn: () => void) => void) {
         )
       : userStore.users;
   });
-}
-
-type DateValue = string | Date | null | undefined;
-
-function toDateTimeString(
-  value: DateValue,
-  options?: { includeSeconds?: boolean }
-) {
-  let timeFormat = "dd.MM.yyyy HH:mm";
-  if (options && options.includeSeconds) timeFormat = "dd.MM.yyyy HH:mm:ss";
-  return value ? format(ensureIsDate(value), timeFormat) : "";
-}
-function ensureIsDate(value: string | Date) {
-  return value instanceof Date ? value : new Date(value);
-}
-function toTimeString(value: DateValue) {
-  return value ? format(ensureIsDate(value), "HH:mm") : "";
-}
-function toDateString(value: DateValue) {
-  return value ? format(ensureIsDate(value), "dd.MM.yyyy") : "";
 }
 
 function approvedByText(row: Partial<WorkHourResponse>) {

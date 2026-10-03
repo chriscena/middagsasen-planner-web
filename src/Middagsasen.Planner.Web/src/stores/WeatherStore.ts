@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { api } from "boot/axios";
-import { UTCDate } from "@date-fns/utc";
-import { formatISO, subHours } from "date-fns";
+import { lastHours, toUtcWire } from "src/shared/time";
 import type { LocationMeasurementResponse } from "src/types";
 
 interface WeatherState {
@@ -18,9 +17,9 @@ export const useWeatherStore = defineStore("weather", {
   actions: {
     async getLocations(): Promise<void> {
       try {
-        const now = new UTCDate();
-        const start = formatISO(subHours(now, 2));
-        const end = formatISO(now);
+        const range = lastHours(2);
+        const start = toUtcWire(range.start);
+        const end = toUtcWire(range.end);
         const response = await api.get<LocationMeasurementResponse[]>(
           `/api/weather?start=${encodeURIComponent(
             start
