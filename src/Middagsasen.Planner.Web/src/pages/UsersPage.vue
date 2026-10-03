@@ -135,7 +135,7 @@
               <q-item-section>
                 <q-item-label>{{ uc.competencyName }}</q-item-label>
                 <q-item-label caption v-if="uc.expiryDate">
-                  Utløper: {{ formatCompetencyDate(uc.expiryDate) }}
+                  Utløper: {{ formatDate(uc.expiryDate) }}
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -233,12 +233,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useQuasar, date as dateUtil } from "quasar";
+import { useQuasar } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { formatHours } from "src/shared/formatter";
 import { getApiErrorMessage } from "src/shared/apiError";
+import { formatDate } from "src/shared/time";
 import type { UserCompetencyResponse, UserResponse } from "src/types";
 
 // Skjemaet i redigeringsdialogen. Ved redigering er det en kopi av
@@ -321,11 +322,6 @@ const adminAvailableCompetencies = computed(() => {
   const existing = editUserCompetencies.value.map((uc) => uc.competencyId);
   return competencyStore.competencies.filter((c) => !existing.includes(c.id));
 });
-
-function formatCompetencyDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
-  return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
-}
 
 async function loadUserCompetencies(userId: number): Promise<void> {
   try {

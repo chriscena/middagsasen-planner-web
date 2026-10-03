@@ -23,7 +23,7 @@
           @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
         ></q-input>
         <q-input
-          :error="!isValidDate"
+          :error="!isValidStartDate"
           autofocus
           outlined
           label="Dato"
@@ -34,7 +34,7 @@
           ><template v-slot:append>
             <q-icon name="event" class="cursor-pointer">
               <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-date v-model="startDate" mask="DD.MM.YYYY">
+                <q-date v-model="startDate" :mask="QUASAR_DATE_MASK">
                   <div class="row items-center justify-end">
                     <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
@@ -54,7 +54,7 @@
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
               <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-time v-model="startTime" format24h mask="HH:mm">
+                <q-time v-model="startTime" format24h :mask="QUASAR_TIME_MASK">
                   <div class="row items-center justify-end">
                     <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
@@ -74,7 +74,7 @@
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">
               <q-popup-proxy transition-show="scale" transition-hide="scale">
-                <q-time v-model="endTime" format24h mask="HH:mm">
+                <q-time v-model="endTime" format24h :mask="QUASAR_TIME_MASK">
                   <div class="row items-center justify-end">
                     <q-btn v-close-popup label="Lukk" color="primary" flat />
                   </div>
@@ -245,7 +245,7 @@
                   <q-time
                     v-model="selectedResource!.startTime"
                     format24h
-                    mask="HH:mm"
+                    :mask="QUASAR_TIME_MASK"
                   >
                     <div class="row items-center justify-end">
                       <q-btn v-close-popup label="Lukk" color="primary" flat />
@@ -270,7 +270,7 @@
                   <q-time
                     v-model="selectedResource!.endTime"
                     format24h
-                    mask="HH:mm"
+                    :mask="QUASAR_TIME_MASK"
                   >
                     <div class="row items-center justify-end">
                       <q-btn v-close-popup label="Lukk" color="primary" flat />
@@ -308,17 +308,21 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useEventStore } from "stores/EventStore";
-import {
-  parseISO,
-  format,
-  isValid,
-  addMinutes,
-  formatISO,
-  parse,
-} from "date-fns";
 import { useRouter } from "vue-router";
 import type { EventRequest, ResourceTypeResponse } from "src/types";
-import { toDateTime } from "src/shared/eventDateTime";
+import {
+  QUASAR_DATE_MASK,
+  QUASAR_TIME_MASK,
+  formatDate,
+  formatTime,
+  intervalOn,
+  isValidDate,
+  isValidTime,
+  offsetTime,
+  toDayKey,
+  toLocalWire,
+  today,
+} from "src/shared/time";
 import { toResourceDateTimes } from "src/shared/timeValidation";
 import { getApiErrorMessage } from "src/shared/apiError";
 import { newClientKey } from "src/shared/clientKey";
@@ -356,7 +360,7 @@ const props = withDefaults(
     id?: string | null;
   }>(),
   {
-    date: () => formatISO(new Date(), { representation: "date" }),
+    date: () => today(),
     id: null,
   }
 );
@@ -371,9 +375,9 @@ onMounted(async () => {
       // getEvent setter selectedEvent (kaster ellers).
       const event = eventStore.selectedEvent!;
       name.value = event.name;
-      startDate.value = formatDate(new Date(event.startTime));
-      startTime.value = formatTime(new Date(event.startTime));
-      endTime.value = formatTime(new Date(event.endTime));
+      startDate.value = formatDate(event.startTime);
+      startTime.value = formatTime(event.startTime);
+      endTime.value = formatTime(event.endTime);
       resources.value = event.resources.map((r) => {
         return {
           id: r.id,
@@ -387,10 +391,7 @@ onMounted(async () => {
         };
       });
     } else {
-      startDate.value = format(
-        parse(props.date, "yyyy-MM-dd", new Date()),
-        "dd.MM.yyyy"
-      );
+      startDate.value = formatDate(props.date);
       name.value = "Åpningstid";
     }
   } catch {
@@ -403,23 +404,13 @@ const resourceTypes = computed(() => eventStore.resourceTypes);
 
 const name = ref<string | null>(null);
 
-const isValidDate = computed(() =>
-  isValid(parse(startDate.value, "dd.MM.yyyy", new Date()))
-);
-const isValidStartTime = computed(() =>
-  isValid(parse(startTime.value, "HH:mm", new Date()))
-);
-const isValidEndTime = computed(() =>
-  isValid(parse(endTime.value, "HH:mm", new Date()))
-);
-
-const startDateTime = computed(() =>
-  toDateTime(startDate.value, startTime.value)
-);
+const isValidStartDate = computed(() => isValidDate(startDate.value));
+const isValidStartTime = computed(() => isValidTime(startTime.value));
+const isValidEndTime = computed(() => isValidTime(endTime.value));
 
 // Slutt før start betyr at vaktlista går over midnatt (neste dag).
-const endDateTime = computed(() =>
-  toDateTime(startDate.value, endTime.value, startDateTime.value)
+const interval = computed(() =>
+  intervalOn(startDate.value, startTime.value, endTime.value)
 );
 
 const startDate = ref(formatDate(new Date()));
@@ -430,7 +421,7 @@ const resources = ref<ResourceModel[]>([]);
 const canSave = computed(() => {
   return !!(
     name.value &&
-    isValidDate.value &&
+    isValidStartDate.value &&
     isValidStartTime.value &&
     isValidEndTime.value &&
     resources.value.length
@@ -456,12 +447,9 @@ function addResource() {
   selectedResource.value = {
     resourceType: null,
     clientKey: newClientKey(),
-    startTime: isValid(startDateTime.value)
-      ? format(addMinutes(startDateTime.value, -30), "HH:mm")
-      : null,
-    endTime: isValid(endDateTime.value)
-      ? format(addMinutes(endDateTime.value, 30), "HH:mm")
-      : null,
+    // Ugyldig dato eller tid på vaktlista gir tomt felt.
+    startTime: isValidStartDate.value ? offsetTime(startTime.value, -30) : null,
+    endTime: isValidStartDate.value ? offsetTime(endTime.value, 30) : null,
     minimumStaff: 1,
     isNew: true,
   };
@@ -503,18 +491,8 @@ const canAdd = computed(() => {
   );
 });
 
-function formatTime(isoDateTime: Date | string) {
-  if (isoDateTime instanceof Date) return format(isoDateTime, "HH:mm");
-  return format(parseISO(isoDateTime), "HH:mm");
-}
-
-function formatDate(isoDateTime: Date | string) {
-  if (isoDateTime instanceof Date) return format(isoDateTime, "dd.MM.yyyy");
-  return format(parseISO(isoDateTime), "dd.MM.yyyy");
-}
-
 async function saveEvent() {
-  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i formatDateTime.
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toLocalWire.
   const resourceTimes = resources.value.map((r) =>
     toResourceDateTimes(startDate.value, r.startTime, r.endTime)
   );
@@ -533,8 +511,8 @@ async function saveEvent() {
     const model: EventRequest = {
       // canSave krever navn.
       name: name.value!,
-      startTime: formatDateTime(startDateTime.value),
-      endTime: formatDateTime(endDateTime.value),
+      startTime: toLocalWire(interval.value.start),
+      endTime: toLocalWire(interval.value.end),
       resources: resources.value.map((r, i) => {
         // Validert over: ingen er null.
         const times = resourceTimes[i]!;
@@ -543,8 +521,8 @@ async function saveEvent() {
           // exactOptionalPropertyTypes kan den ikke være undefined.
           id: r.id ?? null,
           resourceTypeId: r.resourceType.id,
-          startTime: formatDateTime(times.start),
-          endTime: formatDateTime(times.end),
+          startTime: toLocalWire(times.start),
+          endTime: toLocalWire(times.end),
           // q-input type="number" kan gi string; Number() sender et tall.
           minimumStaff: Number(r.minimumStaff),
           isDeleted: r.isDeleted,
@@ -562,9 +540,7 @@ async function saveEvent() {
         message: "Vaktlista er lagt til",
       });
     }
-    const date = formatISO(startDateTime.value, {
-      representation: "date",
-    });
+    const date = toDayKey(interval.value.start);
     await $router.push(`/day/${date}`);
   } catch (error) {
     console.log(error);
@@ -587,9 +563,7 @@ async function deleteEvent() {
     showingDelete.value = false;
     // Slett-knappen vises kun for et lastet event (props.id).
     const event = eventStore.selectedEvent!;
-    const date = formatISO(parseISO(event.startTime), {
-      representation: "date",
-    });
+    const date = toDayKey(event.startTime);
     await eventStore.deleteEvent(event.id);
     $q.notify({ message: "Vaktlista er slettet." });
     $router.push(`/day/${date}`);
@@ -601,10 +575,6 @@ async function deleteEvent() {
   } finally {
     loading.value = false;
   }
-}
-
-function formatDateTime(date: Date) {
-  return format(date, "yyyy'-'MM'-'dd'T'HH':'mm");
 }
 
 const showingCreateTemplate = ref(false);

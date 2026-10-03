@@ -305,9 +305,10 @@ import { useVuelidate } from "@vuelidate/core";
 import type { ValidationArgs } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
-import { useQuasar, date as dateUtil } from "quasar";
+import { useQuasar } from "quasar";
 import { formatVersion } from "src/shared/appVersion";
 import { getApiErrorMessage } from "src/shared/apiError";
+import { formatDate } from "src/shared/time";
 import type { UpdateMeRequest, UserCompetencyResponse } from "src/types";
 
 // Skjemaet i brukerinfo-dialogen.
@@ -345,11 +346,6 @@ const availableCompetencies = computed(() => {
   return competencyStore.competencies.filter((c) => !existing.includes(c.id));
 });
 
-function formatDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return "";
-  return dateUtil.formatDate(new Date(dateStr), "DD.MM.YYYY");
-}
-
 async function loadMyCompetencies(): Promise<void> {
   const userId = user.value?.id;
   if (!userId) return;
@@ -380,7 +376,10 @@ async function addMyCompetency(): Promise<void> {
     $q.notify({ message: "Kompetanse registrert" });
   } catch (error) {
     console.log(error);
-    $q.notify({ message: "Klarte ikke å registrere kompetanse", color: "negative" });
+    $q.notify({
+      message: "Klarte ikke å registrere kompetanse",
+      color: "negative",
+    });
   } finally {
     addingCompetency.value = false;
   }

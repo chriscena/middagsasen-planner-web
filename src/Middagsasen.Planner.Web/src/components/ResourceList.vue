@@ -48,11 +48,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { format, addMinutes, isValid, parse } from "date-fns";
 import ResourceForm from "components/ResourceForm.vue";
 import type { ResourceFormModel } from "components/ResourceForm.vue";
 import type { ResourceTypeResponse } from "src/types";
 import { newClientKey } from "src/shared/clientKey";
+import { offsetTime } from "src/shared/time";
 
 const props = withDefaults(
   defineProps<{
@@ -82,8 +82,7 @@ function addResource() {
   selectedResource.value = {
     clientKey: newClientKey(),
     resourceType: null,
-    // Ugyldig start/slutt på vaktlista (f.eks. «1») gir tomt felt i stedet for
-    // RangeError fra format.
+    // Ugyldig start/slutt på vaktlista (f.eks. «1») gir tomt felt.
     startTime: offsetTime(props.startTime, -30),
     endTime: offsetTime(props.endTime, 30),
     minimumStaff: 1,
@@ -95,19 +94,6 @@ function addResource() {
 function editResource(resource: ResourceFormModel) {
   selectedResource.value = resource;
   showingEdit.value = true;
-}
-
-function offsetTime(time: string | null, minutes: number): string | null {
-  const datetime = toDateTime(time);
-  return isValid(datetime)
-    ? format(addMinutes(datetime, minutes), "HH:mm")
-    : null;
-}
-
-function toDateTime(time: string | null) {
-  // parse(null) og parse("") gir begge Invalid Date.
-  const datetime = parse(time ?? "", "HH:mm", new Date());
-  return datetime;
 }
 
 function saveResource(model: ResourceFormModel) {

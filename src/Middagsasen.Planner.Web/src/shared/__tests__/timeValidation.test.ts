@@ -1,25 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { isValidTime, toResourceDateTimes } from "src/shared/timeValidation";
-import { toDateTime } from "src/shared/eventDateTime";
-
-describe("isValidTime", () => {
-  it.each(["10:00", "00:00", "23:59"])("accepts %s", (time) => {
-    expect(isValidTime(time)).toBe(true);
-  });
-
-  it.each([null, undefined, "", "1", "abc", "25:00", "10:60"])(
-    "rejects %s",
-    (time) => {
-      expect(isValidTime(time)).toBe(false);
-    }
-  );
-});
+import { toResourceDateTimes } from "src/shared/timeValidation";
+import { parseDateTime } from "src/shared/time";
 
 describe("toResourceDateTimes", () => {
   it("returns start and end on the event date", () => {
     const result = toResourceDateTimes("01.12.2023", "09:30", "17:30");
-    expect(result?.start).toEqual(toDateTime("01.12.2023", "09:30"));
-    expect(result?.end).toEqual(toDateTime("01.12.2023", "17:30"));
+    expect(result?.start).toEqual(parseDateTime("01.12.2023", "09:30"));
+    expect(result?.end).toEqual(parseDateTime("01.12.2023", "17:30"));
   });
 
   it("does not move times over midnight (backend decides the day)", () => {

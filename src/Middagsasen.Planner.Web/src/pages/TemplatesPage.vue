@@ -36,7 +36,9 @@
           <q-item-label lines="1">{{ template.name }}</q-item-label>
           <q-item-label caption lines="1"
             >{{ template.eventName }}
-            {{ formatStartEndTime(template) }}</q-item-label
+            {{
+              formatTimeRange(template.startTime, template.endTime)
+            }}</q-item-label
           >
         </q-item-section>
       </q-item>
@@ -78,7 +80,6 @@ import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { useEventStore } from "src/stores/EventStore";
-import { parseISO, format } from "date-fns";
 import TemplateForm from "components/TemplateForm.vue";
 import type {
   TemplateFormModel,
@@ -86,6 +87,7 @@ import type {
 } from "components/TemplateForm.vue";
 import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
 import { getApiErrorMessage } from "src/shared/apiError";
+import { formatTimeRange } from "src/shared/time";
 
 const emit = defineEmits<{
   "toggle-right": [];
@@ -120,12 +122,6 @@ function newTemplate() {
 function editTemplate(template: EventTemplateResponse) {
   selectedTemplate.value = template;
   showingEditDialog.value = true;
-}
-
-function formatStartEndTime(template: EventTemplateResponse) {
-  const start = format(parseISO(template.startTime), "HH:mm");
-  const end = format(parseISO(template.endTime), "HH:mm");
-  return `${start}-${end}`;
 }
 
 const savingTemplate = ref(false);

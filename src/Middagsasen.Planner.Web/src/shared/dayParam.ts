@@ -1,15 +1,11 @@
 // Validering av dato-parameteren i /day/:date.
 
-import { format, isValid, parse } from "date-fns";
+import { isDayKey } from "src/shared/time";
 
 /**
- * Returnerer datoen hvis `value` er en gyldig dato på formen yyyy-MM-dd,
- * ellers null. Strengere enn `isValid(new Date(value))`, som også godtar
- * f.eks. "2026-02-30" (ruller over) og andre formater.
+ * Returnerer datoen hvis `value` er en gyldig dag-nøkkel (yyyy-MM-dd),
+ * ellers null. Se `isDayKey` for hvor streng sjekken er.
  */
 export function parseDayParam(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const date = parse(value, "yyyy-MM-dd", new Date());
-  if (!isValid(date) || format(date, "yyyy-MM-dd") !== value) return null;
-  return value;
+  return isDayKey(value) ? value : null;
 }

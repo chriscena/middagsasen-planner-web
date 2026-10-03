@@ -46,7 +46,7 @@
             ></q-item-label
           > </q-item-section
         ><q-item-section side>{{
-          formatStartEndTime(resource)
+          formatTimeRange(resource.startTime, resource.endTime)
         }}</q-item-section></q-item
       >
       <q-item v-for="{ key, shift } in createShiftList(resource)" :key="key">
@@ -116,10 +116,10 @@
         </q-item-section>
       </q-item>
     </q-list>
-    <q-separator v-if="isAdmin && timestamp.date > today()"></q-separator>
+    <q-separator v-if="isAdmin && isFuture(timestamp.date)"></q-separator>
     <span v-if="isAdmin" class="row">
       <q-item
-        v-if="timestamp.date > today()"
+        v-if="isFuture(timestamp.date)"
         clickable
         v-ripple
         dense
@@ -133,7 +133,7 @@
       </q-item>
       <q-separator vertical></q-separator>
       <q-item
-        v-if="timestamp.date > today()"
+        v-if="isFuture(timestamp.date)"
         clickable
         v-ripple
         dense
@@ -443,7 +443,7 @@
             >
               <q-item-section>
                 <q-item-label overline>{{
-                  format(parseISO(message.created), "EEE d. LLL")
+                  formatShortDate(message.created)
                 }}</q-item-label>
                 <q-item-label class="q-py-sm">{{
                   message.message
@@ -466,7 +466,7 @@
               </q-item-section>
             </q-item>
           </q-list>
-          <template v-if="!isPast">
+          <template v-if="!isPastDay">
             <q-card-section>
               <q-input
                 outlined
@@ -506,15 +506,19 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
-import { today } from "@timestamp-js/core";
 import type { Timestamp } from "@timestamp-js/core";
-import { parseISO, format } from "date-fns";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { getApiErrorMessage } from "src/shared/apiError";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "src/shared/shiftList";
+import {
+  formatShortDate,
+  formatTimeRange,
+  isFuture,
+  isPast,
+} from "src/shared/time";
 import type {
   EventResponse,
   MessageRequest,
@@ -591,7 +595,8 @@ const showingTrainingDialog = ref(false);
 
 // Computed
 const users = computed(() => userStore.users);
-const isPast = computed(() => props.timestamp.date < today());
+// Dagen i kalenderen er før i dag.
+const isPastDay = computed(() => isPast(props.timestamp.date));
 const event = computed(() => props.modelValue);
 // Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
 const currentUser = computed(() => authStore.user!);
@@ -614,15 +619,6 @@ const mustChooseTraining = computed(
 );
 
 // Methods
-function formatTime(isoDateTime: string | null | undefined): string | null {
-  if (!isoDateTime) return null;
-  const date = parseISO(isoDateTime);
-  return format(date, "HH:mm");
-}
-
-function formatStartEndTime(event: ResourceResponse): string {
-  return `${formatTime(event.startTime)}-${formatTime(event.endTime)}`;
-}
 function resourceClasses(resource: ResourceResponse): string {
   return (
     "q-mt-sm q-mx-sm " +
@@ -959,7 +955,7 @@ async function deleteMessage(message: MessageResponse): Promise<void> {
 
 function canDeleteMessage(message: MessageResponse): boolean {
   return (
-    !isPast.value &&
+    !isPastDay.value &&
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }

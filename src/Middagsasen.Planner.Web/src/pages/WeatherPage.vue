@@ -68,6 +68,7 @@ import {
 import type { ChartData, ChartOptions, Point } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { Line } from "vue-chartjs";
+import { CHART_TIME_FORMAT } from "src/shared/time";
 
 const loading = ref(false);
 ChartJS.register(
@@ -125,7 +126,7 @@ const locations = computed((): LocationViewModel[] =>
                 time: {
                   unit: "minute",
                   displayFormats: {
-                    minute: "HH:mm",
+                    minute: CHART_TIME_FORMAT,
                   },
                 },
               },

@@ -1,5 +1,5 @@
-import { formatISO } from "date-fns";
 import type { RouteRecordRaw } from "vue-router";
+import { today } from "src/shared/time";
 
 const routes: RouteRecordRaw[] = [
   {
@@ -16,7 +16,9 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "",
-        redirect: `/day/${formatISO(new Date(), { representation: "date" })}`,
+        // Funksjon, slik at datoen beregnes ved hver redirect (ikke når
+        // modulen lastes) — ellers gir en fane åpen over midnatt feil dag.
+        redirect: () => `/day/${today()}`,
       },
       {
         path: "day/:date",
@@ -25,9 +27,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "create",
-        redirect: `/create/${formatISO(new Date(), {
-          representation: "date",
-        })}`,
+        redirect: () => `/create/${today()}`,
       },
       {
         path: "create/:date",

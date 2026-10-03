@@ -44,7 +44,7 @@
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">
             <q-popup-proxy transition-show="scale" transition-hide="scale">
-              <q-time v-model="startTime" format24h mask="HH:mm">
+              <q-time v-model="startTime" format24h :mask="QUASAR_TIME_MASK">
                 <div class="row items-center justify-end">
                   <q-btn v-close-popup label="Lukk" color="primary" flat />
                 </div>
@@ -63,7 +63,7 @@
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">
             <q-popup-proxy transition-show="scale" transition-hide="scale">
-              <q-time v-model="endTime" format24h mask="HH:mm">
+              <q-time v-model="endTime" format24h :mask="QUASAR_TIME_MASK">
                 <div class="row items-center justify-end">
                   <q-btn v-close-popup label="Lukk" color="primary" flat />
                 </div>
@@ -94,6 +94,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { ResourceTypeResponse } from "src/types";
+import { QUASAR_TIME_MASK } from "src/shared/time";
 
 // Skjemamodell for en vakt (ressurs) i ResourceList/EventForm/TemplateForm.
 // Ikke en DTO: tidene er "HH:mm", og resourceType er hele objektet.

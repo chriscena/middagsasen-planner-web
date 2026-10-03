@@ -109,7 +109,6 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from "vue";
-import { addDays, parse, format } from "date-fns";
 import { useWorkHourStore } from "stores/WorkHourStore";
 import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
@@ -121,6 +120,13 @@ import {
   getWorkHourErrorKind,
 } from "src/shared/workHourDiff";
 import { getApiErrorMessage } from "src/shared/apiError";
+import {
+  formatDate,
+  formatDateTime,
+  formatTime,
+  intervalOn,
+  toInstantWire,
+} from "src/shared/time";
 import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
 import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
 
@@ -171,11 +177,11 @@ const viewModel = reactive<TimeTrackingViewModel>({
   id: null,
   startDateTime: null,
   endDateTime: null,
-  startDate: format(new Date(), "dd.MM.yyyy"),
+  startDate: formatDate(new Date()),
   startDateValid: true,
-  startTime: format(new Date(), "HH:mm"),
+  startTime: formatTime(new Date()),
   startTimeValid: true,
-  endTime: format(new Date(), "HH:mm"),
+  endTime: formatTime(new Date()),
   endTimeValid: true,
   description: null,
   descriptionValid: true,
@@ -208,23 +214,20 @@ function calculateTime(
   endTime: string | null
 ) {
   if (!startDate || !startTime || !endTime) return;
-  let start: Date, end: Date;
+  // Slutt før start betyr at føringen går over midnatt (neste dag).
+  const { start, end } = intervalOn(startDate, startTime, endTime);
+  // toInstantWire kaster RangeError for ugyldig dato/tid.
   try {
-    start = parse(`${startDate} ${startTime}`, "dd.MM.yyyy HH:mm", new Date());
     viewModel.startTimeValid = true;
-    viewModel.startDateTime = start.toISOString();
+    viewModel.startDateTime = toInstantWire(start);
   } catch {
     viewModel.startDateTime = null;
     viewModel.startTimeValid = false;
     return;
   }
   try {
-    end = parse(`${startDate} ${endTime}`, "dd.MM.yyyy HH:mm", new Date());
-    if (end < start) {
-      end = addDays(end, 1);
-    }
     viewModel.endTimeValid = true;
-    viewModel.endDateTime = end.toISOString();
+    viewModel.endDateTime = toInstantWire(end);
   } catch {
     viewModel.endDateTime = null;
     viewModel.endTimeValid = false;
@@ -233,7 +236,7 @@ function calculateTime(
 
 const endDate = computed(() => {
   if (!viewModel.endDateTime) return undefined;
-  let endDate = format(new Date(viewModel.endDateTime), "dd.MM.yyyy");
+  const endDate = formatDate(viewModel.endDateTime);
   return endDate != viewModel.startDate ? `Sluttdato: ${endDate}` : undefined;
 });
 
@@ -269,7 +272,7 @@ const modifiedByText = computed(() => {
   if (!model?.modifiedBy) return null;
   const name = model.modifiedByName ?? "ukjent";
   const time = model.modifiedTime
-    ? ` ${format(new Date(model.modifiedTime), "dd.MM.yyyy HH:mm")}`
+    ? ` ${formatDateTime(model.modifiedTime)}`
     : "";
   return `Endret av ${name}${time}`;
 });
@@ -463,11 +466,9 @@ const validateDescription = () => {
 onMounted(() => {
   if (props.modelValue) {
     // startTime/endTime er nullable i DTO-en, men alltid satt på lagrede føringer.
-    const start = new Date(props.modelValue.startTime!);
-    const end = new Date(props.modelValue.endTime!);
-    viewModel.startDate = format(start, "dd.MM.yyyy");
-    viewModel.startTime = format(start, "HH:mm");
-    viewModel.endTime = format(end, "HH:mm");
+    viewModel.startDate = formatDate(props.modelValue.startTime);
+    viewModel.startTime = formatTime(props.modelValue.startTime);
+    viewModel.endTime = formatTime(props.modelValue.endTime);
     // DTO-en har description som valgfri; null og undefined behandles likt i diffen.
     viewModel.description = props.modelValue.description ?? null;
     viewModel.id = props.modelValue.workHourId;
