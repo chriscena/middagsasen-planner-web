@@ -170,7 +170,8 @@
         ></q-btn>
       </q-card-section>
       <!-- Vakter tatt før svaret ble påkrevd ved påmelding kan mangle
-           opplæringsrad. Svaret lagres sammen med vakta (Lagre). -->
+           opplæringsrad. Svaret sendes med i samme kall som kommentaren
+           (Lagre). -->
       <q-card-section
         class="text-center"
         v-if="selectedResource!.mustAnswerTraining"
@@ -333,7 +334,7 @@
       >
       <q-card-section class="q-gutter-md"
         ><q-btn
-          @click="signUpSelf(selectedResource!, true)"
+          @click="signUpSelf(selectedResource!, false)"
           unelevated
           color="primary"
           no-caps
@@ -341,7 +342,7 @@
         ></q-card-section
       >
       <q-card-section
-        ><q-btn flat no-caps @click="signUpSelf(selectedResource!, false)"
+        ><q-btn flat no-caps @click="signUpSelf(selectedResource!, true)"
           >Allerede fått opplæring, full kontroll! ✌️</q-btn
         ></q-card-section
       >
@@ -578,15 +579,16 @@ const savingMessage = ref(false);
 const selectedResource = ref<ResourceResponse | null>(null);
 const selectedShift = ref<EditableShift | null>(null);
 // Opplæringsstatus i dialogene for brukeren på vakta (null = ikke svart).
-// initialTrainingComplete er verdien da dialogen ble åpnet / brukeren valgt,
-// så setTraining bare kalles når den er endret.
 const trainingComplete = ref<boolean | null>(null);
+// Opplæringsstatusen slik den var da den ble lest inn (loadTraining). Svaret
+// sendes bare når brukeren har endret det, så en ren kommentarendring ikke
+// overskriver en opplæring som er endret siden kalenderen ble lastet (f.eks.
+// bekreftet av en trener).
 const initialTrainingComplete = ref<boolean | null>(null);
-// Om brukeren på vakta har en opplæringsrad for ressurstypen.
-const selectedUserHasTraining = ref(false);
-// Brukeren på vakta da admin-dialogen ble åpnet (null for ledig plass), så
-// det kan avgjøres om admin bytter bruker.
+// Brukeren som eier vakta da admin-dialogen ble åpnet (null = ledig plass).
 const originalUserId = ref<number | null>(null);
+// Valgt bruker har en opplæringsrad på ressurstypen (satt i loadTraining).
+const selectedUserHasTraining = ref(false);
 const showingAdminEdit = ref(false);
 const showingConfirmTraining = ref(false);
 const showingEdit = ref(false);
@@ -602,15 +604,18 @@ const isFutureDay = computed(() => isFuture(props.timestamp.date));
 const event = computed(() => props.modelValue);
 // Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
 const currentUser = computed(() => authStore.user!);
-// Admin setter opp en bruker (på en ledig plass eller ved bytte av bruker på
-// en vakt) som ikke har svart på opplæring: svaret er påkrevd av backend, så
-// Lagre er deaktivert til Ja/Nei er valgt.
+// Admin setter en bruker på vakta som ikke eide den fra før: en ledig plass
+// (id 0) tas, eller vakta flyttes til en annen bruker.
 const isNewUser = computed(
   () =>
     !!selectedShift.value?.user &&
     (selectedShift.value.id === 0 ||
       selectedShift.value.user.id !== originalUserId.value)
 );
+// Backend krever svaret på opplæring når en ny bruker uten opplæringsrad
+// settes på vakta (ressurstypen har opplæring). Dialogen sperrer da Lagre til
+// Ja/Nei er valgt, så svaret er med når backend krever det. Gamle vakter der
+// eieren mangler opplæringsrad kan fortsatt lagres uten svar.
 const mustChooseTraining = computed(
   () =>
     showingAdminEdit.value &&
@@ -656,7 +661,8 @@ function notifyError(error: unknown, fallback: string): void {
   $q.notify({ message: getApiErrorMessage(error, fallback) });
 }
 
-// Leser opplæringen til brukeren på ressursens ressurstype inn i dialogene.
+// Leser opplæringen til brukeren på ressursens ressurstype inn i dialogene
+// (for visning, og som utgangspunkt for svaret som sendes med vakta).
 function loadTraining(
   user: ShiftUser | null,
   resource: ResourceResponse
@@ -669,17 +675,24 @@ function loadTraining(
   const training = trainings.find(
     (t) => t.resourceTypeId === resource.resourceType.id
   );
-  selectedUserHasTraining.value = !!training;
   trainingComplete.value = training?.trainingComplete ?? null;
   initialTrainingComplete.value = trainingComplete.value;
+  selectedUserHasTraining.value = !!training;
 }
 
-function isTrainingChanged(): boolean {
-  return (
-    !!selectedResource.value?.resourceType.hasTraining &&
-    trainingComplete.value !== null &&
-    trainingComplete.value !== initialTrainingComplete.value
-  );
+// Svaret på opplæring til spread i saveShift: sendes bare når ressurstypen
+// har opplæring, svaret er satt og det er endret fra utgangsverdien (også en
+// ny bruker uten rad, der utgangsverdien er null). Ellers utelates det, og
+// backend lar opplæringsraden være.
+function changedTraining(
+  resource: ResourceResponse
+): { trainingCompleted: boolean } | Record<string, never> {
+  const value = trainingComplete.value;
+  return resource.resourceType.hasTraining &&
+    value !== null &&
+    value !== initialTrainingComplete.value
+    ? { trainingCompleted: value }
+    : {};
 }
 
 function closeDialogs(): void {
@@ -700,9 +713,11 @@ async function takeShift(resource: ResourceResponse): Promise<void> {
   await signUpSelf(resource);
 }
 
+// trainingCompleted: svaret fra opplæringsdialogen (false = trenger
+// opplæring, true = allerede fått opplæring), utelatt når det ikke ble spurt.
 async function signUpSelf(
   resource: ResourceResponse,
-  needsTraining?: boolean
+  trainingCompleted?: boolean
 ): Promise<void> {
   showingTrainingDialog.value = false;
   try {
@@ -716,10 +731,12 @@ async function signUpSelf(
         multiLine: true,
       });
     }
-    const result = await eventStore.signUp(
-      resource.id,
-      needsTraining === undefined ? {} : { needsTraining }
-    );
+    const result = await eventStore.saveShift({
+      resourceId: resource.id,
+      shiftId: null,
+      comment: null,
+      ...(trainingCompleted === undefined ? {} : { trainingCompleted }),
+    });
     $q.notify({
       message: "Woohoo! Du har tatt en vakt 🎉",
     });
@@ -745,99 +762,53 @@ function edit(shift: ShiftResponse, resource: ResourceResponse): void {
   showingEdit.value = true;
 }
 
-// Eiers redigeringsdialog: kommentaren lagres med changeShift. Svarte eieren
-// på opplæringsspørsmålet (vakter uten opplæringsrad), lagres svaret med
-// setTraining etterpå.
+// Eiers redigeringsdialog: kommentaren og evt. svaret på opplæring lagres i
+// ett kall. Svaret sendes bare når det er endret (changedTraining); backend
+// oppretter raden for vakter tatt uten opplæringsrad.
 async function saveOwnShift(): Promise<void> {
   const shift = selectedShift.value!;
-  const warnings: string[] = [];
+  const resource = selectedResource.value!;
   try {
     saving.value = true;
-    const result = await eventStore.changeShift(shift.id, {
+    const result = await eventStore.saveShift({
+      resourceId: resource.id,
+      shiftId: shift.id,
       comment: shift.comment ?? null,
+      ...changedTraining(resource),
     });
-    warnings.push(...result.warnings);
-    if (isTrainingChanged()) {
-      const trainingResult = await eventStore.setTraining(
-        shift.id,
-        trainingComplete.value!
-      );
-      warnings.push(...trainingResult.warnings);
-      initialTrainingComplete.value = trainingComplete.value;
-    }
     closeDialogs();
     $q.notify({ message: "Endringer er lagret 👍" });
+    notifyWarnings(result.warnings);
   } catch (error) {
     notifyError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
   } finally {
     saving.value = false;
-    notifyWarnings(warnings);
   }
 }
 
-// Admin-dialogen. Ledig plass (id 0): signUp for valgt bruker. Eksisterende
-// vakt: changeShift (evt. med ny bruker). Mangler en ny bruker opplæringsrad,
-// sendes svaret på opplæring (needsTraining) med i samme kall. Til slutt
-// setTraining hvis opplæringsstatusen for en eksisterende rad er endret.
-// Kallene gjøres etter hverandre; feiler ett, vises feilen og dialogen
-// blir stående med det som allerede er lagret.
+// Admin-dialogen: ledig plass (id 0) tas for valgt bruker, ellers endres
+// vakta (evt. med ny bruker). Bruker, kommentar og svaret på opplæring lagres
+// i ett kall; backend oppretter eller oppdaterer opplæringsraden ved behov.
 async function saveAdminShift(): Promise<void> {
   const shift = selectedShift.value!;
   const resource = selectedResource.value!;
-  // Lagre er deaktivert uten bruker.
-  const userId = shift.user!.id;
-  const warnings: string[] = [];
-  // Svaret på opplæring for en ny bruker uten opplæringsrad (påkrevd av
-  // backend, Lagre er deaktivert til det er valgt).
-  const answersTraining =
-    isNewUser.value &&
-    !!resource.resourceType.hasTraining &&
-    !selectedUserHasTraining.value &&
-    trainingComplete.value !== null;
   try {
     saving.value = true;
-    if (shift.id === 0) {
-      const result = await eventStore.signUp(resource.id, {
-        userId,
-        comment: shift.comment ?? null,
-        // Ignoreres av backend når brukeren allerede har en opplæringsrad.
-        needsTraining:
-          trainingComplete.value === null ? null : !trainingComplete.value,
-      });
-      warnings.push(...result.warnings);
-      // Et nytt forsøk etter en feil under skal endre vakta, ikke ta den igjen.
-      shift.id =
-        result.resource.shifts.find((s) => s.user.id === userId)?.id ?? 0;
-    } else {
-      const result = await eventStore.changeShift(shift.id, {
-        userId,
-        comment: shift.comment ?? null,
-        ...(answersTraining ? { needsTraining: !trainingComplete.value } : {}),
-      });
-      warnings.push(...result.warnings);
-    }
-    // Vakta tilhører nå valgt bruker.
-    originalUserId.value = userId;
-    // Manglet brukeren opplæringsrad, ble svaret lagret sammen med vakta.
-    if (answersTraining) {
-      selectedUserHasTraining.value = true;
-      initialTrainingComplete.value = trainingComplete.value;
-    }
-    if (shift.id > 0 && isTrainingChanged()) {
-      const result = await eventStore.setTraining(
-        shift.id,
-        trainingComplete.value!
-      );
-      warnings.push(...result.warnings);
-      initialTrainingComplete.value = trainingComplete.value;
-    }
+    const result = await eventStore.saveShift({
+      resourceId: resource.id,
+      shiftId: shift.id === 0 ? null : shift.id,
+      // Lagre er deaktivert uten bruker.
+      userId: shift.user!.id,
+      comment: shift.comment ?? null,
+      ...changedTraining(resource),
+    });
     closeDialogs();
     $q.notify({ message: "Endringer er lagret 👍" });
+    notifyWarnings(result.warnings);
   } catch (error) {
     notifyError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
   } finally {
     saving.value = false;
-    notifyWarnings(warnings);
   }
 }
 

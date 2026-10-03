@@ -183,25 +183,109 @@ describe("EventStore", () => {
     });
   });
 
-  describe("vaktoperasjoner", () => {
-    it("signUp poster requesten, legger ressursen i cachen og returnerer svaret", async () => {
+  describe("saveShift", () => {
+    it("ledig plass poster til ressursen og legger svaret i cachen", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
-      const response = result(resource(10, [shift(1, 10, CURRENT_USER_ID)]));
+      const response = result(resource(10, [shift(1, 10, OTHER_USER_ID)]));
       mockApi.post.mockResolvedValue({ data: response });
 
-      const returned = await store.signUp(10, { needsTraining: false });
+      const returned = await store.saveShift({
+        resourceId: 10,
+        shiftId: null,
+        userId: OTHER_USER_ID,
+        comment: "Hei",
+        trainingCompleted: false,
+      });
 
       expect(mockApi.post).toHaveBeenCalledWith("/api/resources/10/shifts", {
-        needsTraining: false,
+        userId: OTHER_USER_ID,
+        comment: "Hei",
+        trainingCompleted: false,
       });
+      expect(mockApi.put).not.toHaveBeenCalled();
       expect(returned).toBe(response);
       expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
         1,
       ]);
     });
 
-    it("signUp med changedTraining lykkes selv om ny henting feiler", async () => {
-      vi.spyOn(console, "error").mockImplementation(() => {});
+    it("ledig plass sender alltid comment, men utelater andre felt som ikke er satt", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+
+      expect(mockApi.post).toHaveBeenCalledWith("/api/resources/10/shifts", {
+        comment: null,
+      });
+    });
+
+    it("eksisterende vakt sendes med PUT til vakta", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      const updated = shift(1, 10, OTHER_USER_ID, { comment: "Hei" });
+      mockApi.put.mockResolvedValue({ data: result(resource(10, [updated])) });
+
+      await store.saveShift({
+        resourceId: 10,
+        shiftId: 1,
+        userId: OTHER_USER_ID,
+        comment: "Hei",
+        trainingCompleted: true,
+      });
+
+      expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
+        userId: OTHER_USER_ID,
+        comment: "Hei",
+        trainingCompleted: true,
+      });
+      expect(mockApi.post).not.toHaveBeenCalled();
+      expect(store.events[0]!.resources[0]!.shifts[0]!.comment).toBe("Hei");
+    });
+
+    it("PUT sender alltid comment, men utelater andre felt som ikke er satt", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: 1, comment: null });
+
+      expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
+        comment: null,
+      });
+    });
+
+    it.each([true, false, null])(
+      "sender trainingCompleted %s uendret",
+      async (trainingCompleted) => {
+        store.events = [
+          eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+        ];
+        mockApi.put.mockResolvedValue({
+          data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+        });
+
+        await store.saveShift({
+          resourceId: 10,
+          shiftId: 1,
+          comment: null,
+          trainingCompleted,
+        });
+
+        expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
+          comment: null,
+          trainingCompleted,
+        });
+      }
+    );
+
+    it("changedTraining henter perioden kalenderen viser på nytt", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
       const response = result(
@@ -209,11 +293,14 @@ describe("EventStore", () => {
         training(false, OTHER_USER_ID)
       );
       mockApi.post.mockResolvedValue({ data: response });
-      mockApi.get.mockRejectedValue(new Error("nettverk"));
+      mockApi.get.mockResolvedValue({ data: [] });
 
-      const returned = await store.signUp(10, {
+      const returned = await store.saveShift({
+        resourceId: 10,
+        shiftId: null,
         userId: OTHER_USER_ID,
-        needsTraining: true,
+        comment: null,
+        trainingCompleted: false,
       });
 
       expect(returned).toBe(response);
@@ -222,6 +309,26 @@ describe("EventStore", () => {
       );
     });
 
+    it("feil propagerer uten å endre cachen", async () => {
+      store.events = [
+        eventWith(1, [
+          resource(10, [shift(1, 10, CURRENT_USER_ID, { comment: "Før" })]),
+        ]),
+      ];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+      const error = new Error("400");
+      mockApi.put.mockRejectedValue(error);
+
+      await expect(
+        store.saveShift({ resourceId: 10, shiftId: 1, comment: "Etter" })
+      ).rejects.toBe(error);
+
+      expect(store.events[0]!.resources[0]!.shifts[0]!.comment).toBe("Før");
+      expect(mockApi.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("vaktoperasjoner", () => {
     it("setTraining sender svaret og henter perioden på nytt", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
@@ -241,40 +348,6 @@ describe("EventStore", () => {
       expect(mockApi.get).toHaveBeenCalledWith(
         "/api/events?start=2026-10-05&end=2026-10-12"
       );
-    });
-
-    it("changeShift sender requesten til vakta", async () => {
-      store.events = [
-        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
-      ];
-      const updated = shift(1, 10, CURRENT_USER_ID, { comment: "Hei" });
-      mockApi.put.mockResolvedValue({ data: result(resource(10, [updated])) });
-
-      await store.changeShift(1, { comment: "Hei" });
-
-      expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
-        comment: "Hei",
-      });
-      expect(store.events[0]!.resources[0]!.shifts[0]!.comment).toBe("Hei");
-    });
-
-    it("changeShift sender needsTraining ved bytte av bruker", async () => {
-      store.events = [
-        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
-      ];
-      mockApi.put.mockResolvedValue({
-        data: result(resource(10, [shift(1, 10, OTHER_USER_ID)])),
-      });
-
-      await store.changeShift(1, {
-        userId: OTHER_USER_ID,
-        needsTraining: true,
-      });
-
-      expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
-        userId: OTHER_USER_ID,
-        needsTraining: true,
-      });
     });
 
     it("withdraw sletter og legger ressursen i cachen", async () => {

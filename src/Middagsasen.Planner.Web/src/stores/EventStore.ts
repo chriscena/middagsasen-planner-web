@@ -35,6 +35,21 @@ interface EventState {
   eventsRange: { start: string; end: string } | null;
 }
 
+// Lagre en vakt med saveShift. shiftId null = ta ledig plass på resourceId
+// (POST), ellers endre vakta (PUT). userId utelatt/null = innlogget bruker
+// (annen bruker kun admin). comment er påkrevd og sendes alltid: backend
+// setter kommentaren ved endring, og manglende felt tolkes som null og sletter
+// den lagrede kommentaren. trainingCompleted har samme betydning som
+// TrainingComplete: true = gjennomført eller trengs ikke, false = ønsker
+// opplæring, null/utelatt = ikke svart (backend avgjør om svaret er påkrevd).
+export interface SaveShiftRequest {
+  resourceId: number;
+  shiftId: number | null;
+  userId?: number | null;
+  comment: string | null;
+  trainingCompleted?: boolean | null;
+}
+
 // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
 // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
 let latestEventsRequest = 0;
@@ -145,28 +160,27 @@ export const useEventStore = defineStore("events", {
     // endringen (med flagg for innlogget bruker). Svaret legges i cachen med
     // applyShiftResult og returneres, så komponenten kan vise warnings.
 
-    // Ta vakt. userId utelatt/null = innlogget bruker (annen bruker kun admin).
-    async signUp(
-      resourceId: number,
-      request: SignUpRequest
-    ): Promise<ShiftResult> {
-      const response = await api.post<ShiftResult>(
-        `/api/resources/${resourceId}/shifts`,
-        request
-      );
-      const result = response.data;
-      await this.applyShiftResult(result);
-      return result;
-    },
-    // Endre tider, kommentar og (kun admin) eier. Endrer aldri opplæringen.
-    async changeShift(
-      shiftId: number,
-      request: ChangeShiftRequest
-    ): Promise<ShiftResult> {
-      const response = await api.put<ShiftResult>(
-        `/api/shifts/${shiftId}`,
-        request
-      );
+    // Ta ledig plass eller endre vakta i ett kall (én transaksjon i backend).
+    // shiftId null = POST på ressursen, ellers PUT på vakta. Felt som ikke er
+    // satt, sendes ikke (exactOptionalPropertyTypes). comment sendes alltid,
+    // ved både POST og PUT.
+    async saveShift(request: SaveShiftRequest): Promise<ShiftResult> {
+      const { resourceId, shiftId, userId, comment, trainingCompleted } =
+        request;
+      const optional = {
+        ...(userId !== undefined ? { userId } : {}),
+        ...(trainingCompleted !== undefined ? { trainingCompleted } : {}),
+      };
+      const response =
+        shiftId === null
+          ? await api.post<ShiftResult>(`/api/resources/${resourceId}/shifts`, {
+              ...optional,
+              comment,
+            } satisfies SignUpRequest)
+          : await api.put<ShiftResult>(`/api/shifts/${shiftId}`, {
+              ...optional,
+              comment,
+            } satisfies ChangeShiftRequest);
       const result = response.data;
       await this.applyShiftResult(result);
       return result;

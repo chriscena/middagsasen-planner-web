@@ -10,7 +10,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     {
         /// <summary>
         /// Setter opp en bruker (innlogget bruker hvis <see cref="SignUpRequest.UserId"/> er <c>null</c>) på ressursen.
-        /// Har ressurstypen opplæring og brukeren ikke svart før, må <see cref="SignUpRequest.NeedsTraining"/> sendes med.
+        /// Opplæringen (<see cref="SignUpRequest.TrainingCompleted"/>) lagres i samme transaksjon som vakta. Har ressurstypen
+        /// opplæring og brukeren ikke svart før, må den sendes med.
         /// </summary>
         /// <exception cref="EntityNotFoundException">Ressursen eller brukeren finnes ikke.</exception>
         /// <exception cref="ForbiddenAccessException">Ikke-admin setter opp en annen bruker.</exception>
@@ -18,8 +19,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<ShiftResult> SignUp(int resourceId, SignUpRequest request);
 
         /// <summary>
-        /// Endrer tider, kommentar og (for admin) eier av vakta. Flyttes vakta til en bruker uten opplæringsrad på en
-        /// ressurstype med opplæring, må <see cref="ChangeShiftRequest.NeedsTraining"/> sendes med (som ved påmelding).
+        /// Endrer tider, kommentar og (for admin) eier av vakta, og opplæringen til eieren etter endringen
+        /// (<see cref="ChangeShiftRequest.TrainingCompleted"/>) i samme transaksjon. Flyttes vakta til en bruker uten
+        /// opplæringsrad på en ressurstype med opplæring, må svaret sendes med (som ved påmelding); ellers er det valgfritt.
         /// </summary>
         Task<ShiftResult> Change(int shiftId, ChangeShiftRequest request);
 

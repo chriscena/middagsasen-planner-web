@@ -16,12 +16,16 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public string? Comment { get; set; }
 
         /// <summary>
-        /// Svaret på «trenger brukeren opplæring?» når vakta flyttes til en annen bruker (<see cref="UserId"/>). Påkrevd når
-        /// ressurstypen har opplæring og den nye eieren ikke har svart før; da gir <c>null</c> 400. <c>true</c> registrerer
-        /// at den nye eieren ønsker opplæring og varsler trenerne på SMS, <c>false</c> registrerer at hen ikke trenger
-        /// opplæring (bekreftet av innlogget bruker). Ignoreres ellers (vakta flyttes ikke, den nye eieren har allerede
-        /// svart, eller ressurstypen har ikke opplæring).
+        /// Opplæringen til eieren av vakta etter endringen (den nye eieren hvis <see cref="UserId"/> flytter vakta), lagret i
+        /// samme transaksjon som vakta. Samme betydning som <see cref="SetTrainingRequest.TrainingCompleted"/>: <c>true</c> =
+        /// gjennomført / trengs ikke (bekreftes av innlogget bruker), <c>false</c> = ønsker opplæring (trenerne varsles på SMS).
+        /// Påkrevd bare når vakta flyttes til en bruker som ikke har svart før på en ressurstype med opplæring; da gir
+        /// <c>null</c> 400. Ellers er det valgfritt: uten opplæringsrad opprettes raden hvis svaret sendes; med rad endrer
+        /// <c>null</c> eller samme verdi ingenting, mens en annen verdi oppdaterer opplæringen (trenerne varsles bare ved
+        /// overgang til <c>false</c>). Endepunktet krever admin eller eieren av vakta, så bare de kan endre opplæringen her;
+        /// trenere får 403 og bruker <c>PUT api/shifts/{id}/training</c>.
+        /// Ignoreres når ressurstypen ikke har opplæring.
         /// </summary>
-        public bool? NeedsTraining { get; set; }
+        public bool? TrainingCompleted { get; set; }
     }
 }

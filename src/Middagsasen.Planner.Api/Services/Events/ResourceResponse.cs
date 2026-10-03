@@ -33,7 +33,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         /// <summary>
         /// Ressurstypen har opplæring og innlogget bruker har ikke svart på «trenger du opplæring?» for den.
-        /// Da må <c>needsTraining</c> sendes med når brukeren tar vakt for seg selv.
+        /// Da må <c>trainingCompleted</c> sendes med når brukeren tar vakt for seg selv.
         /// </summary>
         public bool MustAnswerTraining { get; internal set; }
     }
