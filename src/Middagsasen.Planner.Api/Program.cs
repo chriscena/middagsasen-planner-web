@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Core.OpenApi;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
@@ -59,8 +60,31 @@ builder.Services.AddOpenApi(options =>
     options.AddSchemaTransformer<EnumSchemaTransformer>();
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
-builder.Services.AddCors();
 
+// CORS: frontend kaller API-et med relative URL-er (samme opphav), så CORS trengs ikke for egen app.
+// Andre opphav må listes eksplisitt i Cors:AllowedOrigins (array eller kommaseparert streng, se CorsOrigins).
+// Tom liste gir ingen CORS-policy (kun samme opphav).
+var allowedOrigins = CorsOrigins.Read(builder.Configuration);
+if (allowedOrigins.Length > 0)
+{
+    builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+        .WithOrigins(allowedOrigins)
+        .AllowAnyMethod()
+        .AllowAnyHeader()));
+}
+
+// Innstillingene valideres ved oppstart (ValidateOnStart), så appen stopper med en tydelig feilmelding ved
+// manglende/for kort hemmelighet eller ugyldige AuthOptions, i stedet for å feile per kall.
+// Build-time-genereringen av OpenAPI starter også hosten, men uten hemmeligheter, så der hoppes valideringen over.
+builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection(AuthOptions.SectionName));
+if (!BuildTimeDocumentGeneration.IsRunning)
+{
+    builder.Services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+    builder.Services.AddOptions<AuthOptions>().ValidateOnStart();
+    builder.Services.AddOptions<InfrastructureSettings>()
+        .Validate(settings => SessionTokens.IsValidSecret(settings.Secret), SessionTokens.InvalidSecretMessage)
+        .ValidateOnStart();
+}
 builder.Services.Configure<InfrastructureSettings>(settings =>
 {
     settings.Secret = builder.Configuration["Infrastructure:Secret"] ?? string.Empty;
@@ -80,6 +104,7 @@ builder.Services.AddHttpClient<ISmsSender, SmsSenderService>(client =>
 });
 builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
+builder.Services.AddSingleton<ISessionTokens, SessionTokens>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
@@ -108,6 +133,11 @@ builder.Services.AddHostedService<WeatherDataCollector>();
 
 var app = builder.Build();
 
+if (allowedOrigins.Length > 0)
+    app.Logger.LogInformation("CORS er på for opphavene: {AllowedOrigins}", string.Join(", ", allowedOrigins));
+else
+    app.Logger.LogInformation("CORS er av (Cors:AllowedOrigins er tom). Bare samme opphav kan kalle API-et fra nettleseren.");
+
 if (app.Environment.IsDevelopment())
 {
     // OpenAPI-dokumentet serveres på /openapi/v1.json, Swagger UI på /swagger.
@@ -120,10 +150,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.UseCors(x => x
-        .AllowAnyOrigin()
-        .AllowAnyMethod()
-        .AllowAnyHeader());
+if (allowedOrigins.Length > 0)
+{
+    app.UseCors();
+}
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<JwtMiddleware>();

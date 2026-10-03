@@ -4,6 +4,7 @@
     UserName NVARCHAR(100) not null,
     OneTimePassword nvarchar(400) null,
     OtpCreated DATETIME null,
+    FailedOtpAttempts int not null CONSTRAINT DF_Users_FailedOtpAttempts DEFAULT 0,
     EncryptedPassword varbinary(400) null,
     Salt varbinary(400) null,
     FirstName nvarchar(400) null,

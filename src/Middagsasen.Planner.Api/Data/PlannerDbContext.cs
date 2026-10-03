@@ -52,6 +52,8 @@ namespace Middagsasen.Planner.Api.Data
                 entity.HasIndex(e => e.UserName).IsUnique().HasDatabaseName("IX_Users_UserName");
                 entity.Property(e => e.OneTimePassword).HasMaxLength(400);
                 entity.Property(e => e.OtpCreated).HasColumnType("datetime");
+                // Samme standardverdi som DF_Users_FailedOtpAttempts i databaseprosjektet.
+                entity.Property(e => e.FailedOtpAttempts).HasDefaultValue(0);
                 entity.Property(e => e.OneTimePassword).HasMaxLength(400);
                 entity.Property(e => e.EncryptedPassword).HasMaxLength(400);
                 entity.Property(e => e.Salt).HasMaxLength(400);

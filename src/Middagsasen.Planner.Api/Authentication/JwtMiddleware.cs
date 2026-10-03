@@ -1,8 +1,6 @@
-﻿using Microsoft.IdentityModel.Tokens;
 using Middagsasen.Planner.Api.Services.Authentication;
-using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Headers;
 using System.Security.Claims;
-using System.Text;
 
 namespace Middagsasen.Planner.Api.Authentication
 {
@@ -11,62 +9,70 @@ namespace Middagsasen.Planner.Api.Authentication
         string Secret { get; }
     }
 
+    /// <summary>
+    /// Leser <c>Authorization: Bearer &lt;token&gt;</c> og legger innlogget bruker i <c>HttpContext.Items["User"]</c>.
+    /// Mangler eller ugyldig token gir en anonym forespørsel (<see cref="AuthorizeAttribute"/> gir da 401).
+    /// Andre feil, f.eks. databasefeil ved oppslag av sesjonen, bobler videre til <see cref="ExceptionHandlingMiddleware"/>.
+    /// </summary>
     public class JwtMiddleware
     {
-        private readonly RequestDelegate _next;
-        private readonly IAuthSettings _authSettings;
+        private const string BearerScheme = "Bearer";
 
-        public JwtMiddleware(RequestDelegate next, IAuthSettings appSettings)
+        private readonly RequestDelegate _next;
+        private readonly ILogger<JwtMiddleware> _logger;
+
+        public JwtMiddleware(RequestDelegate next, ILogger<JwtMiddleware> logger)
         {
             _next = next;
-            _authSettings = appSettings;
+            _logger = logger;
         }
 
-        public async Task Invoke(HttpContext context, IAuthenticationService userService)
+        /// <remarks>
+        /// <see cref="ISessionTokens"/> hentes per forespørsel i stedet for i konstruktøren. Middleware-konstruktøren
+        /// kjører når pipelinen bygges, også under build-time-genereringen av OpenAPI, der hemmeligheten mangler
+        /// og <see cref="SessionTokens"/> ikke kan lages.
+        /// </remarks>
+        public async Task Invoke(HttpContext context, ISessionTokens sessionTokens, IAuthenticationService userService)
         {
-            var token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-
+            var token = ReadBearerToken(context.Request);
             if (token != null)
-                await AttachUserToContext(context, userService, token);
+                await AttachUserToContext(context, sessionTokens, userService, token);
             await _next(context);
         }
 
-        private async Task AttachUserToContext(HttpContext context, IAuthenticationService userService, string token)
+        /// <summary>Henter tokenet fra headeren hvis den er på formen <c>Bearer &lt;token&gt;</c>, ellers <c>null</c>.</summary>
+        private static string? ReadBearerToken(HttpRequest request)
         {
-            try
+            var header = request.Headers.Authorization.FirstOrDefault();
+            if (!AuthenticationHeaderValue.TryParse(header, out var value)) return null;
+            if (!string.Equals(value.Scheme, BearerScheme, StringComparison.OrdinalIgnoreCase)) return null;
+            return string.IsNullOrWhiteSpace(value.Parameter) ? null : value.Parameter;
+        }
+
+        private async Task AttachUserToContext(HttpContext context, ISessionTokens sessionTokens, IAuthenticationService userService, string token)
+        {
+            if (sessionTokens.ReadSessionId(token) is not { } sessionId)
             {
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var key = Encoding.ASCII.GetBytes(_authSettings.Secret);
-                tokenHandler.ValidateToken(token, new TokenValidationParameters
+                // Logg aldri selve tokenet.
+                _logger.LogInformation("Ugyldig eller utløpt token. Forespørselen behandles som anonym.");
+                return;
+            }
+
+            if (await userService.GetUserBySessionId(sessionId) is not { } user)
+            {
+                _logger.LogInformation("Fant ingen sesjon for tokenet (logget ut eller slettet). Forespørselen behandles som anonym.");
+                return;
+            }
+
+            context.Items["User"] = user;
+            context.User = new ClaimsPrincipal(new ClaimsIdentity(
+                new[]
                 {
-                    ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(key),
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
-                    ClockSkew = TimeSpan.Zero
-                }, out SecurityToken validatedToken);
-
-                var jwtToken = (JwtSecurityToken)validatedToken;
-                var sessionIdString = jwtToken.Claims.First(x => x.Type == "id").Value;
-                var sessionId = Guid.Parse(sessionIdString);
-
-                var actor = await userService.GetUserBySessionId(sessionId);
-                if (actor is not { } user) return;
-
-                context.Items["User"] = user;
-                context.User = new ClaimsPrincipal(new ClaimsIdentity(
-                    new[]
-                    {
-                        new Claim(ClaimTypes.Sid, user.UserId.ToString(), ClaimValueTypes.Integer),
-                        new Claim(ClaimTypes.Role, user.IsAdmin ? Roles.Administrator : Roles.User, ClaimValueTypes.String),
-                        new Claim(ClaimTypes.Authentication, sessionIdString, ClaimValueTypes.String)
-                    },
-                    "Password", ClaimTypes.Name, ClaimTypes.Role));
-            }
-            catch
-            {
-
-            }
+                    new Claim(ClaimTypes.Sid, user.UserId.ToString(), ClaimValueTypes.Integer),
+                    new Claim(ClaimTypes.Role, user.IsAdmin ? Roles.Administrator : Roles.User, ClaimValueTypes.String),
+                    new Claim(ClaimTypes.Authentication, sessionId.ToString(), ClaimValueTypes.String)
+                },
+                "Password", ClaimTypes.Name, ClaimTypes.Role));
         }
     }
 }
