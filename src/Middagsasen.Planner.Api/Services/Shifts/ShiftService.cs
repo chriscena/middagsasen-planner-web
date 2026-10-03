@@ -15,7 +15,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal const string DuplicateMessage = "Brukeren står allerede på denne vakta.";
         internal const string InvalidTimesMessage = "Tidene må ligge innenfor vaktas tider, og start kan ikke være etter slutt.";
         internal const string NoTrainingMessage = "Denne vakttypen har ikke opplæring.";
-        internal const string HasWorkHoursMessage = "Vakta har registrerte timer og kan ikke fjernes.";
         internal const string NegativeMinimumStaffMessage = "Minimum bemanning kan ikke være negativ.";
         internal const string SmsFailedWarning = "Endringen er lagret, men SMS til trenerne kunne ikke sendes. Gi beskjed til en trener direkte.";
 
@@ -182,10 +181,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return await BuildResult(resourceId, training.ResourceTypeTrainingId, warnings);
         }
 
-        /// <summary>
-        /// Sletter vakta. En vakt med registrerte timer kan ikke slettes (<see cref="ShiftRuleViolation.HasWorkHours"/>);
-        /// sjekken gjøres mot ferske data inne i låsen, og fremmednøkkelen fanges i repositoriet som en siste sikring.
-        /// </summary>
         public async Task<ShiftResult> Withdraw(int shiftId)
         {
             var actor = CurrentUser.ToActor();
@@ -317,7 +312,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 case ShiftRuleViolation.Full: throw new DomainValidationException(FullMessage);
                 case ShiftRuleViolation.Duplicate: throw new DomainValidationException(DuplicateMessage);
                 case ShiftRuleViolation.InvalidTimes: throw new DomainValidationException(InvalidTimesMessage);
-                case ShiftRuleViolation.HasWorkHours: throw new DomainValidationException(HasWorkHoursMessage);
                 default: throw new ArgumentOutOfRangeException(nameof(violation), violation, null);
             }
         }

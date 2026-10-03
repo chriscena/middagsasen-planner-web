@@ -26,7 +26,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Setter opplæringen til eieren av vakta på ressursens ressurstype (eier, trener eller admin).</summary>
         Task<ShiftResult> SetTraining(int shiftId, SetTrainingRequest request);
 
-        /// <summary>Trekker eieren fra vakta (sletter den). En vakt med registrerte timer kan ikke slettes (400).</summary>
+        /// <summary>Trekker eieren fra vakta (sletter den).</summary>
         Task<ShiftResult> Withdraw(int shiftId);
 
         /// <summary>

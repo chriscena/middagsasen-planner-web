@@ -4315,8 +4315,6 @@ export interface components {
             workHourId: number;
             /** Format: int32 */
             userId: number;
-            /** Format: int32 */
-            shiftId?: null | number;
             /** Format: date-time */
             startTime?: null | string;
             /** Format: date-time */

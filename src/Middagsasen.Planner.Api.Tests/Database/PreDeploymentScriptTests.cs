@@ -310,7 +310,10 @@ namespace Middagsasen.Planner.Api.Tests.Database
 
         // --- Duplikate vakter ---
 
-        /// <summary>Lager EventResourceUsers og WorkHours uten den unike indeksen, slik tabellene ser ut før deploy.</summary>
+        /// <summary>
+        /// Lager EventResourceUsers og WorkHours uten den unike indeksen, slik tabellene ser ut før deploy. Fremmednøkkelen
+        /// FK_WorkHours_Users_ShiftId finnes fortsatt når pre-deploy kjører (sqlpackage dropper den etterpå).
+        /// </summary>
         private static async Task CreateShiftTables(string connectionString)
         {
             await Execute(connectionString, """
@@ -343,7 +346,7 @@ namespace Middagsasen.Planner.Api.Tests.Database
         }
 
         [Fact]
-        public async Task RemovesDuplicateShifts_KeepingOldest_AndMovesWorkHours()
+        public async Task RemovesDuplicateShifts_KeepingOldest_AndClearsWorkHourShiftId()
         {
             var connectionString = await CreateDatabase();
             await CreateShiftTables(connectionString);
@@ -370,7 +373,8 @@ namespace Middagsasen.Planner.Api.Tests.Database
                 while (await reader.ReadAsync())
                     workHourShifts.Add(reader.IsDBNull(0) ? null : reader.GetInt32(0));
             }
-            Assert.Equal([1, 1, 3, null], workHourShifts);
+            // Timeføringer som pekte på en slettet vakt, mister koblingen (ShiftId er ubrukt); de andre står urørt.
+            Assert.Equal([null, null, 3, null], workHourShifts);
 
             // Den unike indeksen kan nå opprettes.
             await Execute(connectionString, "CREATE UNIQUE INDEX UQ_EventResourceUsers_EventResourceId_UserId ON EventResourceUsers (EventResourceId, UserId)");

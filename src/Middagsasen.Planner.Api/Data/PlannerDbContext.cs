@@ -409,14 +409,6 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.ModifiedBy)
                     .OnDelete(DeleteBehavior.NoAction)
                     .HasConstraintName("FK_WorkHours_Users_ModifiedBy");
-
-                // Uten cascade: en vakt med timeføringer kan ikke slettes (ShiftRules.CheckWithdraw).
-                // Navnet (fra databaseprosjektet) brukes av ShiftRepository for å kjenne igjen bruddet.
-                entity.HasOne(e => e.Shift)
-                    .WithMany(s => s.WorkHours)
-                    .HasForeignKey(d => d.ShiftId)
-                    .OnDelete(DeleteBehavior.NoAction)
-                    .HasConstraintName("FK_WorkHours_Users_ShiftId");
             });
 
         }

@@ -4,8 +4,8 @@ CREATE TABLE WorkHours
   constraint PK_WorkHours PRIMARY key(WorkHourId),
   UserId INT not null,
   constraint FK_WorkHours_Users_UserId foreign key (UserId) REFERENCES Users(UserId),
+  -- Ubrukt: timer registreres uten kobling til vakt. Kolonnen kan fjernes senere.
   ShiftId INT null,
-  constraint FK_WorkHours_Users_ShiftId foreign key (ShiftId) REFERENCES EventResourceUsers(EventResourceUserId),
   StartTime DATETIME not null, 
   EndTime DATETIME null,
   Description NVARCHAR(max) null,

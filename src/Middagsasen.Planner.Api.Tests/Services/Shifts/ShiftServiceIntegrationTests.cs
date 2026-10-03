@@ -1063,63 +1063,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             await Assert.ThrowsAsync<EntityNotFoundException>(() => CreateService(context, user.UserId).Withdraw(999999));
         }
 
-
-        private static async Task SeedWorkHour(PlannerDbContext context, EventResourceUser shift)
-        {
-            context.WorkHours.Add(new WorkHour { UserId = shift.UserId, ShiftId = shift.EventResourceUserId, StartTime = ResourceStart, EndTime = ResourceEnd });
-            await context.SaveChangesAsync();
-        }
-
-        [Theory]
-        [InlineData(false)]
-        [InlineData(true)]
-        public async Task Withdraw_ThrowsDomainValidation_WhenShiftHasWorkHours_AlsoForAdmin(bool isAdmin)
-        {
-            using var seed = _fixture.CreateContext();
-            var owner = await SeedUser(seed);
-            var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed);
-            var shift = await SeedShift(seed, resource, owner.UserId);
-            await SeedWorkHour(seed, shift);
-            var actorId = isAdmin ? admin.UserId : owner.UserId;
-
-            using (var context = _fixture.CreateContext())
-            {
-                var ex = await Assert.ThrowsAsync<DomainValidationException>(
-                    () => CreateService(context, actorId, isAdmin).Withdraw(shift.EventResourceUserId));
-                Assert.Equal(ShiftService.HasWorkHoursMessage, ex.Message);
-            }
-            Assert.Single(await GetShifts(resource.EventResourceId));
-
-            // Flagget stemmer med håndhevelsen.
-            using var readContext = _fixture.CreateContext();
-            var mapper = await CreateService(readContext, actorId, isAdmin).CreateResourceMapper();
-            var mapped = mapper.Map((await new ShiftRepository(readContext).GetResource(resource.EventResourceId))!);
-            Assert.False(Assert.Single(mapped.Shifts).CanWithdraw);
-        }
-
-        [Fact]
-        public async Task Withdraw_ThrowsDomainValidation_WhenWorkHoursAreRegisteredConcurrently()
-        {
-            using var seed = _fixture.CreateContext();
-            var owner = await SeedUser(seed);
-            var resource = await SeedResource(seed);
-            var shift = await SeedShift(seed, resource, owner.UserId);
-
-            // Timeføringen settes inn i samme transaksjon rett før slettingen, så det er fremmednøkkelen som stopper den.
-            PlannerDbContext context = null!;
-            var interceptor = new BeforeSaveInterceptor(() => context.Database.ExecuteSqlInterpolatedAsync(
-                $"insert into WorkHours (UserId, ShiftId, StartTime) values ({owner.UserId}, {shift.EventResourceUserId}, {ResourceStart})"));
-            context = _fixture.CreateContext(interceptor);
-            using var _ = context;
-
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(
-                () => CreateService(context, owner.UserId).Withdraw(shift.EventResourceUserId));
-
-            Assert.Equal(ShiftService.HasWorkHoursMessage, ex.Message);
-            Assert.Single(await GetShifts(resource.EventResourceId));
-        }
-
         #endregion
 
         #region MinimumStaff

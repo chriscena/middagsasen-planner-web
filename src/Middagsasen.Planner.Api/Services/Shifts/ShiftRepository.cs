@@ -11,9 +11,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Navnet på den unike indeksen på ResourceTypeTrainings(UserId, ResourceTypeId).</summary>
         public const string UniqueTrainingIndexName = "UQ_ResourceTypeTrainings_UserId_ResourceTypeId";
 
-        /// <summary>Navnet på fremmednøkkelen WorkHours.ShiftId → EventResourceUsers (uten cascade).</summary>
-        public const string WorkHoursShiftForeignKeyName = "FK_WorkHours_Users_ShiftId";
-
         public ShiftRepository(PlannerDbContext dbContext)
         {
             DbContext = dbContext;
@@ -29,7 +26,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         [
             Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Trainings)),
             Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Competencies)),
-            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.WorkHours)),
             Path(nameof(EventResource.ResourceType), nameof(ResourceType.Trainers), nameof(ResourceTypeTrainer.User)),
             Path(nameof(EventResource.ResourceType), nameof(ResourceType.Files)),
             Path(nameof(EventResource.ResourceType), nameof(ResourceType.RequiredCompetencies), nameof(ResourceTypeCompetency.Competency)),
@@ -139,7 +135,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             {
                 await DbContext.SaveChangesAsync();
             }
-            // Både SQL Server og PostgreSQL tar med navnet på indeksen/fremmednøkkelen i feilmeldingen, så dette er databaseuavhengig.
+            // Både SQL Server og PostgreSQL tar med indeksnavnet i feilmeldingen, så dette er databaseuavhengig.
             catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(UniqueShiftIndexName) == true)
             {
                 throw new DomainValidationException(ShiftService.DuplicateMessage);
@@ -147,10 +143,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(UniqueTrainingIndexName) == true)
             {
                 throw new TrainingConflictException(ex);
-            }
-            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(WorkHoursShiftForeignKeyName) == true)
-            {
-                throw new DomainValidationException(ShiftService.HasWorkHoursMessage);
             }
         }
     }

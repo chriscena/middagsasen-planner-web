@@ -50,7 +50,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>Lagrer endringer.</summary>
         /// <exception cref="DomainValidationException">
-        /// Brukeren står allerede på ressursen (unik indeks, samtidig påmelding), eller vakta som slettes har registrerte timer.
+        /// Brukeren står allerede på ressursen (unik indeks, samtidig påmelding).
         /// </exception>
         /// <exception cref="TrainingConflictException">Opplæringsraden ble opprettet av en samtidig forespørsel (unik indeks).</exception>
         Task SaveChangesAsync();

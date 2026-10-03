@@ -4,8 +4,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     /// <param name="ShiftId">Id til vakta (EventResourceUserId).</param>
     /// <param name="UserId">Eieren av vakta.</param>
     /// <param name="NeedsTraining">Om eieren har bedt om opplæring på ressursens ressurstype (TrainingComplete = false).</param>
-    /// <param name="HasWorkHours">Om det er registrert timer (WorkHours.ShiftId) på vakta.</param>
-    public sealed record ShiftFacts(int ShiftId, int UserId, bool NeedsTraining, bool HasWorkHours = false);
+    public sealed record ShiftFacts(int ShiftId, int UserId, bool NeedsTraining);
 
     /// <summary>Fakta om en ressurs og vaktene på den, slik <see cref="ShiftRules"/> ser den.</summary>
     /// <param name="StartTime">Ressursens start, norsk lokal tid.</param>
@@ -36,8 +35,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Duplicate,
         /// <summary>Vaktens tider ligger utenfor ressursens tider, eller start er etter slutt.</summary>
         InvalidTimes,
-        /// <summary>Vakta har registrerte timer og kan ikke slettes, heller ikke av admin.</summary>
-        HasWorkHours,
     }
 
     /// <summary>
@@ -57,7 +54,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     /// <item>Opplæring (<see cref="CheckSetTraining"/>) kan settes av eieren, en trener for ressurstypen eller admin.</item>
     /// <item>Samme bruker kan aldri stå to ganger på samme ressurs, heller ikke når admin setter opp.</item>
     /// <item>Vaktens tider må ligge innenfor ressursens tider.</item>
-    /// <item>En vakt med registrerte timer kan ikke slettes, heller ikke av admin.</item>
     /// </list>
     /// </para>
     /// Alle tider (ressursens tider, vaktens tider og <c>now</c>) er norsk lokal tid uten tidssone.
@@ -193,10 +189,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         // --- Trekke seg ---
 
-        /// <summary>
-        /// Trekke seg fra / slette en vakt: admin, eller eieren før ressursen er avsluttet. Ingen kan slette en vakt
-        /// med registrerte timer (timeføringen peker på vakta).
-        /// </summary>
+        /// <summary>Trekke seg fra / slette en vakt: admin, eller eieren før ressursen er avsluttet.</summary>
         public static ShiftRuleViolation? CheckWithdraw(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
         {
             if (!actor.IsAdmin)
@@ -204,7 +197,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 if (shift.UserId != actor.UserId) return ShiftRuleViolation.Forbidden;
                 if (IsPast(resource, now)) return ShiftRuleViolation.Past;
             }
-            if (shift.HasWorkHours) return ShiftRuleViolation.HasWorkHours;
             return null;
         }
 

@@ -6592,13 +6592,6 @@
             "type": "integer",
             "format": "int32"
           },
-          "shiftId": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
-          },
           "startTime": {
             "type": [
               "null",
