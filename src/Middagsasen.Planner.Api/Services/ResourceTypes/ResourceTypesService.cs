@@ -2,23 +2,20 @@ using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Storage;
 
 namespace Middagsasen.Planner.Api.Services.ResourceTypes
 {
     public class ResourceTypesService : IResourceTypesService
     {
-        public ResourceTypesService(PlannerDbContext dbContext, ISmsSender smsSender, IStorageService storage, ICurrentUserService currentUser)
+        public ResourceTypesService(PlannerDbContext dbContext, IStorageService storage, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
-            SmsSender = smsSender;
             Storage = storage;
             CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
-        public ISmsSender SmsSender { get; }
         public IStorageService Storage { get; }
         public ICurrentUserService CurrentUser { get; }
 
@@ -107,108 +104,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return Map(resourceType);
         }
 
-        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
-        {
-            if (!request.TrainingCompleted.HasValue) return null;
-
-            await EnsureCanManageTraining(resourceTypeId, request.UserId);
-
-            var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
-            {
-                UserId = request.UserId,
-                ResourceTypeId = resourceTypeId,
-                TrainingComplete = request.TrainingCompleted,
-                Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow,
-                ConfirmedBy = !request.TrainingCompleted.Value ? null : CurrentUser.UserId,
-            }).Entity;
-
-            await DbContext.SaveChangesAsync();
-
-            if (request.TrainingCompleted.Value) return Map(training);
-
-            var user = await DbContext.Users
-                .SingleAsync(u => u.UserId == request.UserId);
-
-            var resourceType = await DbContext.ResourceTypes
-                .SingleAsync(t => t.ResourceTypeId == resourceTypeId);
-
-            var trainers = await DbContext.ResourceTypeTrainers
-                .Include(t => t.User)
-                .AsNoTracking()
-                .Where(t => t.ResourceTypeId == resourceTypeId)
-                .ToListAsync();
-
-            var body = $"Hei {{0}}! {MapFullName(user.FirstName, user.LastName)} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {request.StartTime.ToString("dd'.'MM'.'yyyy")}.";
-
-            var messages = new List<SmsMessage>();
-
-            foreach (var trainer in trainers)
-            {
-                var message = new SmsMessage
-                {
-                    ReceiverPhoneNo = trainer.User.UserName.ToNumericPhoneNo(),
-                    Body = string.Format(body, trainer.User.FirstName),
-                };
-                messages.Add(message);
-            }
-
-            if (messages.Any())
-                await SmsSender.SendMessages(messages);
-            return Map(training);
-        }
-
-        public async Task<TrainingResponse?> UpdateTraining(int resourceTypeId, TrainingRequest request)
-        {
-            if (!request.TrainingCompleted.HasValue || request.Id is not { } trainingId) return null;
-
-            var training = await DbContext.ResourceTypeTrainings.SingleOrDefaultAsync(t => t.ResourceTypeTrainingId == trainingId)
-                ?? throw new EntityNotFoundException("Fant ikke opplæringen.");
-
-            // Tilgangen avgjøres ut fra den lagrede opplæringen, ikke ut fra verdiene i forespørselen.
-            await EnsureCanManageTraining(training.ResourceTypeId, training.UserId);
-
-            if (request.UserId != training.UserId || request.ResourceTypeId != training.ResourceTypeId || resourceTypeId != training.ResourceTypeId)
-                throw new DomainValidationException("Opplæringen tilhører en annen bruker eller ressurstype.");
-
-            training.TrainingComplete = request.TrainingCompleted;
-            training.Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow;
-            training.ConfirmedBy = !request.TrainingCompleted.Value ? null : CurrentUser.UserId;
-
-            await DbContext.SaveChangesAsync();
-
-            if (request.TrainingCompleted.Value) return Map(training);
-
-            var user = await DbContext.Users
-                .SingleAsync(u => u.UserId == request.UserId);
-
-            var resourceType = await DbContext.ResourceTypes
-                .SingleAsync(t => t.ResourceTypeId == resourceTypeId);
-
-            var trainers = await DbContext.ResourceTypeTrainers
-                .Include(t => t.User)
-                .AsNoTracking()
-                .Where(t => t.ResourceTypeId == resourceTypeId)
-                .ToListAsync();
-
-            var body = $"Hei {{0}}! {MapFullName(user.FirstName, user.LastName)} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {request.StartTime.ToString("dd'.'MM'.'yyyy")}.";
-
-            var messages = new List<SmsMessage>();
-
-            foreach (var trainer in trainers)
-            {
-                var message = new SmsMessage
-                {
-                    ReceiverPhoneNo = trainer.User.UserName.ToNumericPhoneNo(),
-                    Body = string.Format(body, trainer.User.FirstName),
-                };
-                messages.Add(message);
-            }
-
-            if (messages.Any())
-                await SmsSender.SendMessages(messages);
-            return Map(training);
-        }
-
         public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
         {
             request.UserId = CurrentUser.UserId;
@@ -274,32 +169,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             var responseFile = DbContext.Remove(fileToDelete);
             await DbContext.SaveChangesAsync();
         }
-
-        /// <summary>
-        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan sette opplæring
-        /// for brukeren på ressurstypen (se <see cref="TrainingPolicy.CanManage"/>).
-        /// </summary>
-        private async Task EnsureCanManageTraining(int resourceTypeId, int userId)
-        {
-            var actor = CurrentUser.ToActor();
-
-            var isTrainer = await DbContext.ResourceTypeTrainers
-                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == actor.UserId);
-
-            if (!TrainingPolicy.CanManage(actor, userId, isTrainer))
-                throw new ForbiddenAccessException();
-        }
-
-        private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
-        {
-            Id = training.ResourceTypeTrainingId,
-            ResourceTypeId = training.ResourceTypeId,
-            ResourceTypeName = training.ResourceType?.Name,
-            TrainingComplete = training.TrainingComplete,
-            Confirmed = training.Confirmed?.ToSimpleIsoString(),
-            ConfirmedById = training.ConfirmedBy,
-            ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
-        };
 
         private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
         {

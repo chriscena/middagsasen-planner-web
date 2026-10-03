@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.Design;
-using System.Data;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
 
@@ -88,17 +86,6 @@ namespace Middagsasen.Planner.Api.Controllers
             return await EventsService.DeleteEvent(id);
         }
 
-        [HttpPost("api/resources/{id}/shifts")]
-        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> Create(int id, [FromBody] ShiftRequest request)
-        {
-            var response = await EventsService.AddShift(id, request);
-            return Created($"/api/shifts/{response.Id}", response);
-        }
-
         [HttpPost("api/resources/{id}/messages")]
         [ProducesResponseType(typeof(MessageResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -116,35 +103,6 @@ namespace Middagsasen.Planner.Api.Controllers
         public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
         {
             return await EventsService.DeleteMessage(id, eventResourceId);
-        }
-
-        [HttpPut("api/shifts/{id}")]
-        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<ShiftResponse> UpdateShift(int id, [FromBody] ShiftRequest request)
-        {
-            return await EventsService.UpdateShift(id, request);
-        }
-
-        [HttpDelete("api/shifts/{id}")]
-        [ProducesResponseType(typeof(ShiftResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<ShiftResponse> DeleteShift(int id)
-        {
-            return await EventsService.DeleteShift(id);
-        }
-
-        [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
-        [Authorize(Role = Roles.Administrator)]
-        [ProducesResponseType(typeof(MinimumStaffResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<MinimumStaffResponse> Update(int eventResourceId, MinimumStaffRequest request)
-        {
-            return await EventsService.UpdateMinimumStaff(eventResourceId, request);
         }
     }
 }

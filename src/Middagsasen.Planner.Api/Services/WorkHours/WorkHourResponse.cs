@@ -4,7 +4,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
     {
         public int WorkHourId { get; internal set; }
         public int UserId { get; set; }
-        public int? ShiftId { get; set; }
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
         public decimal? Hours { get; set; }

@@ -1,9 +1,8 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays } from "date-fns";
-import type { AxiosResponse } from "axios";
 import { api } from "boot/axios";
-import { useUserStore } from "src/stores/UserStore";
 import type {
+  ChangeShiftRequest,
   EventFromTemplateRequest,
   EventRequest,
   EventResponse,
@@ -14,16 +13,13 @@ import type {
   MessageRequest,
   MessageResponse,
   MinimumStaffRequest,
-  MinimumStaffResponse,
   ResourceResponse,
   ResourceTypeRequest,
   ResourceTypeResponse,
-  ShiftRequest,
-  ShiftResponse,
+  SetTrainingRequest,
+  ShiftResult,
+  SignUpRequest,
   TemplateFromEventRequest,
-  TrainingRequest,
-  TrainingResponse,
-  UserResponse,
 } from "src/types";
 
 interface EventState {
@@ -33,11 +29,10 @@ interface EventState {
   templates: EventTemplateResponse[];
   // Dato (yyyy-MM-dd) -> om vaktlistene den dagen mangler mannskap.
   eventStatuses: Record<string, boolean>;
+  // Siste periode hentet med getEventsForDates (det kalenderen viser), så
+  // events kan hentes på nytt etter en endring som påvirker flere ressurser.
+  eventsRange: { start: string; end: string } | null;
 }
-
-// Opplæringsstatus slik EventItemCard sender den: enten en TrainingResponse
-// fra brukeren eller en tom plassholder ({ id: 0, trainingComplete: null }).
-type ShiftTraining = Pick<TrainingResponse, "id" | "trainingComplete">;
 
 // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
 // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
@@ -50,6 +45,7 @@ export const useEventStore = defineStore("events", {
     resourceTypes: [],
     templates: [],
     eventStatuses: {},
+    eventsRange: null,
   }),
   getters: {
     getEventsForDate:
@@ -81,6 +77,7 @@ export const useEventStore = defineStore("events", {
       const endDate = encodeURI(
         formatISO(addDays(parseISO(end), 1), { representation: "date" })
       );
+      this.eventsRange = { start, end };
       const request = ++latestEventsRequest;
       const response = await api.get<EventResponse[]>(
         `/api/events?start=${startDate}&end=${endDate}`
@@ -146,142 +143,82 @@ export const useEventStore = defineStore("events", {
       );
       this.resourceTypes = response.data;
     },
-    async addTraining(
-      resource: ResourceResponse,
-      user: Pick<UserResponse, "id">,
-      needTraining: boolean
-    ): Promise<void> {
-      const model: TrainingRequest = {
-        userId: user.id,
-        resourceTypeId: resource.resourceType.id,
-        startTime: resource.startTime,
-        trainingCompleted: !needTraining,
-      };
-      await api.post(
-        `/api/resourcetypes/${resource.resourceType.id}/training`,
-        model
+    // --- Vakter ---
+    // Alle skriveoperasjonene returnerer ShiftResult med hele ressursen etter
+    // endringen (med flagg for innlogget bruker). Svaret legges i cachen med
+    // applyShiftResult og returneres, så komponenten kan vise warnings.
+
+    // Ta vakt. userId utelatt/null = innlogget bruker (annen bruker kun admin).
+    async signUp(
+      resourceId: number,
+      request: SignUpRequest
+    ): Promise<ShiftResult> {
+      const response = await api.post<ShiftResult>(
+        `/api/resources/${resourceId}/shifts`,
+        request
       );
-      const userStore = useUserStore();
-      userStore.getUser();
+      const result = response.data;
+      await this.applyShiftResult(result);
+      return result;
     },
-    async addShift(
-      parentResource: ResourceResponse,
-      user: Pick<UserResponse, "id">,
-      comment: string | null,
-      // undefined når vakttypen ikke har opplæring (checkTraining).
-      training?: ShiftTraining | null
-    ): Promise<void> {
-      const model: ShiftRequest = {
-        startTime: parentResource.startTime,
-        endTime: parentResource.endTime,
-        userId: user.id,
-        comment: comment,
-        training:
-          training?.trainingComplete == null
-            ? null
-            : {
-                id: training.id,
-                resourceTypeId: parentResource.resourceType.id,
-                userId: user.id,
-                startTime: parentResource.startTime,
-                trainingCompleted: training.trainingComplete,
-              },
-      };
-      const response = await api.post<ShiftResponse>(
-        `/api/resources/${parentResource.id}/shifts`,
-        model
+    // Endre tider, kommentar og (kun admin) eier. Endrer aldri opplæringen.
+    async changeShift(
+      shiftId: number,
+      request: ChangeShiftRequest
+    ): Promise<ShiftResult> {
+      const response = await api.put<ShiftResult>(
+        `/api/shifts/${shiftId}`,
+        request
       );
-
-      const newShift = response.data;
-
-      this.events.forEach((e) => {
-        const resource = e.resources.find(
-          (r) => r.id === newShift.eventResourceId
-        );
-        if (resource) {
-          resource.shifts.push(newShift);
-          return;
-        }
-      });
-
-      if (training?.trainingComplete != null) {
-        const userStore = useUserStore();
-        userStore.getUser();
+      const result = response.data;
+      await this.applyShiftResult(result);
+      return result;
+    },
+    // Sette opplæringen til eieren av vakta på ressursens ressurstype.
+    async setTraining(
+      shiftId: number,
+      trainingCompleted: boolean
+    ): Promise<ShiftResult> {
+      const response = await api.put<ShiftResult>(
+        `/api/shifts/${shiftId}/training`,
+        { trainingCompleted } satisfies SetTrainingRequest
+      );
+      const result = response.data;
+      await this.applyShiftResult(result);
+      return result;
+    },
+    // Trekke seg fra / slette vakta.
+    async withdraw(shiftId: number): Promise<ShiftResult> {
+      const response = await api.delete<ShiftResult>(`/api/shifts/${shiftId}`);
+      const result = response.data;
+      await this.applyShiftResult(result);
+      return result;
+    },
+    // Erstatter ressursen med samme id (i alle events) med svaret fra serveren.
+    // Object.assign, så objektet beholder identiteten: komponenter og dialoger
+    // som holder på ressursen (f.eks. selectedResource) ser de nye verdiene.
+    applyResource(updated: ResourceResponse): void {
+      for (const event of this.events) {
+        const resource = event.resources.find((r) => r.id === updated.id);
+        if (resource) Object.assign(resource, updated);
       }
     },
-    async deleteShift(shift: Pick<ShiftResponse, "id">): Promise<void> {
-      const response = await api.delete<ShiftResponse>(
-        `/api/shifts/${shift.id}`
-      );
-      const deletedShift = response.data;
-      this.events.forEach((e) => {
-        const resource = e.resources.find(
-          (r) => r.id === deletedShift.eventResourceId
+    // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
+    // opplæring endret (changedTraining), kan flaggene på andre ressurser av
+    // samme ressurstype (mustAnswerTraining, needsTraining, canConfirmTraining
+    // osv.) også være endret. De beregnes av serveren, så perioden kalenderen
+    // viser hentes på nytt. Operasjonen har lyktes uansett, så feil i
+    // hentingen ignoreres (cachen er da bare ikke oppdatert for de andre).
+    async applyShiftResult(result: ShiftResult): Promise<void> {
+      this.applyResource(result.resource);
+      if (!result.changedTraining || !this.eventsRange) return;
+      try {
+        await this.getEventsForDates(
+          this.eventsRange.start,
+          this.eventsRange.end
         );
-        if (resource) {
-          resource.shifts = resource.shifts.filter(
-            (u) => u.id !== deletedShift.id
-          );
-          return;
-        }
-      });
-    },
-    // shift er en redigert kopi fra EventItemCard; i admin-dialogen kan user
-    // være en UserResponse valgt i q-select, så kun feltene som leses kreves.
-    async updateShift(
-      parentResource: ResourceResponse,
-      shift: Pick<ShiftResponse, "id" | "startTime" | "endTime" | "comment"> & {
-        user: Pick<UserResponse, "id">;
-      },
-      training: ShiftTraining | null
-    ): Promise<void> {
-      console.log(shift);
-      // `?? null`: feltene er valgfrie i ShiftResponse, og med
-      // exactOptionalPropertyTypes kan ikke undefined tilordnes direkte. Backend
-      // sender alltid null fremfor å utelate feltet, så verdien er den samme.
-      const model: ShiftRequest = {
-        startTime: shift.startTime ?? null,
-        endTime: shift.endTime ?? null,
-        userId: shift.user.id,
-        comment: shift.comment ?? null,
-        training:
-          training?.trainingComplete == null
-            ? null
-            : {
-                id: training.id,
-                resourceTypeId: parentResource.resourceType.id,
-                userId: shift.user.id,
-                startTime: parentResource.startTime,
-                trainingCompleted: training.trainingComplete,
-              },
-      };
-      const response = await api.put<ShiftResponse>(
-        `/api/shifts/${shift.id}`,
-        model
-      );
-      const updatedShift = response.data;
-      this.events.forEach((e) => {
-        const resource = e.resources.find(
-          (r) => r.id === updatedShift.eventResourceId
-        );
-        if (resource) {
-          // Non-null assertion bevarer JS-atferden: kaster hvis vakten ikke
-          // finnes lokalt.
-          const shiftToUpdate = resource.shifts.find(
-            (s) => s.id === updatedShift.id
-          )!;
-          shiftToUpdate.user = updatedShift.user;
-          shiftToUpdate.startTime = updatedShift.startTime ?? null;
-          shiftToUpdate.endTime = updatedShift.endTime ?? null;
-          shiftToUpdate.comment = updatedShift.comment ?? null;
-          shiftToUpdate.needsTraining = updatedShift.needsTraining;
-          return;
-        }
-      });
-
-      if (training?.trainingComplete != null) {
-        const userStore = useUserStore();
-        userStore.getUser();
+      } catch (error) {
+        console.error(error);
       }
     },
     async getTemplates(): Promise<void> {
@@ -373,15 +310,18 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${message.eventResourceId}/messages/${message.id}`
       );
     },
-    // Returnerer hele axios-responsen (kallerne leser res.data). eventResourceId
-    // sendes også i body, men brukes kun i URL-en.
+    // Kun admin. Svaret er hele ressursen med flagg (isMissingStaff, isFull
+    // osv.), som legges i cachen via applyResource og returneres.
     async patchMinimumStaff(
-      model: MinimumStaffRequest & { eventResourceId: number }
-    ): Promise<AxiosResponse<MinimumStaffResponse>> {
-      return await api.patch<MinimumStaffResponse>(
-        `/api/resources/${model.eventResourceId}/minimumStaff`,
-        model
+      eventResourceId: number,
+      minimumStaff: number
+    ): Promise<ResourceResponse> {
+      const response = await api.patch<ResourceResponse>(
+        `/api/resources/${eventResourceId}/minimumStaff`,
+        { minimumStaff } satisfies MinimumStaffRequest
       );
+      this.applyResource(response.data);
+      return response.data;
     },
   },
 });

@@ -2,7 +2,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Services.ResourceTypes;
+using Middagsasen.Planner.Api.Services.Shifts;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
@@ -11,15 +11,15 @@ namespace Middagsasen.Planner.Api.Services.Events
         internal const string MessageEmptyMessage = "Beskjeden kan ikke være tom.";
         internal static readonly string MessageTooLongMessage = $"Beskjeden kan ikke være lengre enn {MessageRequest.MaxLength} tegn.";
 
-        public EventsService(PlannerDbContext dbContext, IResourceTypesService resourceTypesService, ICurrentUserService currentUser)
+        public EventsService(PlannerDbContext dbContext, IShiftService shiftService, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
-            ResourceTypesService = resourceTypesService;
+            ShiftService = shiftService;
             CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
-        public IResourceTypesService ResourceTypesService { get; }
+        public IShiftService ShiftService { get; }
         public ICurrentUserService CurrentUser { get; }
 
         public async Task<IEnumerable<EventStatusResponse>> GetEventStatuses(int month, int year)
@@ -42,38 +42,18 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
-        private IQueryable<Event> Events => DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                            .ThenInclude(u =>u.Trainings)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                            .ThenInclude(u => u.Competencies)
-                                .ThenInclude(uc => uc.Competency)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.Trainers)
-                            .ThenInclude(t => t.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.Files)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.RequiredCompetencies)
-                            .ThenInclude(rc => rc.Competency)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Messages)
-                        .ThenInclude(t => t.CreatedByUser);
+        /// <summary>Events med alt <see cref="ResourceMapper"/> trenger for ressursene.</summary>
+        private IQueryable<Event> Events => ShiftRepository.WithMappingIncludes(DbContext.Events);
 
         public async Task<IEnumerable<EventResponse>> GetEvents()
         {
             var events = await Events
                 .AsNoTracking()
+                .AsSplitQuery()
                 .ToListAsync();
 
-            return events.Select(Map).ToList();
+            var mapper = await ShiftService.CreateResourceMapper();
+            return events.Select(mapper.Map).ToList();
         }
 
         public async Task<IEnumerable<EventResponse>> GetEvents(DateTime start, DateTime end)
@@ -84,17 +64,20 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .AsSplitQuery()
                 .ToListAsync();
 
-            return events.Select(Map).ToList();
+            var mapper = await ShiftService.CreateResourceMapper();
+            return events.Select(mapper.Map).ToList();
         }
 
         public async Task<EventResponse> GetEventById(int id)
         {
             var existingEvent = await Events
                 .AsNoTracking()
+                .AsSplitQuery()
                 .SingleOrDefaultAsync(e => e.EventId == id)
                 ?? throw new EntityNotFoundException("Kunne ikke finne vakt.");
 
-            return Map(existingEvent);
+            var mapper = await ShiftService.CreateResourceMapper();
+            return mapper.Map(existingEvent);
         }
 
         public async Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id)
@@ -180,11 +163,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
             await DbContext.SaveChangesAsync();
 
-            var response = await Events
-            .SingleOrDefaultAsync(e => e.EventId == eventId)
-            ?? throw new EntityNotFoundException();
-
-            return Map(response);
+            return await GetEventById(eventId);
         }
 
         public async Task<EventResponse> DeleteEvent(int id)
@@ -195,140 +174,15 @@ namespace Middagsasen.Planner.Api.Services.Events
             DbContext.Events.Remove(existingEvent);
 
             await DbContext.SaveChangesAsync();
-            return Map(existingEvent);
-        }
 
-        public async Task<ShiftResponse> AddShift(int eventResourceId, ShiftRequest request)
-        {
-            if (!ShiftPolicy.CanAdd(CurrentUser.ToActor(), request.UserId, request.Training?.UserId))
-                throw new ForbiddenAccessException();
-
-            await EnsureEventResourceExists(eventResourceId);
-
-            var newShift = new EventResourceUser
-            {
-                EventResourceId = eventResourceId,
-                UserId = request.UserId,
-                StartTime = request.StartTime,
-                EndTime = request.EndTime,
-                Comment = request.Comment,
-            };
-            DbContext.Shifts.Add(newShift);
-
-            await SaveShiftWithTraining(request.Training);
-
-            var responseShift = await DbContext.Shifts
-                .Include(s => s.Resource)
-                .Include(s => s.User)
-                    .ThenInclude(u => u.Trainings)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(s => s.EventResourceUserId == newShift.EventResourceUserId)
-                ?? throw new EntityNotFoundException();
-            return Map(responseShift);
-        }
-
-        /// <summary>
-        /// Oppdaterer en vakt. Tilgangsreglene er beskrevet i <see cref="ShiftPolicy.CanUpdate"/>.
-        /// </summary>
-        public async Task<ShiftResponse> UpdateShift(int id, ShiftRequest request)
-        {
-            var shift = await DbContext.Shifts
-                .Include(s => s.User)
-                .Include(s => s.Resource)
-                .SingleOrDefaultAsync(s => s.EventResourceUserId == id)
-                ?? throw new EntityNotFoundException();
-
-            // 0 betyr «behold eieren», slik at f.eks. en admin ikke tar over vakta ved et uhell.
-            if (request.UserId == 0) request.UserId = shift.UserId;
-
-            var canEditShift = await EnsureCanUpdateShift(shift, request);
-
-            if (canEditShift)
-            {
-                if (request.StartTime.HasValue)
-                    shift.StartTime = request.StartTime;
-
-                if (request.EndTime.HasValue)
-                    shift.EndTime = request.EndTime;
-
-                shift.UserId = request.UserId;
-                shift.Comment = request.Comment;
-            }
-
-            await SaveShiftWithTraining(request.Training);
-
-            var responseShift = await DbContext.Shifts
-                .Include(s => s.Resource)
-                .Include(s => s.User)
-                        .ThenInclude(u => u.Trainings)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(s => s.EventResourceUserId == shift.EventResourceUserId)
-                ?? throw new EntityNotFoundException();
-            return Map(responseShift);
-        }
-
-        /// <summary>
-        /// Lagrer ventende vaktendringer og eventuell opplæring i én transaksjon, slik at en feil i
-        /// opplæringen ikke etterlater en halvveis lagret vakt. Opplæring uten <c>TrainingCompleted</c>
-        /// ignoreres bevisst av <see cref="IResourceTypesService"/> — vakta lagres da uansett.
-        /// </summary>
-        private async Task SaveShiftWithTraining(TrainingRequest? training)
-        {
-            await using var transaction = await DbContext.Database.BeginTransactionAsync();
-
-            await DbContext.SaveChangesAsync();
-
-            if (training != null)
-            {
-                if (training.Id is null or 0)
-                    await ResourceTypesService.CreateTraining(training.ResourceTypeId, training);
-                else
-                    await ResourceTypesService.UpdateTraining(training.ResourceTypeId, training);
-            }
-
-            await transaction.CommitAsync();
-        }
-
-        /// <summary>
-        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan gjøre endringen
-        /// (se <see cref="ShiftPolicy.CanUpdate"/>). Returnerer <c>true</c> hvis selve vaktfeltene kan endres,
-        /// og <c>false</c> hvis bare opplæringen kan oppdateres (trener som ikke eier vakta).
-        /// </summary>
-        private async Task<bool> EnsureCanUpdateShift(EventResourceUser shift, ShiftRequest request)
-        {
-            var actor = CurrentUser.ToActor();
-            var resourceTypeId = shift.Resource.ResourceTypeId;
-
-            var isTrainer = await DbContext.ResourceTypeTrainers
-                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == actor.UserId);
-
-            var training = request.Training is { } tr ? (tr.UserId, tr.ResourceTypeId) : ((int, int)?)null;
-
-            return ShiftPolicy.CanUpdate(actor, shift.UserId, resourceTypeId, isTrainer, request.UserId, training) switch
-            {
-                ShiftUpdateAccess.Full => true,
-                ShiftUpdateAccess.TrainingOnly => false,
-                _ => throw new ForbiddenAccessException(),
-            };
+            var mapper = await ShiftService.CreateResourceMapper();
+            return mapper.Map(existingEvent);
         }
 
         private async Task EnsureEventResourceExists(int eventResourceId)
         {
             if (!await DbContext.EventResource.AnyAsync(er => er.EventResourceId == eventResourceId))
                 throw new EntityNotFoundException("Fant ikke vaktressursen.");
-        }
-
-        public async Task<ShiftResponse> DeleteShift(int id)
-        {
-            var shift = await DbContext.Shifts.Include(s => s.User).SingleOrDefaultAsync(s => s.EventResourceUserId == id)
-                ?? throw new EntityNotFoundException();
-            if (!ShiftPolicy.CanDelete(CurrentUser.ToActor(), shift))
-                throw new ForbiddenAccessException();
-
-            DbContext.Shifts.Remove(shift);
-            await DbContext.SaveChangesAsync();
-
-            return Map(shift);
         }
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
@@ -368,141 +222,6 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
-        private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
-        {
-            Id = training.ResourceTypeTrainingId,
-            ResourceTypeId = training.ResourceTypeId,
-            ResourceTypeName = training.ResourceType?.Name,
-            TrainingComplete = training.TrainingComplete,
-            Confirmed = training.Confirmed?.ToSimpleIsoString(),
-            ConfirmedById = training.ConfirmedBy,
-            ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
-        };
-
-        private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
-        {
-            Id = resourceType.ResourceTypeId,
-            Name = resourceType.Name,
-            DefaultStaff = resourceType.DefaultStaff,
-            NotificationMessage = resourceType.NotificationMessage,
-            HasTraining = resourceType.Trainers.Any(),
-            Trainers = resourceType.Trainers.Select(Map).ToList(),
-            Files = resourceType.Files.Select(Map).ToList(),
-        };
-            
-        private ResourceTypeTrainerResponse Map(ResourceTypeTrainer resourceTypeTrainer) => new ResourceTypeTrainerResponse
-        {
-            Id = resourceTypeTrainer.ResourceTypeTrainerId,
-            UserId = resourceTypeTrainer.UserId,
-            FullName = MapFullName(resourceTypeTrainer.User.FirstName, resourceTypeTrainer.User.LastName),
-            PhoneNo = resourceTypeTrainer.User.UserName,
-        };
-
-        private FileInfoResponse Map(ResourceTypeFile file) => new FileInfoResponse
-        {
-            Id = file.ResourceTypeFileId,
-            ResourceTypeId = file.ResourceTypeId,
-            FileName = file.FileName,
-            Description = file.Description,
-            MimeType = file.MimeType,
-            Created = file.Created.AsUtc().ToIsoString(),
-            CreatedBy = MapFullName(file.CreatedByUser?.FirstName, file.CreatedByUser?.LastName),
-            Updated = file.Updated.AsUtc().ToIsoString(),
-            UpdatedBy = MapFullName(file.UpdatedByUser?.FirstName, file.UpdatedByUser?.LastName),
-        };
-
-        private string MapFullName(string? firstName, string? lastName)
-        {
-            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
-        }
-
-        private EventResponse Map(Event evnt) => new EventResponse
-        {
-            Id = evnt.EventId,
-            Name = evnt.Name,
-            Description = evnt.Description,
-            StartTime = evnt.StartTime.ToSimpleIsoString(),
-            EndTime = evnt.EndTime.ToSimpleIsoString(),
-            Resources = evnt.Resources.Select(Map).OrderBy(r => r.ResourceType.Id).ThenBy(r => r.StartTime).ToList()
-        };
-
-        private ResourceResponse Map(EventResource resource) => new ResourceResponse
-        {
-            Id = resource.EventResourceId,
-            EventId = resource.EventId,
-            ResourceType = Map(resource.ResourceType),
-            StartTime = resource.StartTime.ToSimpleIsoString(),
-            EndTime = resource.EndTime.ToSimpleIsoString(),
-            MinimumStaff = resource.MinimumStaff,
-            Shifts = resource.Shifts.Select(Map).ToList(),
-            Messages = resource.Messages.Select(Map).ToList(),
-            CompetencyWarnings = GetCompetencyWarnings(resource),
-        };
-
-        private IEnumerable<CompetencyWarningResponse>? GetCompetencyWarnings(EventResource resource)
-        {
-            var requiredCompetencies = resource.ResourceType?.RequiredCompetencies;
-            if (requiredCompetencies == null || !requiredCompetencies.Any())
-                return null;
-
-            var now = DateTime.UtcNow;
-            var warnings = new List<CompetencyWarningResponse>();
-
-            foreach (var rc in requiredCompetencies)
-            {
-                if (rc.Competency == null) continue;
-
-                var count = resource.Shifts
-                    .Count(s => s.User?.Competencies != null &&
-                        s.User.Competencies.Any(uc =>
-                            uc.CompetencyId == rc.CompetencyId
-                            && uc.Approved
-                            && (uc.ExpiryDate == null || uc.ExpiryDate > now)));
-
-                if (count < rc.MinimumRequired)
-                {
-                    warnings.Add(new CompetencyWarningResponse
-                    {
-                        CompetencyName = rc.Competency.Name,
-                        MinimumRequired = rc.MinimumRequired,
-                        CurrentCount = count,
-                    });
-                }
-            }
-
-            return warnings.Any() ? warnings : null;
-        }
-
-        private ShiftResponse Map(EventResourceUser shift) => new ShiftResponse
-        {
-            Id = shift.EventResourceUserId,
-            EventResourceId = shift.EventResourceId,
-            User = Map(shift.User),
-            NeedsTraining = shift.User.Trainings.Any(t => t.ResourceTypeId == shift.Resource.ResourceTypeId && t.TrainingComplete.HasValue && !t.TrainingComplete.Value),
-            StartTime = shift.StartTime,
-            EndTime = shift.EndTime,
-            Comment = shift.Comment,
-        };
-
-        private MessageResponse Map(EventResourceMessage message) => new MessageResponse
-        {
-            Id = message.EventResourceMessageId,
-            EventResourceId = message.EventResourceId,
-            CreatedBy = Map(message.CreatedByUser),
-            Created = message.Created.AsUtc().ToIsoString(),
-            Message = message.Message,
-        };
-
-        private ShiftUserResponse Map(User user) => new ShiftUserResponse
-        {
-            Id = user.UserId,
-            PhoneNumber = user.UserName,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
-            Trainings = user.Trainings?.Select(Map).ToList(),
-        };
-
         /// <summary>
         /// Bruker kun klokkeslettet fra innsendte ressurstider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
         /// </summary>
@@ -534,7 +253,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .Where(m => m.EventResourceId == eventResourceId)
                 .ToListAsync();
 
-            return messages.Select(Map).ToList();
+            return messages.Select(ResourceMapper.MapMessage).ToList();
         }
 
         public async Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request)
@@ -563,7 +282,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .Include(m => m.CreatedByUser)
                 .AsNoTracking()
                 .SingleAsync(m => m.EventResourceMessageId == message.EventResourceMessageId);
-            return Map(response);
+            return ResourceMapper.MapMessage(response);
         }
 
         public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
@@ -579,23 +298,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             DbContext.Remove(message);
             await DbContext.SaveChangesAsync();
 
-            return Map(message);
-        }
-
-        public async Task<MinimumStaffResponse> UpdateMinimumStaff(int id, MinimumStaffRequest request)
-        {
-            var eventResource = await DbContext.EventResource
-                .SingleOrDefaultAsync(er => er.EventResourceId == id)
-                ?? throw new EntityNotFoundException();
-
-            eventResource.MinimumStaff = request.MinimumStaff;
-            await DbContext.SaveChangesAsync();
-
-            return new MinimumStaffResponse
-            {
-                EventResourceId = eventResource.EventResourceId,
-                MinimumStaff = eventResource.MinimumStaff
-            };
+            return ResourceMapper.MapMessage(message);
         }
     }
 }

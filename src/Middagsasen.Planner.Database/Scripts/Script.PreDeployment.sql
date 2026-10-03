@@ -113,3 +113,57 @@ BEGIN
 
     DROP TABLE #NormaliserteBrukernavn;
 END;
+
+
+/*
+ Pre-deploy: fjerner duplikate vakter før den unike indeksen UQ_EventResourceUsers_EventResourceId_UserId opprettes.
+
+ En duplikat er flere rader i EventResourceUsers med samme (EventResourceId, UserId), altså samme bruker
+ to ganger på samme ressurs. Den eldste raden (lavest EventResourceUserId) beholdes, de andre slettes.
+ WorkHours.ShiftId er ubrukt (timer registreres uten vakt), men fremmednøkkelen FK_WorkHours_Users_ShiftId kan
+ fortsatt finnes når skriptet kjører (sqlpackage dropper den etter pre-deploy). ShiftId settes derfor til NULL
+ på timeføringer som peker på en rad som slettes.
+
+ Skriptet er idempotent, og gjør ingenting hvis tabellen EventResourceUsers ikke finnes ennå (ny database).
+*/
+IF OBJECT_ID(N'dbo.EventResourceUsers', N'U') IS NOT NULL
+BEGIN
+    SET NOCOUNT ON;
+
+    IF OBJECT_ID(N'tempdb..#DuplikateVakter') IS NOT NULL
+        DROP TABLE #DuplikateVakter;
+
+    SELECT d.EventResourceUserId, d.Beholdes
+    INTO #DuplikateVakter
+    FROM (
+        SELECT
+            EventResourceUserId,
+            MIN(EventResourceUserId) OVER (PARTITION BY EventResourceId, UserId) AS Beholdes
+        FROM dbo.EventResourceUsers
+    ) d
+    WHERE d.EventResourceUserId <> d.Beholdes;
+
+    IF EXISTS (SELECT 1 FROM #DuplikateVakter)
+    BEGIN
+        BEGIN TRANSACTION;
+
+        IF OBJECT_ID(N'dbo.WorkHours', N'U') IS NOT NULL AND COL_LENGTH(N'dbo.WorkHours', N'ShiftId') IS NOT NULL
+            EXEC sp_executesql N'
+                UPDATE w
+                SET w.ShiftId = NULL
+                FROM dbo.WorkHours w
+                JOIN #DuplikateVakter dv ON dv.EventResourceUserId = w.ShiftId;';
+
+        DELETE eru
+        FROM dbo.EventResourceUsers eru
+        JOIN #DuplikateVakter dv ON dv.EventResourceUserId = eru.EventResourceUserId;
+
+        DECLARE @AntallDuplikater int = @@ROWCOUNT;
+
+        COMMIT TRANSACTION;
+
+        PRINT N'Fjernet ' + CAST(@AntallDuplikater AS nvarchar(20)) + N' duplikate vakter i EventResourceUsers.';
+    END;
+
+    DROP TABLE #DuplikateVakter;
+END;

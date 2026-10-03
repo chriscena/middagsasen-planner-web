@@ -58,6 +58,16 @@
         public static readonly TimeZoneInfo SeasonTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo");
 
         /// <summary>
+        /// Returnerer et <b>tidspunkt</b> (f.eks. «nå» fra <see cref="TimeProvider"/>) som norsk lokal tid
+        /// (<see cref="SeasonTimeZone"/>) med <see cref="DateTimeKind.Unspecified"/>. Brukes til å sammenligne
+        /// med tider som lagres som norsk lokal tid uten tidssone, f.eks. start og slutt på events og ressurser.
+        /// </summary>
+        public static DateTime ToNorwegianLocalTime(this DateTimeOffset instant)
+        {
+            return DateTime.SpecifyKind(TimeZoneInfo.ConvertTime(instant, SeasonTimeZone).DateTime, DateTimeKind.Unspecified);
+        }
+
+        /// <summary>
         /// Returnerer sesongnavn (f.eks. "2024/2025") for en <b>kalenderdato</b> (lokal/unspecified tid).
         /// Ren kalenderlogikk uten tidssonekonvertering — se <see cref="GetSeasonStartYear(DateTime)"/>.
         /// </summary>
