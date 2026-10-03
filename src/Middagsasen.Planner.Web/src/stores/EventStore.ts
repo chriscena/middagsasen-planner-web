@@ -39,6 +39,10 @@ interface EventState {
 // fra brukeren eller en tom plassholder ({ id: 0, trainingComplete: null }).
 type ShiftTraining = Pick<TrainingResponse, "id" | "trainingComplete">;
 
+// Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
+// forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
+let latestEventsRequest = 0;
+
 export const useEventStore = defineStore("events", {
   state: (): EventState => ({
     selectedEvent: null,
@@ -77,9 +81,11 @@ export const useEventStore = defineStore("events", {
       const endDate = encodeURI(
         formatISO(addDays(parseISO(end), 1), { representation: "date" })
       );
+      const request = ++latestEventsRequest;
       const response = await api.get<EventResponse[]>(
         `/api/events?start=${startDate}&end=${endDate}`
       );
+      if (request !== latestEventsRequest) return;
       this.events = response.data;
     },
     async addEvent(event: EventRequest): Promise<void> {
