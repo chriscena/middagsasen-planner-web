@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
@@ -20,11 +21,17 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             _fixture = fixture;
         }
 
-        private AuthenticationService CreateService(PlannerDbContext context)
+        /// <summary>Fast tidspunkt (hele sekunder, så det lagres eksakt i databasen).</summary>
+        private static readonly DateTimeOffset Now = new(2026, 1, 15, 12, 0, 0, TimeSpan.Zero);
+        private static readonly AuthOptions DefaultOptions = new();
+
+        private AuthenticationService CreateService(PlannerDbContext context, TimeProvider? timeProvider = null)
         {
+            var time = timeProvider ?? TimeProvider.System;
             var authSettings = Substitute.For<IAuthSettings>();
             authSettings.Secret.Returns(new string('x', 64));
-            return new AuthenticationService(context, _smsSender, authSettings);
+            var options = Options.Create(DefaultOptions);
+            return new AuthenticationService(context, _smsSender, new SessionTokens(authSettings, options, time), options, time);
         }
 
         private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
@@ -240,6 +247,102 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             var result = await CreateService(context).Authenticate(new AuthRequest { UserName = phoneNo, Password = "hemmelig" });
 
             Assert.Equal(AuthStatus.AuthenticationFailed, result.Status);
+        }
+
+        [Fact]
+        public async Task GenerateOtpForUser_ReturnsTooManyRequests_WithinThrottleWindow()
+        {
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
+
+            using var context = _fixture.CreateContext();
+            var justBefore = new FakeTimeProvider(Now + DefaultOptions.OtpThrottle - TimeSpan.FromSeconds(1));
+            var result = await CreateService(context, justBefore).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
+
+            Assert.Equal(OtpStatus.TooManyRequests, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Equal("1234", stored.OneTimePassword);
+            await _smsSender.DidNotReceive().SendMessages(Arg.Any<IEnumerable<SmsMessage>>());
+        }
+
+        [Fact]
+        public async Task GenerateOtpForUser_SendsNewOtp_WhenThrottleWindowHasPassed()
+        {
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
+
+            using var context = _fixture.CreateContext();
+            var later = Now + DefaultOptions.OtpThrottle;
+            var result = await CreateService(context, new FakeTimeProvider(later)).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
+
+            Assert.Equal(OtpStatus.Sent, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Equal(later.UtcDateTime, stored.OtpCreated);
+            await _smsSender.Received(1).SendMessages(Arg.Any<IEnumerable<SmsMessage>>());
+        }
+
+        [Fact]
+        public async Task GenerateOtpForUser_NewUser_UsesTimeProviderAndFourDigitCode()
+        {
+            var phoneNo = UniquePhoneNo();
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, new FakeTimeProvider(Now)).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
+
+            Assert.Equal(OtpStatus.Sent, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Matches("^[0-9]{4}$", stored.OneTimePassword);
+            Assert.Equal(Now.UtcDateTime, stored.OtpCreated);
+            Assert.Equal(Now.UtcDateTime, stored.Created);
+        }
+
+        [Fact]
+        public async Task Authenticate_AcceptsOtp_JustBeforeExpiry()
+        {
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
+
+            using var context = _fixture.CreateContext();
+            var justBefore = new FakeTimeProvider(Now + DefaultOptions.OtpLifetime - TimeSpan.FromSeconds(1));
+            var result = await CreateService(context, justBefore).Authenticate(new AuthRequest { UserName = phoneNo, Password = "1234" });
+
+            Assert.Equal(AuthStatus.Success, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Null(stored.OneTimePassword);
+            Assert.Null(stored.OtpCreated);
+        }
+
+        [Fact]
+        public async Task Authenticate_RejectsOtp_AfterExpiry()
+        {
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
+
+            using var context = _fixture.CreateContext();
+            var expired = new FakeTimeProvider(Now + DefaultOptions.OtpLifetime);
+            var result = await CreateService(context, expired).Authenticate(new AuthRequest { UserName = phoneNo, Password = "1234" });
+
+            Assert.Equal(AuthStatus.AuthenticationFailed, result.Status);
+            var stored = Assert.Single(UsersWithUserName(phoneNo));
+            Assert.Equal("1234", stored.OneTimePassword);
+        }
+
+        [Fact]
+        public async Task Authenticate_ReturnsTokenForCreatedSession()
+        {
+            var phoneNo = UniquePhoneNo();
+            await SeedUser(phoneNo, password: "hemmelig");
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Authenticate(new AuthRequest { UserName = phoneNo, Password = "hemmelig" });
+
+            var authSettings = Substitute.For<IAuthSettings>();
+            authSettings.Secret.Returns(new string('x', 64));
+            var tokens = new SessionTokens(authSettings, Options.Create(DefaultOptions), TimeProvider.System);
+            var sessionId = tokens.ReadSessionId(result.Token!);
+            Assert.NotNull(sessionId);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.UserSessions.Any(s => s.UserSessionId == sessionId));
         }
     }
 }

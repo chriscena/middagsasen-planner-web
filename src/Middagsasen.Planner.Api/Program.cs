@@ -59,7 +59,21 @@ builder.Services.AddOpenApi(options =>
     options.AddSchemaTransformer<EnumSchemaTransformer>();
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
-builder.Services.AddCors();
+
+// CORS: frontend kaller API-et med relative URL-er (samme opphav), så CORS trengs ikke for egen app.
+// Andre opphav må listes eksplisitt i Cors:AllowedOrigins. Tom liste gir ingen CORS-policy (kun samme opphav).
+var allowedOrigins = (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
+    .Where(origin => !string.IsNullOrWhiteSpace(origin))
+    .ToArray();
+if (allowedOrigins.Length > 0)
+{
+    builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+        .WithOrigins(allowedOrigins)
+        .AllowAnyMethod()
+        .AllowAnyHeader()));
+}
+
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 
 builder.Services.Configure<InfrastructureSettings>(settings =>
 {
@@ -80,6 +94,7 @@ builder.Services.AddHttpClient<ISmsSender, SmsSenderService>(client =>
 });
 builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
+builder.Services.AddSingleton<ISessionTokens, SessionTokens>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
@@ -120,10 +135,10 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.UseCors(x => x
-        .AllowAnyOrigin()
-        .AllowAnyMethod()
-        .AllowAnyHeader());
+if (allowedOrigins.Length > 0)
+{
+    app.UseCors();
+}
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<JwtMiddleware>();

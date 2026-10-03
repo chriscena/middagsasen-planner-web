@@ -1,24 +1,36 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Users;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Text;
+using System.Security.Cryptography;
 
 namespace Middagsasen.Planner.Api.Services.Authentication
 {
     public class AuthenticationService : IAuthenticationService
     {
-        public AuthenticationService(PlannerDbContext dbContext, ISmsSender smsSender, IAuthSettings authSettings)
+        private readonly ISessionTokens _sessionTokens;
+        private readonly AuthOptions _options;
+        private readonly TimeProvider _timeProvider;
+
+        public AuthenticationService(
+            PlannerDbContext dbContext,
+            ISmsSender smsSender,
+            ISessionTokens sessionTokens,
+            IOptions<AuthOptions> options,
+            TimeProvider timeProvider)
         {
             DbContext = dbContext;
             SmsSender = smsSender;
-            AuthSettings = authSettings;
+            _sessionTokens = sessionTokens;
+            _options = options.Value;
+            _timeProvider = timeProvider;
         }
+
+        private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
+
         public async Task<Actor?> GetUserBySessionId(Guid id)
         {
             var user = await DbContext.UserSessions
@@ -49,7 +61,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
 
             if (user == null)
             {
-                var newUser = DbContext.Users.Add(new User { UserName = userName, Created = DateTime.UtcNow }).Entity;
+                var newUser = DbContext.Users.Add(new User { UserName = userName, Created = UtcNow }).Entity;
                 SetOneTimePassword(newUser);
                 if (await DbContext.TrySaveWithUniqueUserName(userName, newUser.UserId))
                     return await SendOneTimePassword(newUser);
@@ -59,7 +71,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                 user = await DbContext.Users.WhereUserName(userName).SingleAsync();
             }
 
-            if (user.OtpCreated.HasValue && DateTime.UtcNow < user.OtpCreated.Value.AddMinutes(5))
+            if (user.OtpCreated.HasValue && UtcNow < user.OtpCreated.Value.Add(_options.OtpThrottle))
             {
                 return new OtpResponse
                 {
@@ -76,7 +88,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
         private void SetOneTimePassword(User user)
         {
             user.OneTimePassword = CreateOneTimePassword();
-            user.OtpCreated = DateTime.UtcNow;
+            user.OtpCreated = UtcNow;
         }
 
         /// <summary>
@@ -105,12 +117,11 @@ namespace Middagsasen.Planner.Api.Services.Authentication
 
             if (user != null)
             {
-                var now = DateTime.UtcNow;
-                if (user.OtpCreated.HasValue && user.OneTimePassword == request.Password && now < user.OtpCreated.Value.AddMinutes(30))
+                if (user.OtpCreated.HasValue && user.OneTimePassword == request.Password && UtcNow < user.OtpCreated.Value.Add(_options.OtpLifetime))
                 {
                     var session = await CreateSession(user, AuthType.Otp);
 
-                    var token = GenerateJwtToken(session);
+                    var token = _sessionTokens.Create(session.UserSessionId);
 
                     user.OtpCreated = null;
                     user.OneTimePassword = null;
@@ -121,7 +132,7 @@ namespace Middagsasen.Planner.Api.Services.Authentication
                 {
                     var session = await CreateSession(user, AuthType.Password);
 
-                    var token = GenerateJwtToken(session);
+                    var token = _sessionTokens.Create(session.UserSessionId);
 
                     user.OtpCreated = null;
                     user.OneTimePassword = null;
@@ -155,29 +166,13 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             return session;
         }
 
-        private Random _random = new Random();
-
         public PlannerDbContext DbContext { get; }
         public ISmsSender SmsSender { get; }
-        public IAuthSettings AuthSettings { get; }
 
-        private string CreateOneTimePassword()
+        /// <summary>Firesifret engangskode (0000–9999) fra en kryptografisk sikker tilfeldighetskilde.</summary>
+        private static string CreateOneTimePassword()
         {
-            return _random.Next(0, 9999).ToString("D4");
-        }
-
-        private string GenerateJwtToken(UserSession session)
-        {
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(AuthSettings.Secret);
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[] { new Claim("id", session.UserSessionId.ToString()) }),
-                Expires = DateTime.UtcNow.AddDays(7),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
-            };
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
+            return RandomNumberGenerator.GetInt32(0, 10000).ToString("D4");
         }
     }
 }
