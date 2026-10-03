@@ -1,3 +1,6 @@
+-- MissingStaff bruker samme formel som ShiftRules.IsMissingStaff i API-et
+-- (src/Middagsasen.Planner.Api/Services/Shifts/ShiftRules.cs): færre vakter enn MinimumStaff.
+-- Endres den ene, må den andre endres også.
 create view EventStatuses as
   with 
     Users_CTE(EventResourceId, Users) as 

@@ -23,3 +23,13 @@ Hvis normaliseringen ville gitt flere brukere med samme brukernavn, endrer skrip
 5. Merge endringen til `main`, så API-et deployes.
 
 Normaliseringen i de to skriptene må holdes lik hverandre og `ToNormalizedUserName`. Den er dekket av `Database/PreDeploymentScriptTests.cs` i testprosjektet.
+
+## Pre-deploy: duplikate vakter
+
+`EventResourceUsers` har en unik indeks (`UQ_EventResourceUsers_EventResourceId_UserId`), så samme bruker bare kan stå én gang på samme ressurs. API-et (`ShiftRepository`) kjenner igjen brudd på indeksen ved navn og gir 400.
+
+`Scripts/Script.PreDeployment.sql` fjerner eksisterende duplikater før indeksen opprettes: den eldste raden (lavest `EventResourceUserId`) per (`EventResourceId`, `UserId`) beholdes, og timeføringer (`WorkHours.ShiftId`) som pekte på en slettet rad flyttes til raden som beholdes. Antallet fjernede rader skrives i deploy-loggen (`PRINT`). Skriptet er idempotent og gjør ingenting på en ny database. Endringen fungerer med både gammelt og nytt API, så rekkefølgen på deploy spiller ingen rolle.
+
+Merk: når brukere slås sammen manuelt (se over), må vakter der begge brukerne står på samme ressurs slettes i stedet for å flyttes, ellers stopper den unike indeksen flyttingen.
+
+Duplikatfjerningen er dekket av `Database/PreDeploymentScriptTests.cs`.

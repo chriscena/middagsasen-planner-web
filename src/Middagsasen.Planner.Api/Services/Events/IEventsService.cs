@@ -8,9 +8,6 @@
         Task<IEnumerable<EventResponse>> GetEvents();
         Task<IEnumerable<EventResponse>> GetEvents(DateTime start, DateTime end);
         Task<EventResponse> UpdateEvent(int eventId, EventRequest request);
-        Task<ShiftResponse> AddShift(int eventResourceId, ShiftRequest request);
-        Task<ShiftResponse> UpdateShift(int id, ShiftRequest request);
-        Task<ShiftResponse> DeleteShift(int id);
         Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id);
         Task<EventResponse> DeleteEvent(int id);
         Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request);

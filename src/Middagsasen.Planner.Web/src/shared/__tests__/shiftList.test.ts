@@ -8,6 +8,10 @@ function shift(id: number): ShiftResponse {
     eventResourceId: 1,
     user: { id: id * 10 } as ShiftResponse["user"],
     needsTraining: false,
+    isMine: false,
+    canEdit: false,
+    canWithdraw: false,
+    canConfirmTraining: false,
   };
 }
 

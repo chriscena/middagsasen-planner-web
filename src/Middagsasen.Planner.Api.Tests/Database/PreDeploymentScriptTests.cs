@@ -7,8 +7,8 @@ using Middagsasen.Planner.Api.Tests.Infrastructure;
 namespace Middagsasen.Planner.Api.Tests.Database
 {
     /// <summary>
-    /// Tester Scripts/Script.PreDeployment.sql i databaseprosjektet, som normaliserer Users.UserName før den unike
-    /// indeksen opprettes. Hver test bruker en egen database i containeren, så delte testdata ikke berøres.
+    /// Tester Scripts/Script.PreDeployment.sql i databaseprosjektet, som normaliserer Users.UserName og fjerner duplikate
+    /// vakter før de unike indeksene opprettes. Hver test bruker en egen database i containeren, så delte testdata ikke berøres.
     /// Databasene slettes etter hver test.
     /// </summary>
     [Collection("Database")]
@@ -306,6 +306,108 @@ namespace Middagsasen.Planner.Api.Tests.Database
             Assert.Equal(
                 ids.Where(i => i.Value is "+46 12345678" or "admin").Select(i => i.Key).Order(),
                 invalid.Order());
+        }
+
+        // --- Duplikate vakter ---
+
+        /// <summary>Lager EventResourceUsers og WorkHours uten den unike indeksen, slik tabellene ser ut før deploy.</summary>
+        private static async Task CreateShiftTables(string connectionString)
+        {
+            await Execute(connectionString, """
+                create table EventResourceUsers (
+                    EventResourceUserId int not null IDENTITY,
+                    constraint PK_EventResourceUsers PRIMARY key (EventResourceUserId),
+                    UserId int not null,
+                    EventResourceId int not null,
+                    Comment nvarchar(max) null,
+                );
+                create table WorkHours (
+                    WorkHourId int not null identity,
+                    constraint PK_WorkHours PRIMARY key (WorkHourId),
+                    UserId int not null,
+                    ShiftId int null,
+                    constraint FK_WorkHours_Users_ShiftId foreign key (ShiftId) references EventResourceUsers(EventResourceUserId),
+                );
+                """);
+        }
+
+        private static async Task<List<(int Id, int ResourceId, int UserId)>> ReadShifts(string connectionString)
+        {
+            var result = new List<(int, int, int)>();
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+            await using var reader = await new SqlCommand("select EventResourceUserId, EventResourceId, UserId from EventResourceUsers order by EventResourceUserId", connection).ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                result.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetInt32(2)));
+            return result;
+        }
+
+        [Fact]
+        public async Task RemovesDuplicateShifts_KeepingOldest_AndMovesWorkHours()
+        {
+            var connectionString = await CreateDatabase();
+            await CreateShiftTables(connectionString);
+            await Execute(connectionString, """
+                insert into EventResourceUsers (EventResourceId, UserId) values
+                    (1, 10), -- 1: beholdes
+                    (1, 10), -- 2: duplikat av 1
+                    (1, 20), -- 3: annen bruker, beholdes
+                    (2, 10), -- 4: annen ressurs, beholdes
+                    (1, 10); -- 5: duplikat av 1
+                insert into WorkHours (UserId, ShiftId) values (10, 2), (10, 5), (20, 3), (10, null);
+                """);
+
+            var messages = await Execute(connectionString, Script.Value);
+
+            Assert.Equal([(1, 1, 10), (3, 1, 20), (4, 2, 10)], await ReadShifts(connectionString));
+            Assert.Contains(messages, m => m.Contains("Fjernet 2 duplikate vakter"));
+
+            var workHourShifts = new List<int?>();
+            await using (var connection = new SqlConnection(connectionString))
+            {
+                await connection.OpenAsync();
+                await using var reader = await new SqlCommand("select ShiftId from WorkHours order by WorkHourId", connection).ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                    workHourShifts.Add(reader.IsDBNull(0) ? null : reader.GetInt32(0));
+            }
+            Assert.Equal([1, 1, 3, null], workHourShifts);
+
+            // Den unike indeksen kan nå opprettes.
+            await Execute(connectionString, "CREATE UNIQUE INDEX UQ_EventResourceUsers_EventResourceId_UserId ON EventResourceUsers (EventResourceId, UserId)");
+        }
+
+        [Fact]
+        public async Task RemovesDuplicateShifts_IsIdempotent_AndSilentWithoutDuplicates()
+        {
+            var connectionString = await CreateDatabase();
+            await CreateShiftTables(connectionString);
+            await Execute(connectionString, "insert into EventResourceUsers (EventResourceId, UserId) values (1, 10), (1, 10), (1, 20)");
+
+            await Execute(connectionString, Script.Value);
+            var first = await ReadShifts(connectionString);
+            var messages = await Execute(connectionString, Script.Value);
+
+            Assert.Equal(first, await ReadShifts(connectionString));
+            Assert.Equal([(1, 1, 10), (3, 1, 20)], first);
+            Assert.DoesNotContain(messages, m => m.Contains("duplikate vakter"));
+        }
+
+        [Fact]
+        public async Task RemovesDuplicateShifts_WithoutWorkHoursTable()
+        {
+            var connectionString = await CreateDatabase();
+            await Execute(connectionString, """
+                create table EventResourceUsers (
+                    EventResourceUserId int not null IDENTITY primary key,
+                    UserId int not null,
+                    EventResourceId int not null,
+                );
+                insert into EventResourceUsers (EventResourceId, UserId) values (1, 10), (1, 10);
+                """);
+
+            await Execute(connectionString, Script.Value);
+
+            Assert.Equal([(1, 1, 10)], await ReadShifts(connectionString));
         }
     }
 }

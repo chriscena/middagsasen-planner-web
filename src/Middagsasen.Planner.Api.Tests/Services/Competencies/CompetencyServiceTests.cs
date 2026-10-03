@@ -18,7 +18,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             _currentUser = Substitute.For<ICurrentUserService>();
             _currentUser.UserId.Returns(50);
             _currentUser.IsAdmin.Returns(false);
-            _sut = new CompetencyService(_repository, _currentUser);
+            _sut = new CompetencyService(_repository, _currentUser, TimeProvider.System);
         }
 
         // Helper to create a Competency entity with navigation properties

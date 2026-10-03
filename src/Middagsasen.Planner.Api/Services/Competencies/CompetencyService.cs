@@ -5,14 +5,16 @@ namespace Middagsasen.Planner.Api.Services.Competencies
 {
     public class CompetencyService : ICompetencyService
     {
-        public CompetencyService(ICompetencyRepository repository, ICurrentUserService currentUser)
+        public CompetencyService(ICompetencyRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
         {
             Repository = repository;
             CurrentUser = currentUser;
+            TimeProvider = timeProvider;
         }
 
         public ICompetencyRepository Repository { get; }
         public ICurrentUserService CurrentUser { get; }
+        public TimeProvider TimeProvider { get; }
 
         // Competency CRUD
 
@@ -324,7 +326,7 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             ApprovedById = uc.ApprovedBy,
             ApprovedByName = MapFullName(uc.ApprovedByUser?.FirstName, uc.ApprovedByUser?.LastName),
             ExpiryDate = uc.ExpiryDate,
-            IsExpired = uc.ExpiryDate != null && uc.ExpiryDate < DateTime.UtcNow,
+            IsExpired = CompetencyRules.IsExpired(uc, TimeProvider.GetUtcNow().UtcDateTime),
             Created = uc.Created,
         };
 

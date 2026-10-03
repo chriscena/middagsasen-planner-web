@@ -30,7 +30,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
         {
             var repository = new CompetencyRepository(context);
             var currentUser = MockCurrentUser(userId, isAdmin);
-            return new CompetencyService(repository, currentUser);
+            return new CompetencyService(repository, currentUser, TimeProvider.System);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
