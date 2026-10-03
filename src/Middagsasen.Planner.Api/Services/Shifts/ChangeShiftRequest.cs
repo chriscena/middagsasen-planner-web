@@ -14,5 +14,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>Kommentaren. Settes alltid: <c>null</c> eller tom fjerner kommentaren (klienten sender hele vakta).</summary>
         public string? Comment { get; set; }
+
+        /// <summary>
+        /// Svaret på «trenger brukeren opplæring?» når vakta flyttes til en annen bruker (<see cref="UserId"/>). Påkrevd når
+        /// ressurstypen har opplæring og den nye eieren ikke har svart før; da gir <c>null</c> 400. <c>true</c> registrerer
+        /// at den nye eieren ønsker opplæring og varsler trenerne på SMS, <c>false</c> registrerer at hen ikke trenger
+        /// opplæring (bekreftet av innlogget bruker). Ignoreres ellers (vakta flyttes ikke, den nye eieren har allerede
+        /// svart, eller ressurstypen har ikke opplæring).
+        /// </summary>
+        public bool? NeedsTraining { get; set; }
     }
 }

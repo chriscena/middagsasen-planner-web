@@ -61,7 +61,6 @@ export type SignUpRequest = Schemas["SignUpRequest"];
 export type Stream = Schemas["Stream"];
 export type SystemDiagnosticsResponse = Schemas["SystemDiagnosticsResponse"];
 export type TemplateFromEventRequest = Schemas["TemplateFromEventRequest"];
-export type TrainingRequest = Schemas["TrainingRequest"];
 export type TrainingResponse = Schemas["TrainingResponse"];
 export type UpdateMeRequest = Schemas["UpdateMeRequest"];
 export type UpdateWorkHourRequest = Schemas["UpdateWorkHourRequest"];

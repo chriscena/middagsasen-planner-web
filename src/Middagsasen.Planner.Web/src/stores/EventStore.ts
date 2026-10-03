@@ -1,7 +1,6 @@
 import { defineStore } from "pinia";
 import { parseISO, formatISO, addDays } from "date-fns";
 import { api } from "boot/axios";
-import { useAuthStore } from "src/stores/AuthStore";
 import type {
   ChangeShiftRequest,
   EventFromTemplateRequest,
@@ -21,7 +20,6 @@ import type {
   ShiftResult,
   SignUpRequest,
   TemplateFromEventRequest,
-  TrainingResponse,
 } from "src/types";
 
 interface EventState {
@@ -31,18 +29,9 @@ interface EventState {
   templates: EventTemplateResponse[];
   // Dato (yyyy-MM-dd) -> om vaktlistene den dagen mangler mannskap.
   eventStatuses: Record<string, boolean>;
-}
-
-// Erstatter (eller legger til) opplæringen for samme ressurstype. Ny liste, så
-// det ikke muteres et objekt som deles med andre.
-function upsertTraining<T extends Pick<TrainingResponse, "resourceTypeId">>(
-  trainings: T[],
-  training: T
-): T[] {
-  return [
-    ...trainings.filter((t) => t.resourceTypeId !== training.resourceTypeId),
-    training,
-  ];
+  // Siste periode hentet med getEventsForDates (det kalenderen viser), så
+  // events kan hentes på nytt etter en endring som påvirker flere ressurser.
+  eventsRange: { start: string; end: string } | null;
 }
 
 // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
@@ -56,6 +45,7 @@ export const useEventStore = defineStore("events", {
     resourceTypes: [],
     templates: [],
     eventStatuses: {},
+    eventsRange: null,
   }),
   getters: {
     getEventsForDate:
@@ -87,6 +77,7 @@ export const useEventStore = defineStore("events", {
       const endDate = encodeURI(
         formatISO(addDays(parseISO(end), 1), { representation: "date" })
       );
+      this.eventsRange = { start, end };
       const request = ++latestEventsRequest;
       const response = await api.get<EventResponse[]>(
         `/api/events?start=${startDate}&end=${endDate}`
@@ -167,7 +158,7 @@ export const useEventStore = defineStore("events", {
         request
       );
       const result = response.data;
-      this.applyShiftResult(result);
+      await this.applyShiftResult(result);
       return result;
     },
     // Endre tider, kommentar og (kun admin) eier. Endrer aldri opplæringen.
@@ -180,7 +171,7 @@ export const useEventStore = defineStore("events", {
         request
       );
       const result = response.data;
-      this.applyShiftResult(result);
+      await this.applyShiftResult(result);
       return result;
     },
     // Sette opplæringen til eieren av vakta på ressursens ressurstype.
@@ -193,14 +184,14 @@ export const useEventStore = defineStore("events", {
         { trainingCompleted } satisfies SetTrainingRequest
       );
       const result = response.data;
-      this.applyShiftResult(result);
+      await this.applyShiftResult(result);
       return result;
     },
     // Trekke seg fra / slette vakta.
     async withdraw(shiftId: number): Promise<ShiftResult> {
       const response = await api.delete<ShiftResult>(`/api/shifts/${shiftId}`);
       const result = response.data;
-      this.applyShiftResult(result);
+      await this.applyShiftResult(result);
       return result;
     },
     // Erstatter ressursen med samme id (i alle events) med svaret fra serveren.
@@ -212,45 +203,22 @@ export const useEventStore = defineStore("events", {
         if (resource) Object.assign(resource, updated);
       }
     },
-    // Legger svaret fra en vaktoperasjon i cachen: ressursen via applyResource,
-    // og changedTraining (for brukeren i training.userId) på alle ressurser av
-    // samme ressurstype.
-    applyShiftResult(result: ShiftResult): void {
+    // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
+    // opplæring endret (changedTraining), kan flaggene på andre ressurser av
+    // samme ressurstype (mustAnswerTraining, needsTraining, canConfirmTraining
+    // osv.) også være endret. De beregnes av serveren, så perioden kalenderen
+    // viser hentes på nytt. Operasjonen har lyktes uansett, så feil i
+    // hentingen ignoreres (cachen er da bare ikke oppdatert for de andre).
+    async applyShiftResult(result: ShiftResult): Promise<void> {
       this.applyResource(result.resource);
-
-      const training = result.changedTraining;
-      if (!training) return;
-      const trainingUserId = training.userId;
-
-      const authStore = useAuthStore();
-      const currentUser = authStore.user;
-      const isCurrentUser = currentUser?.id === trainingUserId;
-      const needsTraining = training.trainingComplete === false;
-
-      for (const event of this.events) {
-        for (const resource of event.resources) {
-          if (resource.resourceType.id !== training.resourceTypeId) continue;
-          // Brukeren har nå en opplæringsrad for ressurstypen.
-          if (isCurrentUser) resource.mustAnswerTraining = false;
-          for (const shift of resource.shifts) {
-            if (shift.user.id !== trainingUserId) continue;
-            shift.needsTraining = needsTraining;
-            // canConfirmTraining krever needsTraining. Blir opplæringen ønsket,
-            // kan ikke flagget utledes her (trener/fortid), så det står urørt.
-            if (!needsTraining) shift.canConfirmTraining = false;
-            shift.user.trainings = upsertTraining(
-              shift.user.trainings,
-              training
-            );
-          }
-        }
-      }
-
-      if (isCurrentUser && currentUser) {
-        authStore.setUser({
-          ...currentUser,
-          trainings: upsertTraining(currentUser.trainings ?? [], training),
-        });
+      if (!result.changedTraining || !this.eventsRange) return;
+      try {
+        await this.getEventsForDates(
+          this.eventsRange.start,
+          this.eventsRange.end
+        );
+      } catch (error) {
+        console.error(error);
       }
     },
     async getTemplates(): Promise<void> {

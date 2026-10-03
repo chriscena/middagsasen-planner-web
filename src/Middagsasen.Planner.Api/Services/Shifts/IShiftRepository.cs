@@ -42,8 +42,17 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         void RemoveShift(EventResourceUser shift);
         void AddTraining(ResourceTypeTraining training);
 
+        /// <summary>
+        /// Forkaster alt konteksten sporer (også endringer som ikke ble lagret), slik at en operasjon kan prøves på nytt
+        /// fra ren tilstand etter <see cref="TrainingConflictException"/>.
+        /// </summary>
+        void DiscardChanges();
+
         /// <summary>Lagrer endringer.</summary>
-        /// <exception cref="DomainValidationException">Brukeren står allerede på ressursen (unik indeks, samtidig påmelding).</exception>
+        /// <exception cref="DomainValidationException">
+        /// Brukeren står allerede på ressursen (unik indeks, samtidig påmelding), eller vakta som slettes har registrerte timer.
+        /// </exception>
+        /// <exception cref="TrainingConflictException">Opplæringsraden ble opprettet av en samtidig forespørsel (unik indeks).</exception>
         Task SaveChangesAsync();
     }
 }

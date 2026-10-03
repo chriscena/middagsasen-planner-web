@@ -8,6 +8,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Navnet på den unike indeksen på EventResourceUsers(EventResourceId, UserId).</summary>
         public const string UniqueShiftIndexName = "UQ_EventResourceUsers_EventResourceId_UserId";
 
+        /// <summary>Navnet på den unike indeksen på ResourceTypeTrainings(UserId, ResourceTypeId).</summary>
+        public const string UniqueTrainingIndexName = "UQ_ResourceTypeTrainings_UserId_ResourceTypeId";
+
+        /// <summary>Navnet på fremmednøkkelen WorkHours.ShiftId → EventResourceUsers (uten cascade).</summary>
+        public const string WorkHoursShiftForeignKeyName = "FK_WorkHours_Users_ShiftId";
+
         public ShiftRepository(PlannerDbContext dbContext)
         {
             DbContext = dbContext;
@@ -16,26 +22,32 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public PlannerDbContext DbContext { get; }
 
         /// <summary>
-        /// Includes som <see cref="ResourceMapper"/> trenger. Brukes også av EventsService, så lesesiden og
-        /// skriveoperasjonene laster det samme.
+        /// Navigasjonene <see cref="ResourceMapper"/> trenger, relativt til en <see cref="EventResource"/>. Én liste brukes
+        /// både for ressurser og for events (med prefikset <c>Resources</c>), så lesesiden og skriveoperasjonene laster det samme.
         /// </summary>
-        public static IQueryable<EventResource> WithMappingIncludes(IQueryable<EventResource> resources) => resources
-            .Include(r => r.Shifts)
-                .ThenInclude(s => s.User)
-                    .ThenInclude(u => u.Trainings)
-            .Include(r => r.Shifts)
-                .ThenInclude(s => s.User)
-                    .ThenInclude(u => u.Competencies)
-            .Include(r => r.ResourceType)
-                .ThenInclude(rt => rt.Trainers)
-                    .ThenInclude(t => t.User)
-            .Include(r => r.ResourceType)
-                .ThenInclude(rt => rt.Files)
-            .Include(r => r.ResourceType)
-                .ThenInclude(rt => rt.RequiredCompetencies)
-                    .ThenInclude(rc => rc.Competency)
-            .Include(r => r.Messages)
-                .ThenInclude(m => m.CreatedByUser);
+        private static readonly string[] MappingIncludePaths =
+        [
+            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Trainings)),
+            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Competencies)),
+            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.WorkHours)),
+            Path(nameof(EventResource.ResourceType), nameof(ResourceType.Trainers), nameof(ResourceTypeTrainer.User)),
+            Path(nameof(EventResource.ResourceType), nameof(ResourceType.Files)),
+            Path(nameof(EventResource.ResourceType), nameof(ResourceType.RequiredCompetencies), nameof(ResourceTypeCompetency.Competency)),
+            Path(nameof(EventResource.Messages), nameof(EventResourceMessage.CreatedByUser)),
+        ];
+
+        private static string Path(params string[] navigations) => string.Join('.', navigations);
+
+        private static IQueryable<T> IncludeMappingPaths<T>(IQueryable<T> query, string? prefix) where T : class
+            => MappingIncludePaths.Aggregate(query, (q, path) => q.Include(prefix is null ? path : Path(prefix, path)));
+
+        /// <summary>Includes som <see cref="ResourceMapper"/> trenger for ressursen.</summary>
+        public static IQueryable<EventResource> WithMappingIncludes(IQueryable<EventResource> resources)
+            => IncludeMappingPaths(resources, null);
+
+        /// <summary>Includes som <see cref="ResourceMapper"/> trenger for ressursene til eventene (lesesiden i EventsService).</summary>
+        public static IQueryable<Event> WithMappingIncludes(IQueryable<Event> events)
+            => IncludeMappingPaths(events, nameof(Event.Resources));
 
         public async Task<T> InResourceLock<T>(int resourceId, Func<Task<T>> work)
         {
@@ -119,16 +131,26 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         public void AddTraining(ResourceTypeTraining training) => DbContext.ResourceTypeTrainings.Add(training);
 
+        public void DiscardChanges() => DbContext.ChangeTracker.Clear();
+
         public async Task SaveChangesAsync()
         {
             try
             {
                 await DbContext.SaveChangesAsync();
             }
-            // Både SQL Server og PostgreSQL tar med indeksnavnet i feilmeldingen, så dette er databaseuavhengig.
+            // Både SQL Server og PostgreSQL tar med navnet på indeksen/fremmednøkkelen i feilmeldingen, så dette er databaseuavhengig.
             catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(UniqueShiftIndexName) == true)
             {
                 throw new DomainValidationException(ShiftService.DuplicateMessage);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(UniqueTrainingIndexName) == true)
+            {
+                throw new TrainingConflictException(ex);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains(WorkHoursShiftForeignKeyName) == true)
+            {
+                throw new DomainValidationException(ShiftService.HasWorkHoursMessage);
             }
         }
     }

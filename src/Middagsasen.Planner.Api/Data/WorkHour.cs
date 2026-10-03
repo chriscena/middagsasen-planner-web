@@ -4,6 +4,8 @@ namespace Middagsasen.Planner.Api.Data
     {
         public int WorkHourId { get; set; }
         public int UserId { get; set; }
+        /// <summary>Vakta timene gjelder, eller <c>null</c>. Hindrer sletting av vakta (FK uten cascade).</summary>
+        public int? ShiftId { get; set; }
         public DateTime? StartTime { get; set; }
         public DateTime? EndTime { get; set; }
         public string? Description { get; set; }
@@ -15,5 +17,6 @@ namespace Middagsasen.Planner.Api.Data
 
         public virtual User? ApprovedByUser { get; set; }
         public virtual User? ModifiedByUser { get; set; }
+        public virtual EventResourceUser? Shift { get; set; }
     }
 }

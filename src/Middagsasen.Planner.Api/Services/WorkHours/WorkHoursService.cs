@@ -315,6 +315,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             {
                 WorkHourId = workHour.WorkHourId,
                 UserId = workHour.UserId,
+                ShiftId = workHour.ShiftId,
                 StartTime = workHour.StartTime.AsUtc(),
                 EndTime = workHour.EndTime.AsUtc(),
                 Hours = interval,

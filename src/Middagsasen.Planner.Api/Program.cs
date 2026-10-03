@@ -83,6 +83,7 @@ builder.Services.AddTransient<IStorageService, BlobStorageService>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
+builder.Services.AddScoped<ITrainerRepository, TrainerRepository>();
 builder.Services.AddScoped<ITrainerNotifier, TrainerNotifier>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
 builder.Services.AddScoped<IShiftService, ShiftService>();

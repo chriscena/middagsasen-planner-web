@@ -13,7 +13,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     /// <para>
     /// Ressursen må være lastet med: <c>ResourceType.Trainers.User</c>, <c>ResourceType.Files</c>,
     /// <c>ResourceType.RequiredCompetencies.Competency</c>, <c>Shifts.User.Trainings</c>,
-    /// <c>Shifts.User.Competencies</c> og <c>Messages.CreatedByUser</c> (se <see cref="ShiftRepository.WithMappingIncludes"/>).
+    /// <c>Shifts.User.Competencies</c>, <c>Shifts.WorkHours</c> og <c>Messages.CreatedByUser</c>
+    /// (se <see cref="ShiftRepository.WithMappingIncludes(IQueryable{EventResource})"/>).
     /// </para>
     /// </summary>
     public sealed class ResourceMapper
@@ -39,7 +40,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         public IReadOnlySet<int> ViewerTrainingResourceTypeIds { get; }
 
-        /// <summary>Faktaene <see cref="ShiftRules"/> trenger om en ressurs. Krever <c>ResourceType.Trainers</c> og <c>Shifts.User.Trainings</c>.</summary>
+        /// <summary>
+        /// Faktaene <see cref="ShiftRules"/> trenger om en ressurs. Krever <c>ResourceType.Trainers</c>,
+        /// <c>Shifts.User.Trainings</c> og <c>Shifts.WorkHours</c>.
+        /// </summary>
         public static ResourceFacts ToFacts(EventResource resource) => new(
             resource.EventResourceId,
             resource.ResourceTypeId,
@@ -53,7 +57,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         private static ShiftFacts ToFacts(EventResourceUser shift, int resourceTypeId) => new(
             shift.EventResourceUserId,
             shift.UserId,
-            NeedsTraining: shift.User?.Trainings.Any(t => t.ResourceTypeId == resourceTypeId && t.TrainingComplete == false) ?? false);
+            NeedsTraining: shift.User?.Trainings.Any(t => t.ResourceTypeId == resourceTypeId && t.TrainingComplete == false) ?? false,
+            HasWorkHours: shift.WorkHours.Count > 0);
 
         public EventResponse Map(Event evnt) => new()
         {
@@ -134,7 +139,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return warnings;
         }
 
-        // --- Felles mappere uten flagg (brukes også av EventsService) ---
+        // --- Felles mappere uten flagg (brukes også av andre services) ---
 
         internal static TrainingResponse MapTraining(ResourceTypeTraining training) => new()
         {
@@ -199,7 +204,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             Trainings = user.Trainings.Select(MapTraining).ToList(),
         };
 
-        private static string MapFullName(string? firstName, string? lastName)
+        /// <summary>Fullt navn: fornavn og etternavn med mellomrom, uten mellomrom i endene når et av dem mangler.</summary>
+        internal static string MapFullName(string? firstName, string? lastName)
             => $"{firstName ?? ""} {lastName ?? ""}".Trim();
     }
 }

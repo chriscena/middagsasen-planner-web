@@ -8,16 +8,14 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 {
     public class ResourceTypesService : IResourceTypesService
     {
-        public ResourceTypesService(PlannerDbContext dbContext, ITrainerNotifier trainerNotifier, IStorageService storage, ICurrentUserService currentUser)
+        public ResourceTypesService(PlannerDbContext dbContext, IStorageService storage, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
-            TrainerNotifier = trainerNotifier;
             Storage = storage;
             CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
-        public ITrainerNotifier TrainerNotifier { get; }
         public IStorageService Storage { get; }
         public ICurrentUserService CurrentUser { get; }
 
@@ -106,34 +104,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             return Map(resourceType);
         }
 
-        /// <summary>
-        /// Oppretter opplæring for en bruker på ressurstypen. Returnerer <c>null</c> uten å lagre noe hvis
-        /// <see cref="TrainingRequest.TrainingCompleted"/> mangler. <c>false</c> (ønsker opplæring) varsler trenerne
-        /// på SMS etter at opplæringen er lagret; en SMS-feil logges, men ruller ikke tilbake opplæringen.
-        /// </summary>
-        public async Task<TrainingResponse?> CreateTraining(int resourceTypeId, TrainingRequest request)
-        {
-            if (!request.TrainingCompleted.HasValue) return null;
-
-            await EnsureCanManageTraining(resourceTypeId, request.UserId);
-
-            var training = DbContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
-            {
-                UserId = request.UserId,
-                ResourceTypeId = resourceTypeId,
-                TrainingComplete = request.TrainingCompleted,
-                Confirmed = !request.TrainingCompleted.Value ? null : DateTime.UtcNow,
-                ConfirmedBy = !request.TrainingCompleted.Value ? null : CurrentUser.UserId,
-            }).Entity;
-
-            await DbContext.SaveChangesAsync();
-
-            if (!request.TrainingCompleted.Value)
-                await TrainerNotifier.NotifyTrainingRequested(request.UserId, resourceTypeId, request.StartTime);
-
-            return Map(training);
-        }
-
         public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
         {
             request.UserId = CurrentUser.UserId;
@@ -199,33 +169,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             var responseFile = DbContext.Remove(fileToDelete);
             await DbContext.SaveChangesAsync();
         }
-
-        /// <summary>
-        /// Kaster <see cref="ForbiddenAccessException"/> hvis innlogget bruker ikke kan sette opplæring
-        /// for brukeren på ressurstypen (se <see cref="TrainingPolicy.CanManage"/>).
-        /// </summary>
-        private async Task EnsureCanManageTraining(int resourceTypeId, int userId)
-        {
-            var actor = CurrentUser.ToActor();
-
-            var isTrainer = await DbContext.ResourceTypeTrainers
-                .AnyAsync(t => t.ResourceTypeId == resourceTypeId && t.UserId == actor.UserId);
-
-            if (!TrainingPolicy.CanManage(actor, userId, isTrainer))
-                throw new ForbiddenAccessException();
-        }
-
-        private TrainingResponse Map(ResourceTypeTraining training) => new TrainingResponse
-        {
-            Id = training.ResourceTypeTrainingId,
-            UserId = training.UserId,
-            ResourceTypeId = training.ResourceTypeId,
-            ResourceTypeName = training.ResourceType?.Name,
-            TrainingComplete = training.TrainingComplete,
-            Confirmed = training.Confirmed?.ToSimpleIsoString(),
-            ConfirmedById = training.ConfirmedBy,
-            ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
-        };
 
         private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
         {

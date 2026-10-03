@@ -247,7 +247,7 @@
       <q-card-section class="text-h6 row"
         ><span> Endre vakt</span><q-space></q-space
         ><q-btn
-          v-if="selectedShift!.id > 0"
+          v-if="selectedShift!.id > 0 && selectedShift!.canWithdraw"
           size="md"
           flat
           dense
@@ -580,6 +580,9 @@ const trainingComplete = ref<boolean | null>(null);
 const initialTrainingComplete = ref<boolean | null>(null);
 // Om brukeren på vakta har en opplæringsrad for ressurstypen.
 const selectedUserHasTraining = ref(false);
+// Brukeren på vakta da admin-dialogen ble åpnet (null for ledig plass), så
+// det kan avgjøres om admin bytter bruker.
+const originalUserId = ref<number | null>(null);
 const showingAdminEdit = ref(false);
 const showingConfirmTraining = ref(false);
 const showingEdit = ref(false);
@@ -592,13 +595,19 @@ const isPast = computed(() => props.timestamp.date < today());
 const event = computed(() => props.modelValue);
 // Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
 const currentUser = computed(() => authStore.user!);
-// Admin setter opp en bruker som ikke har svart på opplæring: svaret er
-// påkrevd av backend, så Lagre er deaktivert til Ja/Nei er valgt.
+// Admin setter opp en bruker (på en ledig plass eller ved bytte av bruker på
+// en vakt) som ikke har svart på opplæring: svaret er påkrevd av backend, så
+// Lagre er deaktivert til Ja/Nei er valgt.
+const isNewUser = computed(
+  () =>
+    !!selectedShift.value?.user &&
+    (selectedShift.value.id === 0 ||
+      selectedShift.value.user.id !== originalUserId.value)
+);
 const mustChooseTraining = computed(
   () =>
     showingAdminEdit.value &&
-    selectedShift.value?.id === 0 &&
-    !!selectedShift.value.user &&
+    isNewUser.value &&
     !!selectedResource.value?.resourceType.hasTraining &&
     !selectedUserHasTraining.value &&
     trainingComplete.value === null
@@ -768,10 +777,11 @@ async function saveOwnShift(): Promise<void> {
   }
 }
 
-// Admin-dialogen. Ledig plass (id 0): signUp for valgt bruker, med svaret på
-// opplæring når brukeren mangler opplæringsrad. Eksisterende vakt: changeShift
-// (evt. med ny bruker). Til slutt setTraining hvis opplæringsstatusen er
-// endret. Kallene gjøres etter hverandre; feiler ett, vises feilen og dialogen
+// Admin-dialogen. Ledig plass (id 0): signUp for valgt bruker. Eksisterende
+// vakt: changeShift (evt. med ny bruker). Mangler en ny bruker opplæringsrad,
+// sendes svaret på opplæring (needsTraining) med i samme kall. Til slutt
+// setTraining hvis opplæringsstatusen for en eksisterende rad er endret.
+// Kallene gjøres etter hverandre; feiler ett, vises feilen og dialogen
 // blir stående med det som allerede er lagret.
 async function saveAdminShift(): Promise<void> {
   const shift = selectedShift.value!;
@@ -779,6 +789,13 @@ async function saveAdminShift(): Promise<void> {
   // Lagre er deaktivert uten bruker.
   const userId = shift.user!.id;
   const warnings: string[] = [];
+  // Svaret på opplæring for en ny bruker uten opplæringsrad (påkrevd av
+  // backend, Lagre er deaktivert til det er valgt).
+  const answersTraining =
+    isNewUser.value &&
+    !!resource.resourceType.hasTraining &&
+    !selectedUserHasTraining.value &&
+    trainingComplete.value !== null;
   try {
     saving.value = true;
     if (shift.id === 0) {
@@ -793,17 +810,20 @@ async function saveAdminShift(): Promise<void> {
       // Et nytt forsøk etter en feil under skal endre vakta, ikke ta den igjen.
       shift.id =
         result.resource.shifts.find((s) => s.user.id === userId)?.id ?? 0;
-      // Manglet brukeren opplæringsrad, ble svaret lagret sammen med vakta.
-      if (!selectedUserHasTraining.value) {
-        selectedUserHasTraining.value = trainingComplete.value !== null;
-        initialTrainingComplete.value = trainingComplete.value;
-      }
     } else {
       const result = await eventStore.changeShift(shift.id, {
         userId,
         comment: shift.comment ?? null,
+        ...(answersTraining ? { needsTraining: !trainingComplete.value } : {}),
       });
       warnings.push(...result.warnings);
+    }
+    // Vakta tilhører nå valgt bruker.
+    originalUserId.value = userId;
+    // Manglet brukeren opplæringsrad, ble svaret lagret sammen med vakta.
+    if (answersTraining) {
+      selectedUserHasTraining.value = true;
+      initialTrainingComplete.value = trainingComplete.value;
     }
     if (shift.id > 0 && isTrainingChanged()) {
       const result = await eventStore.setTraining(
@@ -869,6 +889,7 @@ async function editShift(
 ): Promise<void> {
   selectedShift.value = Object.assign({}, shift);
   selectedResource.value = resource;
+  originalUserId.value = shift.user?.id ?? null;
   loadTraining(shift.user, resource);
   showingAdminEdit.value = true;
   if (isAdmin.value) await getUsers();

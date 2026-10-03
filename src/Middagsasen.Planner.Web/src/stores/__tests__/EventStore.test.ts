@@ -6,7 +6,6 @@ import type {
   ShiftResponse,
   ShiftResult,
   TrainingResponse,
-  UserResponse,
 } from "src/types";
 
 const mockApi = vi.hoisted(() => ({
@@ -22,7 +21,6 @@ vi.mock("boot/axios", () => ({
 }));
 
 import { useEventStore } from "stores/EventStore";
-import { useAuthStore } from "stores/AuthStore";
 
 // Kun feltene storen bruker (id og startTime) er relevante her.
 function event(id: number, startTime: string): EventResponse {
@@ -96,35 +94,22 @@ function eventWith(id: number, resources: ResourceResponse[]): EventResponse {
 
 describe("EventStore", () => {
   let store: ReturnType<typeof useEventStore>;
-  let authStore: ReturnType<typeof useAuthStore>;
 
   beforeEach(() => {
     setActivePinia(createPinia());
     store = useEventStore();
-    authStore = useAuthStore();
-    vi.clearAllMocks();
-    // setUser lagrer brukeren i localStorage, som ikke finnes i node.
-    vi.stubGlobal("localStorage", {
-      getItem: vi.fn(() => null),
-      setItem: vi.fn(),
-      removeItem: vi.fn(),
-    });
-    authStore.loggedInUser = {
-      id: CURRENT_USER_ID,
-      phoneNo: "1",
-      isAdmin: false,
-      isHidden: false,
-      trainings: [],
-    } satisfies UserResponse;
+    // Nullstiller også mockResolvedValue o.l. fra forrige test.
+    vi.resetAllMocks();
+    vi.restoreAllMocks();
   });
 
   describe("applyShiftResult", () => {
-    it("oppdaterer ressursen i cachen uten å bytte objektet", () => {
+    it("oppdaterer ressursen i cachen uten å bytte objektet", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       // Slik en dialog holder på ressursen (selectedResource).
       const held = store.events[0]!.resources[0]!;
 
-      store.applyShiftResult(
+      await store.applyShiftResult(
         result(
           resource(10, [shift(1, 10, CURRENT_USER_ID)], {
             isMissingStaff: false,
@@ -139,99 +124,69 @@ describe("EventStore", () => {
       expect(held.canSignUp).toBe(false);
     });
 
-    it("lar andre ressurser være når changedTraining mangler", () => {
-      store.events = [
-        eventWith(1, [
-          resource(10, []),
-          resource(11, [shift(2, 11, CURRENT_USER_ID)]),
-        ]),
-      ];
+    it("henter ikke events på nytt uten changedTraining", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
 
-      store.applyShiftResult(result(resource(10, [])));
+      await store.applyShiftResult(result(resource(10, [])));
 
-      expect(store.events[0]!.resources[1]!.mustAnswerTraining).toBe(true);
+      expect(mockApi.get).not.toHaveBeenCalled();
     });
 
-    it("oppdaterer ressurser av samme type når innlogget bruker ønsker opplæring", () => {
-      const otherType = resource(12, [shift(3, 12, CURRENT_USER_ID)], {
-        resourceType: { id: 99 } as ResourceResponse["resourceType"],
-      });
-      store.events = [
-        eventWith(1, [resource(10, [])]),
-        eventWith(2, [
-          resource(11, [shift(2, 11, CURRENT_USER_ID)]),
-          otherType,
-        ]),
+    it("henter perioden kalenderen viser på nytt ved changedTraining", async () => {
+      mockApi.get.mockResolvedValueOnce({ data: [] });
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+      const refetched = [
+        eventWith(1, [resource(10, [], { canSignUp: false })]),
       ];
+      mockApi.get.mockResolvedValueOnce({ data: refetched });
 
-      store.applyShiftResult(
+      await store.applyShiftResult(
         result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false))
       );
 
-      const [sameType, untouched] = store.events[1]!.resources;
-      expect(sameType!.mustAnswerTraining).toBe(false);
-      expect(sameType!.shifts[0]!.needsTraining).toBe(true);
-      expect(sameType!.shifts[0]!.user.trainings).toEqual([training(false)]);
-      expect(untouched!.mustAnswerTraining).toBe(true);
-      expect(untouched!.shifts[0]!.needsTraining).toBe(false);
-      expect(authStore.loggedInUser!.trainings).toEqual([training(false)]);
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(mockApi.get).toHaveBeenLastCalledWith(
+        "/api/events?start=2026-10-05&end=2026-10-12"
+      );
+      expect(store.events).toEqual(refetched);
     });
 
-    it("bekreftet opplæring gjelder bare vaktene til eieren", () => {
-      store.events = [
-        eventWith(1, [
-          resource(10, []),
-          resource(
-            11,
-            [
-              shift(2, 11, OTHER_USER_ID, {
-                needsTraining: true,
-                canConfirmTraining: true,
-                user: {
-                  id: OTHER_USER_ID,
-                  phoneNumber: "2",
-                  trainings: [training(false, OTHER_USER_ID)],
-                },
-              }),
-              shift(3, 11, 3, {
-                needsTraining: true,
-                canConfirmTraining: true,
-              }),
-            ],
-            { mustAnswerTraining: false }
-          ),
-        ]),
-      ];
+    it("henter ikke på nytt når ingen periode er hentet", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
 
-      store.applyShiftResult(
-        result(
-          resource(10, [shift(1, 10, OTHER_USER_ID)]),
-          training(true, OTHER_USER_ID)
-        )
+      await store.applyShiftResult(
+        result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false))
       );
 
-      const other = store.events[0]!.resources[1]!;
-      const [ownerShift, otherUserShift] = other.shifts;
-      expect(ownerShift!.needsTraining).toBe(false);
-      expect(ownerShift!.canConfirmTraining).toBe(false);
-      expect(ownerShift!.user.trainings).toEqual([
-        training(true, OTHER_USER_ID),
+      expect(mockApi.get).not.toHaveBeenCalled();
+      expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
+        1,
       ]);
-      expect(otherUserShift!.needsTraining).toBe(true);
-      expect(otherUserShift!.canConfirmTraining).toBe(true);
-      // Gjelder ikke innlogget bruker.
-      expect(other.mustAnswerTraining).toBe(false);
-      expect(authStore.loggedInUser!.trainings).toEqual([]);
+    });
+
+    it("feil ved ny henting kaster ikke, og ressursen er oppdatert", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      store.events = [eventWith(1, [resource(10, [])])];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+      mockApi.get.mockRejectedValue(new Error("nettverk"));
+
+      await expect(
+        store.applyShiftResult(
+          result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false))
+        )
+      ).resolves.toBeUndefined();
+
+      expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
+        1,
+      ]);
     });
   });
 
   describe("vaktoperasjoner", () => {
-    it("signUp poster requesten og bruker changedTraining.userId for opplæringen", async () => {
-      store.events = [eventWith(1, [resource(10, []), resource(11, [])])];
-      const response = result(
-        resource(10, [shift(1, 10, CURRENT_USER_ID)]),
-        training(true)
-      );
+    it("signUp poster requesten, legger ressursen i cachen og returnerer svaret", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const response = result(resource(10, [shift(1, 10, CURRENT_USER_ID)]));
       mockApi.post.mockResolvedValue({ data: response });
 
       const returned = await store.signUp(10, { needsTraining: false });
@@ -240,45 +195,51 @@ describe("EventStore", () => {
         needsTraining: false,
       });
       expect(returned).toBe(response);
-      expect(store.events[0]!.resources[1]!.mustAnswerTraining).toBe(false);
+      expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
+        1,
+      ]);
     });
 
-    it("signUp for en annen bruker oppdaterer ikke innlogget bruker", async () => {
-      store.events = [eventWith(1, [resource(10, []), resource(11, [])])];
-      mockApi.post.mockResolvedValue({
-        data: result(
-          resource(10, [shift(1, 10, OTHER_USER_ID)]),
-          training(false, OTHER_USER_ID)
-        ),
+    it("signUp med changedTraining lykkes selv om ny henting feiler", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      store.events = [eventWith(1, [resource(10, [])])];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+      const response = result(
+        resource(10, [shift(1, 10, OTHER_USER_ID)]),
+        training(false, OTHER_USER_ID)
+      );
+      mockApi.post.mockResolvedValue({ data: response });
+      mockApi.get.mockRejectedValue(new Error("nettverk"));
+
+      const returned = await store.signUp(10, {
+        userId: OTHER_USER_ID,
+        needsTraining: true,
       });
 
-      await store.signUp(10, { userId: OTHER_USER_ID, needsTraining: true });
-
-      expect(store.events[0]!.resources[1]!.mustAnswerTraining).toBe(true);
-      expect(authStore.loggedInUser!.trainings).toEqual([]);
+      expect(returned).toBe(response);
+      expect(mockApi.get).toHaveBeenCalledWith(
+        "/api/events?start=2026-10-05&end=2026-10-12"
+      );
     });
 
-    it("setTraining bruker changedTraining.userId", async () => {
-      store.events = [
-        eventWith(1, [
-          resource(10, []),
-          resource(11, [shift(2, 11, OTHER_USER_ID, { needsTraining: true })]),
-        ]),
-      ];
+    it("setTraining sender svaret og henter perioden på nytt", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
       mockApi.put.mockResolvedValue({
         data: result(
           resource(10, [shift(7, 10, OTHER_USER_ID)]),
           training(true, OTHER_USER_ID)
         ),
       });
+      mockApi.get.mockResolvedValue({ data: [] });
 
       await store.setTraining(7, true);
 
       expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/7/training", {
         trainingCompleted: true,
       });
-      expect(store.events[0]!.resources[1]!.shifts[0]!.needsTraining).toBe(
-        false
+      expect(mockApi.get).toHaveBeenCalledWith(
+        "/api/events?start=2026-10-05&end=2026-10-12"
       );
     });
 
@@ -295,6 +256,25 @@ describe("EventStore", () => {
         comment: "Hei",
       });
       expect(store.events[0]!.resources[0]!.shifts[0]!.comment).toBe("Hei");
+    });
+
+    it("changeShift sender needsTraining ved bytte av bruker", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, OTHER_USER_ID)])),
+      });
+
+      await store.changeShift(1, {
+        userId: OTHER_USER_ID,
+        needsTraining: true,
+      });
+
+      expect(mockApi.put).toHaveBeenCalledWith("/api/shifts/1", {
+        userId: OTHER_USER_ID,
+        needsTraining: true,
+      });
     });
 
     it("withdraw sletter og legger ressursen i cachen", async () => {

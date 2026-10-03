@@ -17,13 +17,16 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <exception cref="DomainValidationException">Full, avsluttet, duplikat, ugyldige tider eller manglende opplæringssvar.</exception>
         Task<ShiftResult> SignUp(int resourceId, SignUpRequest request);
 
-        /// <summary>Endrer tider, kommentar og (for admin) eier av vakta.</summary>
+        /// <summary>
+        /// Endrer tider, kommentar og (for admin) eier av vakta. Flyttes vakta til en bruker uten opplæringsrad på en
+        /// ressurstype med opplæring, må <see cref="ChangeShiftRequest.NeedsTraining"/> sendes med (som ved påmelding).
+        /// </summary>
         Task<ShiftResult> Change(int shiftId, ChangeShiftRequest request);
 
         /// <summary>Setter opplæringen til eieren av vakta på ressursens ressurstype (eier, trener eller admin).</summary>
         Task<ShiftResult> SetTraining(int shiftId, SetTrainingRequest request);
 
-        /// <summary>Trekker eieren fra vakta (sletter den).</summary>
+        /// <summary>Trekker eieren fra vakta (sletter den). En vakt med registrerte timer kan ikke slettes (400).</summary>
         Task<ShiftResult> Withdraw(int shiftId);
 
         /// <summary>
@@ -32,6 +35,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// </summary>
         /// <exception cref="EntityNotFoundException">Ressursen finnes ikke.</exception>
         /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
+        /// <exception cref="DomainValidationException">Negativ minimum bemanning.</exception>
         Task<ResourceResponse> SetMinimumStaff(int resourceId, MinimumStaffRequest request);
 
         /// <summary>

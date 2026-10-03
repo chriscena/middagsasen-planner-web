@@ -1979,96 +1979,6 @@
         }
       }
     },
-    "/api/ResourceTypes/{id}/training": {
-      "post": {
-        "tags": [
-          "ResourceTypes"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrainingRequest"
-              }
-            },
-            "text/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrainingRequest"
-              }
-            },
-            "application/*+json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrainingRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingResponse"
-                }
-              },
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingResponse"
-                }
-              },
-              "text/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrainingResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/ResourceTypes/{id}/files": {
       "post": {
         "tags": [
@@ -2910,6 +2820,16 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ResourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -4962,6 +4882,12 @@
               "null",
               "string"
             ]
+          },
+          "needsTraining": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -5503,6 +5429,8 @@
         "type": "object",
         "properties": {
           "minimumStaff": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           }
@@ -6227,41 +6155,6 @@
         "properties": {
           "name": {
             "type": "string"
-          }
-        }
-      },
-      "TrainingRequest": {
-        "required": [
-          "resourceTypeId",
-          "userId",
-          "startTime"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
-          },
-          "resourceTypeId": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "userId": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "startTime": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "trainingCompleted": {
-            "type": [
-              "null",
-              "boolean"
-            ]
           }
         }
       },

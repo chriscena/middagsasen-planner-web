@@ -10,8 +10,6 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController]
     public class ResourceTypesController : ControllerBase
     {
-        internal const string TrainingCompletedRequiredMessage = "Du må oppgi om opplæringen er fullført.";
-
         public ResourceTypesController(IResourceTypesService resourceTypesService, ICompetencyService competencyService)
         {
             ResourceTypesService = resourceTypesService;
@@ -64,20 +62,6 @@ namespace Middagsasen.Planner.Api.Controllers
         public async Task<ResourceTypeResponse> Delete(int id)
         {
             return await ResourceTypesService.DeleteResourceType(id);
-        }
-
-        [HttpPost("{id}/training"), Authorize]
-        [ProducesResponseType(typeof(TrainingResponse), StatusCodes.Status201Created)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> CreateTraining(int id, [FromBody] TrainingRequest request)
-        {
-            // Servicen ignorerer bevisst opplæring uten TrainingCompleted (brukt fra vakt-endepunktene),
-            // men her er opplæringen selve ressursen som opprettes, så da er forespørselen ugyldig.
-            var training = await ResourceTypesService.CreateTraining(id, request)
-                ?? throw new DomainValidationException(TrainingCompletedRequiredMessage);
-
-            return Created($"{training.ResourceTypeId}/training/{training.Id}", training);
         }
 
         [HttpPost("{id}/files")]

@@ -288,12 +288,30 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(expected, ShiftRules.CheckWithdraw(Resolve(who), Resource(2, true, shift), past ? AtEnd : Before, shift));
         }
 
+        [Theory]
+        [InlineData(Who.Admin, false, ShiftRuleViolation.HasWorkHours)]
+        [InlineData(Who.Admin, true, ShiftRuleViolation.HasWorkHours)]
+        [InlineData(Who.Owner, false, ShiftRuleViolation.HasWorkHours)]
+        [InlineData(Who.Owner, true, ShiftRuleViolation.Past)]
+        [InlineData(Who.Other, false, ShiftRuleViolation.Forbidden)]
+        public void CheckWithdraw_ShiftWithWorkHours_CannotBeRemoved_AlsoByAdmin(Who who, bool past, ShiftRuleViolation expected)
+        {
+            var shift = new ShiftFacts(1, OwnerId, NeedsTraining: false, HasWorkHours: true);
+            var resource = Resource(2, true, shift);
+            var now = past ? AtEnd : Before;
+
+            Assert.Equal(expected, ShiftRules.CheckWithdraw(Resolve(who), resource, now, shift));
+            Assert.False(ShiftRules.CanWithdraw(Resolve(who), resource, now, shift));
+        }
+
         // --- Flagg og håndhevelse stemmer overens ---
 
-        [Fact]
-        public void Flags_MatchEnforcement()
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Flags_MatchEnforcement(bool hasWorkHours)
         {
-            var shift = OwnerShift(needsTraining: true);
+            var shift = new ShiftFacts(1, OwnerId, NeedsTraining: true, HasWorkHours: hasWorkHours);
             var resource = Resource(2, true, shift);
 
             foreach (var who in Enum.GetValues<Who>())

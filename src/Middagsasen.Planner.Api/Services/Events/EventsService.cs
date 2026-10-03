@@ -42,32 +42,8 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
-        /// <summary>
-        /// Events med alt <see cref="ResourceMapper"/> trenger for ressursene (samme som <see cref="ShiftRepository.WithMappingIncludes"/>).
-        /// </summary>
-        private IQueryable<Event> Events => DbContext.Events
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                            .ThenInclude(u =>u.Trainings)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Shifts)
-                        .ThenInclude(s => s.User)
-                            .ThenInclude(u => u.Competencies)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.Trainers)
-                            .ThenInclude(t => t.User)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.Files)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.ResourceType)
-                        .ThenInclude(rt => rt.RequiredCompetencies)
-                            .ThenInclude(rc => rc.Competency)
-                .Include(e => e.Resources)
-                    .ThenInclude(r => r.Messages)
-                        .ThenInclude(t => t.CreatedByUser);
+        /// <summary>Events med alt <see cref="ResourceMapper"/> trenger for ressursene.</summary>
+        private IQueryable<Event> Events => ShiftRepository.WithMappingIncludes(DbContext.Events);
 
         public async Task<IEnumerable<EventResponse>> GetEvents()
         {

@@ -1,9 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Core;
-using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.SmsSender;
 
-namespace Middagsasen.Planner.Api.Services.ResourceTypes
+namespace Middagsasen.Planner.Api.Services.Shifts
 {
     /// <summary>Resultatet av et varsel til trenerne.</summary>
     /// <param name="Success">
@@ -32,14 +30,14 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
     public class TrainerNotifier : ITrainerNotifier
     {
-        public TrainerNotifier(PlannerDbContext dbContext, ISmsSender smsSender, ILogger<TrainerNotifier> logger)
+        public TrainerNotifier(ITrainerRepository repository, ISmsSender smsSender, ILogger<TrainerNotifier> logger)
         {
-            DbContext = dbContext;
+            Repository = repository;
             SmsSender = smsSender;
             Logger = logger;
         }
 
-        public PlannerDbContext DbContext { get; }
+        public ITrainerRepository Repository { get; }
         public ISmsSender SmsSender { get; }
         public ILogger<TrainerNotifier> Logger { get; }
 
@@ -47,22 +45,18 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
         {
             try
             {
-                var user = await DbContext.Users.AsNoTracking().SingleAsync(u => u.UserId == userId);
-                var resourceType = await DbContext.ResourceTypes.AsNoTracking().SingleAsync(t => t.ResourceTypeId == resourceTypeId);
-                var trainers = await DbContext.ResourceTypeTrainers
-                    .Include(t => t.User)
-                    .AsNoTracking()
-                    .Where(t => t.ResourceTypeId == resourceTypeId)
-                    .ToListAsync();
+                var user = await Repository.GetUser(userId);
+                var resourceType = await Repository.GetResourceType(resourceTypeId);
+                var trainers = await Repository.GetTrainers(resourceTypeId);
 
                 if (trainers.Count == 0)
                     return new TrainerNotificationResult(true, 0, null);
 
-                var fullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim();
+                var fullName = ResourceMapper.MapFullName(user.FirstName, user.LastName);
                 var messages = trainers.Select(trainer => new SmsMessage
                 {
-                    ReceiverPhoneNo = trainer.User.UserName.ToNumericPhoneNo(),
-                    Body = $"Hei {trainer.User.FirstName}! {fullName} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {shiftDate:dd'.'MM'.'yyyy}.",
+                    ReceiverPhoneNo = trainer.UserName.ToNumericPhoneNo(),
+                    Body = $"Hei {trainer.FirstName}! {fullName} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {shiftDate:dd'.'MM'.'yyyy}.",
                 }).ToList();
 
                 var result = await SmsSender.SendMessages(messages);

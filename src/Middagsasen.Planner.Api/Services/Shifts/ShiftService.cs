@@ -2,7 +2,6 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Events;
-using Middagsasen.Planner.Api.Services.ResourceTypes;
 
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
@@ -16,6 +15,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal const string DuplicateMessage = "Brukeren står allerede på denne vakta.";
         internal const string InvalidTimesMessage = "Tidene må ligge innenfor vaktas tider, og start kan ikke være etter slutt.";
         internal const string NoTrainingMessage = "Denne vakttypen har ikke opplæring.";
+        internal const string HasWorkHoursMessage = "Vakta har registrerte timer og kan ikke fjernes.";
+        internal const string NegativeMinimumStaffMessage = "Minimum bemanning kan ikke være negativ.";
         internal const string SmsFailedWarning = "Endringen er lagret, men SMS til trenerne kunne ikke sendes. Gi beskjed til en trener direkte.";
 
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
@@ -43,8 +44,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>
         /// Opplæring: har ressurstypen opplæring og målbrukeren ingen opplæringsrad, er <see cref="SignUpRequest.NeedsTraining"/>
-        /// påkrevd. <c>true</c> lager en rad med TrainingComplete = false og varsler trenerne etter commit; <c>false</c> lager en
-        /// rad med TrainingComplete = true (selverklæring, bekreftet av innlogget bruker). Har brukeren en rad, ignoreres svaret.
+        /// påkrevd (se <see cref="AddTrainingFromAnswer"/>). Har brukeren en rad, ignoreres svaret.
         /// </summary>
         public async Task<ShiftResult> SignUp(int resourceId, SignUpRequest request)
         {
@@ -60,7 +60,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             var utcNow = TimeProvider.GetUtcNow();
             var now = utcNow.ToNorwegianLocalTime();
 
-            var (training, notifyTrainers, resourceTypeId, resourceStart) = await Repository.InResourceLock(resourceId, async () =>
+            var (training, resourceTypeId, resourceStart) = await RetryOnTrainingConflict(() => Repository.InResourceLock(resourceId, async () =>
             {
                 var resource = await Repository.GetResource(resourceId)
                     ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
@@ -68,22 +68,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
                 Enforce(ShiftRules.CheckSignUp(actor, facts, now, targetUserId, request.StartTime, request.EndTime));
 
-                ResourceTypeTraining? newTraining = null;
-                if (facts.HasTraining && await Repository.GetTraining(targetUserId, resource.ResourceTypeId) is null)
-                {
-                    if (request.NeedsTraining is not { } needsTraining)
-                        throw new DomainValidationException(TrainingAnswerRequiredMessage(resource.ResourceType.Name));
-
-                    newTraining = new ResourceTypeTraining
-                    {
-                        UserId = targetUserId,
-                        ResourceTypeId = resource.ResourceTypeId,
-                        TrainingComplete = !needsTraining,
-                        Confirmed = needsTraining ? null : utcNow.UtcDateTime,
-                        ConfirmedBy = needsTraining ? null : actor.UserId,
-                    };
-                    Repository.AddTraining(newTraining);
-                }
+                var newTraining = await AddTrainingFromAnswer(actor, resource, targetUserId, request.NeedsTraining, utcNow);
 
                 Repository.AddShift(new EventResourceUser
                 {
@@ -95,10 +80,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 });
 
                 await Repository.SaveChangesAsync();
-                return (newTraining, newTraining?.TrainingComplete == false, resource.ResourceTypeId, resource.StartTime);
-            });
+                return (newTraining, resource.ResourceTypeId, resource.StartTime);
+            }));
 
-            var warnings = notifyTrainers
+            var warnings = training?.TrainingComplete == false
                 ? await NotifyTrainers(targetUserId, resourceTypeId, resourceStart)
                 : [];
 
@@ -109,27 +94,32 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// Null-semantikk: <see cref="ChangeShiftRequest.UserId"/>, <see cref="ChangeShiftRequest.StartTime"/> og
         /// <see cref="ChangeShiftRequest.EndTime"/> beholdes når de er <c>null</c>; <see cref="ChangeShiftRequest.Comment"/>
         /// settes alltid (klienten sender hele vakta), så <c>null</c> fjerner kommentaren.
+        /// Flyttes vakta til en annen bruker, gjelder samme opplæringsregel som ved påmelding
+        /// (<see cref="ChangeShiftRequest.NeedsTraining"/>, se <see cref="AddTrainingFromAnswer"/>).
         /// </summary>
         public async Task<ShiftResult> Change(int shiftId, ChangeShiftRequest request)
         {
             var actor = CurrentUser.ToActor();
             var resourceId = await Repository.GetResourceIdForShift(shiftId)
                 ?? throw new EntityNotFoundException(ShiftNotFoundMessage);
-            var now = TimeProvider.GetUtcNow().ToNorwegianLocalTime();
+            var utcNow = TimeProvider.GetUtcNow();
+            var now = utcNow.ToNorwegianLocalTime();
 
-            await Repository.InResourceLock(resourceId, async () =>
+            var (training, resourceTypeId, resourceStart) = await RetryOnTrainingConflict(() => Repository.InResourceLock(resourceId, async () =>
             {
-                var (facts, shiftFacts) = await GetFacts(resourceId, shiftId);
+                var (resource, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
                 var shift = await Repository.GetShift(shiftId)
                     ?? throw new EntityNotFoundException(ShiftNotFoundMessage);
 
                 Enforce(ShiftRules.CheckChange(actor, facts, now, shiftFacts,
                     request.UserId, request.StartTime, request.EndTime, shift.StartTime, shift.EndTime));
 
+                ResourceTypeTraining? newTraining = null;
                 if (request.UserId is { } newUserId && newUserId != shift.UserId)
                 {
                     if (!await Repository.UserExists(newUserId))
                         throw new EntityNotFoundException(UserNotFoundMessage);
+                    newTraining = await AddTrainingFromAnswer(actor, resource, newUserId, request.NeedsTraining, utcNow);
                     shift.UserId = newUserId;
                 }
 
@@ -140,10 +130,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 shift.Comment = request.Comment;
 
                 await Repository.SaveChangesAsync();
-                return true;
-            });
+                return (newTraining, resource.ResourceTypeId, resource.StartTime);
+            }));
 
-            return await BuildResult(resourceId, null, []);
+            var warnings = training?.TrainingComplete == false
+                ? await NotifyTrainers(training.UserId, resourceTypeId, resourceStart)
+                : [];
+
+            return await BuildResult(resourceId, training?.ResourceTypeTrainingId, warnings);
         }
 
         /// <summary>
@@ -159,9 +153,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             var utcNow = TimeProvider.GetUtcNow();
             var now = utcNow.ToNorwegianLocalTime();
 
-            var (training, notifyTrainers, resourceTypeId, resourceStart, ownerId) = await Repository.InResourceLock(resourceId, async () =>
+            var (training, notifyTrainers, resourceTypeId, resourceStart, ownerId) = await RetryOnTrainingConflict(() => Repository.InResourceLock(resourceId, async () =>
             {
-                var (facts, shiftFacts) = await GetFacts(resourceId, shiftId);
+                var (_, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
 
                 Enforce(ShiftRules.CheckSetTraining(actor, facts, now, shiftFacts));
                 if (!facts.HasTraining)
@@ -179,7 +173,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
                 await Repository.SaveChangesAsync();
                 return (training, !request.TrainingCompleted && !wasRequested, facts.ResourceTypeId, facts.StartTime, shiftFacts.UserId);
-            });
+            }));
 
             var warnings = notifyTrainers
                 ? await NotifyTrainers(ownerId, resourceTypeId, resourceStart)
@@ -188,6 +182,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return await BuildResult(resourceId, training.ResourceTypeTrainingId, warnings);
         }
 
+        /// <summary>
+        /// Sletter vakta. En vakt med registrerte timer kan ikke slettes (<see cref="ShiftRuleViolation.HasWorkHours"/>);
+        /// sjekken gjøres mot ferske data inne i låsen, og fremmednøkkelen fanges i repositoriet som en siste sikring.
+        /// </summary>
         public async Task<ShiftResult> Withdraw(int shiftId)
         {
             var actor = CurrentUser.ToActor();
@@ -197,7 +195,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
             await Repository.InResourceLock(resourceId, async () =>
             {
-                var (facts, shiftFacts) = await GetFacts(resourceId, shiftId);
+                var (_, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
                 Enforce(ShiftRules.CheckWithdraw(actor, facts, now, shiftFacts));
 
                 var shift = await Repository.GetShift(shiftId)
@@ -216,7 +214,11 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             var actor = CurrentUser.ToActor();
             if (!actor.IsAdmin)
                 throw new ForbiddenAccessException();
+            if (request.MinimumStaff < 0)
+                throw new DomainValidationException(NegativeMinimumStaffMessage);
 
+            // Under ressurslåsen fordi MinimumStaff inngår i kapasitetsregelen (ShiftRules.IsFull): en samtidig
+            // påmelding skal enten se den gamle eller den nye verdien, ikke vurdere kapasitet mens den endres.
             await Repository.InResourceLock(resourceId, async () =>
             {
                 await Repository.SetMinimumStaff(resourceId, request.MinimumStaff);
@@ -227,14 +229,61 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return result.Resource;
         }
 
-        private async Task<(ResourceFacts Resource, ShiftFacts Shift)> GetFacts(int resourceId, int shiftId)
+        /// <summary>
+        /// Felles opplæringsregel for påmelding og flytting av vakt: har ressurstypen opplæring og <paramref name="userId"/>
+        /// ingen opplæringsrad for den, er svaret <paramref name="needsTraining"/> påkrevd (ellers 400).
+        /// <c>true</c> legger til en rad med TrainingComplete = false (trenerne varsles etter commit av kalleren);
+        /// <c>false</c> legger til en rad med TrainingComplete = true (selverklæring, bekreftet av innlogget bruker).
+        /// Ellers ignoreres svaret og ingenting legges til.
+        /// </summary>
+        /// <returns>Den nye opplæringsraden (ikke lagret), eller <c>null</c>.</returns>
+        private async Task<ResourceTypeTraining?> AddTrainingFromAnswer(Actor actor, EventResource resource, int userId, bool? needsTraining, DateTimeOffset utcNow)
+        {
+            if (resource.ResourceType.Trainers.Count == 0)
+                return null;
+            if (await Repository.GetTraining(userId, resource.ResourceTypeId) is not null)
+                return null;
+            if (needsTraining is not { } needs)
+                throw new DomainValidationException(TrainingAnswerRequiredMessage(resource.ResourceType.Name));
+
+            var training = new ResourceTypeTraining
+            {
+                UserId = userId,
+                ResourceTypeId = resource.ResourceTypeId,
+                TrainingComplete = !needs,
+                Confirmed = needs ? null : utcNow.UtcDateTime,
+                ConfirmedBy = needs ? null : actor.UserId,
+            };
+            Repository.AddTraining(training);
+            return training;
+        }
+
+        /// <summary>
+        /// Kjører <paramref name="operation"/> (en hel <see cref="IShiftRepository.InResourceLock{T}"/>) og prøver den én gang
+        /// til hvis en samtidig forespørsel opprettet samme opplæringsrad (<see cref="TrainingConflictException"/>). Første
+        /// transaksjon er da rullet tilbake; konteksten tømmes, og andre forsøk ser raden og lar den stå.
+        /// </summary>
+        private async Task<T> RetryOnTrainingConflict<T>(Func<Task<T>> operation)
+        {
+            try
+            {
+                return await operation();
+            }
+            catch (TrainingConflictException)
+            {
+                Repository.DiscardChanges();
+                return await operation();
+            }
+        }
+
+        private async Task<(EventResource Resource, ResourceFacts Facts, ShiftFacts Shift)> GetFacts(int resourceId, int shiftId)
         {
             var resource = await Repository.GetResource(resourceId)
                 ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
             var facts = ResourceMapper.ToFacts(resource);
             var shift = facts.Shifts.SingleOrDefault(s => s.ShiftId == shiftId)
                 ?? throw new EntityNotFoundException(ShiftNotFoundMessage);
-            return (facts, shift);
+            return (resource, facts, shift);
         }
 
         private async Task<IReadOnlyList<string>> NotifyTrainers(int userId, int resourceTypeId, DateTime shiftDate)
@@ -268,6 +317,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 case ShiftRuleViolation.Full: throw new DomainValidationException(FullMessage);
                 case ShiftRuleViolation.Duplicate: throw new DomainValidationException(DuplicateMessage);
                 case ShiftRuleViolation.InvalidTimes: throw new DomainValidationException(InvalidTimesMessage);
+                case ShiftRuleViolation.HasWorkHours: throw new DomainValidationException(HasWorkHoursMessage);
                 default: throw new ArgumentOutOfRangeException(nameof(violation), violation, null);
             }
         }

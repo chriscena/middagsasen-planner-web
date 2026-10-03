@@ -11,5 +11,8 @@
 
         public User User { get; set; } = null!;
         public EventResource Resource { get; set; } = null!;
+
+        /// <summary>Timeføringer knyttet til vakta. Vakta kan ikke slettes så lenge den har timeføringer.</summary>
+        public ICollection<WorkHour> WorkHours { get; set; } = new List<WorkHour>();
     }
 }

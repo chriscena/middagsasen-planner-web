@@ -1624,78 +1624,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/ResourceTypes/{id}/training": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: number;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["TrainingRequest"];
-                    "text/json": components["schemas"]["TrainingRequest"];
-                    "application/*+json": components["schemas"]["TrainingRequest"];
-                };
-            };
-            responses: {
-                /** @description Created */
-                201: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["TrainingResponse"];
-                        "application/json": components["schemas"]["TrainingResponse"];
-                        "text/json": components["schemas"]["TrainingResponse"];
-                    };
-                };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-                /** @description Unauthorized */
-                401: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-                /** @description Forbidden */
-                403: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/ResourceTypes/{id}/files": {
         parameters: {
             query?: never;
@@ -2346,6 +2274,15 @@ export interface paths {
                         "text/plain": components["schemas"]["ResourceResponse"];
                         "application/json": components["schemas"]["ResourceResponse"];
                         "text/json": components["schemas"]["ResourceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3928,6 +3865,7 @@ export interface components {
             /** Format: date-time */
             endTime?: null | string;
             comment?: null | string;
+            needsTraining?: null | boolean;
         };
         CompetencyApproverResponse: {
             /** Format: int32 */
@@ -4262,17 +4200,6 @@ export interface components {
         };
         TemplateFromEventRequest: {
             name: string;
-        };
-        TrainingRequest: {
-            /** Format: int32 */
-            id?: null | number;
-            /** Format: int32 */
-            resourceTypeId: number;
-            /** Format: int32 */
-            userId: number;
-            /** Format: date-time */
-            startTime: string;
-            trainingCompleted?: null | boolean;
         };
         TrainingResponse: {
             /** Format: int32 */
