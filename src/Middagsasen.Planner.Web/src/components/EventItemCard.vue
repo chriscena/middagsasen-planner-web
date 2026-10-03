@@ -661,7 +661,7 @@ function loadTraining(
   user: ShiftUser | null,
   resource: ResourceResponse
 ): void {
-  // trainings er nullable i UserResponse.
+  // Felles form for opplæringene i ShiftUserResponse og UserResponse; user kan være null.
   const trainings: {
     resourceTypeId: number;
     trainingComplete?: boolean | null;

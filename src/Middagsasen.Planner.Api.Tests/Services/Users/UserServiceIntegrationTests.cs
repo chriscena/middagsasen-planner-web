@@ -295,7 +295,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Med opplæring" });
 
-            Assert.NotNull(result.Trainings);
             var training = Assert.Single(result.Trainings);
             Assert.Equal(rt.ResourceTypeId, training.ResourceTypeId);
             Assert.Equal(rt.Name, training.ResourceTypeName);

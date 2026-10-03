@@ -6412,7 +6412,8 @@
           "id",
           "phoneNo",
           "isAdmin",
-          "isHidden"
+          "isHidden",
+          "trainings"
         ],
         "type": "object",
         "properties": {
@@ -6448,10 +6449,7 @@
             "type": "boolean"
           },
           "trainings": {
-            "type": [
-              "null",
-              "array"
-            ],
+            "type": "array",
             "items": {
               "$ref": "#/components/schemas/UserTrainingResponse"
             }
