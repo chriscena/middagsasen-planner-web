@@ -44,7 +44,14 @@ export default defineConfig((/* ctx */) => {
     boot: ["i18n", "axios", "notify-defaults", "vuedatepicker", "version-check"],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
-    css: ["app.scss", '~@quasar/quasar-ui-qcalendar/src/index.scss'],
+    css: [
+      "app.scss",
+      // QCalendar 5: komponent-CSS-en definerer ikke variablene (borders, farger)
+      // eller slide-transitions selv, så alle tre må med.
+      "~@quasar/quasar-ui-qcalendar/QCalendarVariables.css",
+      "~@quasar/quasar-ui-qcalendar/QCalendarTransitions.css",
+      "~@quasar/quasar-ui-qcalendar/QCalendarAgenda.css",
+    ],
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
     extras: [

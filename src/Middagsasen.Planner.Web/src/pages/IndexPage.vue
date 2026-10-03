@@ -58,7 +58,6 @@
       @change="onChange"
       @click-head-day="showMenu"
       animated
-      column-header-before
       ref="calendar"
     >
       <template #head-days-events>
@@ -231,7 +230,10 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { TouchSwipeValue } from "quasar";
-import { QCalendarAgenda, today } from "@quasar/quasar-ui-qcalendar";
+// QCalendarAgenda brukes både som komponent (q-calendar-agenda) og som
+// instanstype for ref-en (prev/next/moveToToday/updateCurrent).
+import { QCalendarAgenda } from "@quasar/quasar-ui-qcalendar";
+import { today } from "@timestamp-js/core";
 import { parseISO, format, isValid, parse } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
@@ -244,13 +246,15 @@ import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
 import type { EventRequest, EventResponse } from "src/types";
 
-// Payload fra q-calendar-agenda sitt change-event (pakken typer ikke emits).
+// Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke
+// emits-payloadene, så vi beskriver kun feltene vi bruker.
 interface CalendarChangeEvent {
   start: string;
   end: string;
 }
 
-// Dagen fra q-calendar-agenda (Timestamp); kun date (yyyy-MM-dd) brukes.
+// Dagen fra q-calendar-agenda (Timestamp fra @timestamp-js/core); kun date
+// (yyyy-MM-dd) brukes, så en minimal struktur holder (og er enkel i tester).
 interface DayTimestamp {
   date: string;
 }

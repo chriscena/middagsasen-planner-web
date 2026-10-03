@@ -448,7 +448,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
-import { today } from "@quasar/quasar-ui-qcalendar";
+import { today } from "@timestamp-js/core";
 import { parseISO, format } from "date-fns";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
@@ -471,7 +471,8 @@ import type {
 // Maks lengde på en beskjed; speiler MessageRequest.MaxLength i backend.
 const MESSAGE_MAX_LENGTH = 4000;
 
-// Dagen fra q-calendar-agenda (Timestamp); kun date (yyyy-MM-dd) brukes.
+// Dagen fra q-calendar-agenda (Timestamp fra @timestamp-js/core); kun date
+// (yyyy-MM-dd) brukes, så en minimal struktur holder (og er enkel i tester).
 interface DayTimestamp {
   date: string;
 }

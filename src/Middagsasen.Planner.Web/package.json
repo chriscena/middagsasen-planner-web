@@ -20,7 +20,8 @@
   "dependencies": {
     "@date-fns/utc": "^2.1.0",
     "@quasar/extras": "^1.16.17",
-    "@quasar/quasar-ui-qcalendar": "^4.1.2",
+    "@quasar/quasar-ui-qcalendar": "^5.3.1",
+    "@timestamp-js/core": "^1.0.0",
     "@vuelidate/core": "^2.0.3",
     "@vuelidate/validators": "^2.0.4",
     "@vuepic/vue-datepicker": "^12.1.0",
@@ -53,7 +54,7 @@
     "vue-tsc": "^3.3.12"
   },
   "engines": {
-    "node": "^22 || ^20",
+    "node": ">=22.13",
     "npm": ">= 10.8.2"
   },
   "overrides": {
