@@ -4276,7 +4276,7 @@ export interface components {
             fullName?: null | string;
             isAdmin: boolean;
             isHidden: boolean;
-            trainings?: null | components["schemas"]["UserTrainingResponse"][];
+            trainings: components["schemas"]["UserTrainingResponse"][];
         };
         UserShiftResponse: {
             /** Format: int32 */

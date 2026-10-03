@@ -70,9 +70,9 @@ builder.Services.Configure<InfrastructureSettings>(settings =>
     settings.ConnectionString = builder.Configuration["Infrastructure:StorageConnectionString"];
     settings.Container = builder.Configuration["Infrastructure:StorageContainer"];
 });
-builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
-builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
-builder.Services.AddTransient<IBlobStorageSettings>(serviceProvider => serviceProvider.GetService<IOptions<InfrastructureSettings>>()?.Value);
+builder.Services.AddTransient<ISmsSenderSettings>(serviceProvider => serviceProvider.GetRequiredService<IOptions<InfrastructureSettings>>().Value);
+builder.Services.AddTransient<IAuthSettings>(serviceProvider => serviceProvider.GetRequiredService<IOptions<InfrastructureSettings>>().Value);
+builder.Services.AddTransient<IBlobStorageSettings>(serviceProvider => serviceProvider.GetRequiredService<IOptions<InfrastructureSettings>>().Value);
 builder.Services.AddDbContext<PlannerDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 builder.Services.AddHttpClient<ISmsSender, SmsSenderService>(client =>
 {

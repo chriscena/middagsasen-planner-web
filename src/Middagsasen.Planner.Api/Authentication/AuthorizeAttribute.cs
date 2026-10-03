@@ -1,6 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc.Filters;
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Authentication
 {
@@ -17,8 +16,7 @@ namespace Middagsasen.Planner.Api.Authentication
         /// <exception cref="ForbiddenAccessException">Brukeren mangler påkrevd rolle (gir 403).</exception>
         public void OnAuthorization(AuthorizationFilterContext context)
         {
-            var user = (UserResponse?)context.HttpContext.Items["User"];
-            if (user == null)
+            if (context.HttpContext.Items["User"] is not Actor)
                 throw new NotAuthenticatedException();
 
             if (!string.IsNullOrWhiteSpace(Role) && !context.HttpContext.User.IsInRole(Role))

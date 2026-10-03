@@ -19,10 +19,14 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             SmsSender = smsSender;
             AuthSettings = authSettings;
         }
-        public async Task<UserResponse?> GetUserBySessionId(Guid id)
+        public async Task<Actor?> GetUserBySessionId(Guid id)
         {
-            var session = await DbContext.UserSessions.AsNoTracking().Include(us => us.User).SingleOrDefaultAsync(u => u.UserSessionId == id);
-            return session?.User != null ? Map(session.User) : null;
+            var user = await DbContext.UserSessions
+                .AsNoTracking()
+                .Where(us => us.UserSessionId == id)
+                .Select(us => new { us.User.UserId, us.User.IsAdmin })
+                .SingleOrDefaultAsync();
+            return user != null ? new Actor(user.UserId, user.IsAdmin) : null;
         }
 
         /// <summary>
@@ -174,19 +178,6 @@ namespace Middagsasen.Planner.Api.Services.Authentication
             };
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
-        }
-
-        private UserResponse Map(User user)
-        {
-            return new UserResponse
-            {
-                Id = user.UserId,
-                PhoneNo = user.UserName,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                FullName = $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim(),
-                IsAdmin = user.IsAdmin,
-            };
         }
     }
 }

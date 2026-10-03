@@ -2,7 +2,8 @@ namespace Middagsasen.Planner.Api.Services
 {
     /// <summary>
     /// Den innloggede brukeren som utfører en handling, slik tilgangspolicyene ser den.
-    /// Bygges av <see cref="Authentication.ICurrentUserService"/> og sendes inn i de rene policyene,
+    /// Legges i <c>HttpContext.Items["User"]</c> av <see cref="Authentication.JwtMiddleware"/>, leses via
+    /// <see cref="Authentication.ICurrentUserService"/> og sendes inn i de rene policyene,
     /// slik at de kan vurderes uten HttpContext eller databaseoppslag.
     /// </summary>
     /// <param name="UserId">Id til innlogget bruker.</param>
