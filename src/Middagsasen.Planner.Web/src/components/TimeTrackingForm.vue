@@ -125,6 +125,8 @@ import {
   formatDateTime,
   formatTime,
   intervalOn,
+  isValidDate,
+  isValidTime,
   toInstantWire,
 } from "src/shared/time";
 import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
@@ -214,24 +216,20 @@ function calculateTime(
   endTime: string | null
 ) {
   if (!startDate || !startTime || !endTime) return;
-  // Slutt før start betyr at føringen går over midnatt (neste dag).
-  const { start, end } = intervalOn(startDate, startTime, endTime);
-  // toInstantWire kaster RangeError for ugyldig dato/tid.
-  try {
-    viewModel.startTimeValid = true;
-    viewModel.startDateTime = toInstantWire(start);
-  } catch {
+  // Hvert felt valideres for seg, slik at det er feltet med feil som
+  // markeres (ikke starttid når det er datoen som er ugyldig).
+  viewModel.startDateValid = isValidDate(startDate);
+  viewModel.startTimeValid = isValidTime(startTime);
+  viewModel.endTimeValid = isValidTime(endTime);
+  if (!viewModel.startDateValid || !viewModel.startTimeValid) {
     viewModel.startDateTime = null;
-    viewModel.startTimeValid = false;
+    viewModel.endDateTime = null;
     return;
   }
-  try {
-    viewModel.endTimeValid = true;
-    viewModel.endDateTime = toInstantWire(end);
-  } catch {
-    viewModel.endDateTime = null;
-    viewModel.endTimeValid = false;
-  }
+  // Slutt før start betyr at føringen går over midnatt (neste dag).
+  const { start, end } = intervalOn(startDate, startTime, endTime);
+  viewModel.startDateTime = toInstantWire(start);
+  viewModel.endDateTime = viewModel.endTimeValid ? toInstantWire(end) : null;
 }
 
 const endDate = computed(() => {
@@ -278,7 +276,11 @@ const modifiedByText = computed(() => {
 });
 
 function validateContent() {
-  if (!viewModel.startTimeValid || !viewModel.endTimeValid) {
+  if (
+    !viewModel.startDateValid ||
+    !viewModel.startTimeValid ||
+    !viewModel.endTimeValid
+  ) {
     $q.notify({
       message: "Vennligst sjekk at tidspunktene er gyldige",
       color: "negative",
@@ -358,6 +360,7 @@ async function createHours() {
 
 const validForm = computed(() => {
   return (
+    viewModel.startDateValid &&
     viewModel.startTimeValid &&
     viewModel.endTimeValid &&
     descriptionIsValid.value

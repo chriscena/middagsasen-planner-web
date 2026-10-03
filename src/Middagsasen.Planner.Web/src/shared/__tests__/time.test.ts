@@ -20,9 +20,7 @@ import {
   offsetTime,
   parseDateTime,
   parseEventStatusDate,
-  parseLocalWire,
   parseTime,
-  toDateWire,
   toDayKey,
   toInstantWire,
   toLocalWire,
@@ -150,11 +148,18 @@ describe("parsing fra skjema", () => {
     expect(Number.isNaN(parseDateTime("15.01.2026", "1").getTime())).toBe(true);
   });
 
-  it("legger klokkeslett på dagens dato", () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 9, 3, 15, 0));
-    expect(parseTime("10:30")).toEqual(new Date(2026, 9, 3, 10, 30));
+  it("legger klokkeslett på en fast referansedato", () => {
+    expect(parseTime("10:30")).toEqual(new Date(2000, 0, 1, 10, 30));
+    expect(toLocalWire(parseTime("10:30"))).toBe("2000-01-01T10:30");
     expect(Number.isNaN(parseTime(null).getTime())).toBe(true);
+  });
+
+  it("parseTime forskyves ikke når i dag er sommertidsdagen", () => {
+    vi.useFakeTimers();
+    // 02:00–03:00 finnes ikke 29.03.2026 i Oslo.
+    vi.setSystemTime(new Date(2026, 2, 29, 12, 0));
+    expect(formatTime(parseTime("02:30"))).toBe("02:30");
+    expect(toLocalWire(parseTime("02:30"))).toBe("2000-01-01T02:30");
   });
 });
 
@@ -264,7 +269,11 @@ describe("dager", () => {
     expect(isDayKey("2026-10-03")).toBe(true);
     expect(isDayKey("2028-02-29")).toBe(true);
     expect(isDayKey("2026-02-30")).toBe(false);
+    expect(isDayKey("2026-13-01")).toBe(false);
     expect(isDayKey("2026-1-3")).toBe(false);
+    expect(isDayKey("2026")).toBe(false);
+    expect(isDayKey("20261003")).toBe(false);
+    expect(isDayKey("tull")).toBe(false);
     expect(isDayKey("03.10.2026")).toBe(false);
     expect(isDayKey("")).toBe(false);
     expect(isDayKey(undefined)).toBe(false);
@@ -335,16 +344,6 @@ describe("wire-format", () => {
     expect(() => toLocalWire(new Date(NaN))).toThrow(RangeError);
   });
 
-  it("parseLocalWire tolker lokal tid og går tur/retur", () => {
-    expect(parseLocalWire("2026-01-15T10:05")).toEqual(
-      new Date(2026, 0, 15, 10, 5)
-    );
-    expect(toLocalWire(parseLocalWire("2026-03-29T03:00"))).toBe(
-      "2026-03-29T03:00"
-    );
-    expect(Number.isNaN(parseLocalWire("").getTime())).toBe(true);
-  });
-
   it("toInstantWire gir UTC med millisekunder", () => {
     expect(toInstantWire(new Date(2026, 0, 15, 10, 0))).toBe(
       "2026-01-15T09:00:00.000Z"
@@ -374,11 +373,11 @@ describe("wire-format", () => {
     expect(toUtcWire(new Date(2026, 0, 15, 0, 0))).toBe("2026-01-14T23:00:00Z");
   });
 
-  it("toDateWire gir lokal dato", () => {
-    expect(toDateWire("2026-10-03")).toBe("2026-10-03");
-    expect(toDateWire(new Date(2026, 9, 3, 23, 30))).toBe("2026-10-03");
-    expect(toDateWire(nextDay("2026-10-24"))).toBe("2026-10-25");
-    expect(() => toDateWire("tull")).toThrow(RangeError);
+  it("toDayKey gir lokal dato for query-parametre", () => {
+    expect(toDayKey("2026-10-03")).toBe("2026-10-03");
+    expect(toDayKey(new Date(2026, 9, 3, 23, 30))).toBe("2026-10-03");
+    expect(toDayKey(nextDay("2026-10-24"))).toBe("2026-10-25");
+    expect(toDayKey(nextDay("2026-03-28"))).toBe("2026-03-29");
   });
 
   it("parseEventStatusDate tolker yyyy/MM/dd", () => {

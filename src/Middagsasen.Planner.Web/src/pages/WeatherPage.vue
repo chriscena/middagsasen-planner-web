@@ -68,7 +68,7 @@ import {
 import type { ChartData, ChartOptions, Point } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { Line } from "vue-chartjs";
-import { CHART_TIME_FORMAT } from "src/shared/time";
+import { CHART_TIME_FORMAT, formatTime } from "src/shared/time";
 
 const loading = ref(false);
 ChartJS.register(
@@ -147,9 +147,7 @@ const locations = computed((): LocationViewModel[] =>
                 // alltid (values.Last() på en ikke-tom gruppe).
                 text: `${m.measurementName}: ${m.lastValue!.value} ${
                   m.unit
-                } kl. ${new Date(
-                  m.lastValue!.measuredTime
-                ).toLocaleTimeString()}`,
+                } kl. ${formatTime(m.lastValue!.measuredTime)}`,
               },
               // subtitle: {
               //   display: true,

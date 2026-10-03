@@ -4,10 +4,6 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-// Testene kjører i norsk tidssone, slik at dato-/tidstester (midnatt og
-// sommertid) er deterministiske og meningsfulle uansett maskin/CI.
-process.env.TZ = "Europe/Oslo";
-
 export default defineConfig({
   resolve: {
     alias: {
@@ -19,6 +15,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.{test,spec}.{js,ts}"],
+    // Testene kjører i norsk tidssone, slik at dato-/tidstester (midnatt og
+    // sommertid) er deterministiske og meningsfulle uansett maskin/CI.
     env: { TZ: "Europe/Oslo" },
   },
 });

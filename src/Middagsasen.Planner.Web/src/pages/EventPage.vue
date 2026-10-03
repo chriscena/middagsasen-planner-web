@@ -316,6 +316,7 @@ import {
   formatDate,
   formatTime,
   intervalOn,
+  isDayKey,
   isValidDate,
   isValidTime,
   offsetTime,
@@ -391,7 +392,8 @@ onMounted(async () => {
         };
       });
     } else {
-      startDate.value = formatDate(props.date);
+      // Ugyldig dato i URL-en (/create/:date) gir dagens dato.
+      startDate.value = formatDate(isDayKey(props.date) ? props.date : today());
       name.value = "Åpningstid";
     }
   } catch {

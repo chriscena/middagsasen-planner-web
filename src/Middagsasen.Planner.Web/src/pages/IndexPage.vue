@@ -244,13 +244,13 @@ import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
 import type { EventRequest, EventResponse } from "src/types";
-import { parseDayParam } from "src/shared/dayParam";
 import {
   DAY_KEY_FORMAT,
   formatDayMonth,
   formatTimeRange,
   formatWeekNumber,
   fromDayKey,
+  isDayKey,
   isPast,
   parseEventStatusDate,
   toDayKey,
@@ -296,7 +296,7 @@ const props = defineProps<{
 const loading = ref(false);
 // Initialiseres direkte fra URL-en, slik at kalenderen starter på riktig uke
 // og ikke først sender change for dagens uke.
-const selectedDay = ref(parseDayParam(props.date) ?? today());
+const selectedDay = ref(isDayKey(props.date) ? props.date : today());
 
 const $q = useQuasar();
 const $router = useRouter();
@@ -321,7 +321,7 @@ const showingHallOfFame = ref(false);
 onMounted(async () => {
   userStore.getUser();
   if (isAdmin.value) eventStore.getTemplates();
-  if (!parseDayParam(props.date)) await $router.replace(`/day/${today()}`);
+  if (!isDayKey(props.date)) await $router.replace(`/day/${today()}`);
   const date = fromDayKey(selectedDay.value);
   const month = date.getMonth() + 1;
   const year = date.getFullYear();
@@ -342,8 +342,7 @@ watch(selectedDay, (day) => {
 watch(
   () => props.date,
   (date) => {
-    const day = parseDayParam(date);
-    if (day && day !== selectedDay.value) selectedDay.value = day;
+    if (isDayKey(date) && date !== selectedDay.value) selectedDay.value = date;
   }
 );
 

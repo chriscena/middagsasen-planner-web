@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { api } from "boot/axios";
-import { nextDay, toDateWire } from "src/shared/time";
+import { nextDay, toDayKey } from "src/shared/time";
 import type {
   ChangeShiftRequest,
   EventFromTemplateRequest,
@@ -72,8 +72,8 @@ export const useEventStore = defineStore("events", {
       }
     },
     async getEventsForDates(start: string, end: string): Promise<void> {
-      const startDate = encodeURIComponent(toDateWire(start));
-      const endDate = encodeURIComponent(toDateWire(nextDay(end)));
+      const startDate = encodeURIComponent(toDayKey(start));
+      const endDate = encodeURIComponent(toDayKey(nextDay(end)));
       this.eventsRange = { start, end };
       const request = ++latestEventsRequest;
       const response = await api.get<EventResponse[]>(

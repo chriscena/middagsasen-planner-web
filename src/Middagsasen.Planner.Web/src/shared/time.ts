@@ -6,14 +6,16 @@
 //
 // Wire-format mot API-et (endres ikke her, bare samlet):
 // - Arrangementer og maler (POST/PUT /api/events, /api/templates):
-//   lokal tid uten tidssone, "yyyy-MM-ddTHH:mm" → `toLocalWire`.
-//   Svarene har samme form (uten sone) → `parseLocalWire`.
+//   lokal tid uten tidssone, "yyyy-MM-ddTHH:mm" → `toLocalWire`. Svarene
+//   har samme form (uten sone) og kan gis direkte til visningsfunksjonene.
+//   For maler bruker backend bare klokkeslettet (TimeOfDay); datodelen er
+//   den faste referansedatoen fra `parseTime`.
 // - Timeføring (/api/workhours): UTC-tidspunkt fra `Date.toISOString()`,
 //   "yyyy-MM-ddTHH:mm:ss.sssZ" → `toInstantWire`.
 // - Vær (GET /api/weather?start=&end=): UTC uten millisekunder,
 //   "yyyy-MM-ddTHH:mm:ssZ" → `toUtcWire`.
 // - Vaktlister for en periode (GET /api/events?start=&end=): dato
-//   "yyyy-MM-dd" → `toDateWire`.
+//   "yyyy-MM-dd" (lokal dag) → `toDayKey`.
 // - Status per dag (GET /api/eventstatus): `date` kommer som "yyyy/MM/dd"
 //   → `parseEventStatusDate`.
 // - Mine vakter (GET /api/me/shifts): `startDate` er "yyyy-MM-dd", tidene er
@@ -134,11 +136,13 @@ export function isValidDate(date: string | null | undefined): boolean {
 }
 
 /**
- * Klokkeslett "HH:mm" lagt på dagens dato. Ugyldig eller manglende
- * klokkeslett gir Invalid Date (kaster ikke).
+ * Klokkeslett "HH:mm" lagt på en fast referansedato (1. januar 2000, uten
+ * sommertidsskifte), slik at klokkeslettet aldri forskyves av sommertid på
+ * dagens dato. Brukes for maler, der backend bare leser klokkeslettet.
+ * Ugyldig eller manglende klokkeslett gir Invalid Date (kaster ikke).
  */
 export function parseTime(time: string | null | undefined): Date {
-  return parse(time ?? "", TIME_FORMAT, new Date());
+  return parse(time ?? "", TIME_FORMAT, TIME_REFERENCE_DATE);
 }
 
 /**
@@ -252,11 +256,6 @@ export function toLocalWire(date: Date): string {
   return format(date, LOCAL_WIRE_FORMAT);
 }
 
-/** Tolker lokal tid uten tidssone fra API-et (Invalid Date hvis ugyldig). */
-export function parseLocalWire(value: string | null | undefined): Date {
-  return parseISO(value ?? "");
-}
-
 /** UTC-tidspunkt med millisekunder, "yyyy-MM-ddTHH:mm:ss.sssZ" (timeføring). */
 export function toInstantWire(date: Date): string {
   return date.toISOString();
@@ -265,13 +264,6 @@ export function toInstantWire(date: Date): string {
 /** UTC-tidspunkt uten millisekunder, "yyyy-MM-ddTHH:mm:ssZ" (vær). */
 export function toUtcWire(date: Date): string {
   return `${date.toISOString().slice(0, 19)}Z`;
-}
-
-/** Dato "yyyy-MM-dd" for query-parametre (lokal dag). */
-export function toDateWire(value: Date | string): string {
-  const date = toDate(value);
-  if (!date) throw new RangeError("Invalid time value");
-  return format(date, DAY_KEY_FORMAT);
 }
 
 /** Datoen i status per dag fra API-et ("yyyy/MM/dd"), som lokal midnatt. */

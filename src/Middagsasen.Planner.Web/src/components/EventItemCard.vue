@@ -116,10 +116,10 @@
         </q-item-section>
       </q-item>
     </q-list>
-    <q-separator v-if="isAdmin && isFuture(timestamp.date)"></q-separator>
+    <q-separator v-if="isAdmin && isFutureDay"></q-separator>
     <span v-if="isAdmin" class="row">
       <q-item
-        v-if="isFuture(timestamp.date)"
+        v-if="isFutureDay"
         clickable
         v-ripple
         dense
@@ -133,7 +133,7 @@
       </q-item>
       <q-separator vertical></q-separator>
       <q-item
-        v-if="isFuture(timestamp.date)"
+        v-if="isFutureDay"
         clickable
         v-ripple
         dense
@@ -597,6 +597,8 @@ const showingTrainingDialog = ref(false);
 const users = computed(() => userStore.users);
 // Dagen i kalenderen er før i dag.
 const isPastDay = computed(() => isPast(props.timestamp.date));
+// Dagen i kalenderen er etter i dag.
+const isFutureDay = computed(() => isFuture(props.timestamp.date));
 const event = computed(() => props.modelValue);
 // Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
 const currentUser = computed(() => authStore.user!);
