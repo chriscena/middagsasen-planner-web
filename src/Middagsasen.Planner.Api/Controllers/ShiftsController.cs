@@ -20,7 +20,10 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IShiftService ShiftService { get; }
 
-        /// <summary>Ta vakt på ressursen (eller sett opp en annen bruker, kun admin).</summary>
+        /// <summary>
+        /// Ta vakt på ressursen (eller sett opp en annen bruker, kun admin). Opplæringen (<c>trainingCompleted</c>) lagres i
+        /// samme transaksjon som vakta.
+        /// </summary>
         [HttpPost("api/resources/{id}/shifts")]
         [ProducesResponseType(typeof(ShiftResult), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -31,7 +34,10 @@ namespace Middagsasen.Planner.Api.Controllers
             return await ShiftService.SignUp(id, request);
         }
 
-        /// <summary>Endre tider, kommentar og (kun admin) eier av vakta.</summary>
+        /// <summary>
+        /// Endre tider, kommentar og (kun admin) eier av vakta. Opplæringen til eieren etter endringen (<c>trainingCompleted</c>)
+        /// lagres i samme transaksjon som vakta.
+        /// </summary>
         [HttpPut("api/shifts/{id}")]
         [ProducesResponseType(typeof(ShiftResult), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]

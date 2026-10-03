@@ -42,8 +42,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         }
 
         /// <summary>
-        /// Opplæring: har ressurstypen opplæring og målbrukeren ingen opplæringsrad, er <see cref="SignUpRequest.NeedsTraining"/>
-        /// påkrevd (se <see cref="AddTrainingFromAnswer"/>). Har brukeren en rad, ignoreres svaret.
+        /// Opplæring: svaret <see cref="SignUpRequest.TrainingCompleted"/> lagres i samme transaksjon som vakta, etter
+        /// regelen i <see cref="ApplyTrainingAnswer"/>. Svaret er påkrevd når målbrukeren mangler opplæringsrad.
         /// </summary>
         public async Task<ShiftResult> SignUp(int resourceId, SignUpRequest request)
         {
@@ -67,7 +67,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
                 Enforce(ShiftRules.CheckSignUp(actor, facts, now, targetUserId, request.StartTime, request.EndTime));
 
-                var newTraining = await AddTrainingFromAnswer(actor, resource, targetUserId, request.NeedsTraining, utcNow);
+                // Den nye vakta har ingen id ennå. CheckSetTraining vurderes likevel mot målbrukeren (ShiftId 0), så regelen
+                // bare finnes ett sted; CheckSignUp har allerede krevd admin eller seg selv, så den slår ikke til i praksis.
+                var owner = new ShiftFacts(0, targetUserId, NeedsTraining: false);
+                var trainingChange = await ApplyTrainingAnswer(actor, resource, facts, owner, request.TrainingCompleted, answerRequired: true, utcNow, now);
 
                 Repository.AddShift(new EventResourceUser
                 {
@@ -79,22 +82,23 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 });
 
                 await Repository.SaveChangesAsync();
-                return (newTraining, resource.ResourceTypeId, resource.StartTime);
+                return (trainingChange, resource.ResourceTypeId, resource.StartTime);
             }));
 
-            var warnings = training?.TrainingComplete == false
+            var warnings = training is { NotifyTrainers: true }
                 ? await NotifyTrainers(targetUserId, resourceTypeId, resourceStart)
                 : [];
 
-            return await BuildResult(resourceId, training?.ResourceTypeTrainingId, warnings);
+            return await BuildResult(resourceId, training?.Training.ResourceTypeTrainingId, warnings);
         }
 
         /// <summary>
         /// Null-semantikk: <see cref="ChangeShiftRequest.UserId"/>, <see cref="ChangeShiftRequest.StartTime"/> og
         /// <see cref="ChangeShiftRequest.EndTime"/> beholdes når de er <c>null</c>; <see cref="ChangeShiftRequest.Comment"/>
         /// settes alltid (klienten sender hele vakta), så <c>null</c> fjerner kommentaren.
-        /// Flyttes vakta til en annen bruker, gjelder samme opplæringsregel som ved påmelding
-        /// (<see cref="ChangeShiftRequest.NeedsTraining"/>, se <see cref="AddTrainingFromAnswer"/>).
+        /// Opplæringen til eieren etter endringen (<see cref="ChangeShiftRequest.TrainingCompleted"/>) lagres i samme
+        /// transaksjon (se <see cref="ApplyTrainingAnswer"/>). Svaret er påkrevd bare når vakta flyttes til en bruker uten
+        /// opplæringsrad; ellers er det valgfritt, men lagres hvis det sendes.
         /// </summary>
         public async Task<ShiftResult> Change(int shiftId, ChangeShiftRequest request)
         {
@@ -113,14 +117,18 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 Enforce(ShiftRules.CheckChange(actor, facts, now, shiftFacts,
                     request.UserId, request.StartTime, request.EndTime, shift.StartTime, shift.EndTime));
 
-                ResourceTypeTraining? newTraining = null;
+                var owner = shiftFacts;
+                var movesShift = false;
                 if (request.UserId is { } newUserId && newUserId != shift.UserId)
                 {
                     if (!await Repository.UserExists(newUserId))
                         throw new EntityNotFoundException(UserNotFoundMessage);
-                    newTraining = await AddTrainingFromAnswer(actor, resource, newUserId, request.NeedsTraining, utcNow);
+                    owner = new ShiftFacts(shiftId, newUserId, NeedsTraining: false);
+                    movesShift = true;
                     shift.UserId = newUserId;
                 }
+
+                var trainingChange = await ApplyTrainingAnswer(actor, resource, facts, owner, request.TrainingCompleted, answerRequired: movesShift, utcNow, now);
 
                 if (request.StartTime.HasValue)
                     shift.StartTime = request.StartTime;
@@ -129,20 +137,20 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 shift.Comment = request.Comment;
 
                 await Repository.SaveChangesAsync();
-                return (newTraining, resource.ResourceTypeId, resource.StartTime);
+                return (trainingChange, resource.ResourceTypeId, resource.StartTime);
             }));
 
-            var warnings = training?.TrainingComplete == false
-                ? await NotifyTrainers(training.UserId, resourceTypeId, resourceStart)
+            var warnings = training is { NotifyTrainers: true } change
+                ? await NotifyTrainers(change.Training.UserId, resourceTypeId, resourceStart)
                 : [];
 
-            return await BuildResult(resourceId, training?.ResourceTypeTrainingId, warnings);
+            return await BuildResult(resourceId, training?.Training.ResourceTypeTrainingId, warnings);
         }
 
         /// <summary>
-        /// Upserter opplæringen til eieren av vakta på ressursens ressurstype. <c>true</c> setter Confirmed/ConfirmedBy
-        /// til nå/innlogget bruker; <c>false</c> nullstiller dem og varsler trenerne etter commit, men bare når opplæringen
-        /// ikke allerede var ønsket (så gjentatte kall ikke sender SMS på nytt).
+        /// Upserter opplæringen til eieren av vakta på ressursens ressurstype (se <see cref="UpsertTraining"/>), også når
+        /// verdien er lik den lagrede (trenerens bekreftelse oppdateres da). Trenerne varsles etter commit, men bare når
+        /// opplæringen ikke allerede var ønsket (så gjentatte kall ikke sender SMS på nytt).
         /// </summary>
         public async Task<ShiftResult> SetTraining(int shiftId, SetTrainingRequest request)
         {
@@ -152,7 +160,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             var utcNow = TimeProvider.GetUtcNow();
             var now = utcNow.ToNorwegianLocalTime();
 
-            var (training, notifyTrainers, resourceTypeId, resourceStart, ownerId) = await RetryOnTrainingConflict(() => Repository.InResourceLock(resourceId, async () =>
+            var (training, resourceTypeId, resourceStart, ownerId) = await RetryOnTrainingConflict(() => Repository.InResourceLock(resourceId, async () =>
             {
                 var (_, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
 
@@ -161,24 +169,17 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                     throw new DomainValidationException(NoTrainingMessage);
 
                 var existing = await Repository.GetTraining(shiftFacts.UserId, facts.ResourceTypeId);
-                var wasRequested = existing?.TrainingComplete == false;
-                var training = existing ?? new ResourceTypeTraining { UserId = shiftFacts.UserId, ResourceTypeId = facts.ResourceTypeId };
-                if (existing is null)
-                    Repository.AddTraining(training);
-
-                training.TrainingComplete = request.TrainingCompleted;
-                training.Confirmed = request.TrainingCompleted ? utcNow.UtcDateTime : null;
-                training.ConfirmedBy = request.TrainingCompleted ? actor.UserId : null;
+                var change = UpsertTraining(existing, shiftFacts.UserId, facts.ResourceTypeId, request.TrainingCompleted, actor, utcNow);
 
                 await Repository.SaveChangesAsync();
-                return (training, !request.TrainingCompleted && !wasRequested, facts.ResourceTypeId, facts.StartTime, shiftFacts.UserId);
+                return (change, facts.ResourceTypeId, facts.StartTime, shiftFacts.UserId);
             }));
 
-            var warnings = notifyTrainers
+            var warnings = training.NotifyTrainers
                 ? await NotifyTrainers(ownerId, resourceTypeId, resourceStart)
                 : [];
 
-            return await BuildResult(resourceId, training.ResourceTypeTrainingId, warnings);
+            return await BuildResult(resourceId, training.Training.ResourceTypeTrainingId, warnings);
         }
 
         public async Task<ShiftResult> Withdraw(int shiftId)
@@ -224,39 +225,71 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return result.Resource;
         }
 
-        /// <summary>
-        /// Felles opplæringsregel for påmelding og flytting av vakt: har ressurstypen opplæring og <paramref name="userId"/>
-        /// ingen opplæringsrad for den, er svaret <paramref name="needsTraining"/> påkrevd (ellers 400).
-        /// <c>true</c> legger til en rad med TrainingComplete = false (trenerne varsles etter commit av kalleren);
-        /// <c>false</c> legger til en rad med TrainingComplete = true (selverklæring, bekreftet av innlogget bruker).
-        /// Ellers ignoreres svaret og ingenting legges til.
-        /// </summary>
-        /// <returns>Den nye opplæringsraden (ikke lagret), eller <c>null</c>.</returns>
-        private async Task<ResourceTypeTraining?> AddTrainingFromAnswer(Actor actor, EventResource resource, int userId, bool? needsTraining, DateTimeOffset utcNow)
-        {
-            if (resource.ResourceType.Trainers.Count == 0)
-                return null;
-            if (await Repository.GetTraining(userId, resource.ResourceTypeId) is not null)
-                return null;
-            if (needsTraining is not { } needs)
-                throw new DomainValidationException(TrainingAnswerRequiredMessage(resource.ResourceType.Name));
+        /// <summary>En opplæringsrad som er opprettet eller endret (ikke lagret), og om trenerne skal varsles etter commit.</summary>
+        private readonly record struct TrainingChange(ResourceTypeTraining Training, bool NotifyTrainers);
 
-            var training = new ResourceTypeTraining
+        /// <summary>
+        /// Felles opplæringsregel for påmelding og endring av vakt. Gjelder <paramref name="owner"/>, eieren av vakta etter endringen:
+        /// <list type="bullet">
+        /// <item>Ressurstypen har ikke opplæring: svaret ignoreres.</item>
+        /// <item>Eieren har ingen opplæringsrad: <c>null</c> gir 400 når <paramref name="answerRequired"/>, ellers skjer ingenting.
+        /// Et svar oppretter raden (se <see cref="UpsertTraining"/>).</item>
+        /// <item>Eieren har en rad: <c>null</c> eller samme verdi som lagret endrer ingenting (ingen ny bekreftelse, ingen SMS).
+        /// En annen verdi krever <see cref="ShiftRules.CheckSetTraining"/> og oppdaterer raden som <see cref="SetTraining"/>.</item>
+        /// </list>
+        /// </summary>
+        /// <returns>Raden som ble opprettet eller endret, eller <c>null</c>.</returns>
+        private async Task<TrainingChange?> ApplyTrainingAnswer(
+            Actor actor, EventResource resource, ResourceFacts facts, ShiftFacts owner,
+            bool? trainingCompleted, bool answerRequired, DateTimeOffset utcNow, DateTime now)
+        {
+            if (!facts.HasTraining)
+                return null;
+            // Uten svar og uten krav om svar blir resultatet null uansett om raden finnes; slipp oppslaget.
+            if (trainingCompleted is null && !answerRequired)
+                return null;
+
+            var existing = await Repository.GetTraining(owner.UserId, facts.ResourceTypeId);
+            if (trainingCompleted is not { } completed)
             {
-                UserId = userId,
-                ResourceTypeId = resource.ResourceTypeId,
-                TrainingComplete = !needs,
-                Confirmed = needs ? null : utcNow.UtcDateTime,
-                ConfirmedBy = needs ? null : actor.UserId,
-            };
-            Repository.AddTraining(training);
-            return training;
+                if (existing is null && answerRequired)
+                    throw new DomainValidationException(TrainingAnswerRequiredMessage(resource.ResourceType.Name));
+                return null;
+            }
+
+            if (existing is not null)
+            {
+                if (existing.TrainingComplete == completed)
+                    return null;
+                Enforce(ShiftRules.CheckSetTraining(actor, facts, now, owner));
+            }
+
+            return UpsertTraining(existing, owner.UserId, facts.ResourceTypeId, completed, actor, utcNow);
+        }
+
+        /// <summary>
+        /// Oppretter eller oppdaterer opplæringsraden (lagres av kalleren). <c>true</c> setter Confirmed/ConfirmedBy til
+        /// nå/innlogget bruker; <c>false</c> nullstiller dem, og trenerne skal varsles hvis opplæringen ikke allerede var ønsket.
+        /// </summary>
+        private TrainingChange UpsertTraining(ResourceTypeTraining? existing, int userId, int resourceTypeId, bool completed, Actor actor, DateTimeOffset utcNow)
+        {
+            var wasRequested = existing?.TrainingComplete == false;
+            var training = existing ?? new ResourceTypeTraining { UserId = userId, ResourceTypeId = resourceTypeId };
+            if (existing is null)
+                Repository.AddTraining(training);
+
+            training.TrainingComplete = completed;
+            training.Confirmed = completed ? utcNow.UtcDateTime : null;
+            training.ConfirmedBy = completed ? actor.UserId : null;
+            return new TrainingChange(training, !completed && !wasRequested);
         }
 
         /// <summary>
         /// Kjører <paramref name="operation"/> (en hel <see cref="IShiftRepository.InResourceLock{T}"/>) og prøver den én gang
         /// til hvis en samtidig forespørsel opprettet samme opplæringsrad (<see cref="TrainingConflictException"/>). Første
-        /// transaksjon er da rullet tilbake; konteksten tømmes, og andre forsøk ser raden og lar den stå.
+        /// transaksjon er da rullet tilbake og konteksten tømmes. Andre forsøk ser raden og følger vanlig flyt for en
+        /// eksisterende rad (<see cref="ApplyTrainingAnswer"/>): er svaret <c>null</c> eller likt det lagrede, står raden
+        /// urørt; er det ulikt, oppdateres raden (med samme tilgangssjekk som ellers).
         /// </summary>
         private async Task<T> RetryOnTrainingConflict<T>(Func<Task<T>> operation)
         {

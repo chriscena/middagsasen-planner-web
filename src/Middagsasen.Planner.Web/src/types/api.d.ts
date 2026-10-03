@@ -3865,7 +3865,7 @@ export interface components {
             /** Format: date-time */
             endTime?: null | string;
             comment?: null | string;
-            needsTraining?: null | boolean;
+            trainingCompleted?: null | boolean;
         };
         CompetencyApproverResponse: {
             /** Format: int32 */
@@ -4190,7 +4190,7 @@ export interface components {
             /** Format: date-time */
             endTime?: null | string;
             comment?: null | string;
-            needsTraining?: null | boolean;
+            trainingCompleted?: null | boolean;
         };
         /** Format: binary */
         Stream: string;
