@@ -6,6 +6,8 @@
         public string UserName { get; set; } = null!;
         public string? OneTimePassword { get; set; }
         public DateTime? OtpCreated { get; set; }
+        /// <summary>Feilforsøk mot gjeldende engangskode. Nullstilles når ny kode lages og ved innlogging.</summary>
+        public int FailedOtpAttempts { get; set; }
         public byte[]? EncryptedPassword { get; set; }
         public byte[]? Salt { get; set; }
         public string? FirstName { get; set; }

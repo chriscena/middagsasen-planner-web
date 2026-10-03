@@ -19,21 +19,24 @@ namespace Middagsasen.Planner.Api.Authentication
         private const string BearerScheme = "Bearer";
 
         private readonly RequestDelegate _next;
-        private readonly ISessionTokens _sessionTokens;
         private readonly ILogger<JwtMiddleware> _logger;
 
-        public JwtMiddleware(RequestDelegate next, ISessionTokens sessionTokens, ILogger<JwtMiddleware> logger)
+        public JwtMiddleware(RequestDelegate next, ILogger<JwtMiddleware> logger)
         {
             _next = next;
-            _sessionTokens = sessionTokens;
             _logger = logger;
         }
 
-        public async Task Invoke(HttpContext context, IAuthenticationService userService)
+        /// <remarks>
+        /// <see cref="ISessionTokens"/> hentes per forespørsel i stedet for i konstruktøren. Middleware-konstruktøren
+        /// kjører når pipelinen bygges, også under build-time-genereringen av OpenAPI, der hemmeligheten mangler
+        /// og <see cref="SessionTokens"/> ikke kan lages.
+        /// </remarks>
+        public async Task Invoke(HttpContext context, ISessionTokens sessionTokens, IAuthenticationService userService)
         {
             var token = ReadBearerToken(context.Request);
             if (token != null)
-                await AttachUserToContext(context, userService, token);
+                await AttachUserToContext(context, sessionTokens, userService, token);
             await _next(context);
         }
 
@@ -46,9 +49,9 @@ namespace Middagsasen.Planner.Api.Authentication
             return string.IsNullOrWhiteSpace(value.Parameter) ? null : value.Parameter;
         }
 
-        private async Task AttachUserToContext(HttpContext context, IAuthenticationService userService, string token)
+        private async Task AttachUserToContext(HttpContext context, ISessionTokens sessionTokens, IAuthenticationService userService, string token)
         {
-            if (_sessionTokens.ReadSessionId(token) is not { } sessionId)
+            if (sessionTokens.ReadSessionId(token) is not { } sessionId)
             {
                 // Logg aldri selve tokenet.
                 _logger.LogInformation("Ugyldig eller utløpt token. Forespørselen behandles som anonym.");

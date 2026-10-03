@@ -531,5 +531,51 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.Delete(int.MaxValue));
         }
+
+        private static async Task<Guid> SeedSession(PlannerDbContext context, User user)
+        {
+            var session = new UserSession { UserId = user.UserId, AuthType = AuthType.Otp, Created = DateTime.UtcNow };
+            context.UserSessions.Add(session);
+            await context.SaveChangesAsync();
+            return session.UserSessionId;
+        }
+
+        [Fact]
+        public async Task Delete_DeactivatesUser_AndDeletesOnlyThatUsersSessions()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var other = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            await SeedSession(seedContext, user);
+            await SeedSession(seedContext, user);
+            var otherSession = await SeedSession(seedContext, other);
+
+            using var context = _fixture.CreateContext();
+            await CreateService(context).Delete(user.UserId);
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == user.UserId).Inactive);
+            Assert.False(verifyContext.UserSessions.Any(s => s.UserId == user.UserId));
+            Assert.True(verifyContext.UserSessions.Any(s => s.UserSessionId == otherSession));
+        }
+
+        [Fact]
+        public async Task Create_ReactivatesUser_AfterDelete()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+            await SeedSession(seedContext, user);
+
+            using (var deleteContext = _fixture.CreateContext())
+                await CreateService(deleteContext).Delete(user.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Create(new UserRequest { PhoneNo = phoneNo });
+
+            Assert.Equal(user.UserId, result.Id);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(verifyContext.Users.Single(u => u.UserId == user.UserId).Inactive);
+        }
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Core.OpenApi;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
@@ -61,10 +62,9 @@ builder.Services.AddOpenApi(options =>
 });
 
 // CORS: frontend kaller API-et med relative URL-er (samme opphav), så CORS trengs ikke for egen app.
-// Andre opphav må listes eksplisitt i Cors:AllowedOrigins. Tom liste gir ingen CORS-policy (kun samme opphav).
-var allowedOrigins = (builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [])
-    .Where(origin => !string.IsNullOrWhiteSpace(origin))
-    .ToArray();
+// Andre opphav må listes eksplisitt i Cors:AllowedOrigins (array eller kommaseparert streng, se CorsOrigins).
+// Tom liste gir ingen CORS-policy (kun samme opphav).
+var allowedOrigins = CorsOrigins.Read(builder.Configuration);
 if (allowedOrigins.Length > 0)
 {
     builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
@@ -73,8 +73,18 @@ if (allowedOrigins.Length > 0)
         .AllowAnyHeader()));
 }
 
-builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
-
+// Innstillingene valideres ved oppstart (ValidateOnStart), så appen stopper med en tydelig feilmelding ved
+// manglende/for kort hemmelighet eller ugyldige AuthOptions, i stedet for å feile per kall.
+// Build-time-genereringen av OpenAPI starter også hosten, men uten hemmeligheter, så der hoppes valideringen over.
+builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection(AuthOptions.SectionName));
+if (!BuildTimeDocumentGeneration.IsRunning)
+{
+    builder.Services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+    builder.Services.AddOptions<AuthOptions>().ValidateOnStart();
+    builder.Services.AddOptions<InfrastructureSettings>()
+        .Validate(settings => SessionTokens.IsValidSecret(settings.Secret), SessionTokens.InvalidSecretMessage)
+        .ValidateOnStart();
+}
 builder.Services.Configure<InfrastructureSettings>(settings =>
 {
     settings.Secret = builder.Configuration["Infrastructure:Secret"] ?? string.Empty;
@@ -122,6 +132,11 @@ builder.Services.AddHostedService<WeatherDataCollector>();
 
 
 var app = builder.Build();
+
+if (allowedOrigins.Length > 0)
+    app.Logger.LogInformation("CORS er på for opphavene: {AllowedOrigins}", string.Join(", ", allowedOrigins));
+else
+    app.Logger.LogInformation("CORS er av (Cors:AllowedOrigins er tom). Bare samme opphav kan kalle API-et fra nettleseren.");
 
 if (app.Environment.IsDevelopment())
 {

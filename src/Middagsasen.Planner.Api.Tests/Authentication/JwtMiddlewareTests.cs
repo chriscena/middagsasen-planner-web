@@ -25,7 +25,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             _authService.GetUserBySessionId(SessionId).Returns(new Actor(42, IsAdmin: true));
         }
 
-        private JwtMiddleware CreateMiddleware() => new(_ => { _nextCalled = true; return Task.CompletedTask; }, _sessionTokens, _logger);
+        private JwtMiddleware CreateMiddleware() => new(_ => { _nextCalled = true; return Task.CompletedTask; }, _logger);
 
         private static DefaultHttpContext CreateHttpContext(string? authorization)
         {
@@ -41,7 +41,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         {
             var context = CreateHttpContext(authorization);
 
-            await CreateMiddleware().Invoke(context, _authService);
+            await CreateMiddleware().Invoke(context, _sessionTokens, _authService);
 
             var actor = Assert.IsType<Actor>(context.Items["User"]);
             Assert.Equal(42, actor.UserId);
@@ -55,7 +55,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         {
             var context = CreateHttpContext("Bearer ugyldig-token");
 
-            await CreateMiddleware().Invoke(context, _authService);
+            await CreateMiddleware().Invoke(context, _sessionTokens, _authService);
 
             Assert.False(context.Items.ContainsKey("User"));
             Assert.True(_nextCalled);
@@ -74,7 +74,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             _authService.GetUserBySessionId(SessionId).Returns((Actor?)null);
             var context = CreateHttpContext("Bearer " + ValidToken);
 
-            await CreateMiddleware().Invoke(context, _authService);
+            await CreateMiddleware().Invoke(context, _sessionTokens, _authService);
 
             Assert.False(context.Items.ContainsKey("User"));
             Assert.True(_nextCalled);
@@ -92,7 +92,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         {
             var context = CreateHttpContext(authorization);
 
-            await CreateMiddleware().Invoke(context, _authService);
+            await CreateMiddleware().Invoke(context, _sessionTokens, _authService);
 
             Assert.False(context.Items.ContainsKey("User"));
             Assert.True(_nextCalled);
@@ -106,7 +106,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             _authService.GetUserBySessionId(SessionId).ThrowsAsync(new InvalidOperationException("Databasen er nede"));
             var context = CreateHttpContext("Bearer " + ValidToken);
 
-            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateMiddleware().Invoke(context, _authService));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateMiddleware().Invoke(context, _sessionTokens, _authService));
 
             Assert.False(_nextCalled);
         }

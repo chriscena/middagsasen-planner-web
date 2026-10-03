@@ -149,10 +149,23 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             Assert.Null(CreateTokens().ReadSessionId(token));
         }
 
-        [Fact]
-        public void Create_Throws_WhenSecretIsMissing()
+        [Theory]
+        [InlineData("")]
+        [InlineData("for-kort-hemmelighet")]
+        public void Constructor_Throws_WhenSecretIsMissingOrTooShort(string secret)
         {
-            Assert.Throws<InvalidOperationException>(() => CreateTokens(secret: string.Empty).Create(Guid.NewGuid()));
+            var ex = Assert.Throws<InvalidOperationException>(() => CreateTokens(secret: secret));
+            Assert.Equal(SessionTokens.InvalidSecretMessage, ex.Message);
+        }
+
+        [Theory]
+        [InlineData(null, false)]
+        [InlineData("", false)]
+        [InlineData("1234567890123456789012345678901", false)]
+        [InlineData("12345678901234567890123456789012", true)]
+        public void IsValidSecret_RequiresAtLeast32Bytes(string? secret, bool expected)
+        {
+            Assert.Equal(expected, SessionTokens.IsValidSecret(secret));
         }
 
         /// <summary>Gyldig signert token med riktig utsteder og mottaker, men med valgfrie claims.</summary>

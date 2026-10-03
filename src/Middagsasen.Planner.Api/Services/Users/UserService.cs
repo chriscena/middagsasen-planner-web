@@ -53,7 +53,7 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// <item><c>IsAdmin</c> og <c>IsHidden</c> settes fra requesten som for en ny bruker (standard <c>false</c>).</item>
         /// <item>Passordet settes når det er oppgitt.</item>
         /// </list>
-        /// <see cref="Delete"/> setter bare <c>Inactive</c>, så opplæringer, vakter og annen historikk følger med tilbake.
+        /// <see cref="Delete"/> setter bare <c>Inactive</c> (og logger ut), så opplæringer, vakter og annen historikk følger med tilbake.
         /// Er nummeret i bruk av en aktiv bruker, avvises det med <see cref="DomainValidationException"/>. Det gjelder
         /// også når en parallell forespørsel tar nummeret mellom sjekken og lagringen (den unike indeksen avviser da lagringen).
         /// </remarks>
@@ -215,6 +215,8 @@ namespace Middagsasen.Planner.Api.Services.Users
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {id}");
 
             user.Inactive = true;
+            // Slett sesjonene i samme lagring, så deaktivering logger brukeren ut umiddelbart.
+            DbContext.UserSessions.RemoveRange(await DbContext.UserSessions.Where(s => s.UserId == id).ToListAsync());
             await DbContext.SaveChangesAsync();
 
             return Map(user);

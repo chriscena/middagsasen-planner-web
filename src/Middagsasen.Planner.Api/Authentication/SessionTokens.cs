@@ -31,24 +31,50 @@ namespace Middagsasen.Planner.Api.Authentication
         private const string SessionIdClaim = "id";
         private const string Algorithm = SecurityAlgorithms.HmacSha256;
 
+        /// <summary>HS256 krever en nøkkel på minst 256 bit.</summary>
+        public const int MinSecretBytes = 32;
+
+        public const string InvalidSecretMessage =
+            "Infrastructure:Secret må være satt og være minst 32 tegn (HS256 krever en nøkkel på minst 256 bit).";
+
+        /// <summary>
+        /// Om hemmeligheten kan brukes som nøkkel. Nøkkelen er ASCII-bytene til hemmeligheten, så antall bytes er antall tegn.
+        /// Valideres ved oppstart (se Program.cs), slik at appen ikke starter med manglende eller for kort hemmelighet.
+        /// </summary>
+        public static bool IsValidSecret(string? secret)
+            => !string.IsNullOrEmpty(secret) && Encoding.ASCII.GetByteCount(secret) >= MinSecretBytes;
+
         private readonly AuthOptions _options;
         private readonly TimeProvider _timeProvider;
-        private readonly SymmetricSecurityKey? _key;
+        private readonly SymmetricSecurityKey _key;
+        private readonly TokenValidationParameters _validationParameters;
         private readonly JwtSecurityTokenHandler _handler = new() { MapInboundClaims = false };
 
         public SessionTokens(IAuthSettings authSettings, IOptions<AuthOptions> options, TimeProvider timeProvider)
         {
+            // Hemmeligheten valideres ved oppstart, så dette slår bare til hvis klassen brukes uten den valideringen.
+            if (!IsValidSecret(authSettings.Secret))
+                throw new InvalidOperationException(InvalidSecretMessage);
+
             _options = options.Value;
             _timeProvider = timeProvider;
-            // Nøkkelen bygges bare når hemmeligheten er satt, slik at appen kan starte uten (f.eks. ved
-            // build-time-generering av OpenAPI). Bruk uten hemmelighet gir en tydelig feil, se Key.
-            _key = string.IsNullOrEmpty(authSettings.Secret)
-                ? null
-                : new SymmetricSecurityKey(Encoding.ASCII.GetBytes(authSettings.Secret));
+            _key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(authSettings.Secret));
+            _validationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = _key,
+                ValidAlgorithms = new[] { Algorithm },
+                ValidateIssuer = true,
+                ValidIssuer = _options.Issuer,
+                ValidateAudience = true,
+                ValidAudience = _options.Audience,
+                // Standardvalideringen av levetid bruker systemklokka. Vi validerer mot injisert TimeProvider,
+                // slik at utstedelse og validering bruker samme klokke (og levetid kan testes).
+                // Med egen LifetimeValidator ignorerer IdentityModel ValidateLifetime, RequireExpirationTime og
+                // ClockSkew, så de settes ikke her: krav om utløpstid og null slingringsmonn ligger i IsWithinLifetime.
+                LifetimeValidator = IsWithinLifetime,
+            };
         }
-
-        private SymmetricSecurityKey Key => _key
-            ?? throw new InvalidOperationException("Infrastructure:Secret er ikke satt. Kan ikke utstede eller validere tokens.");
 
         public string Create(Guid sessionId)
         {
@@ -61,38 +87,22 @@ namespace Middagsasen.Planner.Api.Authentication
                 IssuedAt = now,
                 NotBefore = now,
                 Expires = now.Add(_options.TokenLifetime),
-                SigningCredentials = new SigningCredentials(Key, Algorithm),
+                SigningCredentials = new SigningCredentials(_key, Algorithm),
             };
             return _handler.WriteToken(_handler.CreateToken(descriptor));
         }
 
         public Guid? ReadSessionId(string token)
         {
-            var parameters = new TokenValidationParameters
-            {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = Key,
-                ValidAlgorithms = new[] { Algorithm },
-                ValidateIssuer = true,
-                ValidIssuer = _options.Issuer,
-                ValidateAudience = true,
-                ValidAudience = _options.Audience,
-                ValidateLifetime = true,
-                RequireExpirationTime = true,
-                ClockSkew = TimeSpan.Zero,
-                // Standardvalideringen av levetid bruker systemklokka. Vi validerer mot injisert TimeProvider,
-                // slik at utstedelse og validering bruker samme klokke (og levetid kan testes).
-                LifetimeValidator = IsWithinLifetime,
-            };
-
             ClaimsPrincipal principal;
             try
             {
-                principal = _handler.ValidateToken(token, parameters, out _);
+                principal = _handler.ValidateToken(token, _validationParameters, out _);
             }
             catch (Exception ex) when (ex is SecurityTokenException or ArgumentException)
             {
-                // Ugyldig, utløpt eller feilformatert token. Feilformaterte tokens gir ArgumentException.
+                // Ugyldig eller utløpt token gir SecurityTokenException. Feilformaterte tokens gir ArgumentException
+                // (tomt token: ArgumentNullException, ikke-JWT: SecurityTokenMalformedException, ugyldig base64: ArgumentException).
                 return null;
             }
 
@@ -100,6 +110,7 @@ namespace Middagsasen.Planner.Api.Authentication
             return Guid.TryParse(sessionId, out var id) ? id : null;
         }
 
+        /// <summary>Krever utløpstid. Ingen slingringsmonn: tokenet er gyldig fra <c>nbf</c> til (men ikke med) <c>exp</c>.</summary>
         private bool IsWithinLifetime(DateTime? notBefore, DateTime? expires, SecurityToken token, TokenValidationParameters parameters)
         {
             var now = _timeProvider.GetUtcNow().UtcDateTime;
