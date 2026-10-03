@@ -227,13 +227,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useQuasar } from "quasar";
 import type { TouchSwipeValue } from "quasar";
 // QCalendarAgenda brukes både som komponent (q-calendar-agenda) og som
 // instanstype for ref-en (prev/next/moveToToday/updateCurrent).
 import { QCalendarAgenda } from "@quasar/quasar-ui-qcalendar";
 import { today } from "@timestamp-js/core";
+import type { Timestamp } from "@timestamp-js/core";
 import { parseISO, format, isValid, parse } from "date-fns";
 import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
@@ -245,6 +246,7 @@ import EventForm from "components/EventForm.vue";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import HallOfFameList from "src/components/HallOfFameList.vue";
 import type { EventRequest, EventResponse } from "src/types";
+import { parseDayParam } from "src/shared/dayParam";
 
 // Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke
 // emits-payloadene, så vi beskriver kun feltene vi bruker.
@@ -253,11 +255,8 @@ interface CalendarChangeEvent {
   end: string;
 }
 
-// Dagen fra q-calendar-agenda (Timestamp fra @timestamp-js/core); kun date
-// (yyyy-MM-dd) brukes, så en minimal struktur holder (og er enkel i tester).
-interface DayTimestamp {
-  date: string;
-}
+// Dagen fra q-calendar-agenda; kun date (yyyy-MM-dd) brukes.
+type DayTimestamp = Pick<Timestamp, "date">;
 
 // Payload fra click-head-day. target er dag-elementet menyen skal knyttes til.
 interface HeadDayClickEvent {
@@ -286,7 +285,9 @@ const props = defineProps<{
 }>();
 
 const loading = ref(false);
-const selectedDay = ref(today());
+// Initialiseres direkte fra URL-en, slik at kalenderen starter på riktig uke
+// og ikke først sender change for dagens uke.
+const selectedDay = ref(parseDayParam(props.date) ?? today());
 
 const $q = useQuasar();
 const $router = useRouter();
@@ -301,7 +302,8 @@ const authStore = useAuthStore();
 const userStore = useUserStore();
 
 const weekNumber = computed(() => {
-  const date = parseISO(props.date);
+  // selectedDay er alltid en gyldig dato, i motsetning til props.date.
+  const date = parseISO(selectedDay.value);
   return format(date, "w", { locale: nb });
 });
 
@@ -311,8 +313,7 @@ const showingHallOfFame = ref(false);
 onMounted(async () => {
   userStore.getUser();
   if (isAdmin.value) eventStore.getTemplates();
-  if (isValid(new Date(props.date))) selectedDay.value = props.date;
-  else await $router.replace(`/day/${today()}`);
+  if (!parseDayParam(props.date)) await $router.replace(`/day/${today()}`);
   const date = parse(selectedDay.value, "yyyy-MM-dd", new Date());
   const month = date.getMonth() + 1;
   const year = date.getFullYear();
@@ -321,34 +322,56 @@ onMounted(async () => {
 
 const calendar = ref<QCalendarAgenda | null>(null);
 
+// URL-en følger valgt dag, uansett hva som endret den (prev/next/i dag,
+// datovelger, klikk i kalenderen, lagret vaktliste). Sammenligningen med
+// props.date hindrer løkke når endringen kom fra URL-en (watch under).
+watch(selectedDay, (day) => {
+  if (day !== props.date) $router.replace(`/day/${day}`);
+});
+
+// Navigering i URL-en (tilbake/frem, manuell endring) mens siden er montert.
+// Ugyldige datoer ignoreres; onMounted tar seg av dem ved oppstart.
+watch(
+  () => props.date,
+  (date) => {
+    const day = parseDayParam(date);
+    if (day && day !== selectedDay.value) selectedDay.value = day;
+  }
+);
+
 // Kalenderen rendres alltid (ingen v-if), så ref-en er satt etter mount.
-async function onToday() {
-  await calendar.value!.moveToToday();
-  $router.replace(`/day/${selectedDay.value}`);
+// Metodene oppdaterer v-model (selectedDay); watch-en over tar URL-en.
+function onToday() {
+  calendar.value!.moveToToday();
 }
-async function onPrev() {
-  await calendar.value!.prev();
-  $router.replace(`/day/${selectedDay.value}`);
+function onPrev() {
+  calendar.value!.prev();
 }
-async function onNext() {
-  await calendar.value!.next();
-  $router.replace(`/day/${selectedDay.value}`);
+function onNext() {
+  calendar.value!.next();
 }
 
+// Teller slik at kun siste forespørsel styrer loading og feilmelding
+// (EventStore forkaster selv utdaterte svar).
+let latestChange = 0;
 async function onChange(event: CalendarChangeEvent) {
+  const request = ++latestChange;
   try {
     loading.value = true;
     await eventStore.getEventsForDates(event.start, event.end);
   } catch {
-    $q.notify({ message: "Klarte ikke å hente data, prøv å oppdatere siden." });
+    if (request === latestChange)
+      $q.notify({
+        message: "Klarte ikke å hente data, prøv å oppdatere siden.",
+      });
   } finally {
-    loading.value = false;
+    if (request === latestChange) loading.value = false;
   }
 }
 
-async function handleSwipe(info: SwipeDetails) {
-  if (info.direction === "right") await onPrev();
-  if (info.direction === "left") await onNext();
+function handleSwipe(info: SwipeDetails) {
+  if (info.direction === "right") onPrev();
+  if (info.direction === "left") onNext();
 }
 
 function getEventsForDate(timestamp: DayTimestamp) {
@@ -392,9 +415,9 @@ const markers = computed(() => {
   });
 });
 
+// URL-en oppdateres av watch(selectedDay).
 function setNow(value: string) {
   selectedDay.value = value;
-  $router.replace(`/day/${selectedDay.value}`);
 }
 
 function formatTime(isoDateTime: string | null | undefined) {
@@ -416,7 +439,7 @@ function onEventSaved(model?: EventRequest) {
     selectedDay.value = format(eventDate, "yyyy-MM-dd");
   }
   calendar.value!.updateCurrent(); // satt etter mount, se onToday
-  $router.push(`/day/${selectedDay.value}`);
+  // URL-en oppdateres av watch(selectedDay).
 }
 
 const selectedEventId = ref<number | null>(null);
