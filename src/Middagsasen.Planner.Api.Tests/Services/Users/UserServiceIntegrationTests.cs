@@ -1,11 +1,8 @@
-﻿using Middagsasen.Planner.Api.Authentication;
-using Middagsasen.Planner.Api.Core;
+﻿using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
-using NSubstitute;
 
 namespace Middagsasen.Planner.Api.Tests.Services.Users
 {
@@ -20,7 +17,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         private static UserService CreateService(PlannerDbContext context)
-            => new UserService(context, Substitute.For<ISmsSender>(), Substitute.For<IAuthSettings>());
+            => new UserService(context);
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
