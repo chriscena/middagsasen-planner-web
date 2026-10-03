@@ -9,7 +9,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Users;
 using NSubstitute;
 
 namespace Middagsasen.Planner.Api.Tests.Authentication
@@ -21,7 +20,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             var context = new DefaultHttpContext();
             if (loggedIn)
             {
-                context.Items["User"] = new UserResponse { Id = 1, PhoneNo = "12345678", IsAdmin = role == Roles.Administrator };
+                context.Items["User"] = new Actor(UserId: 1, IsAdmin: role == Roles.Administrator);
                 context.User = new ClaimsPrincipal(new ClaimsIdentity(
                     new[] { new Claim(ClaimTypes.Role, role) }, "Password", ClaimTypes.Name, ClaimTypes.Role));
             }

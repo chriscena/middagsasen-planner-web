@@ -1,5 +1,4 @@
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Authentication
 {
@@ -12,11 +11,11 @@ namespace Middagsasen.Planner.Api.Authentication
             _httpContextAccessor = httpContextAccessor;
         }
 
-        public UserResponse? User =>
-            (UserResponse?)_httpContextAccessor.HttpContext?.Items["User"];
+        /// <summary>Satt av <see cref="JwtMiddleware"/> når forespørselen har en gyldig sesjon.</summary>
+        public Actor? Actor => _httpContextAccessor.HttpContext?.Items["User"] as Actor?;
 
-        public int UserId => User?.Id ?? throw new NotAuthenticatedException();
+        public int UserId => Actor?.UserId ?? throw new NotAuthenticatedException();
 
-        public bool IsAdmin => User?.IsAdmin ?? false;
+        public bool IsAdmin => Actor?.IsAdmin ?? false;
     }
 }

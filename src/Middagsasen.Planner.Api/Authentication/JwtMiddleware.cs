@@ -50,22 +50,18 @@ namespace Middagsasen.Planner.Api.Authentication
                 var sessionIdString = jwtToken.Claims.First(x => x.Type == "id").Value;
                 var sessionId = Guid.Parse(sessionIdString);
 
-                var user = await userService.GetUserBySessionId(sessionId);
-                if (user == null) return;
+                var actor = await userService.GetUserBySessionId(sessionId);
+                if (actor is not { } user) return;
 
                 context.Items["User"] = user;
                 context.User = new ClaimsPrincipal(new ClaimsIdentity(
                     new[]
                     {
-                        new Claim(ClaimTypes.Sid, user.Id.ToString(), ClaimValueTypes.Integer),
-                        new Claim(ClaimTypes.MobilePhone, user.PhoneNo, ClaimValueTypes.String),
-                        new Claim(ClaimTypes.Name, user.FullName ?? "", ClaimValueTypes.String),
-                        new Claim(ClaimTypes.GivenName, user.FirstName ?? "", ClaimValueTypes.String),
-                        new Claim(ClaimTypes.Surname, user.LastName ?? "", ClaimValueTypes.String),
+                        new Claim(ClaimTypes.Sid, user.UserId.ToString(), ClaimValueTypes.Integer),
                         new Claim(ClaimTypes.Role, user.IsAdmin ? Roles.Administrator : Roles.User, ClaimValueTypes.String),
                         new Claim(ClaimTypes.Authentication, sessionIdString, ClaimValueTypes.String)
                     },
-                    "Password", ClaimTypes.Name, ClaimTypes.Role)); ;
+                    "Password", ClaimTypes.Name, ClaimTypes.Role));
             }
             catch
             {

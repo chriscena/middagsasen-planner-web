@@ -1,12 +1,16 @@
 using Middagsasen.Planner.Api.Services;
-using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Authentication
 {
     public interface ICurrentUserService
     {
-        UserResponse? User { get; }
+        /// <summary>Innlogget bruker, eller <c>null</c> hvis forespørselen ikke er autentisert.</summary>
+        Actor? Actor { get; }
+
+        /// <exception cref="NotAuthenticatedException">Ingen innlogget bruker.</exception>
         int UserId { get; }
+
+        /// <summary>Om innlogget bruker er administrator. <c>false</c> hvis ingen er innlogget.</summary>
         bool IsAdmin { get; }
     }
 

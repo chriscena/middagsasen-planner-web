@@ -74,7 +74,7 @@ dotnet test ../Middagsasen.Planner.Api.Tests/
 - Pakkeversjoner legges i `Directory.Packages.props`, ikke i csproj
 - Annoter endepunkter med korrekt `[ProducesResponseType]` (eller `ActionResult<T>`) — OpenAPI-dokumentet og frontend-typene genereres fra dem. Ikke-nullable DTO-egenskaper blir `required`.
 - Prioriter database-agnostiske og container-vennlige løsninger; unngå nye Azure-spesifikke avhengigheter
-- `[Authorize]` returnerer allerede 401 hvis bruker mangler — ikke dupliser null-sjekk. Bruk `var user = (UserResponse)HttpContext.Items["User"]!;`
+- Innlogget bruker er en `Actor` (`UserId`, `IsAdmin`) som `JwtMiddleware` legger i `HttpContext.Items["User"]`. Les den via `ICurrentUserService` (`UserId`, `IsAdmin`, `ToActor()` til policyene) — ikke direkte fra `HttpContext.Items`. `[Authorize]` returnerer allerede 401 hvis bruker mangler, så ikke dupliser null-sjekk (`UserId` kaster `NotAuthenticatedException` uansett). Trenger du brukerdata (navn, opplæringer osv.), hent dem via `IUserService`.
 
 ### Frontend
 - All kode er TypeScript: `.ts` og `<script setup lang="ts">` (strict, inkl. `noUncheckedIndexedAccess` og `exactOptionalPropertyTypes`)
