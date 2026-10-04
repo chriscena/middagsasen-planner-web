@@ -112,7 +112,7 @@ jobs:
 
       - name: Last opp skript, rapport og dacpac
         if: inputs.action == 'script'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: db-deploy
           path: ${{ env.OUT_DIR }}
