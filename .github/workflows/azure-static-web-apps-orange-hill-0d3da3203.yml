@@ -15,7 +15,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Samme sjekker som web_pr.yml — deploy kun hvis disse passerer
+  verify:
+    name: Lint, typecheck og test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/Middagsasen.Planner.Web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/Middagsasen.Planner.Web/package-lock.json
+
+      # postinstall kjører `quasar prepare`, som genererer .quasar/tsconfig.json
+      - run: npm ci
+
+      - name: Sjekk at API-typer er i synk med openapi.json
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/types
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm run test
+
   build_and_deploy_job:
+    needs: verify
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     steps:
