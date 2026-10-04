@@ -1,8 +1,13 @@
 // Vakter fra skjemaene (vaktliste og mal) til request: hvilke som sendes,
-// validering av tidene og mapping til ResourceRequest/ResourceTemplateRequest
-// (samme form).
+// validering av tidene og mapping til ResourceRequest (vaktliste) og
+// ResourceTemplateRequest (mal). Vaktlista sender i tillegg
+// `originalMinimumStaff`, så backend endrer bemanningen relativt (#151).
 
-import type { ResourceRequest, ResourceTypeResponse } from "@/types";
+import type {
+  ResourceRequest,
+  ResourceTemplateRequest,
+  ResourceTypeResponse,
+} from "@/types";
 import { isValidTime, toTimeWire } from "@/shared/time";
 
 // Det skjemaene (ResourceFormModel og EventPage sin vaktmodell) har felles.
@@ -13,6 +18,14 @@ export interface ResourceDraft {
   endTime: string | null;
   minimumStaff: number | string | null;
   isDeleted?: boolean | undefined;
+}
+
+// Vakt i vaktlisteskjemaet (EventForm/EventPage).
+export interface EventResourceDraft extends ResourceDraft {
+  // Bemanningen vakta ble lastet med fra serveren. Endres ikke av
+  // vaktdialogene; backend legger differansen til fersk verdi, så ledige
+  // plasser andre har lagt til eller fjernet imens (#142), beholdes.
+  originalMinimumStaff?: number | null | undefined;
 }
 
 /**
@@ -39,25 +52,47 @@ export function findInvalidResource<T extends ResourceDraft>(
   );
 }
 
+// Nye vakter (uten id) som er slettet, finnes ikke på serveren og sendes ikke.
+function isSent(r: ResourceDraft): boolean {
+  return !(r.isDeleted && !r.id);
+}
+
+function toTemplateRequest(r: ResourceDraft): ResourceTemplateRequest {
+  return {
+    id: r.id ?? null,
+    // Vaktdialogene krever vakttype før lagring (canAdd).
+    resourceTypeId: r.resourceType!.id,
+    // Bare klokkeslett; backend legger vakta på riktig døgn.
+    startTime: toTimeWire(r.startTime),
+    endTime: toTimeWire(r.endTime),
+    // q-input type="number" kan gi string; Number() sender et tall.
+    minimumStaff: Number(r.minimumStaff),
+    isDeleted: r.isDeleted ?? false,
+  };
+}
+
 /**
- * Vaktene som request. Nye vakter (uten id) som er slettet, utelates; de
- * finnes ikke på serveren. Kaster RangeError for ugyldige tider, så kall
+ * Vaktene i en mal som request (uten `originalMinimumStaff`). Nye vakter som
+ * er slettet, utelates. Kaster RangeError for ugyldige tider, så kall
  * `findInvalidResource` først.
  */
-export function toResourceRequests(
+export function toResourceTemplateRequests(
   resources: ResourceDraft[]
+): ResourceTemplateRequest[] {
+  return resources.filter(isSent).map(toTemplateRequest);
+}
+
+/**
+ * Vaktene i en vaktliste som request. Eksisterende vakter sender
+ * `originalMinimumStaff` (relativ endring); nye sender null (absolutt verdi).
+ * Nye vakter som er slettet, utelates. Kaster RangeError for ugyldige tider,
+ * så kall `findInvalidResource` først.
+ */
+export function toResourceRequests(
+  resources: EventResourceDraft[]
 ): ResourceRequest[] {
-  return resources
-    .filter((r) => !(r.isDeleted && !r.id))
-    .map((r) => ({
-      id: r.id ?? null,
-      // Vaktdialogene krever vakttype før lagring (canAdd).
-      resourceTypeId: r.resourceType!.id,
-      // Bare klokkeslett; backend legger vakta på riktig døgn.
-      startTime: toTimeWire(r.startTime),
-      endTime: toTimeWire(r.endTime),
-      // q-input type="number" kan gi string; Number() sender et tall.
-      minimumStaff: Number(r.minimumStaff),
-      isDeleted: r.isDeleted ?? false,
-    }));
+  return resources.filter(isSent).map((r) => ({
+    ...toTemplateRequest(r),
+    originalMinimumStaff: r.id ? (r.originalMinimumStaff ?? null) : null,
+  }));
 }

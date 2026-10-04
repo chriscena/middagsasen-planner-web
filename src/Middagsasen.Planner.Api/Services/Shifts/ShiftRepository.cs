@@ -22,15 +22,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             await using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // Låser ressursraden ved å oppdatere en kolonne til sin egen verdi. En UPDATE tar eksklusiv radlås som
-            // holdes til commit både i SQL Server og PostgreSQL, uten databasespesifikk SQL (som UPDLOCK-hint eller
-            // SELECT ... FOR UPDATE). En samtidig endring på samme ressurs venter derfor her til denne er ferdig,
-            // og leser deretter vaktene på nytt.
-            var locked = await DbContext.EventResource
-                .Where(r => r.EventResourceId == resourceId)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, r => r.MinimumStaff));
-
-            if (locked == 0)
+            // En samtidig endring på samme ressurs (også lagring av vaktlisteskjemaet, se EventsService.UpdateEvent)
+            // venter her til denne er ferdig, og leser deretter vaktene på nytt. Se RowLocks for teknikken.
+            if (!await DbContext.LockResource(resourceId))
                 throw new EntityNotFoundException("Fant ikke vaktressursen.");
 
             var result = await work();

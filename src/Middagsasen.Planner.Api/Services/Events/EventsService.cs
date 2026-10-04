@@ -3,6 +3,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Resources;
+using Middagsasen.Planner.Api.Services.Shifts;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
@@ -107,43 +108,123 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
+        /// <summary>
+        /// Lagrer vaktlisteskjemaet. Alt lagres i én transaksjon: endres bemanningen på en ressurs til noe reglene ikke tillater,
+        /// lagres ingenting, heller ikke navn og tider.
+        /// <para>
+        /// Bemanning (#151): for eksisterende ressurser med <see cref="ResourceRequest.OriginalMinimumStaff"/> legges endringen
+        /// admin gjorde i skjemaet, på verdien som er lagret nå (<see cref="ShiftRules.MinimumStaffAfterChange"/>), slik at
+        /// ledige plasser andre har lagt til eller fjernet i mellomtiden, beholdes. Uendret bemanning skrives ikke. Uten
+        /// <see cref="ResourceRequest.OriginalMinimumStaff"/> settes verdien absolutt, som før.
+        /// </para>
+        /// <para>
+        /// Låsing: vaktlista låses først (serialiserer samtidige lagringer av samme vaktliste), deretter ressursene der
+        /// bemanningen kan endres, i stigende id-rekkefølge (<see cref="RowLocks"/>). Det er samme ressurslås som påmelding og
+        /// «Legg til/Fjern ledig plass» bruker (<see cref="IShiftRepository.InResourceLock{T}"/>), så bemanningen
+        /// leses og skrives mot ferske data. Vaktlista og ressursene leses først etter låsen, slik at de sporede entitetene
+        /// har fersk <c>MinimumStaff</c> og ikke skriver en gammel verdi tilbake.
+        /// </para>
+        /// </summary>
         public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
-            var existingEvent = await DbContext.Events
-                .Include(e => e.Resources)
-                .SingleOrDefaultAsync(e => e.EventId == eventId)
-                ?? throw new EntityNotFoundException(EventNotFoundMessage);
-
-            existingEvent.Name = request.Name;
-            existingEvent.Description = request.Description;
             var (eventStart, eventEnd) = EventTimes(request);
-            existingEvent.StartTime = eventStart;
-            existingEvent.EndTime = eventEnd;
 
-            foreach (var resource in request.Resources)
+            await using (var transaction = await DbContext.Database.BeginTransactionAsync())
             {
-                if (resource.IsDeleted)
+                if (!await DbContext.LockEvent(eventId))
+                    throw new EntityNotFoundException(EventNotFoundMessage);
+
+                // Eksisterende ressurser der bemanningen kan endres: relativ endring som ikke er 0, eller absolutt verdi
+                // (OriginalMinimumStaff == null; om den faktisk endres, vet vi først når den ferske verdien er lest).
+                var staffingCandidates = request.Resources
+                    .Where(r => !r.IsDeleted && r.Id.HasValue && r.MinimumStaff != r.OriginalMinimumStaff)
+                    .Select(r => r.Id!.Value);
+                var lockedResourceIds = (await DbContext.LockResources(eventId, staffingCandidates)).ToHashSet();
+
+                var existingEvent = await DbContext.Events
+                    .Include(e => e.Resources)
+                    .SingleOrDefaultAsync(e => e.EventId == eventId)
+                    ?? throw new EntityNotFoundException(EventNotFoundMessage);
+
+                var shiftCounts = lockedResourceIds.Count == 0
+                    ? []
+                    : await DbContext.Shifts
+                        .Where(s => lockedResourceIds.Contains(s.EventResourceId))
+                        .GroupBy(s => s.EventResourceId)
+                        .Select(g => new { ResourceId = g.Key, Count = g.Count() })
+                        .ToDictionaryAsync(g => g.ResourceId, g => g.Count);
+
+                existingEvent.Name = request.Name;
+                existingEvent.Description = request.Description;
+                existingEvent.StartTime = eventStart;
+                existingEvent.EndTime = eventEnd;
+
+                foreach (var resource in request.Resources)
                 {
-                    var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
-                    if (resourceToDelete == null) continue;
-                    existingEvent.Resources.Remove(resourceToDelete);
+                    if (resource.IsDeleted)
+                    {
+                        var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                        if (resourceToDelete == null) continue;
+                        existingEvent.Resources.Remove(resourceToDelete);
+                    }
+                    else if (!resource.Id.HasValue)
+                    {
+                        existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
+                    }
+                    else
+                    {
+                        var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                        if (resourceToUpdate == null) continue;
+                        resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
+                        (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
+                        // Bemanningen endres bare på låste ressurser. På de andre er den uendret, og EF skriver den ikke.
+                        if (lockedResourceIds.Contains(resourceToUpdate.EventResourceId))
+                        {
+                            var staffing = new ResourceStaffing(resourceToUpdate.MinimumStaff, shiftCounts.GetValueOrDefault(resourceToUpdate.EventResourceId));
+                            resourceToUpdate.MinimumStaff = await NewMinimumStaff(resource, staffing);
+                        }
+                    }
                 }
-                else if (!resource.Id.HasValue)
-                {
-                    existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
-                }
-                else
-                {
-                    var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
-                    if (resourceToUpdate == null) continue;
-                    resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
-                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
-                }
+
+                await DbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
             }
-            await DbContext.SaveChangesAsync();
 
             return await GetEventById(eventId);
+        }
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> for en eksisterende ressurs, regnet ut fra <paramref name="staffing"/> lest under ressurslåsen.
+        /// </summary>
+        /// <exception cref="DomainValidationException">Endringen ville fjernet flere plasser enn det er ledige.</exception>
+        private async Task<int> NewMinimumStaff(ResourceRequest request, ResourceStaffing staffing)
+        {
+            if (request.OriginalMinimumStaff is not { } original)
+                return request.MinimumStaff;
+
+            var change = request.MinimumStaff - original;
+            if (ShiftRules.MinimumStaffAfterChange(staffing, change) is { } minimumStaff)
+                return minimumStaff;
+
+            var resourceTypeName = await DbContext.ResourceTypes
+                .Where(t => t.ResourceTypeId == request.ResourceTypeId)
+                .Select(t => t.Name)
+                .SingleOrDefaultAsync() ?? "vakttypen";
+            throw new DomainValidationException(TooFewEmptySlotsMessage(
+                resourceTypeName, request.StartTime, request.EndTime, -change, ShiftRules.EmptySlots(staffing)));
+        }
+
+        internal static string TooFewEmptySlotsMessage(string resourceTypeName, TimeOnly start, TimeOnly end, int removed, int emptySlots)
+        {
+            var removedText = removed == 1 ? "1 vakt" : $"{removed} vakter";
+            var emptyText = emptySlots switch
+            {
+                0 => "ingen av vaktene er ledige",
+                1 => "bare 1 av vaktene er ledig",
+                _ => $"bare {emptySlots} av vaktene er ledige",
+            };
+            return $"Kan ikke fjerne {removedText} på {resourceTypeName} {start:HH\\:mm}–{end:HH\\:mm}: {emptyText} nå. "
+                + "Last vaktlista på nytt for å se gjeldende bemanning.";
         }
 
         public async Task<EventResponse> DeleteEvent(int id)

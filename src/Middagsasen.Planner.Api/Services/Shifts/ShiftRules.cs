@@ -232,7 +232,20 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// plass (full: minst like mange vakter som <c>MinimumStaff</c>, se <see cref="IsMissingStaff(ResourceStaffing)"/>).
         /// </summary>
         public static int? MinimumStaffAfterRemovingEmptySlot(ResourceStaffing staffing)
-            => IsMissingStaff(staffing) ? staffing.MinimumStaff - 1 : null;
+            => MinimumStaffAfterChange(staffing, -1);
+
+        /// <summary>Antall ledige plasser: vakter som mangler før <c>MinimumStaff</c> er nådd (0 når ressursen er full eller overbooket).</summary>
+        public static int EmptySlots(ResourceStaffing staffing) => Math.Max(0, staffing.MinimumStaff - staffing.ShiftCount);
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> når admin endrer antall vakter relativt med <paramref name="change"/> (lagring av
+        /// vaktlisteskjemaet, #151: endringen admin gjorde i skjemaet legges på den ferske verdien), eller <c>null</c>
+        /// hvis det fjernes flere plasser enn det er ledige. Samme regel som å fjerne én og én ledig plass
+        /// (<see cref="MinimumStaffAfterRemovingEmptySlot"/>): bemannede vakter fjernes aldri, og resultatet blir aldri
+        /// under antall vakter eller under 0. Økning er alltid lov og legges på <c>MinimumStaff</c> som den er.
+        /// </summary>
+        public static int? MinimumStaffAfterChange(ResourceStaffing staffing, int change)
+            => change >= -EmptySlots(staffing) ? staffing.MinimumStaff + change : null;
 
         // --- Tider ---
 

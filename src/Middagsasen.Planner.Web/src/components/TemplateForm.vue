@@ -105,7 +105,7 @@ import { newClientKey } from "@/shared/clientKey";
 import { formatTime, isValidTime, toTimeWire } from "@/shared/time";
 import {
   findInvalidResource,
-  toResourceRequests,
+  toResourceTemplateRequests,
   visibleResources,
 } from "@/shared/resourceRequests";
 
@@ -208,7 +208,7 @@ function mapToModel(): TemplateFormModel {
     // Malen lagrer bare klokkeslettet ("HH:mm").
     startTime: toTimeWire(startTime.value),
     endTime: toTimeWire(endTime.value),
-    resourceTemplates: toResourceRequests(resources.value),
+    resourceTemplates: toResourceTemplateRequests(resources.value),
   };
   return model;
 }

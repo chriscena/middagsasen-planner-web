@@ -4139,6 +4139,8 @@ export interface components {
             endTime: string;
             /** Format: int32 */
             minimumStaff: number;
+            /** Format: int32 */
+            originalMinimumStaff?: null | number;
             isDeleted: boolean;
         };
         ResourceResponse: {

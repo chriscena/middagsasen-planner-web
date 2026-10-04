@@ -2,11 +2,14 @@ import { describe, it, expect } from "vitest";
 import {
   findInvalidResource,
   toResourceRequests,
+  toResourceTemplateRequests,
   visibleResources,
-  type ResourceDraft,
+  type EventResourceDraft,
 } from "@/shared/resourceRequests";
 
-function draft(overrides: Partial<ResourceDraft> = {}): ResourceDraft {
+function draft(
+  overrides: Partial<EventResourceDraft> = {}
+): EventResourceDraft {
   return {
     id: 1,
     resourceType: { id: 7 },
@@ -55,7 +58,13 @@ describe("findInvalidResource", () => {
 describe("toResourceRequests", () => {
   it("mapper til request med klokkeslett HH:mm", () => {
     expect(
-      toResourceRequests([draft({ startTime: "9:05", minimumStaff: "3" })])
+      toResourceRequests([
+        draft({
+          startTime: "9:05",
+          minimumStaff: "3",
+          originalMinimumStaff: 2,
+        }),
+      ])
     ).toEqual([
       {
         id: 1,
@@ -63,14 +72,23 @@ describe("toResourceRequests", () => {
         startTime: "09:05",
         endTime: "17:00",
         minimumStaff: 3,
+        originalMinimumStaff: 2,
         isDeleted: false,
       },
     ]);
   });
 
-  it("sender nye vakter med id null", () => {
-    const [request] = toResourceRequests([draft({ id: undefined })]);
+  it("sender nye vakter med id null og originalMinimumStaff null", () => {
+    const [request] = toResourceRequests([
+      draft({ id: undefined, originalMinimumStaff: 4 }),
+    ]);
     expect(request?.id).toBe(null);
+    expect(request?.originalMinimumStaff).toBe(null);
+  });
+
+  it("sender originalMinimumStaff null for eksisterende vakt uten original", () => {
+    const [request] = toResourceRequests([draft({ id: 5 })]);
+    expect(request?.originalMinimumStaff).toBe(null);
   });
 
   it("sender slettede vakter med id, men ikke nye slettede vakter", () => {
@@ -90,5 +108,34 @@ describe("toResourceRequests", () => {
     expect(() => toResourceRequests([draft({ endTime: "1" })])).toThrow(
       RangeError
     );
+  });
+});
+
+describe("toResourceTemplateRequests", () => {
+  it("mapper uten originalMinimumStaff", () => {
+    expect(
+      toResourceTemplateRequests([
+        draft({ startTime: "9:05", originalMinimumStaff: 2 }),
+      ])
+    ).toEqual([
+      {
+        id: 1,
+        resourceTypeId: 7,
+        startTime: "09:05",
+        endTime: "17:00",
+        minimumStaff: 2,
+        isDeleted: false,
+      },
+    ]);
+    const [request] = toResourceTemplateRequests([draft()]);
+    expect(request).not.toHaveProperty("originalMinimumStaff");
+  });
+
+  it("utelater nye slettede vakter", () => {
+    const requests = toResourceTemplateRequests([
+      draft({ id: 1, isDeleted: true }),
+      draft({ id: undefined, isDeleted: true }),
+    ]);
+    expect(requests.map((r) => r.id)).toEqual([1]);
   });
 });

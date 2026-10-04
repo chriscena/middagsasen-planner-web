@@ -223,6 +223,8 @@ onMounted(async () => {
           startTime: formatTime(r.startTime),
           endTime: formatTime(r.endTime),
           minimumStaff: r.minimumStaff,
+          // Lagres relativt til denne (se EventResourceDraft).
+          originalMinimumStaff: r.minimumStaff,
           isDeleted: false,
         };
       });

@@ -5710,6 +5710,13 @@
             "type": "integer",
             "format": "int32"
           },
+          "originalMinimumStaff": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
           "isDeleted": {
             "type": "boolean"
           }

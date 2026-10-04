@@ -353,6 +353,9 @@ interface ResourceForm {
   startTime: string | null;
   endTime: string | null;
   minimumStaff: number;
+  // Bemanningen vakta ble lastet med (se EventResourceDraft). Dialogen
+  // redigerer en kopi og skriver ikke tilbake denne.
+  originalMinimumStaff?: number;
   isDeleted?: boolean;
   isNew?: boolean;
 }
@@ -407,6 +410,8 @@ onMounted(async () => {
           startTime: formatTime(r.startTime),
           endTime: formatTime(r.endTime),
           minimumStaff: r.minimumStaff,
+          // Lagres relativt til denne (se EventResourceDraft).
+          originalMinimumStaff: r.minimumStaff,
           isDeleted: false,
         };
       });
