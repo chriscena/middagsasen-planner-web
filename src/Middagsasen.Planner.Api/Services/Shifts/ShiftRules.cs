@@ -204,6 +204,23 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public static bool CanWithdraw(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
             => CheckWithdraw(actor, resource, now, shift) is null;
 
+        // --- Ledige plasser (kun admin) ---
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> når admin legger til én ledig plass: én mer enn det største av <c>MinimumStaff</c> og
+        /// antall vakter, slik at ressursen alltid får nøyaktig én ledig plass mer enn den har nå (også når den er overbooket).
+        /// Vurderes mot ferske data under ressurslåsen, så samtidige klikk teller hver for seg.
+        /// </summary>
+        public static int MinimumStaffAfterAddingEmptySlot(ResourceFacts resource)
+            => Math.Max(resource.MinimumStaff, resource.Shifts.Count) + 1;
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> når admin fjerner én ledig plass, eller <c>null</c> hvis ressursen ikke har noen ledig
+        /// plass (<see cref="IsFull"/>: minst like mange vakter som <c>MinimumStaff</c>).
+        /// </summary>
+        public static int? MinimumStaffAfterRemovingEmptySlot(ResourceFacts resource)
+            => IsMissingStaff(resource) ? resource.MinimumStaff - 1 : null;
+
         // --- Tider ---
 
         /// <summary>

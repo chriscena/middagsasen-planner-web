@@ -2235,7 +2235,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/resources/{eventResourceId}/minimumStaff": {
+    "/api/resources/{eventResourceId}/emptySlots": {
         parameters: {
             query?: never;
             header?: never;
@@ -2244,11 +2244,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch: {
+        post: {
             parameters: {
                 query?: never;
                 header?: never;
@@ -2257,13 +2253,7 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["MinimumStaffRequest"];
-                    "text/json": components["schemas"]["MinimumStaffRequest"];
-                    "application/*+json": components["schemas"]["MinimumStaffRequest"];
-                };
-            };
+            requestBody?: never;
             responses: {
                 /** @description OK */
                 200: {
@@ -2314,6 +2304,69 @@ export interface paths {
                 };
             };
         };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    eventResourceId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["ResourceResponse"];
+                        "application/json": components["schemas"]["ResourceResponse"];
+                        "text/json": components["schemas"]["ResourceResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/System": {
@@ -4004,10 +4057,6 @@ export interface components {
             createdBy: components["schemas"]["ShiftUserResponse"];
             created: string;
             message: string;
-        };
-        MinimumStaffRequest: {
-            /** Format: int32 */
-            minimumStaff: number;
         };
         OtpRequest: {
             userName: string;

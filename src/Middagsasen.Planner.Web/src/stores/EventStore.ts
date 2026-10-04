@@ -12,7 +12,6 @@ import type {
   FileInfoResponse,
   MessageRequest,
   MessageResponse,
-  MinimumStaffRequest,
   ResourceResponse,
   ResourceTypeRequest,
   ResourceTypeResponse,
@@ -323,15 +322,21 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${message.eventResourceId}/messages/${message.id}`
       );
     },
-    // Kun admin. Svaret er hele ressursen med flagg (isMissingStaff, isFull
-    // osv.), som legges i cachen via applyResource og returneres.
-    async patchMinimumStaff(
-      eventResourceId: number,
-      minimumStaff: number
-    ): Promise<ResourceResponse> {
-      const response = await api.patch<ResourceResponse>(
-        `/api/resources/${eventResourceId}/minimumStaff`,
-        { minimumStaff } satisfies MinimumStaffRequest
+    // Kun admin. Serveren regner ut ny minimumStaff under ressurslås, så
+    // samtidige klikk ikke overskriver hverandre. Svaret er hele ressursen med
+    // flagg (isMissingStaff, isFull osv.), som legges i cachen via
+    // applyResource og returneres.
+    async addEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
+      const response = await api.post<ResourceResponse>(
+        `/api/resources/${eventResourceId}/emptySlots`
+      );
+      this.applyResource(response.data);
+      return response.data;
+    },
+    // Kun admin. Gir 400 hvis ressursen ikke har noen ledig plass å fjerne.
+    async removeEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
+      const response = await api.delete<ResourceResponse>(
+        `/api/resources/${eventResourceId}/emptySlots`
       );
       this.applyResource(response.data);
       return response.data;

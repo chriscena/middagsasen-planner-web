@@ -31,7 +31,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Henter brukerens opplæring på ressurstypen med tracking, eller <c>null</c>.</summary>
         Task<ResourceTypeTraining?> GetTraining(int userId, int resourceTypeId);
 
-        /// <summary>Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges).</summary>
+        /// <summary>
+        /// Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges). Kalles inne i
+        /// <see cref="InResourceLock{T}"/>, med en verdi regnet ut fra ferske data.
+        /// </summary>
         Task SetMinimumStaff(int resourceId, int minimumStaff);
 
         void AddShift(EventResourceUser shift);

@@ -62,6 +62,35 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(full, ShiftRules.IsFull(resource));
         }
 
+        // --- Ledige plasser ---
+
+        [Theory]
+        // Kolonner: minimum bemanning, antall vakter, forventet ny minimum bemanning
+        [InlineData(3, 0, 4)]
+        [InlineData(3, 2, 4)]
+        [InlineData(3, 3, 4)]
+        [InlineData(1, 3, 4)] // overbooket: én ledig plass utover vaktene
+        [InlineData(0, 0, 1)]
+        public void MinimumStaffAfterAddingEmptySlot(int minimumStaff, int shiftCount, int expected)
+        {
+            var shifts = Enumerable.Range(1, shiftCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
+            Assert.Equal(expected, ShiftRules.MinimumStaffAfterAddingEmptySlot(Resource(minimumStaff, true, shifts)));
+        }
+
+        [Theory]
+        // Kolonner: minimum bemanning, antall vakter, forventet ny minimum bemanning (null = ingen ledig plass)
+        [InlineData(3, 0, 2)]
+        [InlineData(3, 2, 2)]
+        [InlineData(1, 0, 0)]
+        [InlineData(3, 3, null)]
+        [InlineData(1, 3, null)]
+        [InlineData(0, 0, null)]
+        public void MinimumStaffAfterRemovingEmptySlot(int minimumStaff, int shiftCount, int? expected)
+        {
+            var shifts = Enumerable.Range(1, shiftCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
+            Assert.Equal(expected, ShiftRules.MinimumStaffAfterRemovingEmptySlot(Resource(minimumStaff, true, shifts)));
+        }
+
         [Fact]
         public void IsPast_WhenEndTimeIsReached()
         {

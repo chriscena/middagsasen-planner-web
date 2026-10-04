@@ -363,8 +363,38 @@ describe("EventStore", () => {
     });
   });
 
-  describe("patchMinimumStaff", () => {
-    it("sender ny verdi og legger ressursen med flagg i cachen", async () => {
+  describe("addEmptySlot", () => {
+    it("poster uten body og legger ressursen med flagg i cachen", async () => {
+      store.events = [
+        eventWith(1, [
+          resource(10, [shift(1, 10, CURRENT_USER_ID)], {
+            minimumStaff: 1,
+            isMissingStaff: false,
+            isFull: true,
+          }),
+        ]),
+      ];
+      const held = store.events[0]!.resources[0]!;
+      const updated = resource(10, [shift(1, 10, CURRENT_USER_ID)], {
+        minimumStaff: 2,
+        isMissingStaff: true,
+        isFull: false,
+      });
+      mockApi.post.mockResolvedValue({ data: updated });
+
+      const returned = await store.addEmptySlot(10);
+
+      expect(mockApi.post).toHaveBeenCalledWith("/api/resources/10/emptySlots");
+      expect(returned).toBe(updated);
+      expect(store.events[0]!.resources[0]).toBe(held);
+      expect(held.minimumStaff).toBe(2);
+      expect(held.isMissingStaff).toBe(true);
+      expect(held.isFull).toBe(false);
+    });
+  });
+
+  describe("removeEmptySlot", () => {
+    it("sletter uten body og legger ressursen med flagg i cachen", async () => {
       store.events = [
         eventWith(1, [
           resource(10, [shift(1, 10, CURRENT_USER_ID)], {
@@ -380,13 +410,12 @@ describe("EventStore", () => {
         isMissingStaff: false,
         isFull: true,
       });
-      mockApi.patch.mockResolvedValue({ data: updated });
+      mockApi.delete.mockResolvedValue({ data: updated });
 
-      const returned = await store.patchMinimumStaff(10, 1);
+      const returned = await store.removeEmptySlot(10);
 
-      expect(mockApi.patch).toHaveBeenCalledWith(
-        "/api/resources/10/minimumStaff",
-        { minimumStaff: 1 }
+      expect(mockApi.delete).toHaveBeenCalledWith(
+        "/api/resources/10/emptySlots"
       );
       expect(returned).toBe(updated);
       expect(store.events[0]!.resources[0]).toBe(held);

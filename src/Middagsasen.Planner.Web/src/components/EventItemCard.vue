@@ -926,16 +926,16 @@ function canDeleteMessage(message: MessageResponse): boolean {
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }
-// patchMinimumStaff legger svaret (ressursen med flagg) i cachen, så her
-// regnes bare ut ny verdi som sendes.
-async function changeMinimumStaff(
-  resource: ResourceResponse,
-  minimumStaff: number,
+// addEmptySlot/removeEmptySlot lar serveren regne ut ny minimumStaff og
+// legger svaret (ressursen med flagg) i cachen, så her håndteres bare
+// loading-sperre og feilvarsel.
+async function changeEmptySlots(
+  change: () => Promise<unknown>,
   fallback: string
 ): Promise<void> {
   try {
     loading.value = true;
-    await eventStore.patchMinimumStaff(resource.id, minimumStaff);
+    await change();
   } catch (error) {
     notifyApiError(error, fallback);
   } finally {
@@ -945,23 +945,17 @@ async function changeMinimumStaff(
 async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   if (loading.value) return;
 
-  const minimumStaff =
-    resource.minimumStaff < resource.shifts.length
-      ? resource.shifts.length + 1
-      : resource.minimumStaff + 1;
-  await changeMinimumStaff(
-    resource,
-    minimumStaff,
+  await changeEmptySlots(
+    () => eventStore.addEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
   );
 }
 async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
-  // Ingen ledige plasser å fjerne.
+  // Ingen ledige plasser å fjerne (UI-hint; serveren er fasit).
   if (loading.value || resource.minimumStaff <= resource.shifts.length) return;
 
-  await changeMinimumStaff(
-    resource,
-    resource.minimumStaff - 1,
+  await changeEmptySlots(
+    () => eventStore.removeEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
   );
 }
