@@ -141,7 +141,7 @@
         icon="remove"
         class="q-pa-sm row"
         style="width: 49.5%; font-size: small"
-        :disable="loading || resource.minimumStaff <= resource.shifts.length"
+        :disable="loading || !resource.isMissingStaff"
         @click="deleteEmptyShift(resource)"
       >
         <q-icon name="remove" size="sm" class="q-px-sm" />
@@ -928,8 +928,11 @@ function canDeleteMessage(message: MessageResponse): boolean {
 }
 // addEmptySlot/removeEmptySlot lar serveren regne ut ny minimumStaff og
 // legger svaret (ressursen med flagg) i cachen, så her håndteres bare
-// loading-sperre og feilvarsel.
+// loading-sperre og feilvarsel. Feiler endringen (f.eks. 400 fordi noen
+// meldte seg på i mellomtiden), er cachen trolig utdatert; da hentes
+// arrangementet på nytt så tallene og knappene stemmer med serveren.
 async function changeEmptySlots(
+  resource: ResourceResponse,
   change: () => Promise<unknown>,
   fallback: string
 ): Promise<void> {
@@ -938,6 +941,13 @@ async function changeEmptySlots(
     await change();
   } catch (error) {
     notifyApiError(error, fallback);
+    try {
+      await eventStore.refreshEventResources(resource.eventId);
+    } catch (refreshError) {
+      // Brukeren har alt fått ett varsel om feilen over; et nytt varsel om
+      // at oppfriskingen også feilet hjelper ikke. Logges i stedet.
+      console.error(refreshError);
+    }
   } finally {
     loading.value = false;
   }
@@ -946,15 +956,17 @@ async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   if (loading.value) return;
 
   await changeEmptySlots(
+    resource,
     () => eventStore.addEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
   );
 }
 async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
   // Ingen ledige plasser å fjerne (UI-hint; serveren er fasit).
-  if (loading.value || resource.minimumStaff <= resource.shifts.length) return;
+  if (loading.value || !resource.isMissingStaff) return;
 
   await changeEmptySlots(
+    resource,
     () => eventStore.removeEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
   );

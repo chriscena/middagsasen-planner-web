@@ -60,6 +60,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(resource));
             Assert.Equal(full, ShiftRules.IsFull(resource));
+            Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(new ResourceStaffing(minimumStaff, shiftCount)));
         }
 
         // --- Ledige plasser ---
@@ -73,8 +74,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         [InlineData(0, 0, 1)]
         public void MinimumStaffAfterAddingEmptySlot(int minimumStaff, int shiftCount, int expected)
         {
-            var shifts = Enumerable.Range(1, shiftCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
-            Assert.Equal(expected, ShiftRules.MinimumStaffAfterAddingEmptySlot(Resource(minimumStaff, true, shifts)));
+            Assert.Equal(expected, ShiftRules.MinimumStaffAfterAddingEmptySlot(new ResourceStaffing(minimumStaff, shiftCount)));
         }
 
         [Theory]
@@ -87,8 +87,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         [InlineData(0, 0, null)]
         public void MinimumStaffAfterRemovingEmptySlot(int minimumStaff, int shiftCount, int? expected)
         {
-            var shifts = Enumerable.Range(1, shiftCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
-            Assert.Equal(expected, ShiftRules.MinimumStaffAfterRemovingEmptySlot(Resource(minimumStaff, true, shifts)));
+            Assert.Equal(expected, ShiftRules.MinimumStaffAfterRemovingEmptySlot(new ResourceStaffing(minimumStaff, shiftCount)));
         }
 
         [Fact]

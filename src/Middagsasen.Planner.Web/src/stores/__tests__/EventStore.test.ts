@@ -457,6 +457,44 @@ describe("EventStore", () => {
     });
   });
 
+  describe("refreshEventResources", () => {
+    it("henter arrangementet og legger ressursene i cachen", async () => {
+      store.events = [
+        eventWith(1, [
+          resource(10, [], { minimumStaff: 2, isMissingStaff: true }),
+        ]),
+        eventWith(2, [resource(20, [], { minimumStaff: 3 })]),
+      ];
+      const held = store.events[0]!.resources[0]!;
+      const other = store.events[1]!.resources[0]!;
+      const fresh = eventWith(1, [
+        resource(10, [shift(1, 10, OTHER_USER_ID)], {
+          minimumStaff: 1,
+          isMissingStaff: false,
+          isFull: true,
+        }),
+      ]);
+      mockApi.get.mockResolvedValue({ data: fresh });
+
+      await store.refreshEventResources(1);
+
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
+      expect(store.events[0]!.resources[0]).toBe(held);
+      expect(held.minimumStaff).toBe(1);
+      expect(held.shifts).toHaveLength(1);
+      expect(held.isMissingStaff).toBe(false);
+      expect(held.isFull).toBe(true);
+      expect(other.minimumStaff).toBe(3);
+    });
+
+    it("kaster videre når hentingen feiler", async () => {
+      const error = new Error("500");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.refreshEventResources(1)).rejects.toBe(error);
+    });
+  });
+
   describe("getEvent", () => {
     it("nullstiller selectedEvent når kallet feiler", async () => {
       store.selectedEvent = event(1, "2026-10-05T10:00:00");

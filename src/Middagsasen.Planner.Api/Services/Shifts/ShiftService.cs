@@ -205,25 +205,25 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             => ChangeEmptySlots(resourceId, ShiftRules.MinimumStaffAfterAddingEmptySlot);
 
         public Task<ResourceResponse> RemoveEmptySlot(int resourceId)
-            => ChangeEmptySlots(resourceId, facts => ShiftRules.MinimumStaffAfterRemovingEmptySlot(facts)
+            => ChangeEmptySlots(resourceId, staffing => ShiftRules.MinimumStaffAfterRemovingEmptySlot(staffing)
                 ?? throw new DomainValidationException(NoEmptySlotMessage));
 
         /// <summary>
-        /// Endrer <c>MinimumStaff</c> relativt (kun admin). Ny verdi regnes ut fra <c>MinimumStaff</c> og vaktene lest
-        /// under ressurslåsen, ikke fra klientens cache, så to samtidige klikk gir to endringer (#142). Låsen trengs også
-        /// fordi MinimumStaff inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig påmelding ser
-        /// enten den gamle eller den nye verdien.
+        /// Endrer <c>MinimumStaff</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under ressurslåsen
+        /// (<see cref="IShiftRepository.GetStaffing"/>), ikke fra klientens cache, så to samtidige klikk gir to endringer (#142).
+        /// Låsen trengs også fordi MinimumStaff inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig
+        /// påmelding ser enten den gamle eller den nye verdien.
         /// </summary>
-        private async Task<ResourceResponse> ChangeEmptySlots(int resourceId, Func<ResourceFacts, int> newMinimumStaff)
+        private async Task<ResourceResponse> ChangeEmptySlots(int resourceId, Func<ResourceStaffing, int> newMinimumStaff)
         {
             if (!CurrentUser.IsAdmin)
                 throw new ForbiddenAccessException();
 
             await Repository.InResourceLock(resourceId, async () =>
             {
-                var resource = await Repository.GetResource(resourceId)
+                var staffing = await Repository.GetStaffing(resourceId)
                     ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
-                await Repository.SetMinimumStaff(resourceId, newMinimumStaff(ShiftFactsFactory.From(resource)));
+                await Repository.SetMinimumStaff(resourceId, newMinimumStaff(staffing));
                 return true;
             });
 

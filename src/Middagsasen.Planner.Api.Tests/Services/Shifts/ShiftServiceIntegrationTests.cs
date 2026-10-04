@@ -1389,6 +1389,46 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
         }
 
+        /// <summary>
+        /// Kjører <paramref name="action"/> to ganger, A og B, med hver sin kontekst, styrt slik at B starter mens A er inne
+        /// i ressurslåsen og har lest bemanningen, men ikke skrevet ny verdi (<see cref="BeforeWriteAfterReadInterceptor"/>).
+        /// A venter da til B er ferdig, men høyst ett sekund: med lås blokkerer B på låsen til A committer, uten lås rekker
+        /// B å lese den samme gamle verdien og skrive før A, slik at A overskriver B.
+        /// </summary>
+        /// <returns>Unntaket fra A og B (<c>null</c> hvis kallet lyktes), og om B ble ferdig mens A var inne i låsen.</returns>
+        private async Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
+            int adminUserId, Func<IShiftService, Task> action)
+        {
+            using var contextB = _fixture.CreateContext();
+            var serviceB = CreateService(contextB, adminUserId, isAdmin: true);
+            Task<Exception?>? second = null;
+            var secondFinishedInsideFirst = false;
+
+            using var contextA = _fixture.CreateContext(new BeforeWriteAfterReadInterceptor(async () =>
+            {
+                second = Task.Run(() => Capture(() => action(serviceB)));
+                await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(1)));
+                secondFinishedInsideFirst = second.IsCompleted;
+            }));
+            var first = await Capture(() => action(CreateService(contextA, adminUserId, isAdmin: true)));
+
+            Assert.NotNull(second); // interceptoren kjørte, B ble startet inne i A
+            return (first, await second, secondFinishedInsideFirst);
+
+            static async Task<Exception?> Capture(Func<Task> call)
+            {
+                try
+                {
+                    await call();
+                    return null;
+                }
+                catch (Exception ex)
+                {
+                    return ex;
+                }
+            }
+        }
+
         [Fact]
         public async Task AddEmptySlot_Concurrent_BothClicksCount()
         {
@@ -1396,13 +1436,48 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var resource = await SeedResource(seed, minimumStaff: 3);
 
-            using var contextA = _fixture.CreateContext();
-            using var contextB = _fixture.CreateContext();
-            await Task.WhenAll(
-                CreateService(contextA, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId),
-                CreateService(contextB, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId));
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.AddEmptySlot(resource.EventResourceId));
 
             Assert.Equal(5, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Null(first);
+            Assert.Null(second);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+        }
+
+        [Fact]
+        public async Task RemoveEmptySlot_Concurrent_BothClicksCount()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.RemoveEmptySlot(resource.EventResourceId));
+
+            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Null(first);
+            Assert.Null(second);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+        }
+
+        [Fact]
+        public async Task RemoveEmptySlot_Concurrent_OnlyOneRemovesTheLastEmptySlot()
+        {
+            using var seed = _fixture.CreateContext();
+            var user = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 2);
+            await SeedShift(seed, resource, user.UserId);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.RemoveEmptySlot(resource.EventResourceId));
+
+            Assert.Null(first);
+            var ex = Assert.IsType<DomainValidationException>(second);
+            Assert.Equal(ShiftService.NoEmptySlotMessage, ex.Message);
+            Assert.False(secondFinishedInsideFirst);
+            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
         }
 
         [Fact]

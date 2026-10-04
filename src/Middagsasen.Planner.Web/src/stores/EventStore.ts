@@ -215,6 +215,16 @@ export const useEventStore = defineStore("events", {
         if (resource) Object.assign(resource, updated);
       }
     },
+    // Henter arrangementet på nytt og legger ressursene i cachen via
+    // applyResource (beholder objektidentiteten). Brukes for å rette opp
+    // utdaterte tall etter at en operasjon er avvist fordi noen andre har
+    // endret ressursen i mellomtiden.
+    async refreshEventResources(eventId: number): Promise<void> {
+      const response = await api.get<EventResponse>(`/api/events/${eventId}`);
+      for (const resource of response.data.resources) {
+        this.applyResource(resource);
+      }
+    },
     // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
     // opplæring endret (changedTraining), kan flaggene på andre ressurser av
     // samme ressurstype (mustAnswerTraining, needsTraining, canConfirmTraining
