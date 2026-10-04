@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import type {
+  EventRequest,
   EventResponse,
   ResourceResponse,
   ShiftResponse,
@@ -90,6 +91,17 @@ function result(
 
 function eventWith(id: number, resources: ResourceResponse[]): EventResponse {
   return { id, resources } as EventResponse;
+}
+
+// Et svar fra api-mocken som testen selv bestemmer når kommer.
+function deferred<T>() {
+  let resolve!: (value: { data: T }) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<{ data: T }>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("EventStore", () => {
@@ -454,6 +466,201 @@ describe("EventStore", () => {
       await old;
 
       expect(store.events).toEqual(newEvents);
+    });
+  });
+
+  // #145: lokale endringer mens en henting er underveis spilles av på svaret,
+  // som kan være eldre enn endringen.
+  describe("lokale endringer under getEventsForDates", () => {
+    // Starter en henting av uke 41 som testen svarer på selv.
+    function startFetch() {
+      const response = deferred<EventResponse[]>();
+      mockApi.get.mockReturnValueOnce(response.promise);
+      const done = store.getEventsForDates("2026-10-05", "2026-10-11");
+      return { response, done };
+    }
+
+    it("ny vaktliste fra mal blir stående når et eldre svar kommer etterpå", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+
+      await store.createEventFromTemplate(3, "2026-10-07");
+      fetch.response.resolve({ data: [event(1, "2026-10-05T10:00:00")] });
+      await fetch.done;
+
+      expect(store.events.map((e) => e.id)).toEqual([1, 2]);
+    });
+
+    it("ny vaktliste på siste dag i perioden legges til", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-11T22:00:00") });
+
+      await store.createEventFromTemplate(3, "2026-10-11");
+      fetch.response.resolve({ data: [] });
+      await fetch.done;
+
+      expect(store.events.map((e) => e.id)).toEqual([2]);
+    });
+
+    it("ny vaktliste utenfor perioden som hentes, legges ikke til", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-12T10:00:00") });
+
+      await store.addEvent({} as EventRequest);
+      fetch.response.resolve({ data: [event(1, "2026-10-05T10:00:00")] });
+      await fetch.done;
+
+      expect(store.events.map((e) => e.id)).toEqual([1]);
+    });
+
+    it("slettet vaktliste kommer ikke tilbake", async () => {
+      store.events = [
+        event(1, "2026-10-05T10:00:00"),
+        event(2, "2026-10-06T10:00:00"),
+      ];
+      const fetch = startFetch();
+      mockApi.delete.mockResolvedValue({});
+
+      await store.deleteEvent(2);
+      fetch.response.resolve({
+        data: [
+          event(1, "2026-10-05T10:00:00"),
+          event(2, "2026-10-06T10:00:00"),
+        ],
+      });
+      await fetch.done;
+
+      expect(store.events.map((e) => e.id)).toEqual([1]);
+    });
+
+    it("oppdatert vaktliste vinner over den utdaterte fra serveren", async () => {
+      store.events = [{ ...event(1, "2026-10-05T10:00:00"), name: "Før" }];
+      const fetch = startFetch();
+      const updated = { ...event(1, "2026-10-05T10:00:00"), name: "Etter" };
+      mockApi.put.mockResolvedValue({ data: updated });
+
+      await store.updateEvent(1, {} as EventRequest);
+      fetch.response.resolve({
+        data: [{ ...event(1, "2026-10-05T10:00:00"), name: "Før" }],
+      });
+      await fetch.done;
+
+      expect(store.events).toEqual([updated]);
+    });
+
+    it("oppdatering av vaktliste som ikke var i lista, legges ikke til", async () => {
+      const fetch = startFetch();
+      mockApi.put.mockResolvedValue({ data: event(1, "2026-10-05T10:00:00") });
+
+      await store.updateEvent(1, {} as EventRequest);
+      fetch.response.resolve({ data: [] });
+      await fetch.done;
+
+      expect(store.events).toEqual([]);
+    });
+
+    it("ressurs fra en vaktoperasjon vinner over den utdaterte fra serveren", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const fetch = startFetch();
+
+      store.applyResource(resource(10, [shift(1, 10, CURRENT_USER_ID)]));
+      fetch.response.resolve({
+        data: [eventWith(1, [resource(10, []), resource(11, [])])],
+      });
+      await fetch.done;
+
+      expect(store.events[0]!.resources.map((r) => r.shifts.length)).toEqual([
+        1, 0,
+      ]);
+    });
+
+    it("vaktliste fjernet av refreshEventResources (404) kommer ikke tilbake", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const fetch = startFetch();
+      mockApi.get.mockRejectedValueOnce({ response: { status: 404 } });
+
+      await store.refreshEventResources(1);
+      fetch.response.resolve({ data: [eventWith(1, [resource(10, [])])] });
+      await fetch.done;
+
+      expect(store.events).toEqual([]);
+    });
+
+    it("endringer uten pågående henting påvirker ikke senere hentinger", async () => {
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      await store.createEventFromTemplate(3, "2026-10-07");
+      const server = [event(1, "2026-10-05T10:00:00")];
+      mockApi.get.mockResolvedValue({ data: server });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(store.events).toEqual(server);
+    });
+
+    it("loggen tømmes når hentingen er ferdig, så neste henting viser serverens data", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      await store.createEventFromTemplate(3, "2026-10-07");
+      fetch.response.resolve({ data: [] });
+      await fetch.done;
+      expect(store.events.map((e) => e.id)).toEqual([2]);
+      // F.eks. slettet av noen andre i mellomtiden.
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(store.events).toEqual([]);
+    });
+
+    it("loggen tømmes også når hentingen feiler", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      await store.createEventFromTemplate(3, "2026-10-07");
+      const error = new Error("500");
+      fetch.response.reject(error);
+      await expect(fetch.done).rejects.toBe(error);
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(store.events).toEqual([]);
+    });
+
+    it("endring mens to hentinger overlapper spilles av på den nyeste, og den eldste forkastes", async () => {
+      const old = deferred<EventResponse[]>();
+      const latest = deferred<EventResponse[]>();
+      mockApi.get
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(latest.promise);
+      const oldDone = store.getEventsForDates("2026-09-28", "2026-10-04");
+      const latestDone = store.getEventsForDates("2026-10-05", "2026-10-11");
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+
+      await store.createEventFromTemplate(3, "2026-10-07");
+      latest.resolve({ data: [event(1, "2026-10-05T10:00:00")] });
+      await latestDone;
+      old.resolve({ data: [event(9, "2026-09-28T10:00:00")] });
+      await oldDone;
+
+      expect(store.events.map((e) => e.id)).toEqual([1, 2]);
+    });
+
+    it("endring mens bare en eldre (forkastet) henting gjenstår, påvirker ikke senere hentinger", async () => {
+      const old = deferred<EventResponse[]>();
+      mockApi.get
+        .mockReturnValueOnce(old.promise)
+        .mockResolvedValueOnce({ data: [] });
+      const oldDone = store.getEventsForDates("2026-09-28", "2026-10-04");
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      await store.createEventFromTemplate(3, "2026-10-07");
+      old.resolve({ data: [] });
+      await oldDone;
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(store.events).toEqual([]);
     });
   });
 

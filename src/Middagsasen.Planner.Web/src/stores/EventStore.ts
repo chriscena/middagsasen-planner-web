@@ -54,6 +54,63 @@ export interface SaveShiftRequest {
 // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
 let latestEventsRequest = 0;
 
+// Lokale endringer i events (ny, endret eller slettet vaktliste, eller en
+// ressurs fra en vaktoperasjon) som skjer mens den nyeste getEventsForDates
+// er underveis. Svaret fra serveren kan være eldre enn endringen, så de
+// spilles av på svaret i stedet for å gå tapt (#145). Bare den nyeste
+// forespørselen skriver events, så endringer logges kun mens den pågår, og
+// loggen tømmes når den er ferdig.
+type LocalChange =
+  | { kind: "upsert"; event: EventResponse }
+  | { kind: "remove"; id: number }
+  | { kind: "resource"; resource: ResourceResponse };
+let latestLocalChange = 0;
+let localChanges: { seq: number; change: LocalChange }[] = [];
+let latestEventsRequestPending = false;
+
+function recordLocalChange(change: LocalChange): void {
+  if (!latestEventsRequestPending) return;
+  localChanges.push({ seq: ++latestLocalChange, change });
+}
+
+// Erstatter ressursen med samme id (i alle events) med Object.assign, så
+// objektet beholder identiteten (se applyResource).
+function assignResource(
+  events: EventResponse[],
+  updated: ResourceResponse
+): void {
+  for (const event of events) {
+    const resource = event.resources.find((r) => r.id === updated.id);
+    if (resource) Object.assign(resource, updated);
+  }
+}
+
+// Spiller av endringene etter afterSeq på events fra serveren. En vaktliste
+// som ikke finnes i svaret, legges bare til hvis den starter innenfor
+// perioden som ble hentet (firstDay til og med lastDay, som dagnøkler).
+function replayLocalChanges(
+  events: EventResponse[],
+  afterSeq: number,
+  firstDay: string,
+  lastDay: string
+): EventResponse[] {
+  let result = events;
+  for (const { seq, change } of localChanges) {
+    if (seq <= afterSeq) continue;
+    if (change.kind === "remove") {
+      result = result.filter((e) => e.id !== change.id);
+    } else if (change.kind === "resource") {
+      assignResource(result, change.resource);
+    } else if (result.some((e) => e.id === change.event.id)) {
+      result = result.map((e) => (e.id === change.event.id ? change.event : e));
+    } else {
+      const day = toDayKey(change.event.startTime);
+      if (day >= firstDay && day <= lastDay) result = [...result, change.event];
+    }
+  }
+  return result;
+}
+
 // Felles henting av ett arrangement (getEvent og refreshEventResources).
 async function fetchEvent(id: number | string): Promise<EventResponse> {
   const response = await api.get<EventResponse>(`/api/events/${id}`);
@@ -93,19 +150,38 @@ export const useEventStore = defineStore("events", {
       }
     },
     async getEventsForDates(start: string, end: string): Promise<void> {
-      const startDate = encodeURIComponent(toDayKey(start));
+      const firstDay = toDayKey(start);
+      const lastDay = toDayKey(end);
+      const startDate = encodeURIComponent(firstDay);
       const endDate = encodeURIComponent(toDayKey(nextDay(end)));
       this.eventsRange = { start, end };
       const request = ++latestEventsRequest;
-      const response = await api.get<EventResponse[]>(
-        `/api/events?start=${startDate}&end=${endDate}`
-      );
-      if (request !== latestEventsRequest) return;
-      this.events = response.data;
+      const changesBefore = latestLocalChange;
+      latestEventsRequestPending = true;
+      try {
+        const response = await api.get<EventResponse[]>(
+          `/api/events?start=${startDate}&end=${endDate}`
+        );
+        if (request !== latestEventsRequest) return;
+        this.events = replayLocalChanges(
+          response.data,
+          changesBefore,
+          firstDay,
+          lastDay
+        );
+      } finally {
+        // Eldre forespørsler forkastes, så når den nyeste er ferdig (med
+        // eller uten feil), trengs ikke loggen lenger.
+        if (request === latestEventsRequest) {
+          latestEventsRequestPending = false;
+          localChanges = [];
+        }
+      }
     },
     async addEvent(event: EventRequest): Promise<void> {
       const response = await api.post<EventResponse>("/api/events", event);
       this.events.push(response.data);
+      recordLocalChange({ kind: "upsert", event: response.data });
     },
     // id kan være en streng når den kommer fra en route-param (EventPage).
     async getEvent(id: number | string): Promise<void> {
@@ -118,6 +194,7 @@ export const useEventStore = defineStore("events", {
       await api.delete(`/api/events/${id}`);
       this.selectedEvent = null;
       this.events = this.events.filter((e) => e.id !== id);
+      recordLocalChange({ kind: "remove", id });
     },
     async updateEvent(id: number | string, event: EventRequest): Promise<void> {
       const response = await api.put<EventResponse>(`/api/events/${id}`, event);
@@ -127,7 +204,10 @@ export const useEventStore = defineStore("events", {
       const replaceIndex = this.events.findIndex(
         (event) => event.id === updatedEvent.id
       );
-      if (replaceIndex > -1) this.events[replaceIndex] = updatedEvent;
+      if (replaceIndex > -1) {
+        this.events[replaceIndex] = updatedEvent;
+        recordLocalChange({ kind: "upsert", event: updatedEvent });
+      }
     },
 
     async createResourceType(
@@ -215,11 +295,11 @@ export const useEventStore = defineStore("events", {
     // Erstatter ressursen med samme id (i alle events) med svaret fra serveren.
     // Object.assign, så objektet beholder identiteten: komponenter og dialoger
     // som holder på ressursen (f.eks. selectedResource) ser de nye verdiene.
+    // Logges som en egen ressursendring (ikke upsert av hele arrangementet),
+    // så resten av arrangementet i svaret fra en pågående henting beholdes.
     applyResource(updated: ResourceResponse): void {
-      for (const event of this.events) {
-        const resource = event.resources.find((r) => r.id === updated.id);
-        if (resource) Object.assign(resource, updated);
-      }
+      assignResource(this.events, updated);
+      recordLocalChange({ kind: "resource", resource: updated });
     },
     // Henter arrangementet på nytt og synkroniserer det i events-cachen med
     // svaret: ressurslisten får serverens innhold og rekkefølge, slettede
@@ -237,6 +317,7 @@ export const useEventStore = defineStore("events", {
       } catch (error) {
         if (getErrorResponse(error)?.status === 404) {
           this.events = this.events.filter((e) => e.id !== eventId);
+          recordLocalChange({ kind: "remove", id: eventId });
           return;
         }
         throw error;
@@ -249,6 +330,7 @@ export const useEventStore = defineStore("events", {
         return cached ? Object.assign(cached, r) : r;
       });
       Object.assign(event, fresh, { resources });
+      recordLocalChange({ kind: "upsert", event });
     },
     // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
     // opplæring endret (changedTraining), kan flaggene på andre ressurser av
@@ -317,6 +399,7 @@ export const useEventStore = defineStore("events", {
         } satisfies EventFromTemplateRequest
       );
       this.events.push(response.data);
+      recordLocalChange({ kind: "upsert", event: response.data });
     },
     async addResourceTypeFile(
       resourcetype: Pick<ResourceTypeResponse, "id">,
