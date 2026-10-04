@@ -103,6 +103,11 @@ import type {
 } from "@/types";
 import { newClientKey } from "@/shared/clientKey";
 import { formatTime, isValidTime, toTimeWire } from "@/shared/time";
+import {
+  findInvalidResource,
+  toResourceRequests,
+  visibleResources,
+} from "@/shared/resourceRequests";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
@@ -164,11 +169,10 @@ const eventName = ref<string | null>(null);
 
 const isValidStartTime = computed(() => isValidTime(startTime.value));
 const isValidEndTime = computed(() => isValidTime(endTime.value));
-// Ugyldige tider (f.eks. «1») ville gitt RangeError i toTimeWire.
-const hasValidResourceTimes = computed(() =>
-  resources.value.every(
-    (r) => isValidTime(r.startTime) && isValidTime(r.endTime)
-  )
+// Ugyldige tider (f.eks. «1») ville gitt RangeError i toTimeWire. Slettede
+// vakter sjekkes ikke (se findInvalidResource).
+const hasValidResourceTimes = computed(
+  () => !findInvalidResource(resources.value)
 );
 
 const startTime = ref<string | null>("10:00");
@@ -182,7 +186,8 @@ const canSave = computed(() => {
     eventName.value &&
     isValidStartTime.value &&
     isValidEndTime.value &&
-    resources.value.length &&
+    // Slettede vakter teller ikke.
+    visibleResources(resources.value).length &&
     hasValidResourceTimes.value
   );
 });
@@ -203,19 +208,7 @@ function mapToModel(): TemplateFormModel {
     // Malen lagrer bare klokkeslettet ("HH:mm").
     startTime: toTimeWire(startTime.value),
     endTime: toTimeWire(endTime.value),
-    resourceTemplates: resources.value.map((r) => {
-      return {
-        id: r.id ?? null,
-        // ResourceForm krever vakttype før lagring (canAdd).
-        resourceTypeId: r.resourceType!.id,
-        startTime: toTimeWire(r.startTime),
-        endTime: toTimeWire(r.endTime),
-        // q-input type="number" kan gi string; Number() sender et tall.
-        minimumStaff: Number(r.minimumStaff),
-        // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).
-        isDeleted: r.isDeleted ?? false,
-      };
-    }),
+    resourceTemplates: toResourceRequests(resources.value),
   };
   return model;
 }

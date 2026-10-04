@@ -97,7 +97,8 @@ namespace Middagsasen.Planner.Api.Services.Events
                 Description = request.Description,
                 StartTime = eventStart,
                 EndTime = eventEnd,
-                Resources = request.Resources.Select(r => Map(r, eventStart, eventEnd)).ToList(),
+                // Slettede ressurser (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                Resources = request.Resources.Where(r => !r.IsDeleted).Select(r => Map(r, eventStart, eventEnd)).ToList(),
             };
 
             DbContext.Events.Add(newEvent);

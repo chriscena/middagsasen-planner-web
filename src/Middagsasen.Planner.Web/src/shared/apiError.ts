@@ -3,7 +3,9 @@
 // Backend svarer med ProblemDetails (`application/problem+json`) ved feil:
 // `{ type, title, status, detail, traceId }`. I tillegg finnes:
 // - ValidationProblemDetails (400) fra modellvalidering: `errors: { felt: string[] }`
-//   (meldingene er engelske og tekniske og vises aldri til bruker)
+//   med generell norsk `detail` («Forespørselen inneholder ugyldige verdier.»)
+//   og feltfeil som «Ugyldig verdi.». Vises ikke til bruker; se
+//   `getApiErrorMessage`.
 // - ren streng som body (f.eks. `BadRequest("Ugyldig telefonnummer")`)
 import type { ProblemDetails } from "@/types";
 
@@ -52,8 +54,9 @@ function nonBlank(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() !== "" ? value : undefined;
 }
 
-// ValidationProblemDetails (modellvalidering) har et `errors`-objekt. Meldingene
-// der er engelske og tekniske, og skal ikke vises til bruker.
+// ValidationProblemDetails (modellvalidering) har et `errors`-objekt. `detail`
+// og feltfeilene er generelle («Ugyldig verdi.») og nøklet på feltstier fra
+// requesten, så den kontekstuelle fallbacken sier brukeren mer.
 function isValidationProblemDetails(data: ProblemDetails): boolean {
   const errors: unknown = (data as Record<string, unknown>).errors;
   return typeof errors === "object" && errors !== null;
@@ -63,7 +66,8 @@ function isValidationProblemDetails(data: ProblemDetails): boolean {
  * Henter en brukervennlig feilmelding fra en API-feil, i prioritert rekkefølge:
  * 1. status >= 500 gir `fallback` (generisk tekst, proxy-sider o.l.),
  * 2. ValidationProblemDetails gir `fallback`, også om `detail` er satt
- *    (meldingene fra modellvalidering er engelske og tekniske),
+ *    (bevisst: den kontekstuelle fallbacken sier mer enn den generelle
+ *    meldingen og feltstiene fra modellvalideringen),
  * 3. ProblemDetails `detail` (ikke-tom, norsk melding fra backend),
  * 4. ren streng-body (ikke-tom),
  * 5. ellers `fallback` (f.eks. nettverksfeil eller tom body).

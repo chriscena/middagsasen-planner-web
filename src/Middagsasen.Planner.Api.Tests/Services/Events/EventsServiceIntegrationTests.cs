@@ -133,6 +133,35 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
+        public async Task CreateEvent_SkipsDeletedResources()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("SkipDeleted"),
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), MinimumStaff = 7, IsDeleted = true },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEvent(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(1, Assert.Single(dbEvent.Resources).MinimumStaff);
+        }
+
+        [Fact]
         public async Task CreateEvent_PersistsToDatabase()
         {
             // Arrange

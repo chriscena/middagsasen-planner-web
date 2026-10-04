@@ -51,7 +51,8 @@ namespace Middagsasen.Planner.Api.Services.Events
                 EventName = request.EventName,
                 StartTime = ToTemplateTime(request.StartTime),
                 EndTime = ToTemplateTime(request.EndTime),
-                ResourceTemplates = request.ResourceTemplates.Select(Map).ToList(),
+                // Slettede ressursmaler (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                ResourceTemplates = request.ResourceTemplates.Where(r => !r.IsDeleted).Select(Map).ToList(),
             };
 
             DbContext.EventTemplates.Add(newEvent);
@@ -124,13 +125,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             {
                 Name = request.Name,
                 EventName = existingEvent.Name,
-                StartTime = existingEvent.StartTime,
-                EndTime = existingEvent.EndTime,
+                // Bare klokkeslettet tas med; det lagres på referansedatoen som andre maltider.
+                StartTime = ToTemplateTime(TimeOnly.FromDateTime(existingEvent.StartTime)),
+                EndTime = ToTemplateTime(TimeOnly.FromDateTime(existingEvent.EndTime)),
                 ResourceTemplates = existingEvent.Resources.Select(r => new ResourceTemplate
                 {
                     ResourceTypeId = r.ResourceTypeId,
-                    StartTime = r.StartTime,
-                    EndTime = r.EndTime,
+                    StartTime = ToTemplateTime(TimeOnly.FromDateTime(r.StartTime)),
+                    EndTime = ToTemplateTime(TimeOnly.FromDateTime(r.EndTime)),
                     MinimumStaff = r.MinimumStaff,
                 }).ToList(),
             };

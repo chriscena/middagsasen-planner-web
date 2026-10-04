@@ -976,7 +976,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1088,7 +1088,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1220,7 +1220,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -1301,7 +1301,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2504,7 +2504,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -2625,7 +2625,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -4402,6 +4402,17 @@ export interface components {
             pendingHours: number;
             /** Format: double */
             rejectedHours: number;
+        };
+        ValidationProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number;
+            detail?: null | string;
+            instance?: null | string;
+            errors?: {
+                [key: string]: string[];
+            };
         };
         WorkHourResponse: {
             /** Format: int32 */

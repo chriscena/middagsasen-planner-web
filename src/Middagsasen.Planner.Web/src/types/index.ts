@@ -72,5 +72,6 @@ export type UserResponse = Schemas["UserResponse"];
 export type UserShiftResponse = Schemas["UserShiftResponse"];
 export type UserTrainingResponse = Schemas["UserTrainingResponse"];
 export type UserWorkHourSumResponse = Schemas["UserWorkHourSumResponse"];
+export type ValidationProblemDetails = Schemas["ValidationProblemDetails"];
 export type WorkHourResponse = Schemas["WorkHourResponse"];
 export type WorkHourSumResponse = Schemas["WorkHourSumResponse"];

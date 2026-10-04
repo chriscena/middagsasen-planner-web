@@ -202,6 +202,14 @@ namespace Middagsasen.Planner.Api.Tests.Core
             { "POST", "/api/templates", ValidTemplate, "startTime", "\"2000-01-01T18:00\"" },
             { "PUT", "/api/templates/2", ValidTemplate, "endTime", "\"ikke-en-tid\"" },
             { "PUT", "/api/templates/2", ValidTemplate, "resourceTemplates[0].startTime", "\"24:00\"" },
+            // Arrangementstider er lokal tid uten sone, og året må kunne lagres (også med én dag lagt til eller trukket fra).
+            { "POST", "/api/events", ValidEvent, "startTime", "\"2026-01-15T22:00Z\"" },
+            { "POST", "/api/events", ValidEvent, "endTime", "\"2026-01-16T02:00+01:00\"" },
+            { "PUT", "/api/events/5", ValidEvent, "startTime", "\"2026-01-15T22:00:00.000Z\"" },
+            { "POST", "/api/events", ValidEvent, "startTime", "\"0202-01-15T22:00\"" },
+            { "POST", "/api/events", ValidEvent, "startTime", "\"1899-12-31T22:00\"" },
+            { "POST", "/api/events/template/3", """{ "startDate": "2026-10-07" }""", "startDate", "\"0202-10-07\"" },
+            { "POST", "/api/events/template/3", """{ "startDate": "2026-10-07" }""", "startDate", "\"9999-12-31\"" },
         };
 
         [Theory]
@@ -241,6 +249,39 @@ namespace Middagsasen.Planner.Api.Tests.Core
             Assert.Equal(path, errors.Keys.Single());
             Assert.Empty(_events.ReceivedCalls());
             Assert.Empty(_templates.ReceivedCalls());
+        }
+
+        [Fact]
+        public async Task CreateEvent_OnLastDayOfYear9999_OverMidnight_Returns400()
+        {
+            // 9999-12-31 over midnatt ville gitt slutt 10000-01-01 (og vakter dagen etter): avvises allerede ved bindingen.
+            var json = With(With(ValidEvent, "startTime", "\"9999-12-31T22:00\""), "endTime", "\"9999-12-31T02:00\"");
+
+            var response = await Send("POST", "/api/events", json);
+
+            var errors = Errors(await AssertValidationProblem(response));
+            Assert.Equal([ModelValidation.InvalidValueMessage], errors["startTime"]);
+            Assert.Empty(_events.ReceivedCalls());
+        }
+
+        [Theory]
+        [InlineData("\"1900-01-01T22:00\"", "\"1900-01-01T02:00\"")]
+        [InlineData("\"9998-12-31T22:00\"", "\"9998-12-31T02:00\"")]
+        public async Task CreateEvent_AcceptsYearsAtRangeLimits(string startTime, string endTime)
+        {
+            var response = await Send("POST", "/api/events", With(With(ValidEvent, "startTime", startTime), "endTime", endTime));
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        }
+
+        [Theory]
+        [InlineData("1900-01-01")]
+        [InlineData("9998-12-31")]
+        public async Task CreateEventFromTemplate_AcceptsDatesAtRangeLimits(string startDate)
+        {
+            var response = await Send("POST", "/api/events/template/3", "{ \"startDate\": \"" + startDate + "\" }");
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         }
 
         [Fact]

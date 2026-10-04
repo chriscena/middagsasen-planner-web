@@ -58,6 +58,7 @@ builder.Services.AddOpenApi(options =>
 {
     options.AddSchemaTransformer<NonNullableRequiredSchemaTransformer>();
     options.AddSchemaTransformer<StrictNumberSchemaTransformer>();
+    options.AddSchemaTransformer<CustomConverterStringSchemaTransformer>();
     options.AddSchemaTransformer<EnumSchemaTransformer>();
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });
