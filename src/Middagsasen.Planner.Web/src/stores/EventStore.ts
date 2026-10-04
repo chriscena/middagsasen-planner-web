@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { api } from "@/boot/axios";
+import { getErrorResponse } from "@/shared/apiError";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
   ChangeShiftRequest,
@@ -12,7 +13,6 @@ import type {
   FileInfoResponse,
   MessageRequest,
   MessageResponse,
-  MinimumStaffRequest,
   ResourceResponse,
   ResourceTypeRequest,
   ResourceTypeResponse,
@@ -53,6 +53,12 @@ export interface SaveShiftRequest {
 // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
 // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
 let latestEventsRequest = 0;
+
+// Felles henting av ett arrangement (getEvent og refreshEventResources).
+async function fetchEvent(id: number | string): Promise<EventResponse> {
+  const response = await api.get<EventResponse>(`/api/events/${id}`);
+  return response.data;
+}
 
 export const useEventStore = defineStore("events", {
   state: (): EventState => ({
@@ -106,8 +112,7 @@ export const useEventStore = defineStore("events", {
       // Nullstilles først, så en mislykket lasting aldri etterlater en
       // tidligere lastet vaktliste (som Slett ellers kunne slettet).
       this.selectedEvent = null;
-      const response = await api.get<EventResponse>(`/api/events/${id}`);
-      this.selectedEvent = response.data;
+      this.selectedEvent = await fetchEvent(id);
     },
     async deleteEvent(id: number): Promise<void> {
       await api.delete(`/api/events/${id}`);
@@ -216,6 +221,35 @@ export const useEventStore = defineStore("events", {
         if (resource) Object.assign(resource, updated);
       }
     },
+    // Henter arrangementet på nytt og synkroniserer det i events-cachen med
+    // svaret: ressurslisten får serverens innhold og rekkefølge, slettede
+    // ressurser fjernes og nye legges til. Eksisterende ressurser (og
+    // arrangementet selv) oppdateres med Object.assign, så objektene beholder
+    // identiteten (som i applyResource). Brukes for å rette opp utdaterte tall
+    // etter at en operasjon er avvist fordi noen andre har endret ressursen
+    // (eller slettet den/arrangementet) i mellomtiden. Finnes ikke
+    // arrangementet lenger (404), fjernes det fra cachen. selectedEvent røres
+    // ikke: den er skjemadata for redigering og hentes på nytt av EventPage.
+    async refreshEventResources(eventId: number): Promise<void> {
+      let fresh: EventResponse;
+      try {
+        fresh = await fetchEvent(eventId);
+      } catch (error) {
+        if (getErrorResponse(error)?.status === 404) {
+          this.events = this.events.filter((e) => e.id !== eventId);
+          return;
+        }
+        throw error;
+      }
+      const event = this.events.find((e) => e.id === eventId);
+      if (!event) return;
+      const existing = new Map(event.resources.map((r) => [r.id, r]));
+      const resources = fresh.resources.map((r) => {
+        const cached = existing.get(r.id);
+        return cached ? Object.assign(cached, r) : r;
+      });
+      Object.assign(event, fresh, { resources });
+    },
     // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
     // opplæring endret (changedTraining), kan flaggene på andre ressurser av
     // samme ressurstype (mustAnswerTraining, needsTraining, canConfirmTraining
@@ -323,15 +357,21 @@ export const useEventStore = defineStore("events", {
         `/api/resources/${message.eventResourceId}/messages/${message.id}`
       );
     },
-    // Kun admin. Svaret er hele ressursen med flagg (isMissingStaff, isFull
-    // osv.), som legges i cachen via applyResource og returneres.
-    async patchMinimumStaff(
-      eventResourceId: number,
-      minimumStaff: number
-    ): Promise<ResourceResponse> {
-      const response = await api.patch<ResourceResponse>(
-        `/api/resources/${eventResourceId}/minimumStaff`,
-        { minimumStaff } satisfies MinimumStaffRequest
+    // Kun admin. Serveren regner ut ny minimumStaff under ressurslås, så
+    // samtidige klikk ikke overskriver hverandre. Svaret er hele ressursen med
+    // flagg (isMissingStaff, isFull osv.), som legges i cachen via
+    // applyResource og returneres.
+    async addEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
+      const response = await api.post<ResourceResponse>(
+        `/api/resources/${eventResourceId}/emptySlots`
+      );
+      this.applyResource(response.data);
+      return response.data;
+    },
+    // Kun admin. Gir 400 hvis ressursen ikke har noen ledig plass å fjerne.
+    async removeEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
+      const response = await api.delete<ResourceResponse>(
+        `/api/resources/${eventResourceId}/emptySlots`
       );
       this.applyResource(response.data);
       return response.data;

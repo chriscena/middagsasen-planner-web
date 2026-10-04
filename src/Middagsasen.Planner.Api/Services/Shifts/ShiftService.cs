@@ -16,7 +16,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal const string DuplicateMessage = "Brukeren står allerede på denne vakta.";
         internal const string InvalidTimesMessage = "Tidene må ligge innenfor vaktas tider, og start kan ikke være etter slutt.";
         internal const string NoTrainingMessage = "Denne vakttypen har ikke opplæring.";
-        internal const string NegativeMinimumStaffMessage = "Minimum bemanning kan ikke være negativ.";
+        internal const string NoEmptySlotMessage = "Det er ingen ledige plasser å fjerne.";
         internal const string SmsFailedWarning = "Endringen er lagret, men SMS til trenerne kunne ikke sendes. Gi beskjed til en trener direkte.";
 
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
@@ -201,19 +201,28 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return await BuildResult(resourceId, null, []);
         }
 
-        public async Task<ResourceResponse> SetMinimumStaff(int resourceId, MinimumStaffRequest request)
-        {
-            var actor = CurrentUser.ToActor();
-            if (!actor.IsAdmin)
-                throw new ForbiddenAccessException();
-            if (request.MinimumStaff < 0)
-                throw new DomainValidationException(NegativeMinimumStaffMessage);
+        public Task<ResourceResponse> AddEmptySlot(int resourceId)
+            => ChangeEmptySlots(resourceId, ShiftRules.MinimumStaffAfterAddingEmptySlot);
 
-            // Under ressurslåsen fordi MinimumStaff inngår i kapasitetsregelen (ShiftRules.IsFull): en samtidig
-            // påmelding skal enten se den gamle eller den nye verdien, ikke vurdere kapasitet mens den endres.
+        public Task<ResourceResponse> RemoveEmptySlot(int resourceId)
+            => ChangeEmptySlots(resourceId, staffing => ShiftRules.MinimumStaffAfterRemovingEmptySlot(staffing)
+                ?? throw new DomainValidationException(NoEmptySlotMessage));
+
+        /// <summary>
+        /// Endrer <c>MinimumStaff</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under ressurslåsen
+        /// (<see cref="IShiftRepository.GetStaffing"/>), ikke fra klientens cache, så to samtidige klikk gir to endringer (#142).
+        /// Låsen trengs også fordi MinimumStaff inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig
+        /// påmelding ser enten den gamle eller den nye verdien.
+        /// </summary>
+        private async Task<ResourceResponse> ChangeEmptySlots(int resourceId, Func<ResourceStaffing, int> newMinimumStaff)
+        {
+            if (!CurrentUser.IsAdmin)
+                throw new ForbiddenAccessException();
+
             await Repository.InResourceLock(resourceId, async () =>
             {
-                await Repository.SetMinimumStaff(resourceId, request.MinimumStaff);
+                var staffing = await Repository.GetStaffing(resourceId);
+                await Repository.SetMinimumStaff(resourceId, newMinimumStaff(staffing));
                 return true;
             });
 

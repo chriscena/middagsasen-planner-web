@@ -20,6 +20,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// </summary>
         Task<EventResource?> GetResource(int resourceId);
 
+        /// <summary>
+        /// Leser bare bemanningen på ressursen (<c>MinimumStaff</c> og antall vakter) med én spørring. For endringer som
+        /// ikke trenger hele grafen fra <see cref="GetResource"/>. Kalles inne i <see cref="InResourceLock{T}"/>, som gir
+        /// ferske data og allerede har kastet <see cref="EntityNotFoundException"/> hvis ressursen ikke finnes.
+        /// </summary>
+        /// <exception cref="InvalidOperationException">Ressursen finnes ikke (kalt utenfor ressurslåsen).</exception>
+        Task<ResourceStaffing> GetStaffing(int resourceId);
+
         /// <summary>Henter vakta med tracking (for endring/sletting).</summary>
         Task<EventResourceUser?> GetShift(int shiftId);
 
@@ -31,7 +39,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Henter brukerens opplæring på ressurstypen med tracking, eller <c>null</c>.</summary>
         Task<ResourceTypeTraining?> GetTraining(int userId, int resourceTypeId);
 
-        /// <summary>Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges).</summary>
+        /// <summary>
+        /// Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges). Kalles inne i
+        /// <see cref="InResourceLock{T}"/>, med en verdi regnet ut fra ferske data.
+        /// </summary>
         Task SetMinimumStaff(int resourceId, int minimumStaff);
 
         void AddShift(EventResourceUser shift);

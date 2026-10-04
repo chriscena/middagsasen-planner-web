@@ -51,6 +51,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 .SingleOrDefaultAsync(r => r.EventResourceId == resourceId);
         }
 
+        public async Task<ResourceStaffing> GetStaffing(int resourceId)
+        {
+            return await DbContext.EventResource
+                .Where(r => r.EventResourceId == resourceId)
+                .Select(r => new ResourceStaffing(r.MinimumStaff, r.Shifts.Count()))
+                .SingleAsync();
+        }
+
         public async Task<EventResourceUser?> GetShift(int shiftId)
         {
             return await DbContext.Shifts.SingleOrDefaultAsync(s => s.EventResourceUserId == shiftId);

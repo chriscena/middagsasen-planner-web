@@ -35,7 +35,6 @@ export type MeasurementResponse = Schemas["MeasurementResponse"];
 export type MeasurementValueResponse = Schemas["MeasurementValueResponse"];
 export type MessageRequest = Schemas["MessageRequest"];
 export type MessageResponse = Schemas["MessageResponse"];
-export type MinimumStaffRequest = Schemas["MinimumStaffRequest"];
 export type OtpRequest = Schemas["OtpRequest"];
 export type OtpResponse = Schemas["OtpResponse"];
 export { OtpStatus } from "./enums";

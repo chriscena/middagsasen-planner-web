@@ -20,7 +20,17 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         int MinimumStaff,
         bool HasTraining,
         IReadOnlyCollection<int> TrainerUserIds,
-        IReadOnlyList<ShiftFacts> Shifts);
+        IReadOnlyList<ShiftFacts> Shifts)
+    {
+        /// <summary>Bemanningen (minimum bemanning og antall vakter), det <see cref="ShiftRules.IsMissingStaff(ResourceStaffing)"/> vurderer.</summary>
+        public ResourceStaffing Staffing => new(MinimumStaff, Shifts.Count);
+    }
+
+    /// <summary>
+    /// Bemanningen på en ressurs: minimum bemanning og antall vakter. Nok til reglene for ledige plasser, og kan leses
+    /// med en lett spørring (<see cref="IShiftRepository.GetStaffing"/>) i stedet for hele <see cref="ResourceFacts"/>.
+    /// </summary>
+    public sealed record ResourceStaffing(int MinimumStaff, int ShiftCount);
 
     /// <summary>Hvorfor en handling på en vakt ble avvist.</summary>
     public enum ShiftRuleViolation
@@ -67,9 +77,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// Samme formel som viewet <c>EventStatuses</c> (Middagsasen.Planner.Database/Views/EventStatuses.sql),
         /// som gir kalendermarkørene. Endres den ene, må den andre endres også.
         /// </summary>
-        public static bool IsMissingStaff(ResourceFacts resource) => resource.Shifts.Count < resource.MinimumStaff;
+        public static bool IsMissingStaff(ResourceStaffing staffing) => staffing.ShiftCount < staffing.MinimumStaff;
 
-        /// <summary>Ressursen er full: minst <c>MinimumStaff</c> vakter. Det motsatte av <see cref="IsMissingStaff"/>.</summary>
+        /// <inheritdoc cref="IsMissingStaff(ResourceStaffing)"/>
+        public static bool IsMissingStaff(ResourceFacts resource) => IsMissingStaff(resource.Staffing);
+
+        /// <summary>Ressursen er full: minst <c>MinimumStaff</c> vakter. Det motsatte av <see cref="IsMissingStaff(ResourceFacts)"/>.</summary>
         public static bool IsFull(ResourceFacts resource) => !IsMissingStaff(resource);
 
         /// <summary>Ressursen er avsluttet: slutttiden er nådd.</summary>
@@ -203,6 +216,23 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Flagg: innlogget bruker kan trekke seg fra / slette vakta.</summary>
         public static bool CanWithdraw(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
             => CheckWithdraw(actor, resource, now, shift) is null;
+
+        // --- Ledige plasser (kun admin) ---
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> når admin legger til én ledig plass: én mer enn det største av <c>MinimumStaff</c> og
+        /// antall vakter, slik at ressursen alltid får nøyaktig én ledig plass mer enn den har nå (også når den er overbooket).
+        /// Vurderes mot ferske data under ressurslåsen, så samtidige klikk teller hver for seg.
+        /// </summary>
+        public static int MinimumStaffAfterAddingEmptySlot(ResourceStaffing staffing)
+            => Math.Max(staffing.MinimumStaff, staffing.ShiftCount) + 1;
+
+        /// <summary>
+        /// Ny <c>MinimumStaff</c> når admin fjerner én ledig plass, eller <c>null</c> hvis ressursen ikke har noen ledig
+        /// plass (full: minst like mange vakter som <c>MinimumStaff</c>, se <see cref="IsMissingStaff(ResourceStaffing)"/>).
+        /// </summary>
+        public static int? MinimumStaffAfterRemovingEmptySlot(ResourceStaffing staffing)
+            => IsMissingStaff(staffing) ? staffing.MinimumStaff - 1 : null;
 
         // --- Tider ---
 

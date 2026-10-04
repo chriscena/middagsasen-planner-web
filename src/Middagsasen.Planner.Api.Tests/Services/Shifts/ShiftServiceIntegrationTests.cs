@@ -452,24 +452,25 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var contextA = _fixture.CreateContext();
             using var contextB = _fixture.CreateContext();
             var results = await Task.WhenAll(
-                Attempt(CreateService(contextA, a.UserId), resource.EventResourceId),
-                Attempt(CreateService(contextB, b.UserId), resource.EventResourceId));
+                Attempt(() => CreateService(contextA, a.UserId).SignUp(resource.EventResourceId, new SignUpRequest())),
+                Attempt(() => CreateService(contextB, b.UserId).SignUp(resource.EventResourceId, new SignUpRequest())));
 
             Assert.Single(results, r => r is null);
             Assert.Single(results, r => r is DomainValidationException);
             Assert.Single(await GetShifts(resource.EventResourceId));
+        }
 
-            static async Task<Exception?> Attempt(IShiftService service, int resourceId)
+        /// <summary>Kjører <paramref name="call"/> og returnerer unntaket den kastet, eller <c>null</c> hvis den lyktes.</summary>
+        private static async Task<Exception?> Attempt(Func<Task> call)
+        {
+            try
             {
-                try
-                {
-                    await service.SignUp(resourceId, new SignUpRequest());
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    return ex;
-                }
+                await call();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return ex;
             }
         }
 
@@ -1316,7 +1317,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         #endregion
 
-        #region MinimumStaff
+        #region Ledige plasser
 
         private async Task<int> GetMinimumStaff(int resourceId)
         {
@@ -1325,7 +1326,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task SetMinimumStaff_Admin_IncreasesOnFullResource_ReturnsResourceThatIsNoLongerFull()
+        public async Task AddEmptySlot_Admin_IncreasesOnFullResource_ReturnsResourceThatIsNoLongerFull()
         {
             using var seed = _fixture.CreateContext();
             var first = await SeedUser(seed);
@@ -1335,8 +1336,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             await SeedShift(seed, resource, first.UserId);
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 2 });
+            var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
 
             Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
             Assert.Equal(resource.EventResourceId, result.Id);
@@ -1355,7 +1355,141 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task SetMinimumStaff_Admin_DecreasesToShiftCount_ReturnsFullResource()
+        public async Task AddEmptySlot_IncreasesByOne_WhenResourceHasEmptySlots()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
+
+            Assert.Equal(4, result.MinimumStaff);
+            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task AddEmptySlot_CountsFromShifts_WhenResourceIsOverbooked()
+        {
+            using var seed = _fixture.CreateContext();
+            var a = await SeedUser(seed);
+            var b = await SeedUser(seed);
+            var c = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 1);
+            await SeedShift(seed, resource, a.UserId);
+            await SeedShift(seed, resource, b.UserId);
+            await SeedShift(seed, resource, c.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
+
+            // Tre vakter og én ny ledig plass.
+            Assert.Equal(4, result.MinimumStaff);
+            Assert.True(result.IsMissingStaff);
+            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        /// <summary>
+        /// Kjører <paramref name="action"/> to ganger, A og B, med hver sin kontekst, styrt slik at B starter mens A er inne
+        /// i ressurslåsen og har lest bemanningen, men ikke skrevet ny verdi (<see cref="BeforeWriteAfterReadInterceptor"/>).
+        /// A fortsetter først når B enten står og venter på en lås (låsen virker) eller er ferdig (ingen lås: B leste den
+        /// samme gamle verdien og skrev før A, slik at A overskriver B).
+        /// </summary>
+        /// <returns>Unntaket fra A og B (<c>null</c> hvis kallet lyktes), og om B ble ferdig mens A var inne i låsen.</returns>
+        private async Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
+            int adminUserId, Func<IShiftService, Task> action)
+        {
+            // B sin tilkobling åpnes og varmes opp på forhånd, så B kan lese med en gang den startes. Ellers kan en treg
+            // tilkobling gjøre at A rekker å committe før B leser, og testen blir grønn selv uten lås.
+            using var contextB = _fixture.CreateContext();
+            await contextB.Database.OpenConnectionAsync();
+            var sessionB = await GetSessionId(contextB);
+            var serviceB = CreateService(contextB, adminUserId, isAdmin: true);
+
+            using var monitor = _fixture.CreateContext();
+            await monitor.Database.OpenConnectionAsync();
+            await IsWaitingForLock(monitor, sessionB);
+
+            Task<Exception?>? second = null;
+            var secondFinishedInsideFirst = false;
+
+            using var contextA = _fixture.CreateContext(new BeforeWriteAfterReadInterceptor(async () =>
+            {
+                second = Task.Run(() => Attempt(() => action(serviceB)));
+                var timeout = Task.Delay(TimeSpan.FromSeconds(5));
+                while (!second.IsCompleted && !timeout.IsCompleted && !await IsWaitingForLock(monitor, sessionB))
+                    await Task.Delay(10);
+                secondFinishedInsideFirst = second.IsCompleted;
+            }));
+            var first = await Attempt(() => action(CreateService(contextA, adminUserId, isAdmin: true)));
+
+            Assert.NotNull(second); // interceptoren kjørte, B ble startet inne i A
+            return (first, await second, secondFinishedInsideFirst);
+
+            static async Task<short> GetSessionId(PlannerDbContext context)
+                => await context.Database.SqlQuery<short>($"SELECT @@SPID AS [Value]").SingleAsync();
+
+            // SQL Server-spesifikt (testene kjører mot MSSQL i Testcontainers): sesjonen venter på en lås (LCK_M_*).
+            static async Task<bool> IsWaitingForLock(PlannerDbContext monitor, short sessionId)
+                => await monitor.Database.SqlQuery<int>(
+                    $"SELECT COUNT(*) AS [Value] FROM sys.dm_exec_requests WHERE session_id = {sessionId} AND wait_type LIKE 'LCK%'")
+                    .SingleAsync() > 0;
+        }
+
+        [Fact]
+        public async Task AddEmptySlot_Concurrent_BothClicksCount()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.AddEmptySlot(resource.EventResourceId));
+
+            Assert.Equal(5, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Null(first);
+            Assert.Null(second);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+        }
+
+        [Fact]
+        public async Task RemoveEmptySlot_Concurrent_BothClicksCount()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.RemoveEmptySlot(resource.EventResourceId));
+
+            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Null(first);
+            Assert.Null(second);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+        }
+
+        [Fact]
+        public async Task RemoveEmptySlot_Concurrent_OnlyOneRemovesTheLastEmptySlot()
+        {
+            using var seed = _fixture.CreateContext();
+            var user = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 2);
+            await SeedShift(seed, resource, user.UserId);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                admin.UserId, service => service.RemoveEmptySlot(resource.EventResourceId));
+
+            Assert.Null(first);
+            var ex = Assert.IsType<DomainValidationException>(second);
+            Assert.Equal(ShiftService.NoEmptySlotMessage, ex.Message);
+            Assert.False(secondFinishedInsideFirst);
+            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task RemoveEmptySlot_Admin_DecreasesToShiftCount_ReturnsFullResource()
         {
             using var seed = _fixture.CreateContext();
             var first = await SeedUser(seed);
@@ -1364,52 +1498,59 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             await SeedShift(seed, resource, first.UserId);
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 1 });
+            var result = await CreateService(context, admin.UserId, isAdmin: true).RemoveEmptySlot(resource.EventResourceId);
 
             Assert.Equal(1, result.MinimumStaff);
+            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
             Assert.True(result.IsFull);
             Assert.False(result.IsMissingStaff);
             Assert.True(result.CanSignUp); // admin kan overbooke
         }
 
+        [Theory]
+        // Kolonner: minimum bemanning, antall vakter
+        [InlineData(1, 1)]
+        [InlineData(1, 2)]
+        [InlineData(0, 0)]
+        public async Task RemoveEmptySlot_ThrowsDomainValidation_WhenNoEmptySlot(int minimumStaff, int shiftCount)
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: minimumStaff);
+            for (var i = 0; i < shiftCount; i++)
+                await SeedShift(seed, resource, (await SeedUser(seed)).UserId);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context, admin.UserId, isAdmin: true).RemoveEmptySlot(resource.EventResourceId));
+            Assert.Equal(ShiftService.NoEmptySlotMessage, ex.Message);
+            Assert.Equal(minimumStaff, await GetMinimumStaff(resource.EventResourceId));
+        }
+
         [Fact]
-        public async Task SetMinimumStaff_ThrowsForbidden_WhenNotAdmin()
+        public async Task EmptySlots_ThrowForbidden_WhenNotAdmin()
         {
             using var seed = _fixture.CreateContext();
             var user = await SeedUser(seed);
             var resource = await SeedResource(seed, minimumStaff: 2);
 
             using var context = _fixture.CreateContext();
-            await Assert.ThrowsAsync<ForbiddenAccessException>(
-                () => CreateService(context, user.UserId).SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = 5 }));
+            var service = CreateService(context, user.UserId);
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.AddEmptySlot(resource.EventResourceId));
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.RemoveEmptySlot(resource.EventResourceId));
             Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
         }
 
         [Fact]
-        public async Task SetMinimumStaff_ThrowsEntityNotFound_WhenResourceDoesNotExist()
+        public async Task EmptySlots_ThrowEntityNotFound_WhenResourceDoesNotExist()
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
 
             using var context = _fixture.CreateContext();
-            await Assert.ThrowsAsync<EntityNotFoundException>(
-                () => CreateService(context, admin.UserId, isAdmin: true).SetMinimumStaff(999999, new MinimumStaffRequest { MinimumStaff = 1 }));
-        }
-
-
-        [Fact]
-        public async Task SetMinimumStaff_ThrowsDomainValidation_WhenNegative()
-        {
-            using var seed = _fixture.CreateContext();
-            var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 2);
-
-            using var context = _fixture.CreateContext();
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, admin.UserId, isAdmin: true)
-                .SetMinimumStaff(resource.EventResourceId, new MinimumStaffRequest { MinimumStaff = -1 }));
-            Assert.Equal(ShiftService.NegativeMinimumStaffMessage, ex.Message);
-            Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
+            var service = CreateService(context, admin.UserId, isAdmin: true);
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.AddEmptySlot(999999));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.RemoveEmptySlot(999999));
         }
 
         #endregion

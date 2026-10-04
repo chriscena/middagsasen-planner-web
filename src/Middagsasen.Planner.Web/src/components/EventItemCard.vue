@@ -141,7 +141,7 @@
         icon="remove"
         class="q-pa-sm row"
         style="width: 49.5%; font-size: small"
-        :disable="loading || resource.minimumStaff <= resource.shifts.length"
+        :disable="loading || !resource.isMissingStaff"
         @click="deleteEmptyShift(resource)"
       >
         <q-icon name="remove" size="sm" class="q-px-sm" />
@@ -514,6 +514,8 @@ import { useEventStore } from "@/stores/EventStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useAuthStore } from "@/stores/AuthStore";
 import { notifyApiError } from "@/shared/notifyApiError";
+import { getErrorResponse } from "@/shared/apiError";
+import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import {
@@ -926,18 +928,37 @@ function canDeleteMessage(message: MessageResponse): boolean {
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }
-// patchMinimumStaff legger svaret (ressursen med flagg) i cachen, så her
-// regnes bare ut ny verdi som sendes.
-async function changeMinimumStaff(
+// addEmptySlot/removeEmptySlot lar serveren regne ut ny minimumStaff og
+// legger svaret (ressursen med flagg) i cachen, så her håndteres bare
+// loading-sperre og feilvarsel. Feiler endringen (f.eks. 400 fordi noen
+// meldte seg på i mellomtiden), er cachen trolig utdatert; da hentes
+// arrangementet på nytt så tallene og knappene stemmer med serveren. Unntak:
+// utløpt sesjon (401, brukeren er alt logget ut og sendt til innlogging, så
+// hentingen gir bare et nytt 401) og 403 (ikke lenger admin; oppfrisking
+// hjelper ikke).
+function shouldRefreshAfter(error: unknown): boolean {
+  return (
+    !isSessionExpiredError(error) && getErrorResponse(error)?.status !== 403
+  );
+}
+async function changeEmptySlots(
   resource: ResourceResponse,
-  minimumStaff: number,
+  change: () => Promise<unknown>,
   fallback: string
 ): Promise<void> {
   try {
     loading.value = true;
-    await eventStore.patchMinimumStaff(resource.id, minimumStaff);
+    await change();
   } catch (error) {
     notifyApiError(error, fallback);
+    if (!shouldRefreshAfter(error)) return;
+    try {
+      await eventStore.refreshEventResources(resource.eventId);
+    } catch (refreshError) {
+      // Brukeren har alt fått ett varsel om feilen over; et nytt varsel om
+      // at oppfriskingen også feilet hjelper ikke. Logges i stedet.
+      console.error(refreshError);
+    }
   } finally {
     loading.value = false;
   }
@@ -945,23 +966,19 @@ async function changeMinimumStaff(
 async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   if (loading.value) return;
 
-  const minimumStaff =
-    resource.minimumStaff < resource.shifts.length
-      ? resource.shifts.length + 1
-      : resource.minimumStaff + 1;
-  await changeMinimumStaff(
+  await changeEmptySlots(
     resource,
-    minimumStaff,
+    () => eventStore.addEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
   );
 }
 async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
-  // Ingen ledige plasser å fjerne.
-  if (loading.value || resource.minimumStaff <= resource.shifts.length) return;
+  // Ingen ledige plasser å fjerne (UI-hint; serveren er fasit).
+  if (loading.value || !resource.isMissingStaff) return;
 
-  await changeMinimumStaff(
+  await changeEmptySlots(
     resource,
-    resource.minimumStaff - 1,
+    () => eventStore.removeEmptySlot(resource.id),
     "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
   );
 }

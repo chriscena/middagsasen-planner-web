@@ -8,7 +8,7 @@ namespace Middagsasen.Planner.Api.Controllers
     /// <summary>
     /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele ressursen etter endringen
     /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er ressursen, ikke en ny vakt.
-    /// Endring av minimum bemanning ligger også her, siden den påvirker kapasitetsreglene, og returnerer ressursen.
+    /// Ledige plasser (minimum bemanning) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer ressursen.
     /// </summary>
     [ApiController, Authorize]
     public class ShiftsController : ControllerBase
@@ -70,16 +70,33 @@ namespace Middagsasen.Planner.Api.Controllers
             return await ShiftService.Withdraw(id);
         }
 
-        /// <summary>Endre minimum bemanning på ressursen (kun admin). Returnerer ressursen med oppdaterte flagg.</summary>
-        [HttpPatch("api/resources/{eventResourceId}/minimumStaff")]
+        /// <summary>
+        /// Legg til én ledig plass på ressursen (kun admin). Ny minimum bemanning regnes ut på serveren, så samtidige
+        /// klikk teller hver for seg. Returnerer ressursen med oppdaterte flagg.
+        /// </summary>
+        [HttpPost("api/resources/{eventResourceId}/emptySlots")]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(ResourceResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<ResourceResponse> AddEmptySlot(int eventResourceId)
+        {
+            return await ShiftService.AddEmptySlot(eventResourceId);
+        }
+
+        /// <summary>
+        /// Fjern én ledig plass fra ressursen (kun admin). 400 hvis ressursen ikke har noen ledig plass.
+        /// Returnerer ressursen med oppdaterte flagg.
+        /// </summary>
+        [HttpDelete("api/resources/{eventResourceId}/emptySlots")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(ResourceResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<ResourceResponse> SetMinimumStaff(int eventResourceId, [FromBody] MinimumStaffRequest request)
+        public async Task<ResourceResponse> RemoveEmptySlot(int eventResourceId)
         {
-            return await ShiftService.SetMinimumStaff(eventResourceId, request);
+            return await ShiftService.RemoveEmptySlot(eventResourceId);
         }
     }
 }
