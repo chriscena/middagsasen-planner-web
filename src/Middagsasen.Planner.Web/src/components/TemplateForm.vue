@@ -93,21 +93,16 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import TimePickerInput from "components/TimePickerInput.vue";
-import ResourceList from "components/ResourceList.vue";
-import type { ResourceFormModel } from "components/ResourceForm.vue";
+import TimePickerInput from "@/components/TimePickerInput.vue";
+import ResourceList from "@/components/ResourceList.vue";
+import type { ResourceFormModel } from "@/components/ResourceForm.vue";
 import type {
   EventTemplateResponse,
   ResourceTemplateRequest,
   ResourceTypeResponse,
-} from "src/types";
-import { newClientKey } from "src/shared/clientKey";
-import {
-  formatTime,
-  isValidTime,
-  parseTime,
-  toLocalWire,
-} from "src/shared/time";
+} from "@/types";
+import { newClientKey } from "@/shared/clientKey";
+import { formatTime, isValidTime, parseTime, toLocalWire } from "@/shared/time";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.

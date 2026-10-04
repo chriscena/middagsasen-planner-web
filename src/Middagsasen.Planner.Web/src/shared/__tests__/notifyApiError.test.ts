@@ -6,7 +6,7 @@ vi.mock("quasar", () => ({
   Notify: mockNotify,
 }));
 
-import { notifyApiError } from "src/shared/notifyApiError";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 function apiError(status: number, url: string, data?: unknown) {
   return Object.assign(new Error("Request failed"), {

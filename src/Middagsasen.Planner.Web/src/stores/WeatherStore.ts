@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
-import { lastHours, toUtcWire } from "src/shared/time";
-import type { LocationMeasurementResponse } from "src/types";
+import { api } from "@/boot/axios";
+import { lastHours, toUtcWire } from "@/shared/time";
+import type { LocationMeasurementResponse } from "@/types";
 
 interface WeatherState {
   locations: LocationMeasurementResponse[];

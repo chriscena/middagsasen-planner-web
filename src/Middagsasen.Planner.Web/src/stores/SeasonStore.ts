@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
-import type { SeasonResponse } from "src/types";
+import { api } from "@/boot/axios";
+import type { SeasonResponse } from "@/types";
 
 interface SeasonState {
   seasons: SeasonResponse[];

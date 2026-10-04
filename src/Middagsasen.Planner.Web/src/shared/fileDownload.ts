@@ -2,10 +2,10 @@
 //
 // En vanlig `<a href>` sender ikke Bearer-token, så filen hentes via `api`
 // (interceptoren legger på tokenet) som en Blob, og lagres så lokalt.
-import { api } from "boot/axios";
-import { getErrorResponse } from "src/shared/apiError";
-import { notifyApiError } from "src/shared/notifyApiError";
-import type { FileInfoResponse } from "src/types";
+import { api } from "@/boot/axios";
+import { getErrorResponse } from "@/shared/apiError";
+import { notifyApiError } from "@/shared/notifyApiError";
+import type { FileInfoResponse } from "@/types";
 
 // Hvor lenge object-URL-en lever etter klikket. Noen nettlesere (Firefox)
 // starter nedlastingen asynkront, så vi venter litt før vi frigjør den.

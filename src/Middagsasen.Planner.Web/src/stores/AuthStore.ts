@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import type { UserResponse } from "src/types";
+import type { UserResponse } from "@/types";
 
 const tokenItem = "access_token";
 const userItem = "user";

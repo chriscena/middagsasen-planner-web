@@ -4,7 +4,7 @@ import {
   isSafeRedirect,
   isSessionExpiredError,
   type UnauthorizedError,
-} from "src/auth/unauthorizedHandler";
+} from "@/auth/unauthorizedHandler";
 
 function createError(status: number | undefined, url: string) {
   const error: Error & UnauthorizedError = Object.assign(

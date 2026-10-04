@@ -1,17 +1,17 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { getApiErrorMessage } from "@/shared/apiError";
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
-vi.mock("boot/axios", () => ({
+vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
 const mockNotifyApiError = vi.hoisted(() => vi.fn());
 
-vi.mock("src/shared/notifyApiError", () => ({
+vi.mock("@/shared/notifyApiError", () => ({
   notifyApiError: mockNotifyApiError,
 }));
 
@@ -21,7 +21,7 @@ import {
   downloadResourceTypeFile,
   downloadResourceTypeFileOrNotify,
   REVOKE_DELAY_MS,
-} from "src/shared/fileDownload";
+} from "@/shared/fileDownload";
 
 interface FakeLink {
   href: string;

@@ -99,8 +99,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import type { ResourceTypeResponse } from "src/types";
-import { QUASAR_TIME_MASK } from "src/shared/time";
+import type { ResourceTypeResponse } from "@/types";
+import { QUASAR_TIME_MASK } from "@/shared/time";
 
 // Skjemamodell for en vakt (ressurs) i ResourceList/EventForm/TemplateForm.
 // Ikke en DTO: tidene er "HH:mm", og resourceType er hele objektet.

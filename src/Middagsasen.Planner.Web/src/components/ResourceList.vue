@@ -48,11 +48,11 @@
 
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import ResourceForm from "components/ResourceForm.vue";
-import type { ResourceFormModel } from "components/ResourceForm.vue";
-import type { ResourceTypeResponse } from "src/types";
-import { newClientKey } from "src/shared/clientKey";
-import { offsetTime } from "src/shared/time";
+import ResourceForm from "@/components/ResourceForm.vue";
+import type { ResourceFormModel } from "@/components/ResourceForm.vue";
+import type { ResourceTypeResponse } from "@/types";
+import { newClientKey } from "@/shared/clientKey";
+import { offsetTime } from "@/shared/time";
 
 const props = withDefaults(
   defineProps<{

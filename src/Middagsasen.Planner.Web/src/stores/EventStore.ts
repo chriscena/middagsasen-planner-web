@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
-import { nextDay, toDayKey } from "src/shared/time";
+import { api } from "@/boot/axios";
+import { nextDay, toDayKey } from "@/shared/time";
 import type {
   ChangeShiftRequest,
   EventFromTemplateRequest,
@@ -20,7 +20,7 @@ import type {
   ShiftResult,
   SignUpRequest,
   TemplateFromEventRequest,
-} from "src/types";
+} from "@/types";
 
 interface EventState {
   selectedEvent: EventResponse | null;

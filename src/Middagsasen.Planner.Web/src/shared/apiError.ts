@@ -5,7 +5,7 @@
 // - ValidationProblemDetails (400) fra modellvalidering: `errors: { felt: string[] }`
 //   (meldingene er engelske og tekniske og vises aldri til bruker)
 // - ren streng som body (f.eks. `BadRequest("Ugyldig telefonnummer")`)
-import type { ProblemDetails } from "src/types";
+import type { ProblemDetails } from "@/types";
 
 export interface ErrorResponse {
   status?: unknown;

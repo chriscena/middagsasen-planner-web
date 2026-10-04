@@ -74,14 +74,10 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { api } from "src/boot/axios";
-import type { ShiftSeasonResponse } from "src/types";
-import {
-  formatDayMonth,
-  formatTimeRange,
-  formatWeekday,
-} from "src/shared/time";
-import { notifyApiError } from "src/shared/notifyApiError";
+import { api } from "@/boot/axios";
+import type { ShiftSeasonResponse } from "@/types";
+import { formatDayMonth, formatTimeRange, formatWeekday } from "@/shared/time";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 interface ViewModel {
   shifts: ShiftSeasonResponse[];

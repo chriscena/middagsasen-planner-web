@@ -176,16 +176,16 @@
 import { onMounted, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
-import { useCompetencyStore } from "stores/CompetencyStore";
-import { useUserStore } from "stores/UserStore";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { applyApproverResults, localApprovers } from "src/shared/approvers";
+import { useCompetencyStore } from "@/stores/CompetencyStore";
+import { useUserStore } from "@/stores/UserStore";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { applyApproverResults, localApprovers } from "@/shared/approvers";
 import type {
   CompetencyApproverResponse,
   CompetencyRequest,
   CompetencyResponse,
   UserResponse,
-} from "src/types";
+} from "@/types";
 
 // Skjemaet i redigeringsdialogen.
 interface CompetencyForm {

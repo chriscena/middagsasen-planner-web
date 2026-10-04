@@ -428,13 +428,13 @@
 import { useQuasar } from "quasar";
 import type { QTable, QTableColumn, QTableProps } from "quasar";
 import { onMounted, ref, computed, useTemplateRef, nextTick } from "vue";
-import { useWorkHourStore } from "src/stores/WorkHourStore";
-import { useUserStore } from "src/stores/UserStore";
-import { useAuthStore } from "src/stores/AuthStore";
-import { useSeasonStore } from "src/stores/SeasonStore";
+import { useWorkHourStore } from "@/stores/WorkHourStore";
+import { useUserStore } from "@/stores/UserStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import { useSeasonStore } from "@/stores/SeasonStore";
 import { useRoute, useRouter } from "vue-router";
-import { formatHours, formatNumber } from "src/shared/formatter";
-import { formatDate, formatDateTime, formatTime } from "src/shared/time";
+import { formatHours, formatNumber } from "@/shared/formatter";
+import { formatDate, formatDateTime, formatTime } from "@/shared/time";
 import {
   countBulkApprovalError,
   getApprovalActionText,
@@ -445,13 +445,13 @@ import {
   parseApprovalFilter,
   seasonForQuery,
   summarizeBulkApproval,
-} from "src/shared/workHours";
-import type { BulkApprovalCounts } from "src/shared/workHours";
-import { ApprovalFilter, ApprovalStatus } from "src/types";
-import type { UserResponse, WorkHourResponse } from "src/types";
-import TimeTrackingForm from "components/TimeTrackingForm.vue";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { isSessionExpiredError } from "src/auth/unauthorizedHandler";
+} from "@/shared/workHours";
+import type { BulkApprovalCounts } from "@/shared/workHours";
+import { ApprovalFilter, ApprovalStatus } from "@/types";
+import type { UserResponse, WorkHourResponse } from "@/types";
+import TimeTrackingForm from "@/components/TimeTrackingForm.vue";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 
 // Filteret som sendes til q-table (`:filter`) og tilbake i @request.
 interface WorkHourFilter {

@@ -79,15 +79,15 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
-import { useEventStore } from "src/stores/EventStore";
-import TemplateForm from "components/TemplateForm.vue";
+import { useEventStore } from "@/stores/EventStore";
+import TemplateForm from "@/components/TemplateForm.vue";
 import type {
   TemplateFormModel,
   TemplateFormValue,
-} from "components/TemplateForm.vue";
-import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { formatTimeRange } from "src/shared/time";
+} from "@/components/TemplateForm.vue";
+import type { EventTemplateRequest, EventTemplateResponse } from "@/types";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { formatTimeRange } from "@/shared/time";
 
 const emit = defineEmits<{
   "toggle-right": [];

@@ -11,7 +11,7 @@
           @click="emit('toggle-left')"
         />
         <img
-          src="~assets/middagsasen-banner-white.svg"
+          src="~@/assets/middagsasen-banner-white.svg"
           class="q-ml-sm"
           style="max-height: 40px; max-width: 50vw"
         />
@@ -236,14 +236,14 @@ import { QCalendarAgenda } from "@quasar/quasar-ui-qcalendar";
 import type { Timestamp } from "@timestamp-js/core";
 import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
-import { useEventStore } from "stores/EventStore";
-import { useUserStore } from "stores/UserStore";
-import { useAuthStore } from "stores/AuthStore";
-import EventItemCard from "components/EventItemCard.vue";
-import EventForm from "components/EventForm.vue";
-import TimeTrackingForm from "components/TimeTrackingForm.vue";
-import HallOfFameList from "src/components/HallOfFameList.vue";
-import type { EventRequest, EventResponse } from "src/types";
+import { useEventStore } from "@/stores/EventStore";
+import { useUserStore } from "@/stores/UserStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import EventItemCard from "@/components/EventItemCard.vue";
+import EventForm from "@/components/EventForm.vue";
+import TimeTrackingForm from "@/components/TimeTrackingForm.vue";
+import HallOfFameList from "@/components/HallOfFameList.vue";
+import type { EventRequest, EventResponse } from "@/types";
 import {
   DAY_KEY_FORMAT,
   formatDayMonth,
@@ -255,8 +255,8 @@ import {
   parseEventStatusDate,
   toDayKey,
   today,
-} from "src/shared/time";
-import { notifyApiError } from "src/shared/notifyApiError";
+} from "@/shared/time";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 // Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke
 // emits-payloadene, så vi beskriver kun feltene vi bruker.

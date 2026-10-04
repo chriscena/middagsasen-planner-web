@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getSeasonStartYear } from "src/shared/season";
+import { getSeasonStartYear } from "@/shared/season";
 
 describe("getSeasonStartYear", () => {
   it("returns previous season for 30 June 23:30 local time", () => {

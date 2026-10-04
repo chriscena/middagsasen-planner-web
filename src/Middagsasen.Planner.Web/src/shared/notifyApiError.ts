@@ -3,8 +3,8 @@
 // Ligger utenfor `apiError.ts` slik at den forblir fri for Quasar- og
 // auth-avhengigheter.
 import { Notify } from "quasar";
-import { isSessionExpiredError } from "src/auth/unauthorizedHandler";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
+import { getApiErrorMessage } from "@/shared/apiError";
 
 /**
  * Logger feilen og viser et rødt varsel med meldingen fra API-et, eller

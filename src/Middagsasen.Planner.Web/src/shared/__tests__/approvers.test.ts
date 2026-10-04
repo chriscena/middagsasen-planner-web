@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { applyApproverResults, localApprovers } from "src/shared/approvers";
-import type { CompetencyApproverResponse } from "src/types";
+import { applyApproverResults, localApprovers } from "@/shared/approvers";
+import type { CompetencyApproverResponse } from "@/types";
 
 function approver(id: number, userId: number): CompetencyApproverResponse {
   return { id, userId, fullName: `User ${userId}` };

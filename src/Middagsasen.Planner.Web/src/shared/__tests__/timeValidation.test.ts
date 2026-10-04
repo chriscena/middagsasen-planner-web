@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { toResourceDateTimes } from "src/shared/timeValidation";
-import { parseDateTime } from "src/shared/time";
+import { toResourceDateTimes } from "@/shared/timeValidation";
+import { parseDateTime } from "@/shared/time";
 
 describe("toResourceDateTimes", () => {
   it("returns start and end on the event date", () => {

@@ -74,9 +74,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useUserStore } from "stores/UserStore";
-import type { PhoneResponse } from "src/types";
-import { notifyApiError } from "src/shared/notifyApiError";
+import { useUserStore } from "@/stores/UserStore";
+import type { PhoneResponse } from "@/types";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);

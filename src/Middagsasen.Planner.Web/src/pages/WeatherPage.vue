@@ -54,7 +54,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
-import { useWeatherStore } from "src/stores/WeatherStore";
+import { useWeatherStore } from "@/stores/WeatherStore";
 import {
   Chart as ChartJS,
   TimeScale,
@@ -68,8 +68,8 @@ import {
 import type { ChartData, ChartOptions, Point } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { Line } from "vue-chartjs";
-import { CHART_TIME_FORMAT, formatTime } from "src/shared/time";
-import { notifyApiError } from "src/shared/notifyApiError";
+import { CHART_TIME_FORMAT, formatTime } from "@/shared/time";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 const loading = ref(false);
 ChartJS.register(

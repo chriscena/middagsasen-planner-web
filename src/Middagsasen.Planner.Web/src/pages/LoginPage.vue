@@ -6,7 +6,7 @@
         <q-card bordered flat>
           <q-card-section class="text-h6"
             ><img
-              src="~assets/middagsasen-logo.svg"
+              src="~@/assets/middagsasen-logo.svg"
               alt="Middagsåsen bemanning"
               style="max-width: 75vw; max-height: 200px"
           /></q-card-section>
@@ -89,14 +89,14 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { isAxiosError } from "axios";
-import { api } from "boot/axios";
-import { useAuthStore } from "src/stores/AuthStore";
-import { useUserStore } from "src/stores/UserStore";
+import { api } from "@/boot/axios";
+import { useAuthStore } from "@/stores/AuthStore";
+import { useUserStore } from "@/stores/UserStore";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
-import { isSafeRedirect } from "src/auth/unauthorizedHandler";
-import { notifyApiError } from "src/shared/notifyApiError";
-import type { AuthResponse } from "src/types";
+import { isSafeRedirect } from "@/auth/unauthorizedHandler";
+import { notifyApiError } from "@/shared/notifyApiError";
+import type { AuthResponse } from "@/types";
 
 const authStore = useAuthStore();
 const userStore = useUserStore();

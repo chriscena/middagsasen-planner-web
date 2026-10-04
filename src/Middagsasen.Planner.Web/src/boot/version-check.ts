@@ -1,4 +1,4 @@
-import { defineBoot } from "#q-app/wrappers";
+import { defineBoot } from "#q-app";
 import { Notify } from "quasar";
 import { START_LOCATION } from "vue-router";
 import {
@@ -7,7 +7,7 @@ import {
   decideNavigation,
   isChunkLoadError,
   type ReloadFn,
-} from "src/shared/appVersion";
+} from "@/shared/appVersion";
 
 const FETCH_TIMEOUT_MS = 5000;
 
@@ -37,7 +37,7 @@ async function fetchWithTimeout(
 // Oppdager ny deploy og laster appen på nytt, slik at brukere med fanen
 // åpen lenge ikke kjører gammel JS eller får feil ved lasting av chunks.
 export default defineBoot(({ router }) => {
-  if (process.env.DEV) return;
+  if (import.meta.env.QUASAR_DEV) return;
 
   const currentVersion = __APP_VERSION__.version;
   const checker = createVersionChecker({

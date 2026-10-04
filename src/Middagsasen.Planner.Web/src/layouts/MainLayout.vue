@@ -298,18 +298,18 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
-import { useAuthStore } from "src/stores/AuthStore";
-import { useUserStore } from "src/stores/UserStore";
-import { useCompetencyStore } from "src/stores/CompetencyStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import { useUserStore } from "@/stores/UserStore";
+import { useCompetencyStore } from "@/stores/CompetencyStore";
 import { useVuelidate } from "@vuelidate/core";
 import type { ValidationArgs } from "@vuelidate/core";
 import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
-import { formatVersion } from "src/shared/appVersion";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { formatDate } from "src/shared/time";
-import type { UpdateMeRequest, UserCompetencyResponse } from "src/types";
+import { formatVersion } from "@/shared/appVersion";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { formatDate } from "@/shared/time";
+import type { UpdateMeRequest, UserCompetencyResponse } from "@/types";
 
 // Skjemaet i brukerinfo-dialogen.
 interface UserForm {

@@ -3,7 +3,7 @@ import { AxiosHeaders, type InternalAxiosRequestConfig } from "axios";
 import {
   applyRequestDefaults,
   DEFAULT_REQUEST_TIMEOUT_MS,
-} from "src/shared/requestDefaults";
+} from "@/shared/requestDefaults";
 
 function config(
   extra: Partial<InternalAxiosRequestConfig> = {}

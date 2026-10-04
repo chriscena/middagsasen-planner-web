@@ -1,6 +1,6 @@
 // Godkjennere i kompetanseskjemaet som ennå ikke er lagret, ligger kun lokalt
 // med id 0. De legges til via API-et etter at kompetansen er lagret.
-import type { CompetencyApproverResponse } from "src/types";
+import type { CompetencyApproverResponse } from "@/types";
 
 /** Godkjennere som kun ligger lokalt (id 0) og må legges til via API-et. */
 export function localApprovers(

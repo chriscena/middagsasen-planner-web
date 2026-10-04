@@ -1,11 +1,11 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import { ApprovalFilter, ApprovalStatus } from "src/types";
+import { ApprovalFilter, ApprovalStatus } from "@/types";
 import type {
   PagedResponseOfWorkHourResponse,
   WorkHourResponse,
   WorkHourSumResponse,
-} from "src/types";
+} from "@/types";
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -14,11 +14,11 @@ const mockApi = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock("boot/axios", () => ({
+vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
-import { useWorkHourStore } from "stores/WorkHourStore";
+import { useWorkHourStore } from "@/stores/WorkHourStore";
 
 describe("WorkHourStore", () => {
   let store: ReturnType<typeof useWorkHourStore>;
