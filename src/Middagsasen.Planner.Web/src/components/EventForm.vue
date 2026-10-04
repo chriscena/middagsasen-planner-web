@@ -17,7 +17,7 @@
           flat
           label="Lagre"
           type="submit"
-          :disable="!canSave"
+          :disable="!canSave || loadFailed"
           no-caps
         ></q-btn>
       </q-card-section>
@@ -66,6 +66,7 @@
       <q-btn
         v-if="props.id"
         @click="showCreateTemplate"
+        :disable="loadFailed"
         icon="file_copy"
         no-caps
         unelevated
@@ -77,6 +78,7 @@
       <q-btn
         v-if="props.id"
         @click="confirmDeleteEvent"
+        :disable="loadFailed"
         icon="delete"
         no-caps
         unelevated
@@ -168,6 +170,9 @@ const emit = defineEmits<{
   deleted: [];
 }>();
 const loading = ref(false);
+// Settes når lasting av vaktlista feiler. Skjemaet står da med standardverdier,
+// så Lagre/Slett/Opprett mal sperres for ikke å overskrive eller slette feil data.
+const loadFailed = ref(false);
 const $q = useQuasar();
 const eventStore = useEventStore();
 
@@ -185,13 +190,22 @@ const props = withDefaults(
 onMounted(async () => {
   try {
     loading.value = true;
-    eventStore.getResourceTypes();
 
     if (props.id) {
-      await eventStore.getEvent(props.id);
+      await Promise.all([
+        eventStore.getResourceTypes(),
+        eventStore.getEvent(props.id),
+      ]);
       const event = eventStore.selectedEvent;
       // Tidligere ga null her en TypeError som ble svelget av catch under.
-      if (!event) return;
+      if (!event) {
+        loadFailed.value = true;
+        $q.notify({
+          type: "negative",
+          message: "Klarte ikke å hente vaktlista.",
+        });
+        return;
+      }
       name.value = event.name;
       description.value = event.description;
       startDate.value = formatDate(event.startTime);
@@ -213,9 +227,11 @@ onMounted(async () => {
       // Ugyldig dato i URL-en (/create/:date) gir dagens dato.
       startDate.value = formatDate(isDayKey(props.date) ? props.date : today());
       name.value = "Åpningstid";
+      await eventStore.getResourceTypes();
     }
   } catch (error) {
     console.error(error);
+    loadFailed.value = true;
     $q.notify({
       type: "negative",
       message: getApiErrorMessage(error, "Klarte ikke å hente vaktlista."),
@@ -254,6 +270,7 @@ const canSave = computed(() => {
 });
 
 async function saveEvent() {
+  if (loadFailed.value) return;
   // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toLocalWire.
   const resourceTimes = resources.value.map((r) =>
     toResourceDateTimes(startDate.value, r.startTime, r.endTime)
@@ -320,13 +337,12 @@ function confirmDeleteEvent() {
 }
 
 async function deleteEvent() {
+  // props.id er vaktlista som faktisk er åpen; selectedEvent kan peke på en annen.
+  if (loadFailed.value || !props.id) return;
   try {
     loading.value = true;
     showingDelete.value = false;
-    const event = eventStore.selectedEvent;
-    // Tidligere ga null her en TypeError som ble svelget av catch under.
-    if (!event) return;
-    await eventStore.deleteEvent(event.id);
+    await eventStore.deleteEvent(props.id);
     $q.notify({ message: "Vaktlista er slettet." });
     emit("deleted");
   } catch (error) {
@@ -348,6 +364,7 @@ function showCreateTemplate() {
 
 const savingTemplate = ref(false);
 async function createTemplate(id: number | null) {
+  if (loadFailed.value) return;
   try {
     savingTemplate.value = true;
     // Knappen vises kun med id, og Lagre er deaktivert uten malnavn.

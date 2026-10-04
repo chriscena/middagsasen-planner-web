@@ -428,6 +428,18 @@ describe("EventStore", () => {
     });
   });
 
+  describe("getEvent", () => {
+    it("nullstiller selectedEvent når kallet feiler", async () => {
+      store.selectedEvent = event(1, "2026-10-05T10:00:00");
+      const error = new Error("500");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.getEvent(2)).rejects.toBe(error);
+
+      expect(store.selectedEvent).toBeNull();
+    });
+  });
+
   describe("getEventsForDate", () => {
     it("filtrerer på dato fra timestamp", () => {
       store.events = [

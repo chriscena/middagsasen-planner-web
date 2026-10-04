@@ -392,7 +392,10 @@ onMounted(async () => {
     console.error(error);
     $q.notify({
       type: "negative",
-      message: getApiErrorMessage(error, "Klarte ikke å hente vakttyper."),
+      message: getApiErrorMessage(
+        error,
+        "Klarte ikke å hente vakttyper og kompetanser."
+      ),
     });
   } finally {
     loading.value = false;

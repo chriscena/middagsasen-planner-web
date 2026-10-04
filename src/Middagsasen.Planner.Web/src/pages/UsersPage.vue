@@ -282,7 +282,10 @@ onMounted(async () => {
     console.error(error);
     $q.notify({
       type: "negative",
-      message: getApiErrorMessage(error, "Klarte ikke å hente brukere."),
+      message: getApiErrorMessage(
+        error,
+        "Klarte ikke å hente brukere og timer."
+      ),
     });
   } finally {
     loading.value = false;

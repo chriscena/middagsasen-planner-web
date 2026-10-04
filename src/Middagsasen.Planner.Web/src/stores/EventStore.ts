@@ -103,6 +103,9 @@ export const useEventStore = defineStore("events", {
     },
     // id kan være en streng når den kommer fra en route-param (EventPage).
     async getEvent(id: number | string): Promise<void> {
+      // Nullstilles først, så en mislykket lasting aldri etterlater en
+      // tidligere lastet vaktliste (som Slett ellers kunne slettet).
+      this.selectedEvent = null;
       const response = await api.get<EventResponse>(`/api/events/${id}`);
       this.selectedEvent = response.data;
     },
