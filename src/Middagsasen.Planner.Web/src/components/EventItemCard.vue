@@ -943,12 +943,11 @@ async function addEmptyShift(resource: ResourceResponse): Promise<void> {
         ? resource.shifts.length + 1
         : resource.minimumStaff + 1;
     await eventStore.patchMinimumStaff(resource.id, minimumStaff);
-  } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: "errorOccurred",
-    });
+  } catch (error) {
+    notifyError(
+      error,
+      "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
+    );
   } finally {
     loading.value = false;
   }
@@ -962,12 +961,11 @@ async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
         ? resource.minimumStaff - 1
         : resource.minimumStaff;
     await eventStore.patchMinimumStaff(resource.id, minimumStaff);
-  } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: "errorOccurred",
-    });
+  } catch (error) {
+    notifyError(
+      error,
+      "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
+    );
   } finally {
     loading.value = false;
   }
