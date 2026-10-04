@@ -172,7 +172,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task SignUp_NeedsTraining_CreatesTrainingRequest_AndSendsSmsAfterCommit()
+        public async Task SignUp_TrainingNotCompleted_CreatesTrainingRequest_AndSendsSmsAfterCommit()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
@@ -191,7 +191,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             });
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
 
             Assert.True(committedWhenSmsSent);
             var message = Assert.Single(sent!);
@@ -214,7 +214,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task SignUp_DoesNotNeedTraining_CreatesCompletedTraining_WithoutSms()
+        public async Task SignUp_TrainingCompleted_CreatesCompletedTraining_WithoutSms()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
@@ -222,7 +222,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var resource = await SeedResource(seed, 2, trainer.UserId);
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = false });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = true });
 
             var training = await GetTraining(user.UserId, resource.ResourceTypeId);
             Assert.NotNull(training);
@@ -234,21 +234,108 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
         }
 
-        [Fact]
-        public async Task SignUp_IgnoresTrainingAnswer_WhenUserAlreadyHasTraining()
+        [Theory]
+        [InlineData(true, null)]
+        [InlineData(false, null)]
+        [InlineData(true, true)]
+        [InlineData(false, false)]
+        public async Task SignUp_UserHasTraining_AnswerIsNullOrSame_ChangesNothing(bool stored, bool? answer)
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
             var user = await SeedUser(seed);
             var resource = await SeedResource(seed, 2, trainer.UserId);
-            await SeedTraining(seed, user.UserId, resource.ResourceTypeId, trainingComplete: true);
+            await SeedTraining(seed, user.UserId, resource.ResourceTypeId, trainingComplete: stored);
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = answer });
 
-            Assert.True((await GetTraining(user.UserId, resource.ResourceTypeId))!.TrainingComplete);
+            var training = await GetTraining(user.UserId, resource.ResourceTypeId);
+            Assert.Equal(stored, training!.TrainingComplete);
+            Assert.Null(training.Confirmed); // ikke bekreftet på nytt
+            Assert.Null(training.ConfirmedBy);
             Assert.Null(result.ChangedTraining);
             Assert.Single(await GetShifts(resource.EventResourceId));
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Theory]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public async Task SignUp_UserHasTraining_DifferentAnswer_UpdatesTraining_AndSendsSmsOnlyWhenRequested(bool stored, bool answer)
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, user.UserId, resource.ResourceTypeId, trainingComplete: stored);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = answer });
+
+            using var verify = _fixture.CreateContext();
+            var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
+                .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+            Assert.Equal(answer, training.TrainingComplete);
+            Assert.Equal(answer ? user.UserId : null, training.ConfirmedBy);
+            Assert.Equal(answer, training.Confirmed.HasValue);
+            Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
+            Assert.Equal(answer, result.ChangedTraining.TrainingComplete);
+            Assert.Equal(!answer, Assert.Single(result.Resource.Shifts).NeedsTraining);
+            await _smsSender.ReceivedWithAnyArgs(answer ? 0 : 1).SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task SignUp_Admin_OtherUserWithTrainingRequest_ConfirmsTrainingAsAdmin()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var user = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, user.UserId, resource.ResourceTypeId, trainingComplete: false);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .SignUp(resource.EventResourceId, new SignUpRequest { UserId = user.UserId, TrainingCompleted = true });
+
+            var training = await GetTraining(user.UserId, resource.ResourceTypeId);
+            Assert.True(training!.TrainingComplete);
+            Assert.Equal(admin.UserId, training.ConfirmedBy);
+            Assert.Equal(user.UserId, result.ChangedTraining!.UserId);
+            Assert.Equal(admin.UserId, result.ChangedTraining.ConfirmedById);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task SignUp_Trainer_ThrowsForbidden_ForOtherUser_AndSavesNothing()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, trainer.UserId)
+                .SignUp(resource.EventResourceId, new SignUpRequest { UserId = user.UserId, TrainingCompleted = true }));
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Null(await GetTraining(user.UserId, resource.ResourceTypeId));
+        }
+
+        [Fact]
+        public async Task SignUp_IgnoresTrainingAnswer_WhenResourceTypeHasNoTraining()
+        {
+            using var seed = _fixture.CreateContext();
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
+
+            Assert.Single(await GetShifts(resource.EventResourceId));
+            Assert.Null(await GetTraining(user.UserId, resource.ResourceTypeId));
+            Assert.Null(result.ChangedTraining);
             await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
         }
 
@@ -262,7 +349,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).Returns(new SmsResult { Success = false, Info = "500" });
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
 
             Assert.Equal([ShiftService.SmsFailedWarning], result.Warnings);
             Assert.Single(await GetShifts(resource.EventResourceId));
@@ -279,7 +366,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).ThrowsAsync(new HttpRequestException("nede"));
 
             using var context = _fixture.CreateContext();
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
 
             Assert.Equal([ShiftService.SmsFailedWarning], result.Warnings);
             Assert.Single(await GetShifts(resource.EventResourceId));
@@ -302,7 +389,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var _ = context;
 
             var ex = await Assert.ThrowsAsync<DomainValidationException>(
-                () => CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true }));
+                () => CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false }));
 
             Assert.Equal(ShiftService.DuplicateMessage, ex.Message);
             Assert.Empty(await GetShifts(resource.EventResourceId));
@@ -453,7 +540,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .SignUp(resource.EventResourceId, new SignUpRequest { UserId = user.UserId, NeedsTraining = false });
+                .SignUp(resource.EventResourceId, new SignUpRequest { UserId = user.UserId, TrainingCompleted = true });
 
             var training = await GetTraining(user.UserId, resource.ResourceTypeId);
             Assert.True(training!.TrainingComplete);
@@ -515,7 +602,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task SignUp_RetriesOnce_WhenTrainingIsCreatedConcurrently_AndKeepsExistingTraining()
+        public async Task SignUp_RetriesOnce_WhenTrainingIsCreatedConcurrently_AndUpdatesItWhenAnswerDiffers()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
@@ -523,17 +610,17 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var resource = await SeedResource(seed, 2, trainer.UserId);
 
             using var context = _fixture.CreateContext(ConcurrentTrainingInserter(user.UserId, resource.ResourceTypeId));
-            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { NeedsTraining = true });
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
 
             Assert.Equal(user.UserId, Assert.Single(await GetShifts(resource.EventResourceId)).UserId);
-            // Raden fra den samtidige forespørselen står; svaret i andre forsøk ignoreres.
+            // Andre forsøk ser raden fra den samtidige forespørselen (fullført) og oppdaterer den, siden svaret er ulikt.
             using var verify = _fixture.CreateContext();
             var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
                 .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
-            Assert.True(training.TrainingComplete);
-            Assert.Null(result.ChangedTraining);
+            Assert.False(training.TrainingComplete);
+            Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
             Assert.Single(result.Resource.Shifts);
-            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
         }
 
         [Fact]
@@ -548,8 +635,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var contextA = _fixture.CreateContext();
             using var contextB = _fixture.CreateContext();
             await Task.WhenAll(
-                CreateService(contextA, user.UserId).SignUp(first.EventResourceId, new SignUpRequest { NeedsTraining = true }),
-                CreateService(contextB, user.UserId).SignUp(second.EventResourceId, new SignUpRequest { NeedsTraining = true }));
+                CreateService(contextA, user.UserId).SignUp(first.EventResourceId, new SignUpRequest { TrainingCompleted = false }),
+                CreateService(contextB, user.UserId).SignUp(second.EventResourceId, new SignUpRequest { TrainingCompleted = false }));
 
             Assert.Single(await GetShifts(first.EventResourceId));
             Assert.Single(await GetShifts(second.EventResourceId));
@@ -632,18 +719,20 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task Change_Trainer_ThrowsForbidden()
+        public async Task Change_Trainer_ThrowsForbidden_AlsoWithTrainingAnswer()
         {
             using var seed = _fixture.CreateContext();
             var owner = await SeedUser(seed);
             var trainer = await SeedUser(seed, "Trener");
             var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, owner.UserId, resource.ResourceTypeId, trainingComplete: false);
             var shift = await SeedShift(seed, resource, owner.UserId);
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, trainer.UserId)
-                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Trener" }));
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Trener", TrainingCompleted = true }));
             Assert.Equal("Original", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
+            Assert.False((await GetTraining(owner.UserId, resource.ResourceTypeId))!.TrainingComplete);
         }
 
         [Fact]
@@ -715,7 +804,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task Change_Admin_MovesShift_NeedsTraining_CreatesTrainingRequest_AndSendsSmsAfterCommit()
+        public async Task Change_Admin_MovesShift_TrainingNotCompleted_CreatesTrainingRequest_AndSendsSmsAfterCommit()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
@@ -737,7 +826,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, NeedsTraining = true });
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, TrainingCompleted = false });
 
             Assert.True(committedWhenSmsSent);
             Assert.Contains("Kari Bruker ønsker opplæring på", Assert.Single(sent!).Body);
@@ -751,7 +840,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task Change_Admin_MovesShift_DoesNotNeedTraining_CreatesCompletedTrainingConfirmedByAdmin_WithoutSms()
+        public async Task Change_Admin_MovesShift_TrainingCompleted_CreatesCompletedTrainingConfirmedByAdmin_WithoutSms()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
@@ -763,7 +852,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, NeedsTraining = false });
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, TrainingCompleted = true });
 
             var training = await GetTraining(other.UserId, resource.ResourceTypeId);
             Assert.True(training!.TrainingComplete);
@@ -775,18 +864,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public async Task Change_IgnoresTrainingAnswer_WhenNewOwnerHasTraining_OrShiftIsNotMoved()
+        public async Task Change_Owner_WithoutTrainingRow_AnswerIsOptional()
         {
             using var seed = _fixture.CreateContext();
             var trainer = await SeedUser(seed, "Trener");
             var owner = await SeedUser(seed);
-            var other = await SeedUser(seed);
-            var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var resource = await SeedResource(seed, 2, trainer.UserId);
-            await SeedTraining(seed, other.UserId, resource.ResourceTypeId, trainingComplete: true);
             var shift = await SeedShift(seed, resource, owner.UserId);
 
-            // Eieren (uten opplæringsrad) endrer kommentaren: ingen flytting, så svaret trengs ikke.
+            // Ingen flytting, så svaret trengs ikke: eieren av en gammel vakt uten opplæringsrad kan endre kommentaren.
             using (var context = _fixture.CreateContext())
             {
                 var result = await CreateService(context, owner.UserId)
@@ -794,15 +880,175 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                 Assert.Null(result.ChangedTraining);
             }
             Assert.Null(await GetTraining(owner.UserId, resource.ResourceTypeId));
+            Assert.Equal("Ny", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
 
-            // Den nye eieren har allerede svart, så svaret ignoreres.
+            // Sendes svaret likevel, lagres det sammen med endringen.
             using (var context = _fixture.CreateContext())
             {
-                var result = await CreateService(context, admin.UserId, isAdmin: true)
-                    .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, NeedsTraining = true });
-                Assert.Null(result.ChangedTraining);
+                var result = await CreateService(context, owner.UserId)
+                    .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Trenger opplæring", TrainingCompleted = false });
+                Assert.False(result.ChangedTraining!.TrainingComplete);
+                Assert.True(Assert.Single(result.Resource.Shifts).NeedsTraining);
             }
-            Assert.True((await GetTraining(other.UserId, resource.ResourceTypeId))!.TrainingComplete);
+            var training = await GetTraining(owner.UserId, resource.ResourceTypeId);
+            Assert.False(training!.TrainingComplete);
+            Assert.Null(training.ConfirmedBy);
+            Assert.Equal("Trenger opplæring", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
+        }
+
+        [Theory]
+        [InlineData(true, null)]
+        [InlineData(false, null)]
+        [InlineData(true, true)]
+        [InlineData(false, false)]
+        public async Task Change_Owner_WithTraining_AnswerIsNullOrSame_ChangesOnlyShift(bool stored, bool? answer)
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, owner.UserId, resource.ResourceTypeId, trainingComplete: stored);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Ny", TrainingCompleted = answer });
+
+            Assert.Equal("Ny", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
+            var training = await GetTraining(owner.UserId, resource.ResourceTypeId);
+            Assert.Equal(stored, training!.TrainingComplete);
+            Assert.Null(training.Confirmed); // ikke bekreftet på nytt
+            Assert.Null(result.ChangedTraining);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Theory]
+        [InlineData(true, false)]
+        [InlineData(false, true)]
+        public async Task Change_Owner_WithTraining_DifferentAnswer_UpdatesShiftAndTraining(bool stored, bool answer)
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, owner.UserId, resource.ResourceTypeId, trainingComplete: stored);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Ny", TrainingCompleted = answer });
+
+            Assert.Equal("Ny", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
+            var training = await GetTraining(owner.UserId, resource.ResourceTypeId);
+            Assert.Equal(answer, training!.TrainingComplete);
+            Assert.Equal(answer ? owner.UserId : null, training.ConfirmedBy);
+            Assert.Equal(answer, training.Confirmed.HasValue);
+            Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
+            Assert.Equal(answer, result.ChangedTraining.TrainingComplete);
+            Assert.Equal(!answer, Assert.Single(result.Resource.Shifts).NeedsTraining);
+            await _smsSender.ReceivedWithAnyArgs(answer ? 0 : 1).SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Change_Admin_OthersShiftWithoutMoving_ConfirmsOwnersTrainingAsAdmin()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, owner.UserId, resource.ResourceTypeId, trainingComplete: false);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Original", TrainingCompleted = true });
+
+            var training = await GetTraining(owner.UserId, resource.ResourceTypeId);
+            Assert.True(training!.TrainingComplete);
+            Assert.Equal(admin.UserId, training.ConfirmedBy);
+            Assert.Equal(owner.UserId, result.ChangedTraining!.UserId);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Theory]
+        [InlineData(true, null, false)]
+        [InlineData(true, true, false)]
+        [InlineData(true, false, true)]
+        [InlineData(false, true, true)]
+        public async Task Change_Admin_MovesShiftToUserWithTraining_UpdatesTrainingOnlyWhenAnswerDiffers(bool stored, bool? answer, bool expectChange)
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var other = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, other.UserId, resource.ResourceTypeId, trainingComplete: stored);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, TrainingCompleted = answer });
+
+            Assert.Equal(other.UserId, Assert.Single(await GetShifts(resource.EventResourceId)).UserId);
+            var training = await GetTraining(other.UserId, resource.ResourceTypeId);
+            Assert.Equal(expectChange ? answer : stored, training!.TrainingComplete);
+            Assert.Equal(expectChange && answer == true ? admin.UserId : null, training.ConfirmedBy);
+            Assert.Equal(expectChange, result.ChangedTraining is not null);
+            // Trenerne varsles bare ved overgang til «ønsker opplæring».
+            await _smsSender.ReceivedWithAnyArgs(expectChange && answer == false ? 1 : 0).SendMessages(default!);
+            // Eieren før flyttingen får ingen opplæringsrad.
+            Assert.Null(await GetTraining(owner.UserId, resource.ResourceTypeId));
+        }
+
+        [Fact]
+        public async Task Change_Admin_MovesShift_LeavesNothingHalfSaved_WhenSaveFails()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var other = await SeedUser(seed);
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, 5, trainer.UserId);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            // Simulerer at den nye eieren settes opp på ressursen samtidig (etter duplikatsjekken): den unike indeksen
+            // stopper lagringen etter at opplæringssvaret er tolket og raden lagt til.
+            PlannerDbContext context = null!;
+            var interceptor = new BeforeSaveInterceptor(() => context.Database.ExecuteSqlInterpolatedAsync(
+                $"insert into EventResourceUsers (EventResourceId, UserId) values ({resource.EventResourceId}, {other.UserId})"));
+            context = _fixture.CreateContext(interceptor);
+            using var _ = context;
+
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, admin.UserId, isAdmin: true)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, Comment = "Flyttet", TrainingCompleted = false }));
+
+            Assert.Equal(ShiftService.DuplicateMessage, ex.Message);
+            var dbShift = Assert.Single(await GetShifts(resource.EventResourceId));
+            Assert.Equal(owner.UserId, dbShift.UserId);
+            Assert.Equal("Original", dbShift.Comment);
+            Assert.Null(await GetTraining(other.UserId, resource.ResourceTypeId));
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Change_Owner_UpdatingTraining_LeavesNothingHalfSaved_WhenSaveFails()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var owner = await SeedUser(seed);
+            var resource = await SeedResource(seed, 2, trainer.UserId);
+            await SeedTraining(seed, owner.UserId, resource.ResourceTypeId, trainingComplete: true);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext(new BeforeSaveInterceptor(() => throw new InvalidOperationException("Databasen er nede")));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => CreateService(context, owner.UserId)
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { Comment = "Ny", TrainingCompleted = false }));
+
+            Assert.Equal("Original", Assert.Single(await GetShifts(resource.EventResourceId)).Comment);
+            Assert.True((await GetTraining(owner.UserId, resource.ResourceTypeId))!.TrainingComplete);
             await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
         }
 
@@ -819,15 +1065,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext(ConcurrentTrainingInserter(other.UserId, resource.ResourceTypeId));
             var result = await CreateService(context, admin.UserId, isAdmin: true)
-                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, Comment = "Flyttet", NeedsTraining = true });
+                .Change(shift.EventResourceUserId, new ChangeShiftRequest { UserId = other.UserId, Comment = "Flyttet", TrainingCompleted = false });
 
             var dbShift = Assert.Single(await GetShifts(resource.EventResourceId));
             Assert.Equal(other.UserId, dbShift.UserId);
             Assert.Equal("Flyttet", dbShift.Comment);
+            // Andre forsøk ser raden fra den samtidige forespørselen (fullført) og oppdaterer den, siden svaret er ulikt.
             using var verify = _fixture.CreateContext();
-            Assert.Equal(1, await verify.ResourceTypeTrainings.CountAsync(t => t.UserId == other.UserId && t.ResourceTypeId == resource.ResourceTypeId));
-            Assert.Null(result.ChangedTraining);
-            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+            var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
+                .Where(t => t.UserId == other.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+            Assert.False(training.TrainingComplete);
+            Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
         }
 
         #endregion

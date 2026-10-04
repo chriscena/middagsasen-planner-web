@@ -15,11 +15,13 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public string? Comment { get; set; }
 
         /// <summary>
-        /// Svaret på «trenger du opplæring?». Påkrevd når ressurstypen har opplæring og brukeren ikke har svart
-        /// før (ressursens <c>mustAnswerTraining</c>); da gir <c>null</c> 400. <c>true</c> registrerer at brukeren
-        /// ønsker opplæring og varsler trenerne på SMS, <c>false</c> registrerer at brukeren ikke trenger opplæring.
-        /// Ignoreres når brukeren allerede har svart, eller ressurstypen ikke har opplæring.
+        /// Opplæringen til brukeren som settes opp, lagret i samme transaksjon som vakta. Samme betydning som
+        /// <see cref="SetTrainingRequest.TrainingCompleted"/>: <c>true</c> = gjennomført / trengs ikke (bekreftes av innlogget
+        /// bruker), <c>false</c> = ønsker opplæring (trenerne varsles på SMS).
+        /// Påkrevd når ressurstypen har opplæring og brukeren ikke har svart før (ressursens <c>mustAnswerTraining</c>); da gir
+        /// <c>null</c> 400. Har brukeren svart før, endrer <c>null</c> eller samme verdi ingenting, mens en annen verdi oppdaterer
+        /// opplæringen (trenerne varsles bare ved overgang til <c>false</c>). Ignoreres når ressurstypen ikke har opplæring.
         /// </summary>
-        public bool? NeedsTraining { get; set; }
+        public bool? TrainingCompleted { get; set; }
     }
 }
