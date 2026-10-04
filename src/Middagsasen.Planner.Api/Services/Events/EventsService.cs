@@ -90,15 +90,15 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEvent(EventRequest request)
         {
-            var eventStart = DateTime.Parse(request.StartTime);
-            var eventEnd = ResourceTimes.NormalizeEventEnd(eventStart, DateTime.Parse(request.EndTime));
+            var (eventStart, eventEnd) = EventTimes(request);
             var newEvent = new Event
             {
                 Name = request.Name,
                 Description = request.Description,
                 StartTime = eventStart,
                 EndTime = eventEnd,
-                Resources = request.Resources.Select(r => Map(r, eventStart, eventEnd)).ToList(),
+                // Slettede ressurser (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                Resources = request.Resources.Where(r => !r.IsDeleted).Select(r => Map(r, eventStart, eventEnd)).ToList(),
             };
 
             DbContext.Events.Add(newEvent);
@@ -116,8 +116,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             existingEvent.Name = request.Name;
             existingEvent.Description = request.Description;
-            var eventStart = DateTime.Parse(request.StartTime);
-            var eventEnd = ResourceTimes.NormalizeEventEnd(eventStart, DateTime.Parse(request.EndTime));
+            var (eventStart, eventEnd) = EventTimes(request);
             existingEvent.StartTime = eventStart;
             existingEvent.EndTime = eventEnd;
 
@@ -170,7 +169,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
         {
-            var startDate = DateTime.Parse(request.StartDate);
+            var startDay = request.StartDate.ToDateTime(TimeOnly.MinValue);
 
             var template = await DbContext.EventTemplates
                 .Include(e => e.ResourceTemplates)
@@ -178,8 +177,8 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .SingleOrDefaultAsync(e => e.EventTemplateId == templateId)
                 ?? throw new EntityNotFoundException();
 
-            var startTime = startDate.Date + template.StartTime.TimeOfDay;
-            var endTime = ResourceTimes.NormalizeEventEnd(startTime, startDate.Date + template.EndTime.TimeOfDay);
+            var startTime = startDay + template.StartTime.TimeOfDay;
+            var endTime = ResourceTimes.NormalizeEventEnd(startTime, startDay + template.EndTime.TimeOfDay);
 
             var newEvent = new Event
             {
@@ -205,11 +204,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
+        private static (DateTime Start, DateTime End) EventTimes(EventRequest request) =>
+            (request.StartTime, ResourceTimes.NormalizeEventEnd(request.StartTime, request.EndTime));
+
         /// <summary>
         /// Bruker kun klokkeslettet fra innsendte ressurstider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
         /// </summary>
         private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
-            ResourceTimes.Place(eventStart, eventEnd, DateTime.Parse(request.StartTime).TimeOfDay, DateTime.Parse(request.EndTime).TimeOfDay);
+            ResourceTimes.Place(eventStart, eventEnd, request.StartTime.ToTimeSpan(), request.EndTime.ToTimeSpan());
 
         /// <summary>Ny ressurs. En eventuell <see cref="ResourceRequest.Id"/> ignoreres; id-en settes av databasen.</summary>
         private static EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)

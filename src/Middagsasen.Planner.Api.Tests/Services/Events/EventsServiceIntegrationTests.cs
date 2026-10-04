@@ -102,16 +102,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = UniqueName("CreateWithId"),
-                StartTime = "2026-02-15T08:00:00",
-                EndTime = "2026-02-15T16:00:00",
+                StartTime = new DateTime(2026, 2, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 2, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         Id = existingResource.EventResourceId,
                         ResourceTypeId = existingResource.ResourceTypeId,
-                        StartTime = "2026-02-15T09:00:00",
-                        EndTime = "2026-02-15T15:00:00",
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(15, 0),
                         MinimumStaff = 1,
                     }
                 }
@@ -133,6 +133,35 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
+        public async Task CreateEvent_SkipsDeletedResources()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("SkipDeleted"),
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), MinimumStaff = 7, IsDeleted = true },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEvent(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(1, Assert.Single(dbEvent.Resources).MinimumStaff);
+        }
+
+        [Fact]
         public async Task CreateEvent_PersistsToDatabase()
         {
             // Arrange
@@ -147,15 +176,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = name,
                 Description = "Test description",
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         ResourceTypeId = rt.ResourceTypeId,
-                        StartTime = "2026-01-15T09:00:00",
-                        EndTime = "2026-01-15T15:00:00",
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(15, 0),
                         MinimumStaff = 3,
                     }
                 }
@@ -261,16 +290,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = updatedName,
                 Description = "Updated description",
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         Id = resource.EventResourceId,
                         ResourceTypeId = resource.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = resource.MinimumStaff,
                     }
                 }
@@ -307,8 +336,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = evt.Name,
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     // Delete existing resource
@@ -316,8 +345,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     {
                         Id = existingResource.EventResourceId,
                         ResourceTypeId = existingResource.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = existingResource.MinimumStaff,
                         IsDeleted = true,
                     },
@@ -325,8 +354,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     new ResourceRequest
                     {
                         ResourceTypeId = newRt.ResourceTypeId,
-                        StartTime = "2026-01-15T10:00:00",
-                        EndTime = "2026-01-15T14:00:00",
+                        StartTime = new TimeOnly(10, 0),
+                        EndTime = new TimeOnly(14, 0),
                         MinimumStaff = 4,
                     }
                 }
@@ -597,7 +626,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act — nyttårsaften
-            var result = await service.CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = "2026-12-31" });
+            var result = await service.CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 12, 31) });
 
             // Assert
             using var verifyContext = _fixture.CreateContext();
@@ -630,11 +659,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = UniqueName("Night"),
-                StartTime = "2026-01-15T22:00:00",
-                EndTime = "2026-01-15T06:00:00",
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = "2026-01-15T01:00:00", EndTime = "2026-01-15T03:00:00", MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(1, 0), EndTime = new TimeOnly(3, 0), MinimumStaff = 1 },
                 }
             };
 
@@ -666,11 +695,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = evt.Name,
-                StartTime = "2026-01-15T22:00:00",
-                EndTime = "2026-01-16T06:00:00",
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 16, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-15T23:45:00", EndTime = "2026-01-15T02:00:00", MinimumStaff = 2 },
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(23, 45), EndTime = new TimeOnly(2, 0), MinimumStaff = 2 },
                 }
             };
 
@@ -709,8 +738,76 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = "2026-01-15T08:00:00", EndTime = "2026-01-15T16:00:00", Resources = new List<ResourceRequest>() }));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = new DateTime(2026, 1, 15, 8, 0, 0), EndTime = new DateTime(2026, 1, 15, 16, 0, 0), Resources = new List<ResourceRequest>() }));
         }
+
+        #region Lagrede tider
+
+        [Fact]
+        public async Task CreateEvent_StoresSubmittedTimes()
+        {
+            // Arrange: arrangementet over midnatt; vakttidene er bare klokkeslett og plasseres nærmest arrangementet.
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("SubmittedTimes"),
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 16, 2, 0, 0),
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 0), EndTime = new TimeOnly(1, 30), MinimumStaff = 1 },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEvent(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(new DateTime(2026, 1, 15, 22, 0, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 2, 0, 0), dbEvent.EndTime);
+            var dbResource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 15, 23, 0, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 1, 30, 0), dbResource.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_StoresSubmittedTimes()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = evt.Name,
+                StartTime = new DateTime(2026, 1, 17, 9, 15, 0),
+                EndTime = new DateTime(2026, 1, 17, 17, 45, 0),
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 30), MinimumStaff = 2 },
+                },
+            };
+
+            // Act
+            await CreateService(context).UpdateEvent(evt.EventId, request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId);
+            Assert.Equal(new DateTime(2026, 1, 17, 9, 15, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 17, 17, 45, 0), dbEvent.EndTime);
+            var dbResource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 17, 10, 0, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 17, 12, 30, 0), dbResource.EndTime);
+        }
+
+        #endregion
 
         [Fact]
         public async Task CreateEventFromTemplate_ThrowsEntityNotFound_WhenNotFound()
@@ -720,7 +817,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = "2026-01-15" }));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 1, 15) }));
         }
 
         [Fact]

@@ -41,6 +41,7 @@
         :resource-types="props.resourceTypes"
         @cancel="showingEdit = false"
         @save="saveResource"
+        @delete="deleteResource"
       ></ResourceForm>
     </q-dialog>
   </q-card>
@@ -53,6 +54,7 @@ import type { ResourceFormModel } from "@/components/ResourceForm.vue";
 import type { ResourceTypeResponse } from "@/types";
 import { newClientKey } from "@/shared/clientKey";
 import { offsetTime } from "@/shared/time";
+import { visibleResources as visibleResourcesOf } from "@/shared/resourceRequests";
 
 const props = withDefaults(
   defineProps<{
@@ -70,9 +72,7 @@ const emit = defineEmits<{
   "update:model-value": [value: ResourceFormModel[]];
 }>();
 
-const visibleResources = computed(() =>
-  props.modelValue.filter((r) => !r.isDeleted)
-);
+const visibleResources = computed(() => visibleResourcesOf(props.modelValue));
 
 const selectedResource = ref<ResourceFormModel | null>(null);
 
@@ -114,8 +114,15 @@ function saveResource(model: ResourceFormModel) {
     selectedResource.value.startTime = model.startTime;
     selectedResource.value.endTime = model.endTime;
     selectedResource.value.minimumStaff = model.minimumStaff;
-    selectedResource.value.isDeleted = model.isDeleted;
   }
+  showingEdit.value = false;
+}
+
+// Markerer vakta i lista som slettet uten endringene fra dialogen, så den
+// sendes med tidene den hadde. Nye vakter (uten id) sendes ikke (se
+// toResourceRequests).
+function deleteResource() {
+  if (selectedResource.value) selectedResource.value.isDeleted = true;
   showingEdit.value = false;
 }
 </script>

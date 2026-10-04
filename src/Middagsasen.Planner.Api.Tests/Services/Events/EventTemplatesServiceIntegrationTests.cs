@@ -77,15 +77,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = templateName,
                 EventName = eventName,
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new TimeOnly(8, 0),
+                EndTime = new TimeOnly(16, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
                     new ResourceTemplateRequest
                     {
                         ResourceTypeId = rt.ResourceTypeId,
-                        StartTime = "2026-01-15T09:00:00",
-                        EndTime = "2026-01-15T15:00:00",
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(15, 0),
                         MinimumStaff = 3,
                     }
                 }
@@ -253,16 +253,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = updatedName,
                 EventName = updatedEventName,
-                StartTime = "2026-02-20T10:00:00",
-                EndTime = "2026-02-20T18:00:00",
+                StartTime = new TimeOnly(10, 0),
+                EndTime = new TimeOnly(18, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
                     new ResourceTemplateRequest
                     {
                         Id = resourceTemplateId,
                         ResourceTypeId = rt.ResourceTypeId,
-                        StartTime = "2026-02-20T10:00:00",
-                        EndTime = "2026-02-20T18:00:00",
+                        StartTime = new TimeOnly(10, 0),
+                        EndTime = new TimeOnly(18, 0),
                         MinimumStaff = 2,
                     }
                 }
@@ -275,8 +275,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.NotNull(result);
             Assert.Equal(updatedName, result.Name);
             Assert.Equal(updatedEventName, result.EventName);
-            Assert.Equal("2026-02-20T10:00", result.StartTime);
-            Assert.Equal("2026-02-20T18:00", result.EndTime);
+            // Bare klokkeslettet sendes; det lagres på malens faste referansedato.
+            Assert.Equal("2000-01-01T10:00", result.StartTime);
+            Assert.Equal("2000-01-01T18:00", result.EndTime);
 
             // Verify in DB
             using var verifyContext = _fixture.CreateContext();
@@ -323,8 +324,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = template.Name,
                 EventName = template.EventName,
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new TimeOnly(8, 0),
+                EndTime = new TimeOnly(16, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
                     // Keep existing
@@ -332,16 +333,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     {
                         Id = existingResourceTemplateId,
                         ResourceTypeId = rt1.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = 2,
                     },
                     // Add new
                     new ResourceTemplateRequest
                     {
                         ResourceTypeId = rt2.ResourceTypeId,
-                        StartTime = "2026-01-15T10:00:00",
-                        EndTime = "2026-01-15T14:00:00",
+                        StartTime = new TimeOnly(10, 0),
+                        EndTime = new TimeOnly(14, 0),
                         MinimumStaff = 5,
                     }
                 }
@@ -399,16 +400,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = template.Name,
                 EventName = template.EventName,
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new TimeOnly(8, 0),
+                EndTime = new TimeOnly(16, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
                     new ResourceTemplateRequest
                     {
                         Id = resourceTemplateId,
                         ResourceTypeId = rt.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = 2,
                         IsDeleted = true,
                     }
@@ -442,13 +443,79 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = "NonExistent",
                 EventName = "NonExistent",
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new TimeOnly(8, 0),
+                EndTime = new TimeOnly(16, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>()
             };
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEventTemplate(999999, request));
+        }
+
+        [Fact]
+        public async Task CreateEventTemplate_SkipsDeletedResourceTemplates()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventTemplateRequest
+            {
+                Name = UniqueName("SkipDeleted"),
+                EventName = UniqueName("SkipDeletedEvent"),
+                StartTime = new TimeOnly(8, 0),
+                EndTime = new TimeOnly(16, 0),
+                ResourceTemplates = new List<ResourceTemplateRequest>
+                {
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), MinimumStaff = 1 },
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), MinimumStaff = 7, IsDeleted = true },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEventTemplate(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
+                .SingleAsync(t => t.EventTemplateId == result.Id);
+            Assert.Equal(1, Assert.Single(dbTemplate.ResourceTemplates).MinimumStaff);
+        }
+
+        [Fact]
+        public async Task CreateEventTemplate_StoresClockTimesOnReferenceDate()
+        {
+            // Arrange: bare klokkeslett, også over midnatt. Tidene lagres på den faste referansedatoen (2000-01-01),
+            // som frontend sendte som dato hittil, og bare klokkeslettet brukes når malen tas i bruk.
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventTemplateRequest
+            {
+                Name = UniqueName("ReferenceDate"),
+                EventName = UniqueName("ReferenceDateEvent"),
+                StartTime = new TimeOnly(22, 0),
+                EndTime = new TimeOnly(2, 0),
+                ResourceTemplates = new List<ResourceTemplateRequest>
+                {
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 15), EndTime = new TimeOnly(1, 30), MinimumStaff = 1 },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEventTemplate(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
+                .SingleAsync(t => t.EventTemplateId == result.Id);
+            Assert.Equal(new DateTime(2000, 1, 1, 22, 0, 0), dbTemplate.StartTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 2, 0, 0), dbTemplate.EndTime);
+            var dbResource = Assert.Single(dbTemplate.ResourceTemplates);
+            Assert.Equal(new DateTime(2000, 1, 1, 23, 15, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 1, 30, 0), dbResource.EndTime);
         }
 
         [Fact]
@@ -524,15 +591,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.NotNull(result);
             Assert.Equal(templateName, result.Name);
             Assert.Equal(evt.Name, result.EventName);
-            Assert.Equal("2026-01-15T08:00", result.StartTime);
-            Assert.Equal("2026-01-15T16:00", result.EndTime);
+            // Bare klokkeslettet tas med, på malens referansedato.
+            Assert.Equal("2000-01-01T08:00", result.StartTime);
+            Assert.Equal("2000-01-01T16:00", result.EndTime);
             Assert.NotNull(result.ResourceTemplates);
             Assert.Single(result.ResourceTemplates);
             var resTemplate = result.ResourceTemplates.First();
             Assert.Equal(rt.ResourceTypeId, resTemplate.ResourceType.Id);
             Assert.Equal(3, resTemplate.MinimumStaff);
-            Assert.Equal("2026-01-15T09:00", resTemplate.StartTime);
-            Assert.Equal("2026-01-15T15:00", resTemplate.EndTime);
+            Assert.Equal("2000-01-01T09:00", resTemplate.StartTime);
+            Assert.Equal("2000-01-01T15:00", resTemplate.EndTime);
 
             // Verify in DB
             using var verifyContext = _fixture.CreateContext();
@@ -544,6 +612,59 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(templateName, dbTemplate.Name);
             Assert.Equal(evt.Name, dbTemplate.EventName);
             Assert.Single(dbTemplate.ResourceTemplates);
+        }
+
+        [Fact]
+        public async Task CreateTemplateFromEvent_KeepsClockTimesOverMidnight_AndNewEventPlacesResourcesAsBefore()
+        {
+            // Arrange: vaktliste over midnatt med en vakt før og en etter midnatt.
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+            var evt = new Event
+            {
+                Name = UniqueName("NightEvent"),
+                StartTime = new DateTime(2026, 3, 20, 22, 0, 0),
+                EndTime = new DateTime(2026, 3, 21, 6, 0, 0),
+                Resources = new List<EventResource>
+                {
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 20, 23, 0, 0), EndTime = new DateTime(2026, 3, 21, 1, 30, 0), MinimumStaff = 1 },
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 21, 2, 0, 0), EndTime = new DateTime(2026, 3, 21, 5, 0, 0), MinimumStaff = 2 },
+                }
+            };
+            seedContext.Events.Add(evt);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+
+            // Act
+            var template = await CreateService(context).CreateTemplateFromEvent(evt.EventId, new TemplateFromEventRequest { Name = UniqueName("FromNightEvent") });
+
+            // Assert: klokkeslettene beholdes, alle på referansedatoen.
+            using var verifyContext = _fixture.CreateContext();
+            var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
+                .SingleAsync(t => t.EventTemplateId == template.Id);
+            Assert.Equal(new DateTime(2000, 1, 1, 22, 0, 0), dbTemplate.StartTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 6, 0, 0), dbTemplate.EndTime);
+            var resources = dbTemplate.ResourceTemplates.OrderBy(r => r.MinimumStaff).ToList();
+            Assert.Equal(new DateTime(2000, 1, 1, 23, 0, 0), resources[0].StartTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 1, 30, 0), resources[0].EndTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 2, 0, 0), resources[1].StartTime);
+            Assert.Equal(new DateTime(2000, 1, 1, 5, 0, 0), resources[1].EndTime);
+
+            // Ny vaktliste fra malen plasserer vaktene som i den opprinnelige vaktlista (bare klokkeslettet brukes).
+            using var eventsContext = _fixture.CreateContext();
+            var eventsService = new EventsService(eventsContext, new ResourceReader(eventsContext, TimeProvider.System), NSubstitute.Substitute.For<Middagsasen.Planner.Api.Authentication.ICurrentUserService>());
+            var created = await eventsService.CreateEventFromTemplate(template.Id, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 4, 10) });
+
+            using var eventVerifyContext = _fixture.CreateContext();
+            var dbEvent = await eventVerifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == created.Id);
+            Assert.Equal(new DateTime(2026, 4, 10, 22, 0, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 4, 11, 6, 0, 0), dbEvent.EndTime);
+            var eventResources = dbEvent.Resources.OrderBy(r => r.MinimumStaff).ToList();
+            Assert.Equal(new DateTime(2026, 4, 10, 23, 0, 0), eventResources[0].StartTime);
+            Assert.Equal(new DateTime(2026, 4, 11, 1, 30, 0), eventResources[0].EndTime);
+            Assert.Equal(new DateTime(2026, 4, 11, 2, 0, 0), eventResources[1].StartTime);
+            Assert.Equal(new DateTime(2026, 4, 11, 5, 0, 0), eventResources[1].EndTime);
         }
 
         [Fact]

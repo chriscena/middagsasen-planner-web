@@ -33,6 +33,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPost("api/templates")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] EventTemplateRequest request)
         {
@@ -42,6 +43,7 @@ namespace Middagsasen.Planner.Api.Controllers
 
         [HttpPut("api/templates/{id}")]
         [ProducesResponseType(typeof(EventTemplateResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<EventTemplateResponse> Update(int id, [FromBody] EventTemplateRequest request)

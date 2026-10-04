@@ -45,6 +45,13 @@ namespace Middagsasen.Planner.Api.Core.OpenApi
                     continue;
                 }
 
+                // ValidationProblemDetails dokumenterer 400-svar som både kan komme fra modellvalideringen (med
+                // errors) og fra DomainValidationException (vanlig ProblemDetails uten errors). errors er derfor valgfri.
+                if (context.JsonTypeInfo.Type == typeof(Microsoft.AspNetCore.Mvc.ValidationProblemDetails) && property.Name == "errors")
+                {
+                    continue;
+                }
+
                 // property.Name er det serialiserte navnet (camelCase), samme nøkkel som i schema.Properties.
                 if (schema.Properties.ContainsKey(property.Name))
                 {

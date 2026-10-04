@@ -213,7 +213,7 @@
             flat
             round
             icon="delete"
-            @click="deleteResource(selectedResource!)"
+            @click="deleteResource"
           ></q-btn>
         </q-card-section>
         <q-card-section class="q-gutter-md">
@@ -334,8 +334,12 @@ import {
   toLocalWire,
   today,
 } from "@/shared/time";
-import { toResourceDateTimes } from "@/shared/timeValidation";
 import { notifyApiError } from "@/shared/notifyApiError";
+import {
+  findInvalidResource,
+  toResourceRequests,
+  visibleResources as visibleResourcesOf,
+} from "@/shared/resourceRequests";
 import { newClientKey } from "@/shared/clientKey";
 
 // Vakt i skjemaet: lastet fra eventet (med id/eventId), lagt til lokalt, eller
@@ -444,16 +448,16 @@ const canSave = computed(() => {
     isValidStartDate.value &&
     isValidStartTime.value &&
     isValidEndTime.value &&
-    resources.value.length
+    // Slettede vakter teller ikke.
+    visibleResources.value.length
   );
 });
 
-const visibleResources = computed(() =>
-  resources.value.filter((r) => !r.isDeleted)
-);
+const visibleResources = computed(() => visibleResourcesOf(resources.value));
 
 // null til vaktdialogen åpnes; malen bruker `selectedResource!` fordi
-// dialoginnholdet kun rendres når den er satt.
+// dialoginnholdet kun rendres når den er satt. Ved redigering er det en kopi
+// av vakta, så Avbryt og Slett forkaster endringene i dialogen.
 const selectedResource = ref<ResourceForm | null>(null);
 const showingEdit = ref(false);
 
@@ -477,8 +481,14 @@ function addResource() {
 }
 
 function editResource(resource: ResourceModel) {
-  selectedResource.value = resource;
+  selectedResource.value = { ...resource };
   showingEdit.value = true;
+}
+
+// Vakta i lista som dialogen redigerer en kopi av (samme clientKey).
+function editedResource(): ResourceModel | undefined {
+  const key = selectedResource.value?.clientKey;
+  return resources.value.find((r) => r.clientKey === key);
 }
 
 function saveResource() {
@@ -492,12 +502,24 @@ function saveResource() {
       minimumStaff: selectedResource.value.minimumStaff,
       isDeleted: false,
     });
+  } else if (selectedResource.value) {
+    const resource = editedResource();
+    if (resource) {
+      // Lagre-knappen er deaktivert uten vakttype (canAdd).
+      resource.resourceType = selectedResource.value.resourceType!;
+      resource.startTime = selectedResource.value.startTime;
+      resource.endTime = selectedResource.value.endTime;
+      resource.minimumStaff = selectedResource.value.minimumStaff;
+    }
   }
   showingEdit.value = false;
 }
 
-function deleteResource(resource: ResourceForm) {
-  resource.isDeleted = true;
+// Markerer vakta i lista som slettet uten endringene fra dialogen, så den
+// sendes med tidene den hadde.
+function deleteResource() {
+  const resource = editedResource();
+  if (resource) resource.isDeleted = true;
   showingEdit.value = false;
 }
 
@@ -513,16 +535,16 @@ const canAdd = computed(() => {
 
 async function saveEvent() {
   if (loadFailed.value) return;
-  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toLocalWire.
-  const resourceTimes = resources.value.map((r) =>
-    toResourceDateTimes(startDate.value, r.startTime, r.endTime)
-  );
-  const invalidIndex = resourceTimes.findIndex((t) => t === null);
-  if (invalidIndex >= 0) {
-    const invalid = resources.value[invalidIndex];
+  // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
+  // Enter; ugyldig dato eller tid ville gitt RangeError i toLocalWire.
+  if (!canSave.value) return;
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toTimeWire.
+  // Slettede vakter sjekkes ikke (se findInvalidResource).
+  const invalid = findInvalidResource(resources.value);
+  if (invalid) {
     $q.notify({
       message: `Vakta «${
-        invalid?.resourceType.name ?? ""
+        invalid.resourceType.name ?? ""
       }» har ugyldig start- eller sluttid.`,
     });
     return;
@@ -534,21 +556,7 @@ async function saveEvent() {
       name: name.value!,
       startTime: toLocalWire(interval.value.start),
       endTime: toLocalWire(interval.value.end),
-      resources: resources.value.map((r, i) => {
-        // Validert over: ingen er null.
-        const times = resourceTimes[i]!;
-        return {
-          // `?? null`: id er valgfri i skjemaet, og med
-          // exactOptionalPropertyTypes kan den ikke være undefined.
-          id: r.id ?? null,
-          resourceTypeId: r.resourceType.id,
-          startTime: toLocalWire(times.start),
-          endTime: toLocalWire(times.end),
-          // q-input type="number" kan gi string; Number() sender et tall.
-          minimumStaff: Number(r.minimumStaff),
-          isDeleted: r.isDeleted,
-        };
-      }),
+      resources: toResourceRequests(resources.value),
     };
     if (props.id) {
       await eventStore.updateEvent(props.id, model);

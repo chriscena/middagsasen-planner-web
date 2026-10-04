@@ -122,6 +122,8 @@ const emit = defineEmits<{
   "update:model-value": [value: ResourceFormModel];
   cancel: [];
   save: [value: ResourceFormModel];
+  // Sletting: forelderen markerer den opprinnelige vakta som slettet.
+  delete: [];
 }>();
 
 const props = defineProps<{
@@ -133,13 +135,11 @@ const resourceType = ref<ResourceTypeResponse | null>(null);
 const minimumStaff = ref<number | string | null>(1);
 const startTime = ref<string | null>(null);
 const endTime = ref<string | null>(null);
-const isDeleted = ref<boolean | undefined>(false);
 onMounted(() => {
   resourceType.value = props.modelValue.resourceType;
   minimumStaff.value = props.modelValue.minimumStaff;
   startTime.value = props.modelValue.startTime;
   endTime.value = props.modelValue.endTime;
-  isDeleted.value = props.modelValue.isDeleted;
 });
 
 function resourceTypeChanged(newValue: ResourceTypeResponse | null) {
@@ -172,13 +172,14 @@ function mapToModel(): ResourceFormModel {
     minimumStaff: minimumStaff.value,
     startTime: startTime.value,
     endTime: endTime.value,
-    isDeleted: isDeleted.value,
+    isDeleted: props.modelValue.isDeleted,
     isNew: props.modelValue.isNew,
   };
 }
 
+// Sender ikke skjemaverdiene: ulagrede endringer (f.eks. en ugyldig tid)
+// forkastes, slik at den slettede vakta beholder tidene den hadde.
 function deleteResource() {
-  isDeleted.value = true;
-  saveResource();
+  emit("delete");
 }
 </script>

@@ -52,12 +52,13 @@ builder.Services.AddControllers(options =>
 {
     options.Conventions.Add(new AuthorizeProblemResponsesConvention());
     options.Conventions.Add(new ProblemDetailsContentTypeConvention());
-});
+}).AddNorwegianModelValidation();
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi(options =>
 {
     options.AddSchemaTransformer<NonNullableRequiredSchemaTransformer>();
     options.AddSchemaTransformer<StrictNumberSchemaTransformer>();
+    options.AddSchemaTransformer<CustomConverterStringSchemaTransformer>();
     options.AddSchemaTransformer<EnumSchemaTransformer>();
     options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
 });

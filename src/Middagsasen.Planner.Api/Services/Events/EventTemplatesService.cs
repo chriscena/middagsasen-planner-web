@@ -8,6 +8,12 @@ namespace Middagsasen.Planner.Api.Services.Events
 {
     public class EventTemplatesService : IEventTemplatesService
     {
+        /// <summary>
+        /// Malene bruker bare klokkeslettet (se <see cref="EventsService.CreateEventFromTemplate"/>), men tidene lagres
+        /// som <see cref="DateTime"/>. Nye og endrede tider lagres på denne faste datoen, som frontend også har sendt hittil.
+        /// </summary>
+        internal static readonly DateOnly TemplateReferenceDate = new(2000, 1, 1);
+
         public EventTemplatesService(PlannerDbContext dbContext, IResourceReader reader)
         {
             DbContext = dbContext;
@@ -43,9 +49,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             {
                 Name = request.Name,
                 EventName = request.EventName,
-                StartTime = DateTime.Parse(request.StartTime),
-                EndTime = DateTime.Parse(request.EndTime),
-                ResourceTemplates = request.ResourceTemplates.Select(Map).ToList(),
+                StartTime = ToTemplateTime(request.StartTime),
+                EndTime = ToTemplateTime(request.EndTime),
+                // Slettede ressursmaler (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                ResourceTemplates = request.ResourceTemplates.Where(r => !r.IsDeleted).Select(Map).ToList(),
             };
 
             DbContext.EventTemplates.Add(newEvent);
@@ -62,8 +69,8 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             existingEvent.Name = request.Name;
             existingEvent.EventName = request.EventName;
-            existingEvent.StartTime = DateTime.Parse(request.StartTime);
-            existingEvent.EndTime = DateTime.Parse(request.EndTime);
+            existingEvent.StartTime = ToTemplateTime(request.StartTime);
+            existingEvent.EndTime = ToTemplateTime(request.EndTime);
 
             foreach (var resource in request.ResourceTemplates)
             {
@@ -82,8 +89,8 @@ namespace Middagsasen.Planner.Api.Services.Events
                     var resourceToUpdate = existingEvent.ResourceTemplates.FirstOrDefault(r => r.ResourceTemplateId == resource.Id);
                     if (resourceToUpdate == null) continue;
                     resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    resourceToUpdate.StartTime = DateTime.Parse(resource.StartTime);
-                    resourceToUpdate.EndTime = DateTime.Parse(resource.EndTime);
+                    resourceToUpdate.StartTime = ToTemplateTime(resource.StartTime);
+                    resourceToUpdate.EndTime = ToTemplateTime(resource.EndTime);
                     resourceToUpdate.MinimumStaff = resource.MinimumStaff;
                 }
             }
@@ -118,13 +125,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             {
                 Name = request.Name,
                 EventName = existingEvent.Name,
-                StartTime = existingEvent.StartTime,
-                EndTime = existingEvent.EndTime,
+                // Bare klokkeslettet tas med; det lagres på referansedatoen som andre maltider.
+                StartTime = ToTemplateTime(TimeOnly.FromDateTime(existingEvent.StartTime)),
+                EndTime = ToTemplateTime(TimeOnly.FromDateTime(existingEvent.EndTime)),
                 ResourceTemplates = existingEvent.Resources.Select(r => new ResourceTemplate
                 {
                     ResourceTypeId = r.ResourceTypeId,
-                    StartTime = r.StartTime,
-                    EndTime = r.EndTime,
+                    StartTime = ToTemplateTime(TimeOnly.FromDateTime(r.StartTime)),
+                    EndTime = ToTemplateTime(TimeOnly.FromDateTime(r.EndTime)),
                     MinimumStaff = r.MinimumStaff,
                 }).ToList(),
             };
@@ -165,12 +173,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             MinimumStaff = template.MinimumStaff,
         };
 
+        private static DateTime ToTemplateTime(TimeOnly time) => TemplateReferenceDate.ToDateTime(time);
+
         /// <summary>Ny ressursmal. Fremmednøkkelen til malen settes av EF via navigasjonen ved lagring.</summary>
         private static ResourceTemplate Map(ResourceTemplateRequest resource) => new()
         {
             ResourceTypeId = resource.ResourceTypeId,
-            StartTime = DateTime.Parse(resource.StartTime),
-            EndTime = DateTime.Parse(resource.EndTime),
+            StartTime = ToTemplateTime(resource.StartTime),
+            EndTime = ToTemplateTime(resource.EndTime),
             MinimumStaff = resource.MinimumStaff,
         };
     }
