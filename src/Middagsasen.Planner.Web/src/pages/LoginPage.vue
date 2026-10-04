@@ -95,6 +95,7 @@ import { useUserStore } from "src/stores/UserStore";
 import { useRoute, useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { isSafeRedirect } from "src/auth/unauthorizedHandler";
+import { notifyApiError } from "src/shared/notifyApiError";
 import type { AuthResponse } from "src/types";
 
 const authStore = useAuthStore();
@@ -129,6 +130,7 @@ async function login(): Promise<void> {
     if (!authStore.user) {
       authStore.removeUserSession();
       $q.notify({
+        type: "negative",
         message: "Klarte ikke å logge deg på 😣",
       });
       return;
@@ -137,10 +139,9 @@ async function login(): Promise<void> {
     const redirect = route.query.redirect;
     await router.replace(isSafeRedirect(redirect) ? redirect : "/");
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å logge deg på 😣",
-    });
+    // 401 fra /api/authentication/ (f.eks. feil passord) regnes ikke som
+    // utløpt sesjon, så backendens melding vises.
+    notifyApiError(error, "Klarte ikke å logge deg på 😣");
   } finally {
     performingLogin.value = false;
   }
@@ -168,10 +169,7 @@ async function createOtp(): Promise<void> {
       $q.notify({
         message: "Sjekk at telefonnummeret er riktig ✋",
       });
-    else
-      $q.notify({
-        message: "Klarte ikke å lage engangskode 😳",
-      });
+    else notifyApiError(error, "Klarte ikke å lage engangskode 😳");
   } finally {
     creatingOtp.value = false;
   }

@@ -308,21 +308,21 @@ describe("getWorkHourError", () => {
 
   it("409 gir «allerede behandlet» og ny lasting", () => {
     expect(getWorkHourError(problem(409), "update")).toEqual({
-      message: "Føringen er allerede behandlet og kan ikke endres lenger",
+      fallback: "Føringen er allerede behandlet og kan ikke endres lenger",
       kind: "conflict",
       shouldReload: true,
     });
   });
 
   it("409 ved statusendring har egen melding", () => {
-    expect(getWorkHourError(problem(409), "changeStatus").message).toBe(
+    expect(getWorkHourError(problem(409), "changeStatus").fallback).toBe(
       "Statusen kunne ikke endres fordi føringen er endret av noen andre"
     );
   });
 
   it("404 gir «finnes ikke lenger» og ny lasting", () => {
     expect(getWorkHourError(problem(404), "delete")).toEqual({
-      message: "Føringen finnes ikke lenger",
+      fallback: "Føringen finnes ikke lenger",
       kind: "notFound",
       shouldReload: true,
     });
@@ -330,7 +330,7 @@ describe("getWorkHourError", () => {
 
   it("403 gir tilgangsmelding uten ny lasting", () => {
     expect(getWorkHourError(problem(403), "approve")).toEqual({
-      message: "Du har ikke tilgang til å endre denne føringen",
+      fallback: "Du har ikke tilgang til å endre denne føringen",
       kind: "forbidden",
       shouldReload: false,
     });
@@ -338,48 +338,49 @@ describe("getWorkHourError", () => {
 
   it("andre feil gir standardteksten for handlingen", () => {
     expect(getWorkHourError(problem(500), "update")).toEqual({
-      message: "Klarte ikke å lagre endringer",
+      fallback: "Klarte ikke å lagre endringer",
       kind: "other",
       shouldReload: false,
     });
-    expect(getWorkHourError(new Error("nett"), "delete").message).toBe(
+    expect(getWorkHourError(new Error("nett"), "delete").fallback).toBe(
       "Klarte ikke å slette timeføring"
     );
-    expect(getWorkHourError(undefined, "approve").message).toBe(
+    expect(getWorkHourError(undefined, "approve").fallback).toBe(
       "Klarte ikke å godkjenne timeføring"
     );
-    expect(getWorkHourError(undefined, "reject").message).toBe(
+    expect(getWorkHourError(undefined, "reject").fallback).toBe(
       "Klarte ikke å avslå timeføring"
     );
-    expect(getWorkHourError(undefined, "changeStatus").message).toBe(
+    expect(getWorkHourError(undefined, "changeStatus").fallback).toBe(
       "Klarte ikke å oppdatere status"
     );
   });
 
-  it("ProblemDetails `detail` fra backend vinner", () => {
+  it("fallback er standardteksten også når backend sender `detail`", () => {
+    // Backendens melding vises av notifyApiError, ikke her.
     expect(
       getWorkHourError(problem(409, "Føringen er låst"), "update")
     ).toEqual({
-      message: "Føringen er låst",
+      fallback: "Føringen er allerede behandlet og kan ikke endres lenger",
       kind: "conflict",
       shouldReload: true,
     });
     expect(
       getWorkHourError(problem(400, "Sluttid må være etter starttid"), "update")
-        .message
-    ).toBe("Sluttid må være etter starttid");
+        .fallback
+    ).toBe("Klarte ikke å lagre endringer");
   });
 
   it("opprettelse bruker bare standardteksten og laster aldri på nytt", () => {
     expect(getWorkHourError(problem(409), "create")).toEqual({
-      message: "Klarte ikke å lagre timer",
+      fallback: "Klarte ikke å lagre timer",
       kind: "conflict",
       shouldReload: false,
     });
     expect(
-      getWorkHourError(problem(400, "Overlapper annen føring"), "create")
-        .message
-    ).toBe("Overlapper annen føring");
+      getWorkHourError(problem(404, "Overlapper annen føring"), "create")
+        .fallback
+    ).toBe("Klarte ikke å lagre timer");
   });
 
   it("approvalAction gir handlingen for statusen", () => {

@@ -307,7 +307,7 @@ import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatVersion } from "src/shared/appVersion";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { formatDate } from "src/shared/time";
 import type { UpdateMeRequest, UserCompetencyResponse } from "src/types";
 
@@ -356,7 +356,7 @@ async function loadMyCompetencies(): Promise<void> {
       competencyStore.getCompetencies(),
     ]);
   } catch (error) {
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å hente kompetanser");
   } finally {
     loadingCompetencies.value = false;
   }
@@ -375,11 +375,7 @@ async function addMyCompetency(): Promise<void> {
     await competencyStore.getUserCompetencies(user.value!.id);
     $q.notify({ message: "Kompetanse registrert" });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å registrere kompetanse",
-      color: "negative",
-    });
+    notifyApiError(error, "Klarte ikke å registrere kompetanse");
   } finally {
     addingCompetency.value = false;
   }
@@ -439,10 +435,7 @@ async function saveUser(): Promise<void> {
     $q.notify({ message: "Endringer er lagret" });
     editingUser.value = false;
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre endringer"),
-    });
+    notifyApiError(error, "Klarte ikke å lagre endringer");
   } finally {
     saving.value = false;
   }
@@ -462,8 +455,7 @@ async function updateHidden(isHidden: boolean): Promise<void> {
     });
     editingUser.value = false;
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å lagre endringen" });
+    notifyApiError(error, "Klarte ikke å lagre endringen");
   } finally {
     saving.value = false;
   }

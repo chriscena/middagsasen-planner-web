@@ -335,7 +335,7 @@ import {
   today,
 } from "src/shared/time";
 import { toResourceDateTimes } from "src/shared/timeValidation";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { newClientKey } from "src/shared/clientKey";
 
 // Vakt i skjemaet: lastet fra eventet (med id/eventId), lagt til lokalt, eller
@@ -413,12 +413,8 @@ onMounted(async () => {
       await eventStore.getResourceTypes();
     }
   } catch (error) {
-    console.error(error);
     loadFailed.value = true;
-    $q.notify({
-      type: "negative",
-      message: getApiErrorMessage(error, "Klarte ikke å hente vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å hente vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -568,10 +564,7 @@ async function saveEvent() {
     const date = toDayKey(interval.value.start);
     await $router.push(`/day/${date}`);
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å lagre vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -594,10 +587,7 @@ async function deleteEvent() {
     $q.notify({ message: "Vaktlista er slettet." });
     $router.push(`/day/${date}`);
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å slette vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å slette vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -621,8 +611,8 @@ async function createTemplate(id: string) {
     await eventStore.createTemplateFromEvent(id, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
-  } catch {
-    $q.notify({ message: "Noe feilet mens malen skulle lagres." });
+  } catch (error) {
+    notifyApiError(error, "Noe feilet mens malen skulle lagres.");
   } finally {
     savingTemplate.value = false;
   }

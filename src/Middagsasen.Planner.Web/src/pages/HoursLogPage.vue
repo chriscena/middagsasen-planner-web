@@ -185,6 +185,7 @@ import { getSeasonStartYear } from "src/shared/season";
 import { getApprovalStatusDisplay } from "src/shared/workHours";
 import { ApprovalStatus } from "src/types";
 import type { WorkHourResponse } from "src/types";
+import { notifyApiError } from "src/shared/notifyApiError";
 
 // store init
 const $router = useRouter();
@@ -265,12 +266,8 @@ async function getUserWorkhours(index: number, done: (stop?: boolean) => void) {
     viewModel.noResults = stop && viewModel.userWorkHours.length === 0;
   } catch (e) {
     if (generation !== loadGeneration) return;
-    console.error(e);
     stop = true;
-    $q.notify({
-      type: "negative",
-      message: "Klarte ikke å hente timeføringer",
-    });
+    notifyApiError(e, "Klarte ikke å hente timeføringer");
   } finally {
     viewModel.loading = false;
     done(stop);
@@ -335,11 +332,7 @@ onMounted(async () => {
     await seasonStore.getSeasons();
     viewModel.season = seasonStore.currentSeason?.startYear ?? null;
   } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: "Klarte ikke å hente sesonger",
-    });
+    notifyApiError(e, "Klarte ikke å hente sesonger");
   }
   // Infinite scroll rendres først når sesong er satt, så første side filtreres riktig.
   viewModel.seasonsLoaded = true;

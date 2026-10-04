@@ -15,20 +15,17 @@ export const useWeatherStore = defineStore("weather", {
   //   doubleCount: (state) => state.counter * 2,
   // },
   actions: {
+    // Feil kastes videre; siden viser varselet.
     async getLocations(): Promise<void> {
-      try {
-        const range = lastHours(2);
-        const start = toUtcWire(range.start);
-        const end = toUtcWire(range.end);
-        const response = await api.get<LocationMeasurementResponse[]>(
-          `/api/weather?start=${encodeURIComponent(
-            start
-          )}&end=${encodeURIComponent(end)}`
-        );
-        this.locations = response.data;
-      } catch (error) {
-        console.log(error);
-      }
+      const range = lastHours(2);
+      const start = toUtcWire(range.start);
+      const end = toUtcWire(range.end);
+      const response = await api.get<LocationMeasurementResponse[]>(
+        `/api/weather?start=${encodeURIComponent(
+          start
+        )}&end=${encodeURIComponent(end)}`
+      );
+      this.locations = response.data;
     },
   },
 });

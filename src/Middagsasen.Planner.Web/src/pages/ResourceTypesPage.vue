@@ -205,7 +205,7 @@
                     round
                     icon="download"
                     title="Last ned fil"
-                    @click="downloadResourceTypeFileOrNotify(file, $q.notify)"
+                    @click="downloadResourceTypeFileOrNotify(file)"
                   ></q-btn> </q-item-section
                 ><q-item-section side>
                   <q-btn
@@ -347,7 +347,7 @@ import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import {
   newEditableTrainer,
   toEditableResourceType,
@@ -389,14 +389,7 @@ onMounted(async () => {
       competencyStore.getCompetencies(),
     ]);
   } catch (error) {
-    console.error(error);
-    $q.notify({
-      type: "negative",
-      message: getApiErrorMessage(
-        error,
-        "Klarte ikke å hente vakttyper og kompetanser."
-      ),
-    });
+    notifyApiError(error, "Klarte ikke å hente vakttyper og kompetanser.");
   } finally {
     loading.value = false;
   }
@@ -459,8 +452,7 @@ async function saveResource() {
     showingEdit.value = false;
     $q.notify({ message: "Vakttypen er lagret." });
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å lagre vakttypen." });
+    notifyApiError(error, "Klarte ikke å lagre vakttypen.");
   }
 }
 
@@ -484,10 +476,7 @@ async function deleteResourceType(id: number) {
     showingEdit.value = false;
     $q.notify({ message: "Vakttypen er slettet." });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å slette vakttypen."),
-    });
+    notifyApiError(error, "Klarte ikke å slette vakttypen.");
   }
 }
 
@@ -590,8 +579,7 @@ async function addFile() {
     showingAddFile.value = false;
     $q.notify({ message: "Filen er lagret." });
   } catch (error) {
-    $q.notify({ message: "Klarte ikke å lagre filen." });
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å lagre filen.");
   } finally {
     savingFile.value = false;
   }
@@ -608,8 +596,7 @@ async function deleteFile(fileInfo: FileInfoResponse) {
     showingAddFile.value = false;
     $q.notify({ message: "Filen er slettet." });
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å slette filen." });
+    notifyApiError(error, "Klarte ikke å slette filen.");
   } finally {
     deletingFile.value = false;
   }

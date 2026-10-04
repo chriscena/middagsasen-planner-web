@@ -69,6 +69,7 @@ import type { ChartData, ChartOptions, Point } from "chart.js";
 import "chartjs-adapter-date-fns";
 import { Line } from "vue-chartjs";
 import { CHART_TIME_FORMAT, formatTime } from "src/shared/time";
+import { notifyApiError } from "src/shared/notifyApiError";
 
 const loading = ref(false);
 ChartJS.register(
@@ -168,7 +169,7 @@ async function getWeatherData(): Promise<void> {
     loading.value = true;
     await weatherStore.getLocations();
   } catch (error) {
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å hente værdata");
   } finally {
     loading.value = false;
   }
