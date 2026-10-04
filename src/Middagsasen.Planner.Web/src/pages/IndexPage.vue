@@ -465,6 +465,8 @@ function showMenu(data: HeadDayClickEvent) {
 }
 
 async function applyTemplate(id: number) {
+  // Et raskt dobbeltklikk skal ikke lage to vaktlister.
+  if (applyingTemplate.value) return;
   try {
     applyingTemplate.value = true;
     await eventStore.createEventFromTemplate(id, selectedDay.value);
