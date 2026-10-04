@@ -388,7 +388,15 @@ onMounted(async () => {
       eventStore.getResourceTypes(),
       competencyStore.getCompetencies(),
     ]);
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(
+        error,
+        "Klarte ikke å hente vakttyper og kompetanser."
+      ),
+    });
   } finally {
     loading.value = false;
   }

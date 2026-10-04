@@ -278,7 +278,15 @@ onMounted(async () => {
   try {
     loading.value = true;
     await Promise.all([userStore.getUsers(), userStore.getWorkHourSums()]);
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(
+        error,
+        "Klarte ikke å hente brukere og timer."
+      ),
+    });
   } finally {
     loading.value = false;
   }

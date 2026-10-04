@@ -74,11 +74,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useQuasar } from "quasar";
 import { useUserStore } from "stores/UserStore";
 import type { PhoneResponse } from "src/types";
+import { getApiErrorMessage } from "src/shared/apiError";
 
 const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
+const $q = useQuasar();
 const userStore = useUserStore();
 
 const filter = ref<string | null>(null);
@@ -97,7 +100,12 @@ onMounted(async () => {
   try {
     loading.value = true;
     await userStore.getPhoneList();
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(error, "Klarte ikke å hente telefonlista."),
+    });
   } finally {
     loading.value = false;
   }
