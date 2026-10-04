@@ -723,6 +723,27 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = "2026-01-15" }));
         }
 
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("ikke-en-dato")]
+        [InlineData("2026-13-01")]
+        [InlineData("15.01.2026")]
+        public async Task CreateEventFromTemplate_ThrowsDomainValidation_WhenStartDateIsInvalid(string? startDate)
+        {
+            // Arrange
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act — datoen valideres før malen slås opp, så en ukjent mal-id gir likevel valideringsfeil.
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = startDate! }));
+
+            // Assert
+            Assert.Equal(EventsService.InvalidStartDateMessage, ex.Message);
+        }
+
         [Fact]
         public async Task DeleteMessage_ThrowsEntityNotFound_WhenNotFound()
         {

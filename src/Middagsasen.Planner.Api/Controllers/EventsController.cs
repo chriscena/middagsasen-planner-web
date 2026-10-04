@@ -58,6 +58,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("api/events/template/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateFromTemplate(int id, [FromBody] EventFromTemplateRequest request)

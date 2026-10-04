@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System.Globalization;
+using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
@@ -12,6 +13,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         internal static readonly string MessageTooLongMessage = $"Beskjeden kan ikke være lengre enn {MessageRequest.MaxLength} tegn.";
 
         internal const string EventNotFoundMessage = "Fant ikke arrangementet.";
+        internal const string InvalidStartDateMessage = "Ugyldig startdato. Bruk formatet ÅÅÅÅ-MM-DD.";
 
         public EventsService(PlannerDbContext dbContext, IResourceReader reader, ICurrentUserService currentUser)
         {
@@ -170,7 +172,10 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
         {
-            var startDate = DateTime.Parse(request.StartDate);
+            // Frontend sender dagnøkkel (yyyy-MM-dd). Ugyldig dato er en valideringsfeil (400), ikke en intern feil.
+            if (!DateOnly.TryParseExact(request.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate))
+                throw new DomainValidationException(InvalidStartDateMessage);
+            var startDay = startDate.ToDateTime(TimeOnly.MinValue);
 
             var template = await DbContext.EventTemplates
                 .Include(e => e.ResourceTemplates)
@@ -178,8 +183,8 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .SingleOrDefaultAsync(e => e.EventTemplateId == templateId)
                 ?? throw new EntityNotFoundException();
 
-            var startTime = startDate.Date + template.StartTime.TimeOfDay;
-            var endTime = ResourceTimes.NormalizeEventEnd(startTime, startDate.Date + template.EndTime.TimeOfDay);
+            var startTime = startDay + template.StartTime.TimeOfDay;
+            var endTime = ResourceTimes.NormalizeEventEnd(startTime, startDay + template.EndTime.TimeOfDay);
 
             var newEvent = new Event
             {
