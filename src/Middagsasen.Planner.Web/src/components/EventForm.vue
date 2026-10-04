@@ -214,7 +214,12 @@ onMounted(async () => {
       startDate.value = formatDate(isDayKey(props.date) ? props.date : today());
       name.value = "Åpningstid";
     }
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(error, "Klarte ikke å hente vaktlista."),
+    });
   } finally {
     loading.value = false;
   }

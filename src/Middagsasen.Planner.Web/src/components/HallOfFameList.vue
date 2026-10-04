@@ -46,12 +46,14 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
+import { useQuasar } from "quasar";
 import { api } from "boot/axios";
 import type {
   HallOfFameResponse,
   HallOfFamerResponse,
   UserResponse,
 } from "src/types";
+import { getApiErrorMessage } from "src/shared/apiError";
 
 const emit = defineEmits<{
   close: [];
@@ -67,13 +69,19 @@ withDefaults(
 
 const hallOfFamers = ref<HallOfFamerResponse[]>([]);
 const loading = ref(false);
+const $q = useQuasar();
 onMounted(async () => {
   try {
     loading.value = true;
     lastRank = 0;
     const response = await api.get<HallOfFameResponse>("/api/halloffame");
     hallOfFamers.value = response.data?.hallOfFamers;
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(error, "Klarte ikke å hente Hall of Fame."),
+    });
   } finally {
     loading.value = false;
   }

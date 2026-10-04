@@ -256,6 +256,7 @@ import {
   toDayKey,
   today,
 } from "src/shared/time";
+import { getApiErrorMessage } from "src/shared/apiError";
 
 // Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke
 // emits-payloadene, så vi beskriver kun feltene vi bruker.
@@ -463,7 +464,15 @@ async function applyTemplate(id: number) {
     loading.value = true;
     await eventStore.createEventFromTemplate(id, selectedDay.value);
     $q.notify({ message: "Vaktlista er lagt til." });
-  } catch {
+  } catch (error) {
+    console.error(error);
+    $q.notify({
+      type: "negative",
+      message: getApiErrorMessage(
+        error,
+        "Klarte ikke å legge til vaktlista fra malen."
+      ),
+    });
   } finally {
     loading.value = false;
   }
