@@ -27,11 +27,13 @@ describe("notifyApiError", () => {
     vi.restoreAllMocks();
   });
 
-  it("varsler ikke ved utløpt sesjon (401 fra vanlig endepunkt)", () => {
-    notifyApiError(apiError(401, "/api/events"), "Fallback");
+  it("varsler ikke ved utløpt sesjon (401 fra vanlig endepunkt), men logger", () => {
+    const error = apiError(401, "/api/events");
+
+    notifyApiError(error, "Fallback");
 
     expect(mockNotify.create).not.toHaveBeenCalled();
-    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith(error);
   });
 
   it("varsler ved 401 fra autentiseringsendepunkt", () => {

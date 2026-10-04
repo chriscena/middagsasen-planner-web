@@ -10,12 +10,13 @@ import { getApiErrorMessage } from "src/shared/apiError";
  * Logger feilen og viser et rødt varsel med meldingen fra API-et, eller
  * `fallback` når API-et ikke gir en brukervennlig melding.
  *
- * Utløpt sesjon (401) varsles ikke: axios-interceptoren har allerede vist
+ * Utløpt sesjon (401) logges, men varsles ikke: axios-interceptoren har allerede vist
  * «Du er logget ut» og sendt brukeren til innlogging.
  */
 export function notifyApiError(error: unknown, fallback: string): void {
-  if (isSessionExpiredError(error)) return;
+  // Logg alltid, også når varselet undertrykkes, så 401 kan spores i konsollen.
   console.error(error);
+  if (isSessionExpiredError(error)) return;
   Notify.create({
     type: "negative",
     message: getApiErrorMessage(error, fallback),

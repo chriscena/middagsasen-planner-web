@@ -7,7 +7,7 @@
 // `WorkHourResponse` (`canEdit`, `canDelete`, `canApprove`, `canResetStatus`).
 // Disse reglene skal ikke gjenskapes her.
 
-import { getApiErrorMessage, getErrorResponse } from "./apiError";
+import { getErrorResponse } from "./apiError";
 import { durationHours } from "./time";
 import type { DateInput } from "./time";
 import { ApprovalFilter, ApprovalStatus } from "src/types";
@@ -256,8 +256,11 @@ export type WorkHourAction =
   | "changeStatus";
 
 export interface WorkHourError {
-  /** Melding til bruker. Backendens ProblemDetails `detail` vinner. */
-  message: string;
+  /**
+   * Standardtekst for feiltypen og handlingen. Sendes som fallback til
+   * `notifyApiError`, der backendens ProblemDetails `detail` vinner.
+   */
+  fallback: string;
   kind: WorkHourErrorKind;
   /** Føringen er behandlet eller slettet av andre: lukk og last listen på nytt. */
   shouldReload: boolean;
@@ -311,7 +314,7 @@ function defaultMessage(kind: WorkHourErrorKind, action: WorkHourAction) {
 }
 
 /**
- * Tolker en feil fra WorkHours-API-et til melding og videre handling.
+ * Tolker en feil fra WorkHours-API-et til fallback-tekst og videre handling.
  * Ved opprettelse finnes ingen eksisterende føring, så da brukes bare
  * standardteksten og listen lastes ikke på nytt.
  */
@@ -321,11 +324,10 @@ export function getWorkHourError(
 ): WorkHourError {
   const kind = getWorkHourErrorKind(error);
   const existing = action !== "create";
-  const fallback = existing
-    ? defaultMessage(kind, action)
-    : FALLBACK_MESSAGES[action];
   return {
-    message: getApiErrorMessage(error, fallback),
+    fallback: existing
+      ? defaultMessage(kind, action)
+      : FALLBACK_MESSAGES[action],
     kind,
     shouldReload: existing && (kind === "conflict" || kind === "notFound"),
   };

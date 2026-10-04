@@ -215,7 +215,7 @@ onMounted(async () => {
       userStore.getUsers(),
     ]);
   } catch (error) {
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å hente kompetanser og brukere.");
   } finally {
     loading.value = false;
   }

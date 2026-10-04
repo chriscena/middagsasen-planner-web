@@ -451,6 +451,7 @@ import { ApprovalFilter, ApprovalStatus } from "src/types";
 import type { UserResponse, WorkHourResponse } from "src/types";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import { notifyApiError } from "src/shared/notifyApiError";
+import { isSessionExpiredError } from "src/auth/unauthorizedHandler";
 
 // Filteret som sendes til q-table (`:filter`) og tilbake i @request.
 interface WorkHourFilter {
@@ -641,6 +642,7 @@ async function getUserWorkHours(props: TableRequestProps) {
   const filter = props.filter as WorkHourFilter;
   loading.value = true;
   resetTable();
+  let sessionExpired = false;
   try {
     // Axios utelater null/undefined params.
     const params = {
@@ -668,10 +670,13 @@ async function getUserWorkHours(props: TableRequestProps) {
     rejectedHours.value = seasonSums.rejectedHours;
     pendingHours.value = allSeasonSums.pendingHours;
   } catch (e) {
+    sessionExpired = isSessionExpiredError(e);
     notifyApiError(e, "Klarte ikke å hente timeføringer");
   } finally {
     // Synker side/rader til URL-en (setFilter leser dem fra pagination).
-    setFilter();
+    // Ikke ved utløpt sesjon: da er brukeren på vei til /login, og en ny
+    // navigasjon ville avbrutt den eller lagt filteret på innloggingssiden.
+    if (!sessionExpired) setFilter();
     loading.value = false;
   }
 }
@@ -686,7 +691,9 @@ function onWorkHourSaved() {
 }
 
 // Etter masse-godkjenning lastes listen på nytt (requestServerInteraction),
-// slik at radene får ferske tilgangsflagg fra serveren.
+// slik at radene får ferske tilgangsflagg fra serveren. Ved utløpt sesjon
+// avbrytes hele løkka uten oppsummering og uten ny lasting: brukeren sendes
+// til innlogging og har allerede fått «Du er logget ut».
 async function approveUpdateRows(status: ApprovalStatus) {
   const counts: Required<BulkApprovalCounts> = {
     ok: 0,
@@ -694,6 +701,7 @@ async function approveUpdateRows(status: ApprovalStatus) {
     notFound: 0,
     failed: 0,
   };
+  let sessionExpired = false;
   try {
     loading.value = true;
     for (const workHour of selectedWorkHours.value) {
@@ -705,6 +713,10 @@ async function approveUpdateRows(status: ApprovalStatus) {
         counts.ok++;
       } catch (e) {
         console.error(e);
+        if (isSessionExpiredError(e)) {
+          sessionExpired = true;
+          return;
+        }
         countBulkApprovalError(counts, e);
       }
     }
@@ -717,16 +729,18 @@ async function approveUpdateRows(status: ApprovalStatus) {
     loading.value = false;
     selectedWorkHours.value = [];
     showApprovalDialog.value = false;
-    tableRef.value?.requestServerInteraction();
+    if (!sessionExpired) tableRef.value?.requestServerInteraction();
   }
 }
 
 // Svaret (ApprovedByResponse) har ikke tilgangsflagg, så listen lastes på
-// nytt etterpå (requestServerInteraction i finally).
+// nytt etterpå (requestServerInteraction i finally), men ikke ved utløpt
+// sesjon (brukeren sendes da til innlogging).
 async function changeStatus(
   workHourId: number | undefined,
   status: ApprovalStatus | null
 ) {
+  let sessionExpired = false;
   try {
     loading.value = true;
     // Dialogen åpnes kun for en funnet føring, så id er alltid satt her.
@@ -740,12 +754,13 @@ async function changeStatus(
       color: "positive",
     });
   } catch (e) {
-    // getWorkHourError tolker 409/403/404; den meldingen blir fallback.
-    notifyApiError(e, getWorkHourError(e, "changeStatus").message);
+    sessionExpired = isSessionExpiredError(e);
+    // Fallback-teksten avhenger av 409/403/404; backendens melding vinner.
+    notifyApiError(e, getWorkHourError(e, "changeStatus").fallback);
   } finally {
     loading.value = false;
     showWorkHourDialog.value = false;
-    tableRef.value?.requestServerInteraction();
+    if (!sessionExpired) tableRef.value?.requestServerInteraction();
   }
 }
 
@@ -847,6 +862,8 @@ onMounted(async () => {
     ]);
   } catch (e) {
     notifyApiError(e, "Klarte ikke å hente sesonger eller brukere");
+    // Utløpt sesjon: brukeren sendes til innlogging, ikke last tabellen.
+    if (isSessionExpiredError(e)) return;
   }
   userOptions.value = userStore.users;
   // Tabellen rendres først når sesong er kjent, så første forespørsel har riktig filter.

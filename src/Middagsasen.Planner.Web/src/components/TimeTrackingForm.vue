@@ -312,9 +312,9 @@ function validateContent() {
 }
 
 function handleWorkHourError(error: unknown, action: WorkHourAction) {
-  const { message, shouldReload } = getWorkHourError(error, action);
-  // getWorkHourError tolker 409/403/404; den meldingen blir fallback.
-  notifyApiError(error, message);
+  const { fallback, shouldReload } = getWorkHourError(error, action);
+  // Fallback-teksten avhenger av 409/403/404; backendens melding vinner.
+  notifyApiError(error, fallback);
   if (shouldReload) {
     // Forelder lukker og laster listen på nytt.
     emit("saved", null);

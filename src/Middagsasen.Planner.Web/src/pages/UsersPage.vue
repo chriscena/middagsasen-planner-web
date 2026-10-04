@@ -332,7 +332,7 @@ async function loadUserCompetencies(userId: number): Promise<void> {
       competencyStore.getCompetencies(),
     ]);
   } catch (error) {
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å hente kompetanser");
   } finally {
     loadingUserCompetencies.value = false;
   }

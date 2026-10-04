@@ -1,3 +1,5 @@
+import { getErrorResponse } from "src/shared/apiError";
+
 const LOGIN_PATH = "/login";
 const AUTH_ENDPOINT_PREFIX = "/api/authentication/";
 
@@ -52,15 +54,10 @@ function getUrl(error: object): string {
  * `/api/authentication/` (f.eks. feil passord) regnes ikke med.
  */
 export function isSessionExpiredError(error: unknown): boolean {
-  if (typeof error !== "object" || error === null || !("response" in error)) {
-    return false;
-  }
-  const response = error.response;
-  const status =
-    typeof response === "object" && response !== null && "status" in response
-      ? response.status
-      : undefined;
-  return status === 401 && !getUrl(error).startsWith(AUTH_ENDPOINT_PREFIX);
+  const response = getErrorResponse(error);
+  if (response?.status !== 401) return false;
+  // `getErrorResponse` returnerer bare noe når `error` er et objekt.
+  return !getUrl(error as object).startsWith(AUTH_ENDPOINT_PREFIX);
 }
 
 // Håndterer 401 fra API-et: rydder sesjonen og sender brukeren til innlogging.
