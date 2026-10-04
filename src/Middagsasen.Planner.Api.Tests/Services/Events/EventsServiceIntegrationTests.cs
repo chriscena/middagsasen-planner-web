@@ -3,7 +3,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
-using Middagsasen.Planner.Api.Services.Shifts;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
 
@@ -33,8 +33,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         private EventsService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
         {
             var currentUser = MockCurrentUser(userId, isAdmin);
-            var shiftService = new ShiftService(new ShiftRepository(context), currentUser, Substitute.For<ITrainerNotifier>(), Clock);
-            return new EventsService(context, shiftService, currentUser);
+            return new EventsService(context, new ResourceReader(context, Clock), currentUser);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -91,6 +90,47 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         #region Event CRUD
+
+        [Fact]
+        public async Task CreateEvent_ResourceWithId_CreatesNewResource_AndLeavesExistingUntouched()
+        {
+            // Arrange: klienten sender med id-en til en eksisterende ressurs (f.eks. ved kopiering).
+            using var seedContext = _fixture.CreateContext();
+            var (existingEvent, existingResource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("CreateWithId"),
+                StartTime = "2026-02-15T08:00:00",
+                EndTime = "2026-02-15T16:00:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest
+                    {
+                        Id = existingResource.EventResourceId,
+                        ResourceTypeId = existingResource.ResourceTypeId,
+                        StartTime = "2026-02-15T09:00:00",
+                        EndTime = "2026-02-15T15:00:00",
+                        MinimumStaff = 1,
+                    }
+                }
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEvent(request);
+
+            // Assert
+            var created = Assert.Single(result.Resources);
+            Assert.NotEqual(existingResource.EventResourceId, created.Id);
+            Assert.Equal(1, created.MinimumStaff);
+
+            using var verifyContext = _fixture.CreateContext();
+            var untouched = await verifyContext.EventResource.AsNoTracking()
+                .SingleAsync(r => r.EventResourceId == existingResource.EventResourceId);
+            Assert.Equal(existingEvent.EventId, untouched.EventId);
+            Assert.Equal(2, untouched.MinimumStaff);
+        }
 
         [Fact]
         public async Task CreateEvent_PersistsToDatabase()
@@ -315,7 +355,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             // Arrange
             using var seedContext = _fixture.CreateContext();
-            var (evt, _) = await SeedEventWithResource(seedContext);
+            var (evt, resource) = await SeedEventWithResource(seedContext);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -323,8 +363,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Act
             var result = await service.DeleteEvent(evt.EventId);
 
-            // Assert
-            Assert.NotNull(result);
+            // Assert: svaret er det slettede arrangementet med ressursene.
+            Assert.Equal(evt.EventId, result.Id);
+            Assert.Equal(resource.EventResourceId, Assert.Single(result.Resources).Id);
 
             using var verifyContext = _fixture.CreateContext();
             var dbEvent = await verifyContext.Events

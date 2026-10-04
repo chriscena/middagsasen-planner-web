@@ -9,6 +9,7 @@ using Middagsasen.Planner.Api.Core.OpenApi;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.Seasons;
 using Middagsasen.Planner.Api.Services.Shifts;
@@ -106,6 +107,7 @@ builder.Services.AddTransient<IStorageService, BlobStorageService>();
 
 builder.Services.AddSingleton<ISessionTokens, SessionTokens>();
 builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
+builder.Services.AddScoped<IResourceReader, ResourceReader>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
 builder.Services.AddScoped<ITrainerRepository, TrainerRepository>();

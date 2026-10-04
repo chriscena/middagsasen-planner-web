@@ -2,7 +2,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
-using Middagsasen.Planner.Api.Services.Shifts;
+using Middagsasen.Planner.Api.Services.Resources;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
@@ -11,15 +11,17 @@ namespace Middagsasen.Planner.Api.Services.Events
         internal const string MessageEmptyMessage = "Beskjeden kan ikke være tom.";
         internal static readonly string MessageTooLongMessage = $"Beskjeden kan ikke være lengre enn {MessageRequest.MaxLength} tegn.";
 
-        public EventsService(PlannerDbContext dbContext, IShiftService shiftService, ICurrentUserService currentUser)
+        internal const string EventNotFoundMessage = "Fant ikke arrangementet.";
+
+        public EventsService(PlannerDbContext dbContext, IResourceReader reader, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
-            ShiftService = shiftService;
+            Reader = reader;
             CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
-        public IShiftService ShiftService { get; }
+        public IResourceReader Reader { get; }
         public ICurrentUserService CurrentUser { get; }
 
         public async Task<IEnumerable<EventStatusResponse>> GetEventStatuses(int month, int year)
@@ -42,42 +44,20 @@ namespace Middagsasen.Planner.Api.Services.Events
             return response;
         }
 
-        /// <summary>Events med alt <see cref="ResourceMapper"/> trenger for ressursene.</summary>
-        private IQueryable<Event> Events => ShiftRepository.WithMappingIncludes(DbContext.Events);
-
         public async Task<IEnumerable<EventResponse>> GetEvents()
         {
-            var events = await Events
-                .AsNoTracking()
-                .AsSplitQuery()
-                .ToListAsync();
-
-            var mapper = await ShiftService.CreateResourceMapper();
-            return events.Select(mapper.Map).ToList();
+            return await Reader.GetEvents(CurrentUser.ToActor());
         }
 
         public async Task<IEnumerable<EventResponse>> GetEvents(DateTime start, DateTime end)
         {
-            var events = await Events
-                .AsNoTracking()
-                .Where(e => e.StartTime >= start && e.StartTime < end)
-                .AsSplitQuery()
-                .ToListAsync();
-
-            var mapper = await ShiftService.CreateResourceMapper();
-            return events.Select(mapper.Map).ToList();
+            return await Reader.GetEvents(CurrentUser.ToActor(), start, end);
         }
 
         public async Task<EventResponse> GetEventById(int id)
         {
-            var existingEvent = await Events
-                .AsNoTracking()
-                .AsSplitQuery()
-                .SingleOrDefaultAsync(e => e.EventId == id)
-                ?? throw new EntityNotFoundException("Kunne ikke finne vakt.");
-
-            var mapper = await ShiftService.CreateResourceMapper();
-            return mapper.Map(existingEvent);
+            return await Reader.GetEvent(CurrentUser.ToActor(), id)
+                ?? throw new EntityNotFoundException(EventNotFoundMessage);
         }
 
         public async Task<IEnumerable<ShiftSeasonResponse>> GetShiftsByUserId(int id)
@@ -129,9 +109,10 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
-            var existingEvent = await Events
-            .SingleOrDefaultAsync(e => e.EventId == eventId)
-            ?? throw new EntityNotFoundException();
+            var existingEvent = await DbContext.Events
+                .Include(e => e.Resources)
+                .SingleOrDefaultAsync(e => e.EventId == eventId)
+                ?? throw new EntityNotFoundException(EventNotFoundMessage);
 
             existingEvent.Name = request.Name;
             existingEvent.Description = request.Description;
@@ -168,15 +149,17 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> DeleteEvent(int id)
         {
+            // Svaret leses før slettingen, så det inneholder det slettede arrangementet med ressursene.
+            var response = await Reader.GetEvent(CurrentUser.ToActor(), id)
+                ?? throw new EntityNotFoundException(EventNotFoundMessage);
+
+            // Kan være slettet av en samtidig forespørsel siden svaret ble lest.
             var existingEvent = await DbContext.Events.SingleOrDefaultAsync(e => e.EventId == id)
-                ?? throw new EntityNotFoundException();
-
+                ?? throw new EntityNotFoundException(EventNotFoundMessage);
             DbContext.Events.Remove(existingEvent);
-
             await DbContext.SaveChangesAsync();
 
-            var mapper = await ShiftService.CreateResourceMapper();
-            return mapper.Map(existingEvent);
+            return response;
         }
 
         private async Task EnsureEventResourceExists(int eventResourceId)
@@ -228,32 +211,22 @@ namespace Middagsasen.Planner.Api.Services.Events
         private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
             ResourceTimes.Place(eventStart, eventEnd, DateTime.Parse(request.StartTime).TimeOfDay, DateTime.Parse(request.EndTime).TimeOfDay);
 
-        private EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
+        /// <summary>Ny ressurs. En eventuell <see cref="ResourceRequest.Id"/> ignoreres; id-en settes av databasen.</summary>
+        private static EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
         {
             var (start, end) = PlaceResource(request, eventStart, eventEnd);
-            var resource = new EventResource
+            return new EventResource
             {
                 ResourceTypeId = request.ResourceTypeId,
                 StartTime = start,
                 EndTime = end,
                 MinimumStaff = request.MinimumStaff,
             };
-            if (request.Id.HasValue)
-            {
-                resource.EventResourceId = request.Id.Value;
-            }
-            return resource;
         }
 
         public async Task<IEnumerable<MessageResponse>> GetMessages(int eventResourceId)
         {
-            var messages = await DbContext.Messages
-                .Include(m => m.CreatedByUser)
-                .AsNoTracking()
-                .Where(m => m.EventResourceId == eventResourceId)
-                .ToListAsync();
-
-            return messages.Select(ResourceMapper.MapMessage).ToList();
+            return await Reader.GetMessages(eventResourceId);
         }
 
         public async Task<MessageResponse> AddMessage(int eventResourceId, int createdBy, MessageRequest request)
@@ -278,27 +251,27 @@ namespace Middagsasen.Planner.Api.Services.Events
             DbContext.Messages.Add(message);
             await DbContext.SaveChangesAsync();
 
-            var response = await DbContext.Messages
-                .Include(m => m.CreatedByUser)
-                .AsNoTracking()
-                .SingleAsync(m => m.EventResourceMessageId == message.EventResourceMessageId);
-            return ResourceMapper.MapMessage(response);
+            return await Reader.GetMessage(message.EventResourceMessageId)
+                ?? throw new EntityNotFoundException();
         }
 
         public async Task<MessageResponse> DeleteMessage(int id, int eventResourceId)
         {
             var message = await DbContext.Messages
-                .Include(m => m.CreatedByUser)
                 .SingleOrDefaultAsync(m => m.EventResourceId == eventResourceId && m.EventResourceMessageId == id)
                 ?? throw new EntityNotFoundException();
 
             if (!MessagePolicy.CanDelete(CurrentUser.ToActor(), message))
                 throw new ForbiddenAccessException();
 
+            // Svaret leses før slettingen.
+            var response = await Reader.GetMessage(id)
+                ?? throw new EntityNotFoundException();
+
             DbContext.Remove(message);
             await DbContext.SaveChangesAsync();
 
-            return ResourceMapper.MapMessage(message);
+            return response;
         }
     }
 }

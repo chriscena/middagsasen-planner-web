@@ -18,33 +18,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         public PlannerDbContext DbContext { get; }
 
-        /// <summary>
-        /// Navigasjonene <see cref="ResourceMapper"/> trenger, relativt til en <see cref="EventResource"/>. Én liste brukes
-        /// både for ressurser og for events (med prefikset <c>Resources</c>), så lesesiden og skriveoperasjonene laster det samme.
-        /// </summary>
-        private static readonly string[] MappingIncludePaths =
-        [
-            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Trainings)),
-            Path(nameof(EventResource.Shifts), nameof(EventResourceUser.User), nameof(User.Competencies)),
-            Path(nameof(EventResource.ResourceType), nameof(ResourceType.Trainers), nameof(ResourceTypeTrainer.User)),
-            Path(nameof(EventResource.ResourceType), nameof(ResourceType.Files)),
-            Path(nameof(EventResource.ResourceType), nameof(ResourceType.RequiredCompetencies), nameof(ResourceTypeCompetency.Competency)),
-            Path(nameof(EventResource.Messages), nameof(EventResourceMessage.CreatedByUser)),
-        ];
-
-        private static string Path(params string[] navigations) => string.Join('.', navigations);
-
-        private static IQueryable<T> IncludeMappingPaths<T>(IQueryable<T> query, string? prefix) where T : class
-            => MappingIncludePaths.Aggregate(query, (q, path) => q.Include(prefix is null ? path : Path(prefix, path)));
-
-        /// <summary>Includes som <see cref="ResourceMapper"/> trenger for ressursen.</summary>
-        public static IQueryable<EventResource> WithMappingIncludes(IQueryable<EventResource> resources)
-            => IncludeMappingPaths(resources, null);
-
-        /// <summary>Includes som <see cref="ResourceMapper"/> trenger for ressursene til eventene (lesesiden i EventsService).</summary>
-        public static IQueryable<Event> WithMappingIncludes(IQueryable<Event> events)
-            => IncludeMappingPaths(events, nameof(Event.Resources));
-
         public async Task<T> InResourceLock<T>(int resourceId, Func<Task<T>> work)
         {
             await using var transaction = await DbContext.Database.BeginTransactionAsync();
@@ -67,7 +40,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         public async Task<EventResource?> GetResource(int resourceId)
         {
-            return await WithMappingIncludes(DbContext.EventResource)
+            return await DbContext.EventResource
+                .Include(r => r.ResourceType)
+                    .ThenInclude(t => t.Trainers)
+                .Include(r => r.Shifts)
+                    .ThenInclude(s => s.User)
+                    .ThenInclude(u => u.Trainings)
                 .AsNoTracking()
                 .AsSplitQuery()
                 .SingleOrDefaultAsync(r => r.EventResourceId == resourceId);
@@ -95,23 +73,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             return await DbContext.ResourceTypeTrainings
                 .SingleOrDefaultAsync(t => t.UserId == userId && t.ResourceTypeId == resourceTypeId);
-        }
-
-        public async Task<ResourceTypeTraining> GetTrainingForResponse(int trainingId)
-        {
-            return await DbContext.ResourceTypeTrainings
-                .Include(t => t.ResourceType)
-                .Include(t => t.ConfirmedByUser)
-                .AsNoTracking()
-                .SingleAsync(t => t.ResourceTypeTrainingId == trainingId);
-        }
-
-        public async Task<IReadOnlyList<int>> GetTrainingResourceTypeIds(int userId)
-        {
-            return await DbContext.ResourceTypeTrainings
-                .Where(t => t.UserId == userId)
-                .Select(t => t.ResourceTypeId)
-                .ToListAsync();
         }
 
         public async Task SetMinimumStaff(int resourceId, int minimumStaff)

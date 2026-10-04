@@ -297,12 +297,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return (Get(byStatus, 0), Get(byStatus, WorkHourPolicy.Approved), Get(byStatus, WorkHourPolicy.Rejected));
         }
 
-        private static string? MapFullName(User? user)
-        {
-            if (user == null) return null;
-            return $"{user.FirstName ?? ""} {user.LastName ?? ""}".Trim();
-        }
-
         private static WorkHourResponse Map(WorkHour workHour)
         {
             decimal interval = 0;
@@ -320,11 +314,11 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 Hours = interval,
                 Description = workHour.Description,
                 ApprovedBy = workHour.ApprovedBy,
-                ApprovedByName = MapFullName(workHour.ApprovedByUser),
+                ApprovedByName = workHour.ApprovedByUser?.FullName(),
                 ApprovedTime = workHour.ApprovedTime.AsUtc(),
                 ApprovalStatus = workHour.ApprovalStatus,
                 ModifiedBy = workHour.ModifiedBy,
-                ModifiedByName = MapFullName(workHour.ModifiedByUser),
+                ModifiedByName = workHour.ModifiedByUser?.FullName(),
                 ModifiedTime = workHour.ModifiedTime.AsUtc(),
             };
         }

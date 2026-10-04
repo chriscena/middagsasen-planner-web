@@ -1,29 +1,31 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
     public class EventTemplatesService : IEventTemplatesService
     {
-        public EventTemplatesService(PlannerDbContext dbContext)
+        public EventTemplatesService(PlannerDbContext dbContext, IResourceReader reader)
         {
             DbContext = dbContext;
+            Reader = reader;
         }
 
         public PlannerDbContext DbContext { get; }
+        public IResourceReader Reader { get; }
 
         private IQueryable<EventTemplate> EventTemplates => DbContext.EventTemplates
-                .Include(e => e.ResourceTemplates)
-                .ThenInclude(r => r.ResourceType);
+                .Include(e => e.ResourceTemplates);
 
         public async Task<IEnumerable<EventTemplateResponse>> GetEventTemplates()
         {
             var templates = await EventTemplates
                 .AsNoTracking()
                 .ToListAsync();
-            return templates.Select(Map).ToList();
+            return await Map(templates);
         }
 
         public async Task<EventTemplateResponse> GetEventTemplateById(int id)
@@ -32,7 +34,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 .AsNoTracking()
                 .SingleOrDefaultAsync(e => e.EventTemplateId == id)
                 ?? throw new EntityNotFoundException();
-            return Map(template);
+            return (await Map([template])).Single();
         }
 
         public async Task<EventTemplateResponse> CreateEventTemplate(EventTemplateRequest request)
@@ -87,22 +89,21 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
             await DbContext.SaveChangesAsync();
 
-            var response = await EventTemplates
-            .SingleOrDefaultAsync(e => e.EventTemplateId == id)
-            ?? throw new EntityNotFoundException();
-
-            return Map(response);
+            return await GetEventTemplateById(id);
         }
 
         public async Task<EventTemplateResponse> DeleteEventTemplate(int id)
         {
-            var existingTemplate = await DbContext.EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id)
+            var existingTemplate = await EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id)
                 ?? throw new EntityNotFoundException();
 
-            DbContext.EventTemplates.Remove(existingTemplate);
+            // Svaret bygges før slettingen, så det inneholder den slettede malen med ressursmalene.
+            var response = (await Map([existingTemplate])).Single();
 
+            DbContext.EventTemplates.Remove(existingTemplate);
             await DbContext.SaveChangesAsync();
-            return Map(existingTemplate);
+
+            return response;
         }
 
         public async Task<EventTemplateResponse> CreateTemplateFromEvent(int id, TemplateFromEventRequest request)
@@ -134,76 +135,43 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventTemplateById(template.EventTemplateId);
         }
 
-        private EventTemplateResponse Map(EventTemplate template) => new EventTemplateResponse
+        /// <summary>
+        /// Mapper malene. Ressurstypene hentes fra lesemodulen for ressurser (også inaktive), så de er like som ellers i API-et.
+        /// </summary>
+        private async Task<List<EventTemplateResponse>> Map(IReadOnlyCollection<EventTemplate> templates)
         {
-            Id = template.EventTemplateId,
-            Name = template.Name,
-            EventName = template.EventName,
-            StartTime = template.StartTime.ToSimpleIsoString(),
-            EndTime = template.EndTime.ToSimpleIsoString(),
-            ResourceTemplates = template.ResourceTemplates?.Select(Map),
-        };
+            var resourceTypes = await Reader.GetResourceTypes(
+                templates.SelectMany(t => t.ResourceTemplates).Select(r => r.ResourceTypeId));
 
-        private ResourceTemplateResponse Map(ResourceTemplate template) => new ResourceTemplateResponse
+            return templates.Select(template => new EventTemplateResponse
+            {
+                Id = template.EventTemplateId,
+                Name = template.Name,
+                EventName = template.EventName,
+                StartTime = template.StartTime.ToSimpleIsoString(),
+                EndTime = template.EndTime.ToSimpleIsoString(),
+                ResourceTemplates = template.ResourceTemplates
+                    .Select(r => Map(r, resourceTypes[r.ResourceTypeId]))
+                    .ToList(),
+            }).ToList();
+        }
+
+        private static ResourceTemplateResponse Map(ResourceTemplate template, ResourceTypeResponse resourceType) => new()
         {
             Id = template.ResourceTemplateId,
-            ResourceType = Map(template.ResourceType),
+            ResourceType = resourceType,
             StartTime = template.StartTime.ToSimpleIsoString(),
             EndTime = template.EndTime.ToSimpleIsoString(),
             MinimumStaff = template.MinimumStaff,
         };
 
-        private ResourceTemplate Map(ResourceTemplateRequest resource)
+        /// <summary>Ny ressursmal. Fremmednøkkelen til malen settes av EF via navigasjonen ved lagring.</summary>
+        private static ResourceTemplate Map(ResourceTemplateRequest resource) => new()
         {
-            var template = new ResourceTemplate
-            {
-                ResourceTypeId = resource.ResourceTypeId,
-                StartTime = DateTime.Parse(resource.StartTime),
-                EndTime = DateTime.Parse(resource.EndTime),
-                MinimumStaff = resource.MinimumStaff,
-            };
-            if (resource.Id.HasValue)
-            {
-                template.EventTemplateId = resource.Id.Value;
-            }
-            return template;
-        }
-
-        private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
-        {
-            Id = resourceType.ResourceTypeId,
-            Name = resourceType.Name,
-            DefaultStaff = resourceType.DefaultStaff,
-            NotificationMessage = resourceType.NotificationMessage,
-            HasTraining = resourceType.Trainers.Any(),
-            Trainers = resourceType.Trainers.Select(Map).ToList(),
-            Files = resourceType.Files.Select(Map).ToList(),
+            ResourceTypeId = resource.ResourceTypeId,
+            StartTime = DateTime.Parse(resource.StartTime),
+            EndTime = DateTime.Parse(resource.EndTime),
+            MinimumStaff = resource.MinimumStaff,
         };
-
-        private ResourceTypeTrainerResponse Map(ResourceTypeTrainer resourceTypeTrainer) => new ResourceTypeTrainerResponse
-        {
-            Id = resourceTypeTrainer.ResourceTypeTrainerId,
-            UserId = resourceTypeTrainer.UserId,
-            FullName = MapFullName(resourceTypeTrainer.User.FirstName, resourceTypeTrainer.User.LastName),
-            PhoneNo = resourceTypeTrainer.User.UserName,
-        };
-
-        private FileInfoResponse Map(ResourceTypeFile file) => new FileInfoResponse
-        {
-            Id = file.ResourceTypeFileId,
-            ResourceTypeId = file.ResourceTypeId,
-            FileName = file.FileName,
-            Description = file.Description,
-            MimeType = file.MimeType,
-            Created = file.Created.AsUtc().ToIsoString(),
-            CreatedBy = MapFullName(file.CreatedByUser?.FirstName, file.CreatedByUser?.LastName),
-            Updated = file.Updated.AsUtc().ToIsoString(),
-            UpdatedBy = MapFullName(file.UpdatedByUser?.FirstName, file.UpdatedByUser?.LastName),
-        };
-
-        private string MapFullName(string? firstName, string? lastName)
-        {
-            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
-        }
     }
 }

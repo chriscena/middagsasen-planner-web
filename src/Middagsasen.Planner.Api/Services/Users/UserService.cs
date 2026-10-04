@@ -245,7 +245,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                FullName = MapFullName(user.FirstName, user.LastName),
+                FullName = user.FullName(),
             };
         }
         private UserResponse Map(User user) => new UserResponse
@@ -254,7 +254,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 PhoneNo = user.UserName,
                 FirstName = user.FirstName,
                 LastName = user.LastName,
-                FullName = MapFullName(user.FirstName, user.LastName),
+                FullName = user.FullName(),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
                 Trainings = user.Trainings.Select(Map).ToList(),
@@ -266,9 +266,9 @@ namespace Middagsasen.Planner.Api.Services.Users
             ResourceTypeId = training.ResourceTypeId,
             ResourceTypeName = training.ResourceType?.Name,
             TrainingComplete = training.TrainingComplete,
-            Confirmed = training.Confirmed?.ToSimpleIsoString(),
+            Confirmed = training.Confirmed?.AsUtc().ToIsoString(),
             ConfirmedById = training.ConfirmedBy,
-            ConfirmedByName = MapFullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
+            ConfirmedByName = NameExtensions.FullName(training.ConfirmedByUser?.FirstName, training.ConfirmedByUser?.LastName),
         };
         private HallOfFameResponse Map(IEnumerable<HallOfFamer> hallOfFamers)
         {
@@ -277,16 +277,11 @@ namespace Middagsasen.Planner.Api.Services.Users
                 HallOfFamers = hallOfFamers.Select(hof => new HallOfFamerResponse
                 {
                     Id = hof.UserId,
-                    FullName = MapFullName(hof.FirstName, hof.LastName),
+                    FullName = NameExtensions.FullName(hof.FirstName, hof.LastName),
                     Shifts = hof.Shifts,
                 }).ToList(),
             };
             return response;
-        }
-
-        private string MapFullName(string? firstName, string? lastName)
-        {
-            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
         }
     }
 }

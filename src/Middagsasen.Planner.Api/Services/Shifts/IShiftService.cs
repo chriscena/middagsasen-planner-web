@@ -39,11 +39,5 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
         /// <exception cref="DomainValidationException">Negativ minimum bemanning.</exception>
         Task<ResourceResponse> SetMinimumStaff(int resourceId, MinimumStaffRequest request);
-
-        /// <summary>
-        /// Lager en mapper som gir ressurser med flagg for innlogget bruker. Brukes av lesesiden (EventsService),
-        /// slik at <c>GET api/events</c> og skriveoperasjonene gir like flagg.
-        /// </summary>
-        Task<ResourceMapper> CreateResourceMapper();
     }
 }

@@ -1,4 +1,5 @@
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 
 namespace Middagsasen.Planner.Api.Services.Competencies
@@ -311,20 +312,20 @@ namespace Middagsasen.Planner.Api.Services.Competencies
         {
             Id = approver.CompetencyApproverId,
             UserId = approver.UserId,
-            FullName = MapFullName(approver.User?.FirstName, approver.User?.LastName),
+            FullName = NameExtensions.FullName(approver.User?.FirstName, approver.User?.LastName),
         };
 
         private UserCompetencyResponse MapUserCompetency(UserCompetency uc) => new UserCompetencyResponse
         {
             Id = uc.UserCompetencyId,
             UserId = uc.UserId,
-            UserFullName = MapFullName(uc.User?.FirstName, uc.User?.LastName),
+            UserFullName = NameExtensions.FullName(uc.User?.FirstName, uc.User?.LastName),
             CompetencyId = uc.CompetencyId,
             CompetencyName = uc.Competency?.Name ?? "",
             Approved = uc.Approved,
             ApprovedDate = uc.ApprovedDate,
             ApprovedById = uc.ApprovedBy,
-            ApprovedByName = MapFullName(uc.ApprovedByUser?.FirstName, uc.ApprovedByUser?.LastName),
+            ApprovedByName = NameExtensions.FullName(uc.ApprovedByUser?.FirstName, uc.ApprovedByUser?.LastName),
             ExpiryDate = uc.ExpiryDate,
             IsExpired = CompetencyRules.IsExpired(uc, TimeProvider.GetUtcNow().UtcDateTime),
             Created = uc.Created,
@@ -336,10 +337,5 @@ namespace Middagsasen.Planner.Api.Services.Competencies
             CompetencyName = rtc.Competency?.Name ?? "",
             MinimumRequired = rtc.MinimumRequired,
         };
-
-        private string MapFullName(string? firstName, string? lastName)
-        {
-            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
-        }
     }
 }
