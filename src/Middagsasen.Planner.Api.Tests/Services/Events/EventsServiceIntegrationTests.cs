@@ -102,16 +102,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = UniqueName("CreateWithId"),
-                StartTime = "2026-02-15T08:00:00",
-                EndTime = "2026-02-15T16:00:00",
+                StartTime = new DateTime(2026, 2, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 2, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         Id = existingResource.EventResourceId,
                         ResourceTypeId = existingResource.ResourceTypeId,
-                        StartTime = "2026-02-15T09:00:00",
-                        EndTime = "2026-02-15T15:00:00",
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(15, 0),
                         MinimumStaff = 1,
                     }
                 }
@@ -147,15 +147,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = name,
                 Description = "Test description",
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         ResourceTypeId = rt.ResourceTypeId,
-                        StartTime = "2026-01-15T09:00:00",
-                        EndTime = "2026-01-15T15:00:00",
+                        StartTime = new TimeOnly(9, 0),
+                        EndTime = new TimeOnly(15, 0),
                         MinimumStaff = 3,
                     }
                 }
@@ -261,16 +261,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             {
                 Name = updatedName,
                 Description = "Updated description",
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     new ResourceRequest
                     {
                         Id = resource.EventResourceId,
                         ResourceTypeId = resource.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = resource.MinimumStaff,
                     }
                 }
@@ -307,8 +307,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = evt.Name,
-                StartTime = "2026-01-15T08:00:00",
-                EndTime = "2026-01-15T16:00:00",
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
                     // Delete existing resource
@@ -316,8 +316,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     {
                         Id = existingResource.EventResourceId,
                         ResourceTypeId = existingResource.ResourceTypeId,
-                        StartTime = "2026-01-15T08:00:00",
-                        EndTime = "2026-01-15T16:00:00",
+                        StartTime = new TimeOnly(8, 0),
+                        EndTime = new TimeOnly(16, 0),
                         MinimumStaff = existingResource.MinimumStaff,
                         IsDeleted = true,
                     },
@@ -325,8 +325,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     new ResourceRequest
                     {
                         ResourceTypeId = newRt.ResourceTypeId,
-                        StartTime = "2026-01-15T10:00:00",
-                        EndTime = "2026-01-15T14:00:00",
+                        StartTime = new TimeOnly(10, 0),
+                        EndTime = new TimeOnly(14, 0),
                         MinimumStaff = 4,
                     }
                 }
@@ -597,7 +597,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act — nyttårsaften
-            var result = await service.CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = "2026-12-31" });
+            var result = await service.CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 12, 31) });
 
             // Assert
             using var verifyContext = _fixture.CreateContext();
@@ -630,11 +630,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = UniqueName("Night"),
-                StartTime = "2026-01-15T22:00:00",
-                EndTime = "2026-01-15T06:00:00",
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = "2026-01-15T01:00:00", EndTime = "2026-01-15T03:00:00", MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(1, 0), EndTime = new TimeOnly(3, 0), MinimumStaff = 1 },
                 }
             };
 
@@ -666,11 +666,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = evt.Name,
-                StartTime = "2026-01-15T22:00:00",
-                EndTime = "2026-01-16T06:00:00",
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 16, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-15T23:45:00", EndTime = "2026-01-15T02:00:00", MinimumStaff = 2 },
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(23, 45), EndTime = new TimeOnly(2, 0), MinimumStaff = 2 },
                 }
             };
 
@@ -709,215 +709,27 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = "2026-01-15T08:00:00", EndTime = "2026-01-15T16:00:00", Resources = new List<ResourceRequest>() }));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = new DateTime(2026, 1, 15, 8, 0, 0), EndTime = new DateTime(2026, 1, 15, 16, 0, 0), Resources = new List<ResourceRequest>() }));
         }
 
-        #region Validering av tider
-
-        private static readonly string?[] InvalidTimes = [null, "", "   ", "ikke-en-tid", "2026-13-01T08:00", "2026-01-15T25:00"];
-
-        // (starttid, sluttid, forventet melding) for arrangementet.
-        public static TheoryData<string?, string?, string> InvalidEventTimes()
-        {
-            var data = new TheoryData<string?, string?, string>();
-            foreach (var invalid in InvalidTimes)
-            {
-                data.Add(invalid, "2026-01-15T16:00", EventsService.InvalidStartTimeMessage);
-                data.Add("2026-01-15T08:00", invalid, EventsService.InvalidEndTimeMessage);
-            }
-            return data;
-        }
-
-        // (starttid, sluttid, forventet melding) for en vakt.
-        public static TheoryData<string?, string?, string> InvalidResourceTimes()
-        {
-            var data = new TheoryData<string?, string?, string>();
-            foreach (var invalid in InvalidTimes)
-            {
-                data.Add(invalid, "2026-01-15T15:00", EventsService.InvalidResourceStartTimeMessage);
-                data.Add("2026-01-15T09:00", invalid, EventsService.InvalidResourceEndTimeMessage);
-            }
-            return data;
-        }
-
-        private static EventRequest ValidEventRequest(string name, int resourceTypeId, int? resourceId = null) => new()
-        {
-            Name = name,
-            StartTime = "2026-01-15T08:00",
-            EndTime = "2026-01-15T16:00",
-            Resources = new List<ResourceRequest>
-            {
-                new ResourceRequest { Id = resourceId, ResourceTypeId = resourceTypeId, StartTime = "2026-01-15T09:00", EndTime = "2026-01-15T15:00", MinimumStaff = 1 },
-            },
-        };
-
-        [Theory]
-        [MemberData(nameof(InvalidEventTimes))]
-        public async Task CreateEvent_ThrowsDomainValidation_WhenEventTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
-        {
-            // Arrange
-            var name = UniqueName("InvalidEventTime");
-            using var seedContext = _fixture.CreateContext();
-            var rt = await SeedResourceType(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = ValidEventRequest(name, rt.ResourceTypeId);
-            request.StartTime = startTime!;
-            request.EndTime = endTime!;
-
-            // Act
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).CreateEvent(request));
-
-            // Assert
-            Assert.Equal(expectedMessage, ex.Message);
-            using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.Events.AnyAsync(e => e.Name == name));
-        }
-
-        [Theory]
-        [MemberData(nameof(InvalidResourceTimes))]
-        public async Task CreateEvent_ThrowsDomainValidation_WhenResourceTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
-        {
-            // Arrange
-            var name = UniqueName("InvalidResourceTime");
-            using var seedContext = _fixture.CreateContext();
-            var rt = await SeedResourceType(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = ValidEventRequest(name, rt.ResourceTypeId);
-            var resource = request.Resources.Single();
-            resource.StartTime = startTime!;
-            resource.EndTime = endTime!;
-
-            // Act
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).CreateEvent(request));
-
-            // Assert
-            Assert.Equal(expectedMessage, ex.Message);
-            using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.Events.AnyAsync(e => e.Name == name));
-        }
-
-        [Theory]
-        [MemberData(nameof(InvalidEventTimes))]
-        public async Task UpdateEvent_ThrowsDomainValidation_WhenEventTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
-        {
-            // Arrange
-            using var seedContext = _fixture.CreateContext();
-            var (evt, resource) = await SeedEventWithResource(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = ValidEventRequest(UniqueName("Updated"), resource.ResourceTypeId, resource.EventResourceId);
-            request.StartTime = startTime!;
-            request.EndTime = endTime!;
-
-            // Act
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
-
-            // Assert
-            Assert.Equal(expectedMessage, ex.Message);
-        }
-
-        [Theory]
-        [MemberData(nameof(InvalidResourceTimes))]
-        public async Task UpdateEvent_ThrowsDomainValidation_WhenResourceTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
-        {
-            // Arrange
-            using var seedContext = _fixture.CreateContext();
-            var (evt, resource) = await SeedEventWithResource(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = ValidEventRequest(UniqueName("Updated"), resource.ResourceTypeId, resource.EventResourceId);
-            var resourceRequest = request.Resources.Single();
-            resourceRequest.StartTime = startTime!;
-            resourceRequest.EndTime = endTime!;
-
-            // Act
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
-
-            // Assert
-            Assert.Equal(expectedMessage, ex.Message);
-        }
+        #region Lagrede tider
 
         [Fact]
-        public async Task UpdateEvent_LeavesEventUnchanged_WhenResourceTimeIsInvalid()
+        public async Task CreateEvent_StoresSubmittedTimes()
         {
-            // Arrange: gyldige arrangementstider og en gyldig endret vakt, men en ny vakt med ugyldig sluttid.
-            using var seedContext = _fixture.CreateContext();
-            var (evt, resource) = await SeedEventWithResource(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = new EventRequest
-            {
-                Name = UniqueName("Updated"),
-                Description = "Endret",
-                StartTime = "2026-01-16T10:00",
-                EndTime = "2026-01-16T18:00",
-                Resources = new List<ResourceRequest>
-                {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-16T11:00", EndTime = "2026-01-16T17:00", MinimumStaff = 5 },
-                    new ResourceRequest { ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-16T12:00", EndTime = "ikke-en-tid", MinimumStaff = 1 },
-                },
-            };
-
-            // Act
-            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
-
-            // Assert
-            using var verifyContext = _fixture.CreateContext();
-            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId);
-            Assert.Equal(evt.Name, dbEvent.Name);
-            Assert.Null(dbEvent.Description);
-            Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbEvent.StartTime);
-            Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbEvent.EndTime);
-            var dbResource = Assert.Single(dbEvent.Resources);
-            Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbResource.StartTime);
-            Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbResource.EndTime);
-            Assert.Equal(2, dbResource.MinimumStaff);
-        }
-
-        [Fact]
-        public async Task UpdateEvent_DoesNotValidateTimes_OnDeletedResources()
-        {
-            // Arrange: slettede ressurser brukes ikke, så tidene deres valideres ikke (som før).
-            using var seedContext = _fixture.CreateContext();
-            var (evt, resource) = await SeedEventWithResource(seedContext);
-
-            using var context = _fixture.CreateContext();
-            var request = new EventRequest
-            {
-                Name = evt.Name,
-                StartTime = "2026-01-15T08:00",
-                EndTime = "2026-01-15T16:00",
-                Resources = new List<ResourceRequest>
-                {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "", EndTime = "", IsDeleted = true },
-                },
-            };
-
-            // Act
-            var result = await CreateService(context).UpdateEvent(evt.EventId, request);
-
-            // Assert
-            Assert.Empty(result.Resources);
-        }
-
-        [Fact]
-        public async Task CreateEvent_StoresTimes_FromFrontendFormat()
-        {
-            // Arrange: frontend sender lokal tid uten sone, "yyyy-MM-ddTHH:mm" (toLocalWire), også over midnatt.
+            // Arrange: arrangementet over midnatt; vakttidene er bare klokkeslett og plasseres nærmest arrangementet.
             using var seedContext = _fixture.CreateContext();
             var rt = await SeedResourceType(seedContext);
 
             using var context = _fixture.CreateContext();
             var request = new EventRequest
             {
-                Name = UniqueName("FrontendFormat"),
-                StartTime = "2026-01-15T22:00",
-                EndTime = "2026-01-16T02:00",
+                Name = UniqueName("SubmittedTimes"),
+                StartTime = new DateTime(2026, 1, 15, 22, 0, 0),
+                EndTime = new DateTime(2026, 1, 16, 2, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = "2026-01-15T23:00", EndTime = "2026-01-16T01:30", MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 0), EndTime = new TimeOnly(1, 30), MinimumStaff = 1 },
                 },
             };
 
@@ -935,9 +747,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task UpdateEvent_StoresTimes_FromFrontendFormat()
+        public async Task UpdateEvent_StoresSubmittedTimes()
         {
-            // Arrange: frontend sender lokal tid uten sone, "yyyy-MM-ddTHH:mm" (toLocalWire).
+            // Arrange
             using var seedContext = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seedContext);
 
@@ -945,11 +757,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var request = new EventRequest
             {
                 Name = evt.Name,
-                StartTime = "2026-01-17T09:15",
-                EndTime = "2026-01-17T17:45",
+                StartTime = new DateTime(2026, 1, 17, 9, 15, 0),
+                EndTime = new DateTime(2026, 1, 17, 17, 45, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-17T10:00", EndTime = "2026-01-17T12:30", MinimumStaff = 2 },
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 30), MinimumStaff = 2 },
                 },
             };
 
@@ -976,28 +788,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = "2026-01-15" }));
-        }
-
-        [Theory]
-        [InlineData(null)]
-        [InlineData("")]
-        [InlineData("   ")]
-        [InlineData("ikke-en-dato")]
-        [InlineData("2026-13-01")]
-        [InlineData("15.01.2026")]
-        public async Task CreateEventFromTemplate_ThrowsDomainValidation_WhenStartDateIsInvalid(string? startDate)
-        {
-            // Arrange
-            using var context = _fixture.CreateContext();
-            var service = CreateService(context);
-
-            // Act — datoen valideres før malen slås opp, så en ukjent mal-id gir likevel valideringsfeil.
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(
-                () => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = startDate! }));
-
-            // Assert
-            Assert.Equal(EventsService.InvalidStartDateMessage, ex.Message);
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateEventFromTemplate(999999, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 1, 15) }));
         }
 
         [Fact]

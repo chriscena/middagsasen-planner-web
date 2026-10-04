@@ -26,6 +26,7 @@ import {
   toDayKey,
   toInstantWire,
   toLocalWire,
+  toTimeWire,
   toUtcWire,
   today,
 } from "@/shared/time";
@@ -152,7 +153,6 @@ describe("parsing fra skjema", () => {
 
   it("legger klokkeslett på en fast referansedato", () => {
     expect(parseTime("10:30")).toEqual(new Date(2000, 0, 1, 10, 30));
-    expect(toLocalWire(parseTime("10:30"))).toBe("2000-01-01T10:30");
     expect(Number.isNaN(parseTime(null).getTime())).toBe(true);
   });
 
@@ -161,7 +161,8 @@ describe("parsing fra skjema", () => {
     // 02:00–03:00 finnes ikke 29.03.2026 i Oslo.
     vi.setSystemTime(new Date(2026, 2, 29, 12, 0));
     expect(formatTime(parseTime("02:30"))).toBe("02:30");
-    expect(toLocalWire(parseTime("02:30"))).toBe("2000-01-01T02:30");
+    expect(parseTime("02:30")).toEqual(new Date(2000, 0, 1, 2, 30));
+    expect(toTimeWire("02:30")).toBe("02:30");
   });
 });
 
@@ -344,6 +345,22 @@ describe("wire-format", () => {
 
   it("toLocalWire kaster for Invalid Date", () => {
     expect(() => toLocalWire(new Date(NaN))).toThrow(RangeError);
+  });
+
+  it("toTimeWire gir bare klokkeslett med to sifre", () => {
+    expect(toTimeWire("10:30")).toBe("10:30");
+    expect(toTimeWire("00:00")).toBe("00:00");
+    expect(toTimeWire("23:59")).toBe("23:59");
+    // Det isValidTime godtar uten utfylling, normaliseres.
+    expect(isValidTime("9:05")).toBe(true);
+    expect(toTimeWire("9:05")).toBe("09:05");
+  });
+
+  it("toTimeWire kaster for ugyldig eller manglende klokkeslett", () => {
+    for (const value of ["1", "24:00", "10:60", "", null, undefined]) {
+      expect(isValidTime(value)).toBe(false);
+      expect(() => toTimeWire(value)).toThrow(RangeError);
+    }
   });
 
   it("toInstantWire gir UTC med millisekunder", () => {

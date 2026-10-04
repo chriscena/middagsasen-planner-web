@@ -3076,6 +3076,16 @@
               }
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "403": {
             "description": "Forbidden",
             "content": {
@@ -3220,6 +3230,16 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EventTemplateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -5181,15 +5201,16 @@
         "type": "object",
         "properties": {
           "startDate": {
-            "type": "string"
+            "type": "string",
+            "format": "date"
           }
         }
       },
       "EventRequest": {
         "required": [
-          "name",
           "startTime",
           "endTime",
+          "name",
           "resources"
         ],
         "type": "object",
@@ -5204,10 +5225,12 @@
             ]
           },
           "startTime": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "endTime": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "resources": {
             "type": "array",
@@ -5271,10 +5294,10 @@
       },
       "EventTemplateRequest": {
         "required": [
-          "name",
-          "eventName",
           "startTime",
           "endTime",
+          "name",
+          "eventName",
           "resourceTemplates"
         ],
         "type": "object",
@@ -5286,10 +5309,12 @@
             "type": "string"
           },
           "startTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "endTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "resourceTemplates": {
             "type": "array",
@@ -5654,9 +5679,9 @@
       },
       "ResourceRequest": {
         "required": [
-          "resourceTypeId",
           "startTime",
           "endTime",
+          "resourceTypeId",
           "minimumStaff",
           "isDeleted"
         ],
@@ -5674,10 +5699,12 @@
             "format": "int32"
           },
           "startTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "endTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "minimumStaff": {
             "type": "integer",
@@ -5765,9 +5792,9 @@
       },
       "ResourceTemplateRequest": {
         "required": [
-          "resourceTypeId",
           "startTime",
           "endTime",
+          "resourceTypeId",
           "minimumStaff",
           "isDeleted"
         ],
@@ -5785,10 +5812,12 @@
             "format": "int32"
           },
           "startTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "endTime": {
-            "type": "string"
+            "type": "string",
+            "format": "time"
           },
           "minimumStaff": {
             "type": "integer",

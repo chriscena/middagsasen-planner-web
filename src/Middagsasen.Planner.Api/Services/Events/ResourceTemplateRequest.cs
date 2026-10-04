@@ -4,8 +4,10 @@
     {
         public int? Id { get; set; }
         public int ResourceTypeId { get; set; }
-        public string StartTime { get; set; } = null!;
-        public string EndTime { get; set; } = null!;
+        /// <summary>Klokkeslett. JSON: <c>"HH:mm"</c> (sekunder kan tas med). Døgnet bestemmes ut fra vaktlista.</summary>
+        public required TimeOnly StartTime { get; set; }
+        /// <summary>Klokkeslett, som <see cref="StartTime"/>. Før start betyr neste døgn.</summary>
+        public required TimeOnly EndTime { get; set; }
         public int MinimumStaff { get; set; }
         public bool IsDeleted { get; set; }
     }

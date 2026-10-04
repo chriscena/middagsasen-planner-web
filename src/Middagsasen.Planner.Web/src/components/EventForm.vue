@@ -158,9 +158,9 @@ import {
   isValidDate,
   isValidTime,
   toLocalWire,
+  toTimeWire,
   today,
 } from "@/shared/time";
-import { toResourceDateTimes } from "@/shared/timeValidation";
 import { notifyApiError } from "@/shared/notifyApiError";
 import { newClientKey } from "@/shared/clientKey";
 
@@ -267,16 +267,18 @@ const canSave = computed(() => {
 
 async function saveEvent() {
   if (loadFailed.value) return;
-  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toLocalWire.
-  const resourceTimes = resources.value.map((r) =>
-    toResourceDateTimes(startDate.value, r.startTime, r.endTime)
+  // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
+  // Enter; ugyldig dato eller tid ville gitt RangeError i toLocalWire.
+  if (!canSave.value) return;
+  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toTimeWire.
+  // Gjelder også slettede vakter: backend krever gyldige tider på alle.
+  const invalid = resources.value.find(
+    (r) => !isValidTime(r.startTime) || !isValidTime(r.endTime)
   );
-  const invalidIndex = resourceTimes.findIndex((t) => t === null);
-  if (invalidIndex >= 0) {
-    const invalid = resources.value[invalidIndex];
+  if (invalid) {
     $q.notify({
       message: `Vakta «${
-        invalid?.resourceType?.name ?? ""
+        invalid.resourceType?.name ?? ""
       }» har ugyldig start- eller sluttid.`,
     });
     return;
@@ -289,15 +291,14 @@ async function saveEvent() {
       description: description.value ?? null,
       startTime: toLocalWire(interval.value.start),
       endTime: toLocalWire(interval.value.end),
-      resources: resources.value.map((r, i) => {
-        // Validert over: ingen er null.
-        const times = resourceTimes[i]!;
+      resources: resources.value.map((r) => {
         return {
           id: r.id ?? null,
           // ResourceForm krever vakttype før lagring (canAdd).
           resourceTypeId: r.resourceType!.id,
-          startTime: toLocalWire(times.start),
-          endTime: toLocalWire(times.end),
+          // Bare klokkeslett; backend legger vakta på riktig døgn.
+          startTime: toTimeWire(r.startTime),
+          endTime: toTimeWire(r.endTime),
           // q-input type="number" kan gi string; Number() sender et tall.
           minimumStaff: Number(r.minimumStaff),
           // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).

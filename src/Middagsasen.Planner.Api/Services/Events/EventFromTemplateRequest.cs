@@ -2,6 +2,7 @@
 {
     public class EventFromTemplateRequest
     {
-        public string StartDate { get; set; } = null!;
+        /// <summary>Dagen vaktlista legges på. JSON: <c>"yyyy-MM-dd"</c>.</summary>
+        public required DateOnly StartDate { get; set; }
     }
 }

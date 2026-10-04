@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
@@ -13,11 +12,6 @@ namespace Middagsasen.Planner.Api.Services.Events
         internal static readonly string MessageTooLongMessage = $"Beskjeden kan ikke være lengre enn {MessageRequest.MaxLength} tegn.";
 
         internal const string EventNotFoundMessage = "Fant ikke arrangementet.";
-        internal const string InvalidStartDateMessage = "Ugyldig startdato. Bruk formatet ÅÅÅÅ-MM-DD.";
-        internal const string InvalidStartTimeMessage = "Ugyldig starttid.";
-        internal const string InvalidEndTimeMessage = "Ugyldig sluttid.";
-        internal const string InvalidResourceStartTimeMessage = "Ugyldig starttid for vakt.";
-        internal const string InvalidResourceEndTimeMessage = "Ugyldig sluttid for vakt.";
 
         public EventsService(PlannerDbContext dbContext, IResourceReader reader, ICurrentUserService currentUser)
         {
@@ -96,7 +90,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEvent(EventRequest request)
         {
-            var (eventStart, eventEnd) = ParseEventTimes(request);
+            var (eventStart, eventEnd) = EventTimes(request);
             var newEvent = new Event
             {
                 Name = request.Name,
@@ -114,13 +108,6 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
-            // Alle tider valideres før den sporede entiteten endres, så en valideringsfeil ikke etterlater
-            // en halvveis endret entitet. Slettede ressurser brukes ikke, og tidene deres valideres derfor ikke.
-            var (eventStart, eventEnd) = ParseEventTimes(request);
-            var resources = request.Resources
-                .Select(r => (Request: r, Times: r.IsDeleted ? default : PlaceResource(r, eventStart, eventEnd)))
-                .ToList();
-
             var existingEvent = await DbContext.Events
                 .Include(e => e.Resources)
                 .SingleOrDefaultAsync(e => e.EventId == eventId)
@@ -128,10 +115,11 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             existingEvent.Name = request.Name;
             existingEvent.Description = request.Description;
+            var (eventStart, eventEnd) = EventTimes(request);
             existingEvent.StartTime = eventStart;
             existingEvent.EndTime = eventEnd;
 
-            foreach (var (resource, times) in resources)
+            foreach (var resource in request.Resources)
             {
                 if (resource.IsDeleted)
                 {
@@ -141,14 +129,14 @@ namespace Middagsasen.Planner.Api.Services.Events
                 }
                 else if (!resource.Id.HasValue)
                 {
-                    existingEvent.Resources.Add(Map(resource, times));
+                    existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
                 }
                 else
                 {
                     var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
                     if (resourceToUpdate == null) continue;
                     resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = times;
+                    (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
                     resourceToUpdate.MinimumStaff = resource.MinimumStaff;
                 }
             }
@@ -180,10 +168,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
         {
-            // Frontend sender dagnøkkel (yyyy-MM-dd). Ugyldig dato er en valideringsfeil (400), ikke en intern feil.
-            if (!DateOnly.TryParseExact(request.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate))
-                throw new DomainValidationException(InvalidStartDateMessage);
-            var startDay = startDate.ToDateTime(TimeOnly.MinValue);
+            var startDay = request.StartDate.ToDateTime(TimeOnly.MinValue);
 
             var template = await DbContext.EventTemplates
                 .Include(e => e.ResourceTemplates)
@@ -218,40 +203,19 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
-        /// <summary>
-        /// Tolker en innsendt tid. Frontend sender lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>); ISO 8601
-        /// tolkes likt uavhengig av kultur, og <see cref="DateTimeStyles.None"/> gir samme resultat (inkl.
-        /// <see cref="DateTime.Kind"/>) som <see cref="DateTime.Parse(string)"/>. Ugyldig eller tom verdi gir 400.
-        /// </summary>
-        private static DateTime ParseDateTime(string? value, string message) =>
-            DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var result)
-                ? result
-                : throw new DomainValidationException(message);
-
-        private static (DateTime Start, DateTime End) ParseEventTimes(EventRequest request)
-        {
-            var start = ParseDateTime(request.StartTime, InvalidStartTimeMessage);
-            var end = ParseDateTime(request.EndTime, InvalidEndTimeMessage);
-            return (start, ResourceTimes.NormalizeEventEnd(start, end));
-        }
+        private static (DateTime Start, DateTime End) EventTimes(EventRequest request) =>
+            (request.StartTime, ResourceTimes.NormalizeEventEnd(request.StartTime, request.EndTime));
 
         /// <summary>
         /// Bruker kun klokkeslettet fra innsendte ressurstider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
         /// </summary>
-        private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
-        {
-            var start = ParseDateTime(request.StartTime, InvalidResourceStartTimeMessage);
-            var end = ParseDateTime(request.EndTime, InvalidResourceEndTimeMessage);
-            return ResourceTimes.Place(eventStart, eventEnd, start.TimeOfDay, end.TimeOfDay);
-        }
+        private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
+            ResourceTimes.Place(eventStart, eventEnd, request.StartTime.ToTimeSpan(), request.EndTime.ToTimeSpan());
 
         /// <summary>Ny ressurs. En eventuell <see cref="ResourceRequest.Id"/> ignoreres; id-en settes av databasen.</summary>
-        private static EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
-            Map(request, PlaceResource(request, eventStart, eventEnd));
-
-        private static EventResource Map(ResourceRequest request, (DateTime Start, DateTime End) times)
+        private static EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
         {
-            var (start, end) = times;
+            var (start, end) = PlaceResource(request, eventStart, eventEnd);
             return new EventResource
             {
                 ResourceTypeId = request.ResourceTypeId,

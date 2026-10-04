@@ -5,13 +5,18 @@
 // annet er sagt.
 //
 // Wire-format mot API-et (endres ikke her, bare samlet):
-// - Arrangementer og maler (POST/PUT /api/events, /api/templates):
-//   lokal tid uten tidssone, "yyyy-MM-ddTHH:mm" → `toLocalWire`. Svarene
-//   har samme form (uten sone) og kan gis direkte til visningsfunksjonene.
-//   For maler bruker backend bare klokkeslettet (TimeOfDay); datodelen er
-//   den faste referansedatoen fra `parseTime`.
+// - Vaktlister (POST/PUT /api/events): lokal tid uten tidssone,
+//   "yyyy-MM-ddTHH:mm" → `toLocalWire`.
+// - Vakter i vaktlister (`resources` i /api/events) og maler med vakter
+//   (POST/PUT /api/templates): bare klokkeslett, "HH:mm" (TimeOnly i
+//   backend) → `toTimeWire`. Backend bestemmer selv hvilket døgn en vakt
+//   havner på (se `Services/Events/ResourceTimes.cs` i API-prosjektet).
+//   Ugyldige tider gir 400, også for vakter som slettes (`isDeleted`).
+// - Vaktliste fra mal (POST /api/events/template/{id}): `startDate` er
+//   dato "yyyy-MM-dd" → `toDayKey`.
 // - Svar med lokal tid uten sone, "yyyy-MM-ddTHH:mm": arrangementer,
-//   ressurser, maler og vakter (`startTime`/`endTime`).
+//   ressurser, maler og vakter (`startTime`/`endTime`). Maler har den faste
+//   datoen 2000-01-01; bare klokkeslettet er meningsfullt.
 // - Svar med UTC-tidspunkt, "yyyy-MM-ddTHH:mm:ssZ": filer (`created`/
 //   `updated`), meldinger (`created`) og opplæring (`confirmed`).
 //   Begge formene kan gis direkte til visningsfunksjonene (`parseISO`
@@ -174,7 +179,7 @@ export function isValidDate(date: string | null | undefined): boolean {
 /**
  * Klokkeslett "HH:mm" lagt på en fast referansedato (1. januar 2000, uten
  * sommertidsskifte), slik at klokkeslettet aldri forskyves av sommertid på
- * dagens dato. Brukes for maler, der backend bare leser klokkeslettet.
+ * dagens dato.
  * Ugyldig eller manglende klokkeslett gir Invalid Date (kaster ikke).
  */
 export function parseTime(time: string | null | undefined): Date {
@@ -287,9 +292,18 @@ export function lastHours(hours: number, now: Date = new Date()): Interval {
 // Wire-format (se oversikten øverst). Funksjonene som tar en Date kaster
 // RangeError for Invalid Date, så kallere må validere først.
 
-/** Lokal tid uten tidssone, "yyyy-MM-ddTHH:mm" (arrangementer og maler). */
+/** Lokal tid uten tidssone, "yyyy-MM-ddTHH:mm" (vaktlister). */
 export function toLocalWire(date: Date): string {
   return format(date, LOCAL_WIRE_FORMAT);
+}
+
+/**
+ * Klokkeslett fra skjemaet som "HH:mm" med to sifre (vakter og maler), f.eks.
+ * "9:05" → "09:05". Tolkes med samme parser som `isValidTime`, så alt den
+ * godtar gir gyldig wire-format. Kaster RangeError for ugyldig klokkeslett.
+ */
+export function toTimeWire(time: string | null | undefined): string {
+  return format(parseTime(time), TIME_FORMAT);
 }
 
 /** UTC-tidspunkt med millisekunder, "yyyy-MM-ddTHH:mm:ss.sssZ" (timeføring). */

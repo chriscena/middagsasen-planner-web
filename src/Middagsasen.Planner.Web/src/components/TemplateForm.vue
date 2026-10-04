@@ -102,7 +102,7 @@ import type {
   ResourceTypeResponse,
 } from "@/types";
 import { newClientKey } from "@/shared/clientKey";
-import { formatTime, isValidTime, parseTime, toLocalWire } from "@/shared/time";
+import { formatTime, isValidTime, toTimeWire } from "@/shared/time";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
 // mal med id 0 og name null.
@@ -164,7 +164,7 @@ const eventName = ref<string | null>(null);
 
 const isValidStartTime = computed(() => isValidTime(startTime.value));
 const isValidEndTime = computed(() => isValidTime(endTime.value));
-// Ugyldige tider (f.eks. «1») ville gitt RangeError i toLocalWire.
+// Ugyldige tider (f.eks. «1») ville gitt RangeError i toTimeWire.
 const hasValidResourceTimes = computed(() =>
   resources.value.every(
     (r) => isValidTime(r.startTime) && isValidTime(r.endTime)
@@ -200,16 +200,16 @@ function mapToModel(): TemplateFormModel {
     id: props.modelValue.id,
     name: name.value,
     eventName: eventName.value,
-    // Malen lagrer bare klokkeslettet; datoen (i dag) brukes ikke.
-    startTime: toLocalWire(parseTime(startTime.value)),
-    endTime: toLocalWire(parseTime(endTime.value)),
+    // Malen lagrer bare klokkeslettet ("HH:mm").
+    startTime: toTimeWire(startTime.value),
+    endTime: toTimeWire(endTime.value),
     resourceTemplates: resources.value.map((r) => {
       return {
         id: r.id ?? null,
         // ResourceForm krever vakttype før lagring (canAdd).
         resourceTypeId: r.resourceType!.id,
-        startTime: toLocalWire(parseTime(r.startTime)),
-        endTime: toLocalWire(parseTime(r.endTime)),
+        startTime: toTimeWire(r.startTime),
+        endTime: toTimeWire(r.endTime),
         // q-input type="number" kan gi string; Number() sender et tall.
         minimumStaff: Number(r.minimumStaff),
         // Listeelementer har alltid isDeleted satt (false ved lasting og legg til).

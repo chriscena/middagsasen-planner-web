@@ -2498,6 +2498,15 @@ export interface paths {
                         "text/json": components["schemas"]["EventTemplateResponse"];
                     };
                 };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Unauthorized */
                 401: {
                     headers: {
@@ -2608,6 +2617,15 @@ export interface paths {
                         "text/plain": components["schemas"]["EventTemplateResponse"];
                         "application/json": components["schemas"]["EventTemplateResponse"];
                         "text/json": components["schemas"]["EventTemplateResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
@@ -3986,12 +4004,15 @@ export interface components {
             description?: null | string;
         };
         EventFromTemplateRequest: {
+            /** Format: date */
             startDate: string;
         };
         EventRequest: {
             name: string;
             description?: null | string;
+            /** Format: date-time */
             startTime: string;
+            /** Format: date-time */
             endTime: string;
             resources: components["schemas"]["ResourceRequest"][];
         };
@@ -4011,7 +4032,9 @@ export interface components {
         EventTemplateRequest: {
             name: string;
             eventName: string;
+            /** Format: time */
             startTime: string;
+            /** Format: time */
             endTime: string;
             resourceTemplates: components["schemas"]["ResourceTemplateRequest"][];
         };
@@ -4110,7 +4133,9 @@ export interface components {
             id?: null | number;
             /** Format: int32 */
             resourceTypeId: number;
+            /** Format: time */
             startTime: string;
+            /** Format: time */
             endTime: string;
             /** Format: int32 */
             minimumStaff: number;
@@ -4140,7 +4165,9 @@ export interface components {
             id?: null | number;
             /** Format: int32 */
             resourceTypeId: number;
+            /** Format: time */
             startTime: string;
+            /** Format: time */
             endTime: string;
             /** Format: int32 */
             minimumStaff: number;
