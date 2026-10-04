@@ -71,7 +71,8 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Åpner SQL-serveren for runnerens IP — fjernes i siste steg
+      # Åpner SQL-serveren for runnerens IP — fjernes i siste steg.
+      # Regelen kan bruke litt tid før den virker; sqlpackage-retry.sh prøver igjen ved feil 40615.
       - name: Opprett midlertidig brannmurregel
         run: |
           IP=$(curl -fsS https://api.ipify.org)
@@ -94,14 +95,14 @@ jobs:
         run: |
           mkdir -p "$OUT_DIR"
           cp "$DACPAC" "$OUT_DIR/"
-          sqlpackage /Action:Script \
+          bash .github/scripts/sqlpackage-retry.sh /Action:Script \
             /SourceFile:"$DACPAC" \
             /AccessToken:"$SQL_ACCESS_TOKEN" \
             /TargetServerName:"$SQL_SERVER.database.windows.net" \
             /TargetDatabaseName:"$SQL_DATABASE" \
             /OutputPath:"$OUT_DIR/deploy.sql" \
             /p:BlockOnPossibleDataLoss=true
-          sqlpackage /Action:DeployReport \
+          bash .github/scripts/sqlpackage-retry.sh /Action:DeployReport \
             /SourceFile:"$DACPAC" \
             /AccessToken:"$SQL_ACCESS_TOKEN" \
             /TargetServerName:"$SQL_SERVER.database.windows.net" \
@@ -120,7 +121,7 @@ jobs:
       - name: Publiser til databasen
         if: inputs.action == 'publish'
         run: |
-          sqlpackage /Action:Publish \
+          bash .github/scripts/sqlpackage-retry.sh /Action:Publish \
             /SourceFile:"$DACPAC" \
             /AccessToken:"$SQL_ACCESS_TOKEN" \
             /TargetServerName:"$SQL_SERVER.database.windows.net" \
