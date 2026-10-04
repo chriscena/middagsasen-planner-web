@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
@@ -1398,35 +1399,45 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         /// samme gamle verdien og skrev før A, slik at A overskriver B).
         /// </summary>
         /// <returns>Unntaket fra A og B (<c>null</c> hvis kallet lyktes), og om B ble ferdig mens A var inne i låsen.</returns>
-        private async Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
+        private Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
             int adminUserId, Func<IShiftService, Task> action)
+            => RunInterleaved(
+                inside => new BeforeWriteAfterReadInterceptor(inside),
+                contextA => action(CreateService(contextA, adminUserId, isAdmin: true)),
+                contextB => action(CreateService(contextB, adminUserId, isAdmin: true)));
+
+        /// <summary>
+        /// Som <see cref="RunInterleaved(int, Func{IShiftService, Task})"/>, men med ulike operasjoner for A og B, og der
+        /// <paramref name="pauseFirst"/> bestemmer hvor A stopper (interceptoren får tilbakekallet som starter B og venter).
+        /// </summary>
+        private async Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
+            Func<Func<Task>, IInterceptor> pauseFirst, Func<PlannerDbContext, Task> first, Func<PlannerDbContext, Task> second)
         {
             // B sin tilkobling åpnes og varmes opp på forhånd, så B kan lese med en gang den startes. Ellers kan en treg
             // tilkobling gjøre at A rekker å committe før B leser, og testen blir grønn selv uten lås.
             using var contextB = _fixture.CreateContext();
             await contextB.Database.OpenConnectionAsync();
             var sessionB = await GetSessionId(contextB);
-            var serviceB = CreateService(contextB, adminUserId, isAdmin: true);
 
             using var monitor = _fixture.CreateContext();
             await monitor.Database.OpenConnectionAsync();
             await IsWaitingForLock(monitor, sessionB);
 
-            Task<Exception?>? second = null;
+            Task<Exception?>? secondTask = null;
             var secondFinishedInsideFirst = false;
 
-            using var contextA = _fixture.CreateContext(new BeforeWriteAfterReadInterceptor(async () =>
+            using var contextA = _fixture.CreateContext(pauseFirst(async () =>
             {
-                second = Task.Run(() => Attempt(() => action(serviceB)));
+                secondTask = Task.Run(() => Attempt(() => second(contextB)));
                 var timeout = Task.Delay(TimeSpan.FromSeconds(5));
-                while (!second.IsCompleted && !timeout.IsCompleted && !await IsWaitingForLock(monitor, sessionB))
+                while (!secondTask.IsCompleted && !timeout.IsCompleted && !await IsWaitingForLock(monitor, sessionB))
                     await Task.Delay(10);
-                secondFinishedInsideFirst = second.IsCompleted;
+                secondFinishedInsideFirst = secondTask.IsCompleted;
             }));
-            var first = await Attempt(() => action(CreateService(contextA, adminUserId, isAdmin: true)));
+            var firstResult = await Attempt(() => first(contextA));
 
-            Assert.NotNull(second); // interceptoren kjørte, B ble startet inne i A
-            return (first, await second, secondFinishedInsideFirst);
+            Assert.NotNull(secondTask); // interceptoren kjørte, B ble startet inne i A
+            return (firstResult, await secondTask, secondFinishedInsideFirst);
         }
 
         private static async Task<short> GetSessionId(PlannerDbContext context)
@@ -1438,70 +1449,111 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                 $"SELECT COUNT(*) AS [Value] FROM sys.dm_exec_requests WHERE session_id = {sessionId} AND wait_type LIKE 'LCK%'")
                 .SingleAsync() > 0;
 
-        /// <summary>
-        /// #151: admin A lagrer vaktlisteskjemaet med én vakt mer (3 → 4) mens admin B klikker «Legg til ledig plass».
-        /// B startes mens A er inne i transaksjonen og har lest bemanningen, men ikke lagret (<see cref="BeforeSaveInterceptor"/>).
-        /// Med ressurslåsen venter B til A har committet og legger plassen til på A sin verdi, så begge endringene teller.
-        /// Uten låsen ville B skrevet 4 inne i A, og A overskrevet med 4 regnet ut fra den gamle verdien.
-        /// </summary>
-        [Fact]
-        public async Task UpdateEvent_AndAddEmptySlot_Concurrent_BothChangesCount()
+        private static EventsService CreateEventsService(PlannerDbContext context, int adminUserId)
         {
-            using var seed = _fixture.CreateContext();
-            var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
-            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
-
-            // Som i RunInterleaved: B sin tilkobling varmes opp på forhånd, så B kan starte med en gang.
-            using var contextB = _fixture.CreateContext();
-            await contextB.Database.OpenConnectionAsync();
-            var sessionB = await GetSessionId(contextB);
-            var serviceB = CreateService(contextB, admin.UserId, isAdmin: true);
-
-            using var monitor = _fixture.CreateContext();
-            await monitor.Database.OpenConnectionAsync();
-            await IsWaitingForLock(monitor, sessionB);
-
-            Task<Exception?>? second = null;
-            var secondFinishedInsideFirst = false;
-
-            using var contextA = _fixture.CreateContext(new BeforeSaveInterceptor(async () =>
-            {
-                second = Task.Run(() => Attempt(() => serviceB.AddEmptySlot(resource.EventResourceId)));
-                var timeout = Task.Delay(TimeSpan.FromSeconds(5));
-                while (!second.IsCompleted && !timeout.IsCompleted && !await IsWaitingForLock(monitor, sessionB))
-                    await Task.Delay(10);
-                secondFinishedInsideFirst = second.IsCompleted;
-            }));
             var currentUser = Substitute.For<ICurrentUserService>();
-            currentUser.UserId.Returns(admin.UserId);
+            currentUser.UserId.Returns(adminUserId);
             currentUser.IsAdmin.Returns(true);
-            var eventsA = new EventsService(contextA, new ResourceReader(contextA, new FakeTimeProvider(BeforeResource)), currentUser);
+            return new EventsService(context, new ResourceReader(context, new FakeTimeProvider(BeforeResource)), currentUser);
+        }
 
-            var first = await Attempt(() => eventsA.UpdateEvent(evt.EventId, new EventRequest
+        /// <summary>Vaktlisteskjemaet for vaktlista til <paramref name="resource"/>, med én ressurs.</summary>
+        private static EventRequest EventFormRequest(Event evt, EventResource resource, int minimumStaff, int? originalMinimumStaff, TimeOnly? resourceStart = null)
+            => new()
             {
                 Name = evt.Name,
-                StartTime = ResourceStart,
-                EndTime = ResourceEnd,
+                StartTime = evt.StartTime,
+                EndTime = evt.EndTime,
                 Resources =
                 [
                     new ResourceRequest
                     {
                         Id = resource.EventResourceId,
                         ResourceTypeId = resource.ResourceTypeId,
-                        StartTime = TimeOnly.FromDateTime(ResourceStart),
+                        StartTime = resourceStart ?? TimeOnly.FromDateTime(ResourceStart),
                         EndTime = TimeOnly.FromDateTime(ResourceEnd),
-                        MinimumStaff = 4,
-                        OriginalMinimumStaff = 3,
+                        MinimumStaff = minimumStaff,
+                        OriginalMinimumStaff = originalMinimumStaff,
                     },
                 ],
-            }));
+            };
 
-            Assert.NotNull(second); // interceptoren kjørte, B ble startet inne i A
+        /// <summary>
+        /// #151: admin A lagrer vaktlisteskjemaet (3 → 6) mens admin B klikker «Legg til ledig plass». B startes mens A er inne
+        /// i transaksjonen og har lest bemanningen, men ikke lagret (<see cref="BeforeSaveInterceptor"/>). B venter på
+        /// ressurslåsen og legger plassen til på A sin verdi, så begge endringene teller. Uten låsen ville B skrevet 4 inne i A,
+        /// og A overskrevet med 6.
+        /// </summary>
+        [Fact]
+        public async Task UpdateEvent_ThenAddEmptySlot_Concurrent_BothChangesCount()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                inside => new BeforeSaveInterceptor(inside),
+                contextA => CreateEventsService(contextA, admin.UserId)
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3)),
+                contextB => CreateService(contextB, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId));
+
             Assert.Null(first);
-            Assert.Null(await second);
+            Assert.Null(second);
             Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
-            Assert.Equal(5, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(7, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        /// <summary>
+        /// #151, motsatt rekkefølge: admin A klikker «Legg til ledig plass» (3 → 4), og admin B lagrer skjemaet (lastet med 3,
+        /// satt til 6) mens A er inne i ressurslåsen. B venter på låsen, ser deretter at verdien er endret av noen andre og
+        /// får konflikt i stedet for å overskrive A sin plass i stillhet.
+        /// </summary>
+        [Fact]
+        public async Task AddEmptySlot_ThenUpdateEvent_Concurrent_UpdateEventGetsConflict()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                inside => new BeforeWriteAfterReadInterceptor(inside),
+                contextA => CreateService(contextA, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId),
+                contextB => CreateEventsService(contextB, admin.UserId)
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3)));
+
+            Assert.Null(first);
+            Assert.IsType<ConcurrentUpdateException>(second);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+        }
+
+        /// <summary>
+        /// Admin A flytter starten på ressursen (09:00 → 10:00) mens en bruker tar vakt fra 09:00. Endringen i tider skjer under
+        /// ressurslåsen, så påmeldingen venter og vurderes mot de nye tidene. Uten låsen ville den blitt godkjent mot de gamle.
+        /// </summary>
+        [Fact]
+        public async Task UpdateEvent_ChangingTimes_BlocksConcurrentSignUp_WhichIsCheckedAgainstNewTimes()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed, minimumStaff: 3);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+
+            var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
+                inside => new BeforeSaveInterceptor(inside),
+                contextA => CreateEventsService(contextA, admin.UserId)
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 3, originalMinimumStaff: 3, resourceStart: new TimeOnly(10, 0))),
+                contextB => CreateService(contextB, user.UserId)
+                    .SignUp(resource.EventResourceId, new SignUpRequest { StartTime = ResourceStart, EndTime = ResourceEnd }));
+
+            Assert.Null(first);
+            var ex = Assert.IsType<DomainValidationException>(second);
+            Assert.Equal(ShiftService.InvalidTimesMessage, ex.Message);
+            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.Empty(await GetShifts(resource.EventResourceId));
         }
 
         [Fact]

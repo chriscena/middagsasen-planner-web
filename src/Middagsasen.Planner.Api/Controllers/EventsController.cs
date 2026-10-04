@@ -74,6 +74,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
         public async Task<EventResponse> Update(int id, [FromBody] EventRequest request)
         {
             return await EventsService.UpdateEvent(id, request);

@@ -82,6 +82,19 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
         }
 
         [Fact]
+        public async Task Returns409_WhenConcurrentUpdateExceptionThrown()
+        {
+            var middleware = CreateMiddleware(_ => throw new ConcurrentUpdateException("Endret av noen andre"));
+            var context = CreateHttpContext();
+
+            await middleware.Invoke(context);
+
+            var (statusCode, body) = await GetResponse(context);
+            Assert.Equal(StatusCodes.Status409Conflict, statusCode);
+            Assert.Contains("Endret av noen andre", body);
+        }
+
+        [Fact]
         public async Task Returns401_WhenNotAuthenticatedExceptionThrown()
         {
             var middleware = CreateMiddleware(_ => throw new NotAuthenticatedException("Ikke innlogget"));
@@ -152,6 +165,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             { new EntityNotFoundException(), "Fant ikke det du lette etter." },
             { new ForbiddenAccessException(), "Du har ikke tilgang til å utføre denne handlingen." },
             { new EntityLockedException(), "Dette er låst og kan ikke endres." },
+            { new ConcurrentUpdateException(), ConcurrentUpdateException.DefaultMessage },
             { new DomainValidationException(), "Forespørselen er ugyldig." },
             { new NotAuthenticatedException(), "Du må være innlogget." },
         };

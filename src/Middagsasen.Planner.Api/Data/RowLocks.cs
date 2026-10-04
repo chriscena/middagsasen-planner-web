@@ -10,8 +10,10 @@ namespace Middagsasen.Planner.Api.Data
     /// En samtidig transaksjon som låser samme rad, venter derfor til den første er ferdig, og leser deretter ferske data.
     /// </para>
     /// <para>
-    /// Rekkefølge for å unngå vranglås når flere rader låses i samme transaksjon: vaktlista før ressursene, og ressursene
-    /// i stigende id-rekkefølge (<see cref="LockResources"/>).
+    /// Vranglås: den som låser flere rader, tar vaktlista før ressursene (<see cref="LockEvent"/>, så
+    /// <see cref="LockEventResources"/>). Den som låser én ressurs (<see cref="LockResource"/>, påmelding og ledige plasser),
+    /// venter ikke på vaktlisteraden eller andre ressurser mens den holder låsen, og kan derfor ikke inngå i en sykel med
+    /// den som låser flere: den som låser flere, venter i verste fall til enkeltlåsen er committet.
     /// </para>
     /// </summary>
     public static class RowLocks
@@ -29,31 +31,15 @@ namespace Middagsasen.Planner.Api.Data
         /// <summary>Låser ressursraden.</summary>
         /// <returns><c>false</c> hvis ressursen ikke finnes.</returns>
         public static async Task<bool> LockResource(this PlannerDbContext dbContext, int resourceId)
-        {
-            var locked = await dbContext.EventResource
-                .Where(r => r.EventResourceId == resourceId)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, r => r.MinimumStaff));
-            return locked > 0;
-        }
+            => await LockResourceRows(dbContext.EventResource.Where(r => r.EventResourceId == resourceId)) > 0;
 
         /// <summary>
-        /// Låser ressursradene til vaktlista med de gitte id-ene, én og én i stigende id-rekkefølge, slik at to transaksjoner
-        /// som låser overlappende ressurser, alltid tar låsene i samme rekkefølge (én UPDATE med <c>IN</c> gir ingen
-        /// garanti for rekkefølgen). Id-er som ikke finnes eller tilhører en annen vaktliste, hoppes over.
+        /// Låser alle ressursradene til vaktlista med én UPDATE. Kall <see cref="LockEvent"/> først (se vranglås over).
         /// </summary>
-        /// <returns>Id-ene som ble låst.</returns>
-        public static async Task<IReadOnlyList<int>> LockResources(this PlannerDbContext dbContext, int eventId, IEnumerable<int> resourceIds)
-        {
-            var locked = new List<int>();
-            foreach (var resourceId in resourceIds.Distinct().Order())
-            {
-                var count = await dbContext.EventResource
-                    .Where(r => r.EventResourceId == resourceId && r.EventId == eventId)
-                    .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, r => r.MinimumStaff));
-                if (count > 0)
-                    locked.Add(resourceId);
-            }
-            return locked;
-        }
+        public static Task LockEventResources(this PlannerDbContext dbContext, int eventId)
+            => LockResourceRows(dbContext.EventResource.Where(r => r.EventId == eventId));
+
+        private static Task<int> LockResourceRows(IQueryable<EventResource> resources)
+            => resources.ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, r => r.MinimumStaff));
     }
 }

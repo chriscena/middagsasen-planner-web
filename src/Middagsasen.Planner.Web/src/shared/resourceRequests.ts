@@ -1,7 +1,8 @@
 // Vakter fra skjemaene (vaktliste og mal) til request: hvilke som sendes,
 // validering av tidene og mapping til ResourceRequest (vaktliste) og
 // ResourceTemplateRequest (mal). Vaktlista sender i tillegg
-// `originalMinimumStaff`, så backend endrer bemanningen relativt (#151).
+// `originalMinimumStaff`, så backend kan oppdage at bemanningen er endret av
+// andre siden skjemaet ble lastet (#151).
 
 import type {
   ResourceRequest,
@@ -23,8 +24,9 @@ export interface ResourceDraft {
 // Vakt i vaktlisteskjemaet (EventForm/EventPage).
 export interface EventResourceDraft extends ResourceDraft {
   // Bemanningen vakta ble lastet med fra serveren. Endres ikke av
-  // vaktdialogene; backend legger differansen til fersk verdi, så ledige
-  // plasser andre har lagt til eller fjernet imens (#142), beholdes.
+  // vaktdialogene. Backend sammenligner med lagret verdi: er den lik, settes
+  // `minimumStaff`; har andre endret den imens (f.eks. ledige plasser, #142),
+  // svarer backend 409 med norsk `detail`, og skjemaet blir stående åpent.
   originalMinimumStaff?: number | null | undefined;
 }
 
@@ -84,7 +86,7 @@ export function toResourceTemplateRequests(
 
 /**
  * Vaktene i en vaktliste som request. Eksisterende vakter sender
- * `originalMinimumStaff` (relativ endring); nye sender null (absolutt verdi).
+ * `originalMinimumStaff` (konfliktsjekk); nye sender null (ingen sjekk).
  * Nye vakter som er slettet, utelates. Kaster RangeError for ugyldige tider,
  * så kall `findInvalidResource` først.
  */

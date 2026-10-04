@@ -47,6 +47,7 @@ namespace Middagsasen.Planner.Api.Authentication
                 EntityNotFoundException => (StatusCodes.Status404NotFound, exception.Message),
                 ForbiddenAccessException => (StatusCodes.Status403Forbidden, exception.Message),
                 EntityLockedException => (StatusCodes.Status409Conflict, exception.Message),
+                ConcurrentUpdateException => (StatusCodes.Status409Conflict, exception.Message),
                 NotAuthenticatedException => (StatusCodes.Status401Unauthorized, exception.Message),
                 DomainValidationException => (StatusCodes.Status400BadRequest, exception.Message),
                 // Øvrige exceptions (inkl. InvalidOperationException fra EF og UnauthorizedAccessException

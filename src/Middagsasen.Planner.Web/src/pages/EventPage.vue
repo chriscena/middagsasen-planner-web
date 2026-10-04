@@ -11,7 +11,7 @@
             flat
             label="Lagre"
             type="submit"
-            :disable="!canSave || loadFailed"
+            :disable="!canSave || loadFailed || loading"
             no-caps
           ></q-btn> </q-toolbar
       ></q-header>
@@ -410,7 +410,7 @@ onMounted(async () => {
           startTime: formatTime(r.startTime),
           endTime: formatTime(r.endTime),
           minimumStaff: r.minimumStaff,
-          // Lagres relativt til denne (se EventResourceDraft).
+          // Verdien skjemaet ble lastet med (se EventResourceDraft).
           originalMinimumStaff: r.minimumStaff,
           isDeleted: false,
         };
@@ -539,7 +539,10 @@ const canAdd = computed(() => {
 });
 
 async function saveEvent() {
-  if (loadFailed.value) return;
+  // Ingen ny lagring mens lasting/lagring/sletting pågår (dobbeltklikk eller
+  // Enter i et felt); en ny lagring med samme originalMinimumStaff ville gitt
+  // 409 når den første er lagret.
+  if (loading.value || loadFailed.value) return;
   // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
   // Enter; ugyldig dato eller tid ville gitt RangeError i toLocalWire.
   if (!canSave.value) return;

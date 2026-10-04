@@ -474,7 +474,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             };
 
         [Fact]
-        public async Task UpdateEvent_UnchangedStaffing_KeepsEmptySlotsAddedInTheMeantime()
+        public async Task UpdateEvent_UnchangedInForm_KeepsEmptySlotsAddedByOthers()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
@@ -493,76 +493,94 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
-        public async Task UpdateEvent_IncreasedStaffing_AddsChangeToCurrentValue()
+        public async Task UpdateEvent_ChangedWithoutCompetition_SetsValue()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            // Skjemaet er lastet med 3. En annen admin har siden lagt til to ledige plasser.
-            await SetMinimumStaff(resource.EventResourceId, 5);
+            await SetMinimumStaff(resource.EventResourceId, 3);
 
             using var context = _fixture.CreateContext();
             await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 4, originalMinimumStaff: 3));
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3));
 
             Assert.Equal(6, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
         }
 
         [Fact]
-        public async Task UpdateEvent_DecreasedStaffing_SubtractsChangeFromCurrentValue()
+        public async Task UpdateEvent_RetryWithSameForm_GivesNoErrorAndSameValue()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SeedShifts(seed, resource, 1);
-            // Skjemaet er lastet med 3. En annen admin har siden fjernet én ledig plass (3 → 2), og én vakt er bemannet.
-            await SetMinimumStaff(resource.EventResourceId, 2);
+            await SetMinimumStaff(resource.EventResourceId, 3);
+            var request = StaffingRequest(evt, resource, minimumStaff: 4, originalMinimumStaff: 3);
 
-            using var context = _fixture.CreateContext();
-            await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 2, originalMinimumStaff: 3));
+            using (var context = _fixture.CreateContext())
+                await CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request);
+            using (var context = _fixture.CreateContext())
+                await CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request);
 
-            // Den siste ledige plassen fjernes; den bemannede vakta står.
-            Assert.Equal(1, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
+            Assert.Equal(4, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
         }
 
         [Fact]
-        public async Task UpdateEvent_DecreaseBelowShiftCount_ThrowsDomainValidation_AndSavesNothing()
+        public async Task UpdateEvent_ChangedByOthers_ThrowsConflictWithStoredValues_AndSavesNothing()
         {
             using var seed = _fixture.CreateContext();
-            var resourceType = await SeedResourceType(seed, UniqueName("Storheis"));
+            var otherType = await SeedResourceType(seed, UniqueName("Barneheis"));
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SetMinimumStaff(resource.EventResourceId, 3);
-            await SeedShifts(seed, resource, 2);
+            var storedTypeName = await seed.ResourceTypes.Where(t => t.ResourceTypeId == resource.ResourceTypeId).Select(t => t.Name).SingleAsync();
+            // Skjemaet er lastet med 3 og settes til 4. En annen admin har siden lagt til to ledige plasser (5).
+            await SetMinimumStaff(resource.EventResourceId, 5);
 
-            // Skjemaet fjerner to vakter (3 → 1), bytter vakttype, flytter starten og legger til en ressurs,
-            // men bare én vakt er ledig.
-            var request = StaffingRequest(evt, resource, minimumStaff: 1, originalMinimumStaff: 3, name: UniqueName("Renamed"));
+            // Skjemaet endrer også navn, start, vakttype og tider på ressursen, og legger til en ressurs.
+            var request = StaffingRequest(evt, resource, minimumStaff: 4, originalMinimumStaff: 3, name: UniqueName("Renamed"));
             request.StartTime = evt.StartTime.AddHours(1);
-            request.Resources.Single().ResourceTypeId = resourceType.ResourceTypeId;
+            var requested = request.Resources.Single();
+            requested.ResourceTypeId = otherType.ResourceTypeId;
+            requested.StartTime = new TimeOnly(10, 0);
             request.Resources = request.Resources.Append(new ResourceRequest
             {
-                ResourceTypeId = resourceType.ResourceTypeId,
+                ResourceTypeId = otherType.ResourceTypeId,
                 StartTime = new TimeOnly(10, 0),
                 EndTime = new TimeOnly(12, 0),
                 MinimumStaff = 1,
             }).ToList();
 
             using var context = _fixture.CreateContext();
-            var ex = await Assert.ThrowsAsync<DomainValidationException>(() =>
+            var ex = await Assert.ThrowsAsync<ConcurrentUpdateException>(() =>
                 CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request));
 
+            // Meldingen viser lagret vakttype, lagrede tider og lagret verdi, ikke det skjemaet sendte.
             Assert.Equal(
-                EventsService.TooFewEmptySlotsMessage(resourceType.Name, new TimeOnly(8, 0), new TimeOnly(16, 0), removed: 2, emptySlots: 1),
+                EventsService.StaffingChangedMessage(storedTypeName, resource.StartTime, resource.EndTime, 5),
                 ex.Message);
-            Assert.Contains(resourceType.Name, ex.Message);
+            Assert.Contains($"{storedTypeName} 08:00–16:00", ex.Message);
+            Assert.Contains("nå 5", ex.Message);
 
             // Ingenting er lagret: verken navn, tider, vakttype, bemanning eller den nye ressursen.
             var (storedEvent, storedResource) = await GetStored(evt.EventId, resource.EventResourceId);
             Assert.Equal(evt.Name, storedEvent.Name);
             Assert.Equal(evt.StartTime, storedEvent.StartTime);
             Assert.Equal(resource.ResourceTypeId, storedResource.ResourceTypeId);
-            Assert.Equal(3, storedResource.MinimumStaff);
+            Assert.Equal(resource.StartTime, storedResource.StartTime);
+            Assert.Equal(5, storedResource.MinimumStaff);
             using var verify = _fixture.CreateContext();
             Assert.Equal(1, await verify.EventResource.CountAsync(r => r.EventId == evt.EventId));
+        }
+
+        [Fact]
+        public async Task UpdateEvent_DecreaseBelowShiftCountWithoutCompetition_IsAllowed()
+        {
+            using var seed = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seed);
+            await SetMinimumStaff(resource.EventResourceId, 3);
+            await SeedShifts(seed, resource, 2);
+
+            using var context = _fixture.CreateContext();
+            await CreateService(context, isAdmin: true)
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 1, originalMinimumStaff: 3));
+
+            Assert.Equal(1, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
         }
 
         [Fact]

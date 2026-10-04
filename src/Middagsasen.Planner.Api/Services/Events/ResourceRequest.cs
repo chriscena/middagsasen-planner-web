@@ -11,8 +11,10 @@
         public int MinimumStaff { get; set; }
         /// <summary>
         /// <see cref="MinimumStaff"/> slik den var da skjemaet ble lastet. Gjelder bare eksisterende ressurser (med <see cref="Id"/>)
-        /// ved oppdatering av vaktlista: endringen (<c>MinimumStaff - OriginalMinimumStaff</c>) legges på verdien som er lagret nå,
-        /// slik at ledige plasser andre har lagt til eller fjernet i mellomtiden, ikke overskrives (#151). Lik verdi betyr uendret.
+        /// ved oppdatering av vaktlista, og sammenlignes med verdien som er lagret nå (#151):
+        /// lik <see cref="MinimumStaff"/> betyr uendret i skjemaet, og ingenting skrives (ledige plasser andre har lagt til eller
+        /// fjernet i mellomtiden, beholdes). Ellers settes <see cref="MinimumStaff"/> hvis lagret verdi fortsatt er lik denne
+        /// (eller allerede er lik <see cref="MinimumStaff"/>), og hvis noen andre har endret den, avvises lagringen med 409.
         /// <c>null</c> betyr at <see cref="MinimumStaff"/> settes som absolutt verdi (bakoverkompatibelt for klienter som ikke sender feltet).
         /// Ignoreres for nye ressurser.
         /// </summary>
