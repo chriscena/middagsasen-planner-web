@@ -51,10 +51,10 @@ jobs:
           done
           exit $missing
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up .NET Core
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
 
@@ -65,7 +65,7 @@ jobs:
         run: dotnet tool install -g microsoft.sqlpackage
 
       - name: Login to Azure
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -112,7 +112,7 @@ jobs:
 
       - name: Last opp skript, rapport og dacpac
         if: inputs.action == 'script'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: db-deploy
           path: ${{ env.OUT_DIR }}
