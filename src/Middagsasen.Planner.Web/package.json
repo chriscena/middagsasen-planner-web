@@ -33,7 +33,7 @@
     "vue": "^3.0.0",
     "vue-chartjs": "^5.3.2",
     "vue-i18n": "^9.0.0",
-    "vue-router": "^4.0.0"
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^5.2.0",
