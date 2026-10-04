@@ -1,0 +1,77 @@
+name: Database deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'script = generer deploy-skript og rapport (ingen endringer), publish = oppdater databasen'
+        type: choice
+        default: script
+        options:
+          - script
+          - publish
+
+# Én databasedeploy om gangen — aldri avbryt en pågående
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: Production
+    env:
+      DACPAC: src/Middagsasen.Planner.Database/bin/Release/middagsasen-planner-db.dacpac
+      OUT_DIR: ${{ github.workspace }}/db-deploy
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build database project
+        run: dotnet build src/Middagsasen.Planner.Database/middagsasen-planner-db.sqlproj --configuration Release
+
+      - name: Install sqlpackage
+        run: dotnet tool install -g microsoft.sqlpackage
+
+      # Viser hva som vil skje uten å endre databasen
+      - name: Generer deploy-skript og DeployReport
+        if: inputs.action == 'script'
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          mkdir -p "$OUT_DIR"
+          cp "$DACPAC" "$OUT_DIR/"
+          sqlpackage /Action:Script \
+            /SourceFile:"$DACPAC" \
+            /TargetConnectionString:"$SQL_CONNECTION_STRING" \
+            /OutputPath:"$OUT_DIR/deploy.sql" \
+            /p:BlockOnPossibleDataLoss=true
+          sqlpackage /Action:DeployReport \
+            /SourceFile:"$DACPAC" \
+            /TargetConnectionString:"$SQL_CONNECTION_STRING" \
+            /OutputPath:"$OUT_DIR/deploy-report.xml" \
+            /p:BlockOnPossibleDataLoss=true
+
+      - name: Last opp skript, rapport og dacpac
+        if: inputs.action == 'script'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-deploy
+          path: ${{ env.OUT_DIR }}
+
+      # Stopper hvis endringen kan gi datatap
+      - name: Publiser til databasen
+        if: inputs.action == 'publish'
+        env:
+          SQL_CONNECTION_STRING: ${{ secrets.SQL_CONNECTION_STRING }}
+        run: |
+          sqlpackage /Action:Publish \
+            /SourceFile:"$DACPAC" \
+            /TargetConnectionString:"$SQL_CONNECTION_STRING" \
+            /p:BlockOnPossibleDataLoss=true

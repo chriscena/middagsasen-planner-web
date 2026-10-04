@@ -1,11 +1,8 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: middagsasen-planner-API PR
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
     branches:
       - main
     paths:
@@ -16,6 +13,11 @@ on:
       - 'global.json'
       - '.github/workflows/pr_middagsasen-planner.yml'
   workflow_dispatch:
+
+# Ny push til samme PR avbryter forrige kjøring
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -32,14 +34,21 @@ jobs:
       - name: Build with dotnet
         run: dotnet build --configuration Release
 
+      # dotnet build regenererer openapi.json — den innsjekkede filen må være oppdatert
+      - name: Sjekk at openapi.json er i synk
+        run: |
+          if ! git diff --exit-code -- src/Middagsasen.Planner.Api/openapi/openapi.json; then
+            echo "::error file=src/Middagsasen.Planner.Api/openapi/openapi.json::openapi.json er ikke i synk — kjør dotnet build i src/Middagsasen.Planner.Api og sjekk inn filen (og npm run gen:api i frontend)"
+            exit 1
+          fi
+
+      # Databaseprosjektet er ikke med i .sln og må bygges eksplisitt
+      - name: Build database project
+        run: dotnet build src/Middagsasen.Planner.Database/middagsasen-planner-db.sqlproj --configuration Release
+
       - name: Test with dotnet
         run: dotnet test src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
 
+      # Kun verifisering — ingenting deployes fra PR
       - name: dotnet publish
         run: dotnet publish src/Middagsasen.Planner.Api/Middagsasen.Planner.Api.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
-
-      - name: Upload artifact for deployment job
-        uses: actions/upload-artifact@v4
-        with:
-          name: .net-app
-          path: ${{env.DOTNET_ROOT}}/myapp
