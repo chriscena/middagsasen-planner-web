@@ -1,7 +1,9 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import type {
+  EventRequest,
   EventResponse,
+  MessageResponse,
   ResourceResponse,
   ShiftResponse,
   ShiftResult,
@@ -90,6 +92,17 @@ function result(
 
 function eventWith(id: number, resources: ResourceResponse[]): EventResponse {
   return { id, resources } as EventResponse;
+}
+
+// Et svar fra api-mocken som testen selv bestemmer når kommer.
+function deferred<T>() {
+  let resolve!: (value: { data: T }) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<{ data: T }>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 describe("EventStore", () => {
@@ -454,6 +467,265 @@ describe("EventStore", () => {
       await old;
 
       expect(store.events).toEqual(newEvents);
+    });
+  });
+
+  // #145: endres events lokalt mens en henting pågår, kan svaret være eldre
+  // enn endringen. Da henter getEventsForDates perioden på nytt.
+  describe("lokale endringer under getEventsForDates", () => {
+    const WEEK_URL = "/api/events?start=2026-10-05&end=2026-10-12";
+
+    // Starter en henting av uke 41 som testen svarer på selv.
+    function startFetch() {
+      const response = deferred<EventResponse[]>();
+      mockApi.get.mockReturnValueOnce(response.promise);
+      const done = store.getEventsForDates("2026-10-05", "2026-10-11");
+      return { response, done };
+    }
+
+    it("ny vaktliste fra mal under henting: henter på nytt og viser den", async () => {
+      const fetch = startFetch();
+      const created = event(2, "2026-10-07T10:00:00");
+      mockApi.post.mockResolvedValue({ data: created });
+      const second = [event(1, "2026-10-05T10:00:00"), created];
+      mockApi.get.mockResolvedValueOnce({ data: second });
+
+      await store.createEventFromTemplate(3, "2026-10-07");
+      fetch.response.resolve({ data: [event(1, "2026-10-05T10:00:00")] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(mockApi.get).toHaveBeenLastCalledWith(WEEK_URL);
+      expect(store.events).toEqual(second);
+    });
+
+    it("henter bare én gang uten lokale endringer", async () => {
+      const fetch = startFetch();
+      const server = [event(1, "2026-10-05T10:00:00")];
+
+      fetch.response.resolve({ data: server });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(store.events).toEqual(server);
+    });
+
+    it("endringer uten pågående henting gir ikke ekstra henting senere", async () => {
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      await store.createEventFromTemplate(3, "2026-10-07");
+      const server = [event(1, "2026-10-05T10:00:00")];
+      mockApi.get.mockResolvedValue({ data: server });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(store.events).toEqual(server);
+    });
+
+    it("deleteEvent under henting gir ny henting", async () => {
+      store.events = [event(1, "2026-10-05T10:00:00")];
+      const fetch = startFetch();
+      mockApi.delete.mockResolvedValue({});
+      mockApi.get.mockResolvedValueOnce({ data: [] });
+
+      await store.deleteEvent(1);
+      fetch.response.resolve({ data: [event(1, "2026-10-05T10:00:00")] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.events).toEqual([]);
+    });
+
+    it("updateEvent under henting gir ny henting", async () => {
+      store.events = [{ ...event(1, "2026-10-05T10:00:00"), name: "Før" }];
+      const fetch = startFetch();
+      const updated = { ...event(1, "2026-10-05T10:00:00"), name: "Etter" };
+      mockApi.put.mockResolvedValue({ data: updated });
+      mockApi.get.mockResolvedValueOnce({ data: [updated] });
+
+      await store.updateEvent(1, {} as EventRequest);
+      fetch.response.resolve({
+        data: [{ ...event(1, "2026-10-05T10:00:00"), name: "Før" }],
+      });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.events).toEqual([updated]);
+    });
+
+    it("updateEvent for en vaktliste som ikke er i cachen, gir også ny henting", async () => {
+      const fetch = startFetch();
+      const updated = event(1, "2026-10-05T10:00:00");
+      mockApi.put.mockResolvedValue({ data: updated });
+      mockApi.get.mockResolvedValueOnce({ data: [updated] });
+
+      await store.updateEvent(1, {} as EventRequest);
+      fetch.response.resolve({ data: [] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.events).toEqual([updated]);
+    });
+
+    it("saveShift (applyResource) under henting gir ny henting", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+      const second = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      mockApi.get.mockResolvedValueOnce({ data: second });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+      fetch.response.resolve({ data: [eventWith(1, [resource(10, [])])] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.events).toEqual(second);
+    });
+
+    it("ny beskjed under henting gir ny henting", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const fetch = startFetch();
+      const message = { id: 5, message: "Hei" } as MessageResponse;
+      mockApi.post.mockResolvedValue({ data: message });
+      mockApi.get.mockResolvedValueOnce({
+        data: [eventWith(1, [resource(10, [], { messages: [message] })])],
+      });
+
+      await store.addMessage(store.events[0]!.resources[0]!, {
+        message: "Hei",
+      });
+      fetch.response.resolve({ data: [eventWith(1, [resource(10, [])])] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.events[0]!.resources[0]!.messages).toEqual([message]);
+    });
+
+    it("refreshEventResources under henting gir ny henting", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const fetch = startFetch();
+      const fresh = eventWith(1, [resource(10, [], { minimumStaff: 1 })]);
+      mockApi.get
+        .mockResolvedValueOnce({ data: fresh })
+        .mockResolvedValueOnce({ data: [fresh] });
+
+      await store.refreshEventResources(1);
+      fetch.response.resolve({ data: [eventWith(1, [resource(10, [])])] });
+      await fetch.done;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(3);
+      expect(mockApi.get).toHaveBeenLastCalledWith(WEEK_URL);
+      expect(store.events).toEqual([fresh]);
+    });
+
+    it("feil i den nye hentingen avviser getEventsForDates", async () => {
+      const fetch = startFetch();
+      mockApi.post.mockResolvedValue({ data: event(2, "2026-10-07T10:00:00") });
+      const error = new Error("500");
+      mockApi.get.mockRejectedValueOnce(error);
+
+      await store.createEventFromTemplate(3, "2026-10-07");
+      fetch.response.resolve({ data: [] });
+
+      await expect(fetch.done).rejects.toBe(error);
+    });
+
+    it("henter høyst tre ganger og bruker siste svar ved konstante endringer", async () => {
+      let call = 0;
+      mockApi.get.mockImplementation(async () => {
+        call++;
+        store.markEventsChanged();
+        return { data: [event(call, "2026-10-05T10:00:00")] };
+      });
+
+      await store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      expect(mockApi.get).toHaveBeenCalledTimes(3);
+      expect(store.events.map((e) => e.id)).toEqual([3]);
+    });
+
+    it("to overlappende hentinger: den eldste forkastes uten ny henting", async () => {
+      const old = deferred<EventResponse[]>();
+      const latest = deferred<EventResponse[]>();
+      const second = [event(2, "2026-10-07T10:00:00")];
+      mockApi.get
+        .mockReturnValueOnce(old.promise)
+        .mockReturnValueOnce(latest.promise)
+        .mockResolvedValueOnce({ data: second });
+      const oldDone = store.getEventsForDates("2026-09-28", "2026-10-04");
+      const latestDone = store.getEventsForDates("2026-10-05", "2026-10-11");
+
+      store.markEventsChanged();
+      latest.resolve({ data: [] });
+      await latestDone;
+      old.resolve({ data: [event(9, "2026-09-28T10:00:00")] });
+      await oldDone;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(3);
+      expect(store.events).toEqual(second);
+    });
+
+    it("createEventFromTemplate legger ikke inn duplikat når vaktlista allerede er hentet", async () => {
+      const created = event(2, "2026-10-07T10:00:00");
+      store.events = [event(1, "2026-10-05T10:00:00"), { ...created }];
+      mockApi.post.mockResolvedValue({ data: created });
+
+      await store.createEventFromTemplate(3, "2026-10-07");
+
+      expect(store.events.map((e) => e.id)).toEqual([1, 2]);
+      expect(store.events[1]).toEqual(created);
+    });
+  });
+
+  describe("beskjeder", () => {
+    it("addMessage legger beskjeden i ressursen som sendes inn, også når den ikke er i events", async () => {
+      const cached = resource(10, []);
+      store.events = [eventWith(1, [cached])];
+      // Som en dialog som holder på en ressurs fra før events ble hentet på nytt.
+      const detached = resource(10, []);
+      const message = { id: 5, message: "Hei" } as MessageResponse;
+      mockApi.post.mockResolvedValue({ data: message });
+
+      const returned = await store.addMessage(detached, { message: "Hei" });
+
+      expect(mockApi.post).toHaveBeenCalledWith("/api/resources/10/messages", {
+        message: "Hei",
+      });
+      expect(returned).toBe(message);
+      expect(detached.messages).toEqual([message]);
+      expect(store.events[0]!.resources[0]!.messages).toEqual([message]);
+    });
+
+    it("addMessage legger beskjeden inn én gang når ressursen er den i events", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const held = store.events[0]!.resources[0]!;
+      const message = { id: 5, message: "Hei" } as MessageResponse;
+      mockApi.post.mockResolvedValue({ data: message });
+
+      await store.addMessage(held, { message: "Hei" });
+
+      expect(held.messages).toEqual([message]);
+    });
+
+    it("deleteMessage fjerner beskjeden fra ressursen og fra events", async () => {
+      const message = { id: 5, message: "Hei" } as MessageResponse;
+      store.events = [
+        eventWith(1, [resource(10, [], { messages: [message] })]),
+      ];
+      const detached = resource(10, [], { messages: [message] });
+      mockApi.delete.mockResolvedValue({});
+
+      await store.deleteMessage(detached, message);
+
+      expect(mockApi.delete).toHaveBeenCalledWith(
+        "/api/resources/10/messages/5"
+      );
+      expect(detached.messages).toEqual([]);
+      expect(store.events[0]!.resources[0]!.messages).toEqual([]);
     });
   });
 

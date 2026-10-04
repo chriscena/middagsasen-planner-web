@@ -33,6 +33,12 @@ interface EventState {
   // Siste periode hentet med getEventsForDates (det kalenderen viser), så
   // events kan hentes på nytt etter en endring som påvirker flere ressurser.
   eventsRange: { start: string; end: string } | null;
+  // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
+  // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
+  latestEventsRequest: number;
+  // Økes ved hver lokale endring i events (markEventsChanged), så
+  // getEventsForDates ser at svaret kan være eldre enn endringen (#145).
+  eventsChangeCount: number;
 }
 
 // Lagre en vakt med saveShift. shiftId null = ta ledig plass på resourceId
@@ -50,9 +56,46 @@ export interface SaveShiftRequest {
   trainingCompleted?: boolean | null;
 }
 
-// Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
-// forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
-let latestEventsRequest = 0;
+// Hvor mange ganger getEventsForDates maksimalt henter når events endres
+// lokalt underveis (se getEventsForDates).
+const MAX_EVENTS_FETCHES = 3;
+
+// Erstatter ressursen med samme id (i alle events) med Object.assign, så
+// objektet beholder identiteten (se applyResource).
+function assignResource(
+  events: EventResponse[],
+  updated: ResourceResponse
+): void {
+  for (const event of events) {
+    const resource = event.resources.find((r) => r.id === updated.id);
+    if (resource) Object.assign(resource, updated);
+  }
+}
+
+// Legger arrangementet i events, eller erstatter det med samme id. En
+// henting som ble ferdig før svaret på opprettingen, kan allerede ha det.
+function upsertEvent(events: EventResponse[], event: EventResponse): void {
+  const index = events.findIndex((e) => e.id === event.id);
+  if (index > -1) events[index] = event;
+  else events.push(event);
+}
+
+// Oppdaterer beskjedene på ressursen som er sendt inn (f.eks. dialogens
+// selectedResource) og på ressursen med samme id i events, hvis det er et
+// annet objekt (events kan være hentet på nytt mens dialogen var åpen).
+function updateMessages(
+  events: EventResponse[],
+  resource: ResourceResponse,
+  update: (messages: MessageResponse[]) => MessageResponse[]
+): void {
+  resource.messages = update(resource.messages);
+  for (const event of events) {
+    for (const cached of event.resources) {
+      if (cached.id === resource.id && cached !== resource)
+        cached.messages = update(cached.messages);
+    }
+  }
+}
 
 // Felles henting av ett arrangement (getEvent og refreshEventResources).
 async function fetchEvent(id: number | string): Promise<EventResponse> {
@@ -68,6 +111,8 @@ export const useEventStore = defineStore("events", {
     templates: [],
     eventStatuses: {},
     eventsRange: null,
+    latestEventsRequest: 0,
+    eventsChangeCount: 0,
   }),
   getters: {
     getEventsForDate:
@@ -92,20 +137,36 @@ export const useEventStore = defineStore("events", {
         this.eventStatuses[status.date] = status.isMissingStaff;
       }
     },
+    // Endres events lokalt (ny, endret eller slettet vaktliste, vakt eller
+    // beskjed) mens hentingen pågår, kan svaret være eldre enn endringen og
+    // ville overskrevet den. Da hentes perioden på nytt i samme kall, inntil
+    // MAX_EVENTS_FETCHES ganger (deretter brukes siste svar). Feil kastes
+    // videre, og den som awaiter, venter på hele forløpet.
     async getEventsForDates(start: string, end: string): Promise<void> {
       const startDate = encodeURIComponent(toDayKey(start));
       const endDate = encodeURIComponent(toDayKey(nextDay(end)));
       this.eventsRange = { start, end };
-      const request = ++latestEventsRequest;
-      const response = await api.get<EventResponse[]>(
-        `/api/events?start=${startDate}&end=${endDate}`
-      );
-      if (request !== latestEventsRequest) return;
-      this.events = response.data;
+      const request = ++this.latestEventsRequest;
+      let events: EventResponse[] = [];
+      for (let fetches = 0; fetches < MAX_EVENTS_FETCHES; fetches++) {
+        const changeCount = this.eventsChangeCount;
+        const response = await api.get<EventResponse[]>(
+          `/api/events?start=${startDate}&end=${endDate}`
+        );
+        if (request !== this.latestEventsRequest) return;
+        events = response.data;
+        if (changeCount === this.eventsChangeCount) break;
+      }
+      this.events = events;
+    },
+    // Kalles av alle actions som endrer events lokalt (se getEventsForDates).
+    markEventsChanged(): void {
+      this.eventsChangeCount++;
     },
     async addEvent(event: EventRequest): Promise<void> {
       const response = await api.post<EventResponse>("/api/events", event);
-      this.events.push(response.data);
+      upsertEvent(this.events, response.data);
+      this.markEventsChanged();
     },
     // id kan være en streng når den kommer fra en route-param (EventPage).
     async getEvent(id: number | string): Promise<void> {
@@ -118,6 +179,7 @@ export const useEventStore = defineStore("events", {
       await api.delete(`/api/events/${id}`);
       this.selectedEvent = null;
       this.events = this.events.filter((e) => e.id !== id);
+      this.markEventsChanged();
     },
     async updateEvent(id: number | string, event: EventRequest): Promise<void> {
       const response = await api.put<EventResponse>(`/api/events/${id}`, event);
@@ -128,6 +190,7 @@ export const useEventStore = defineStore("events", {
         (event) => event.id === updatedEvent.id
       );
       if (replaceIndex > -1) this.events[replaceIndex] = updatedEvent;
+      this.markEventsChanged();
     },
 
     async createResourceType(
@@ -216,10 +279,8 @@ export const useEventStore = defineStore("events", {
     // Object.assign, så objektet beholder identiteten: komponenter og dialoger
     // som holder på ressursen (f.eks. selectedResource) ser de nye verdiene.
     applyResource(updated: ResourceResponse): void {
-      for (const event of this.events) {
-        const resource = event.resources.find((r) => r.id === updated.id);
-        if (resource) Object.assign(resource, updated);
-      }
+      assignResource(this.events, updated);
+      this.markEventsChanged();
     },
     // Henter arrangementet på nytt og synkroniserer det i events-cachen med
     // svaret: ressurslisten får serverens innhold og rekkefølge, slettede
@@ -237,10 +298,14 @@ export const useEventStore = defineStore("events", {
       } catch (error) {
         if (getErrorResponse(error)?.status === 404) {
           this.events = this.events.filter((e) => e.id !== eventId);
+          this.markEventsChanged();
           return;
         }
         throw error;
       }
+      // Markeres også når arrangementet ikke er i cachen: en pågående henting
+      // kan ha et eldre svar med det.
+      this.markEventsChanged();
       const event = this.events.find((e) => e.id === eventId);
       if (!event) return;
       const existing = new Map(event.resources.map((r) => [r.id, r]));
@@ -316,7 +381,8 @@ export const useEventStore = defineStore("events", {
           startDate: date,
         } satisfies EventFromTemplateRequest
       );
-      this.events.push(response.data);
+      upsertEvent(this.events, response.data);
+      this.markEventsChanged();
     },
     async addResourceTypeFile(
       resourcetype: Pick<ResourceTypeResponse, "id">,
@@ -340,22 +406,30 @@ export const useEventStore = defineStore("events", {
       );
       await this.getResourceTypes();
     },
+    // Beskjedene tar imot selve ressursobjektet (dialogens selectedResource)
+    // og oppdaterer både det og ressursen med samme id i events.
     async addMessage(
-      eventResourceId: number,
+      resource: ResourceResponse,
       message: MessageRequest
     ): Promise<MessageResponse> {
       const response = await api.post<MessageResponse>(
-        `/api/resources/${eventResourceId}/messages`,
+        `/api/resources/${resource.id}/messages`,
         message
       );
-      return response.data;
+      const added = response.data;
+      updateMessages(this.events, resource, (messages) => [...messages, added]);
+      this.markEventsChanged();
+      return added;
     },
     async deleteMessage(
-      message: Pick<MessageResponse, "id" | "eventResourceId">
+      resource: ResourceResponse,
+      message: Pick<MessageResponse, "id">
     ): Promise<void> {
-      await api.delete(
-        `/api/resources/${message.eventResourceId}/messages/${message.id}`
+      await api.delete(`/api/resources/${resource.id}/messages/${message.id}`);
+      updateMessages(this.events, resource, (messages) =>
+        messages.filter((m) => m.id !== message.id)
       );
+      this.markEventsChanged();
     },
     // Kun admin. Serveren regner ut ny minimumStaff under ressurslås, så
     // samtidige klikk ikke overskriver hverandre. Svaret er hele ressursen med

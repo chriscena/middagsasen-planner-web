@@ -891,11 +891,8 @@ async function saveMessage(): Promise<void> {
   try {
     savingMessage.value = true;
     const model: MessageRequest = { message };
-    const response = await eventStore.addMessage(
-      selectedResource.value!.id,
-      model
-    );
-    selectedResource.value!.messages.push(response);
+    // Storen legger beskjeden både i selectedResource og i events.
+    await eventStore.addMessage(selectedResource.value!, model);
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er lagret. 📨" });
   } catch (error) {
@@ -909,10 +906,8 @@ async function saveMessage(): Promise<void> {
 async function deleteMessage(message: MessageResponse): Promise<void> {
   try {
     deletingMessage.value = true;
-    await eventStore.deleteMessage(message);
-    selectedResource.value!.messages = selectedResource.value!.messages.filter(
-      (m) => m.id !== message.id
-    );
+    // Storen fjerner beskjeden både fra selectedResource og fra events.
+    await eventStore.deleteMessage(selectedResource.value!, message);
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er slettet. 📤" });
   } catch (error) {

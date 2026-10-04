@@ -294,7 +294,11 @@ const props = defineProps<{
   date: string;
 }>();
 
-const loading = ref(false);
+// Kalenderhenting (onChange) og vaktliste fra mal (applyTemplate) styrer hver
+// sin del, så den ene ikke skjuler lasteindikatoren mens den andre pågår.
+const calendarLoading = ref(false);
+const applyingTemplate = ref(false);
+const loading = computed(() => calendarLoading.value || applyingTemplate.value);
 // Initialiseres direkte fra URL-en, slik at kalenderen starter på riktig uke
 // og ikke først sender change for dagens uke.
 const selectedDay = ref(isDayKey(props.date) ? props.date : today());
@@ -359,13 +363,13 @@ function onNext() {
   calendar.value!.next();
 }
 
-// Teller slik at kun siste forespørsel styrer loading og feilmelding
+// Teller slik at kun siste forespørsel styrer calendarLoading og feilmelding
 // (EventStore forkaster selv utdaterte svar).
 let latestChange = 0;
 async function onChange(event: CalendarChangeEvent) {
   const request = ++latestChange;
   try {
-    loading.value = true;
+    calendarLoading.value = true;
     await eventStore.getEventsForDates(event.start, event.end);
   } catch (error) {
     if (request === latestChange)
@@ -374,7 +378,7 @@ async function onChange(event: CalendarChangeEvent) {
         "Klarte ikke å hente data, prøv å oppdatere siden."
       );
   } finally {
-    if (request === latestChange) loading.value = false;
+    if (request === latestChange) calendarLoading.value = false;
   }
 }
 
@@ -461,14 +465,16 @@ function showMenu(data: HeadDayClickEvent) {
 }
 
 async function applyTemplate(id: number) {
+  // Et raskt dobbeltklikk skal ikke lage to vaktlister.
+  if (applyingTemplate.value) return;
   try {
-    loading.value = true;
+    applyingTemplate.value = true;
     await eventStore.createEventFromTemplate(id, selectedDay.value);
     $q.notify({ message: "Vaktlista er lagt til." });
   } catch (error) {
     notifyApiError(error, "Klarte ikke å legge til vaktlista fra malen.");
   } finally {
-    loading.value = false;
+    applyingTemplate.value = false;
   }
 }
 
