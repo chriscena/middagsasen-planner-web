@@ -1118,6 +1118,15 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
         post?: never;
@@ -4139,6 +4148,8 @@ export interface components {
             endTime: string;
             /** Format: int32 */
             minimumStaff: number;
+            /** Format: int32 */
+            originalMinimumStaff?: null | number;
             isDeleted: boolean;
         };
         ResourceResponse: {

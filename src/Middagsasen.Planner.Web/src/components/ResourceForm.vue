@@ -112,6 +112,10 @@ export interface ResourceFormModel {
   resourceType: ResourceTypeResponse | null;
   // q-input type="number" sender verdien som string når brukeren skriver.
   minimumStaff: number | string | null;
+  // Bare vaktlister: bemanningen vakta ble lastet med fra serveren (se
+  // EventResourceDraft). Dialogen sender den ikke, så ResourceList beholder
+  // originalverdien når vakta redigeres.
+  originalMinimumStaff?: number | null | undefined;
   startTime: string | null;
   endTime: string | null;
   isDeleted?: boolean | undefined;

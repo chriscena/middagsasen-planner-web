@@ -3,6 +3,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Resources;
+using Middagsasen.Planner.Api.Services.Shifts;
 
 namespace Middagsasen.Planner.Api.Services.Events
 {
@@ -107,44 +108,114 @@ namespace Middagsasen.Planner.Api.Services.Events
             return await GetEventById(newEvent.EventId);
         }
 
+        /// <summary>
+        /// Lagrer vaktlisteskjemaet. Alt lagres i én transaksjon: ved konflikt på antall vakter lagres ingenting,
+        /// heller ikke navn og tider.
+        /// <para>
+        /// Antall vakter (#151) på eksisterende ressurser med <see cref="ResourceRequest.OriginalMinimumStaff"/> avgjøres mot
+        /// verdien som er lagret nå («sammenlign og sett», se <see cref="ApplyMinimumStaff"/>), slik at ledige plasser andre har
+        /// lagt til eller fjernet i mellomtiden, ikke overskrives i stillhet. Uten <see cref="ResourceRequest.OriginalMinimumStaff"/>
+        /// settes verdien absolutt, som før.
+        /// </para>
+        /// <para>
+        /// Låsing (<see cref="RowLocks"/>): vaktlista låses først, så alle ressursene i den. Det serialiserer samtidige lagringer
+        /// av samme vaktliste, og det er samme ressurslås som påmelding og «Legg til/Fjern ledig plass» bruker
+        /// (<see cref="IShiftRepository.InResourceLock{T}"/>). Dermed skjer også endringer i tider og vakttype under
+        /// ressurslåsen, så en samtidig påmelding vurderes enten mot de gamle eller de nye tidene, ikke en blanding.
+        /// Vaktlista og ressursene lastes først etter låsen, slik at de sporede entitetene har fersk <c>MinimumStaff</c>.
+        /// </para>
+        /// </summary>
+        /// <exception cref="ConcurrentUpdateException">Antall vakter er endret av noen andre siden skjemaet ble lastet.</exception>
         public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
-            var existingEvent = await DbContext.Events
-                .Include(e => e.Resources)
-                .SingleOrDefaultAsync(e => e.EventId == eventId)
-                ?? throw new EntityNotFoundException(EventNotFoundMessage);
-
-            existingEvent.Name = request.Name;
-            existingEvent.Description = request.Description;
             var (eventStart, eventEnd) = EventTimes(request);
-            existingEvent.StartTime = eventStart;
-            existingEvent.EndTime = eventEnd;
 
-            foreach (var resource in request.Resources)
+            await using (var transaction = await DbContext.Database.BeginTransactionAsync())
             {
-                if (resource.IsDeleted)
+                if (!await DbContext.LockEvent(eventId))
+                    throw new EntityNotFoundException(EventNotFoundMessage);
+                await DbContext.LockEventResources(eventId);
+
+                var existingEvent = await DbContext.Events
+                    .Include(e => e.Resources)
+                    .SingleOrDefaultAsync(e => e.EventId == eventId)
+                    ?? throw new EntityNotFoundException(EventNotFoundMessage);
+
+                existingEvent.Name = request.Name;
+                existingEvent.Description = request.Description;
+                existingEvent.StartTime = eventStart;
+                existingEvent.EndTime = eventEnd;
+
+                foreach (var resource in request.Resources)
                 {
-                    var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
-                    if (resourceToDelete == null) continue;
-                    existingEvent.Resources.Remove(resourceToDelete);
+                    if (resource.IsDeleted)
+                    {
+                        var resourceToDelete = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                        if (resourceToDelete == null) continue;
+                        existingEvent.Resources.Remove(resourceToDelete);
+                    }
+                    else if (!resource.Id.HasValue)
+                    {
+                        existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
+                    }
+                    else
+                    {
+                        var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
+                        if (resourceToUpdate == null) continue;
+                        // Før vakttype og tider endres, så en konfliktmelding viser de lagrede verdiene.
+                        await ApplyMinimumStaff(resource, resourceToUpdate);
+                        resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
+                        (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
+                    }
                 }
-                else if (!resource.Id.HasValue)
-                {
-                    existingEvent.Resources.Add(Map(resource, eventStart, eventEnd));
-                }
-                else
-                {
-                    var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
-                    if (resourceToUpdate == null) continue;
-                    resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
-                    (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
-                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
-                }
+
+                await DbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
             }
-            await DbContext.SaveChangesAsync();
 
             return await GetEventById(eventId);
         }
+
+        /// <summary>
+        /// Setter antall vakter på en eksisterende ressurs. <paramref name="stored"/> er lest under ressurslåsen, så verdien er fersk.
+        /// Med <see cref="ResourceRequest.OriginalMinimumStaff"/> («sammenlign og sett»):
+        /// <list type="bullet">
+        /// <item>Uendret i skjemaet (lik original): ingenting skrives, så andres endringer beholdes.</item>
+        /// <item>Lagret verdi er allerede lik skjemaets (f.eks. ved ny lagring av samme skjema): ingenting skrives, ingen feil.</item>
+        /// <item>Lagret verdi er lik original (ingen andre har endret den): skjemaets verdi settes som absolutt verdi. Det er lov
+        /// å gå under antall bemannede vakter, som ellers i skjemaet.</item>
+        /// <item>Ellers har noen andre endret verdien: <see cref="ConcurrentUpdateException"/>.</item>
+        /// </list>
+        /// Uten original settes skjemaets verdi absolutt.
+        /// </summary>
+        private async Task ApplyMinimumStaff(ResourceRequest request, EventResource stored)
+        {
+            if (request.OriginalMinimumStaff is not { } original)
+            {
+                stored.MinimumStaff = request.MinimumStaff;
+                return;
+            }
+
+            if (request.MinimumStaff == original || stored.MinimumStaff == request.MinimumStaff)
+                return;
+
+            if (stored.MinimumStaff != original)
+            {
+                var resourceTypeName = await DbContext.ResourceTypes
+                    .Where(t => t.ResourceTypeId == stored.ResourceTypeId)
+                    .Select(t => t.Name)
+                    .SingleAsync();
+                throw new ConcurrentUpdateException(
+                    StaffingChangedMessage(resourceTypeName, stored.StartTime, stored.EndTime, stored.MinimumStaff));
+            }
+
+            stored.MinimumStaff = request.MinimumStaff;
+        }
+
+        /// <summary>Konfliktmelding med de lagrede verdiene til ressursen.</summary>
+        internal static string StaffingChangedMessage(string resourceTypeName, DateTime start, DateTime end, int currentMinimumStaff)
+            => $"Antall vakter på {resourceTypeName} {start:HH\\:mm}–{end:HH\\:mm} er endret av noen andre (nå {currentMinimumStaff}). "
+                + "Last vaktlista på nytt og prøv igjen.";
 
         public async Task<EventResponse> DeleteEvent(int id)
         {

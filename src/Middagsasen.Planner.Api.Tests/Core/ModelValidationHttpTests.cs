@@ -13,6 +13,7 @@ using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 
 namespace Middagsasen.Planner.Api.Tests.Core
 {
@@ -304,6 +305,22 @@ namespace Middagsasen.Planner.Api.Tests.Core
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             await _events.DidNotReceiveWithAnyArgs().UpdateEvent(default, default!);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_BindsOriginalMinimumStaff_AndReturns409OnConcurrentUpdate()
+        {
+            // #151: antall vakter er endret av noen andre siden skjemaet ble lastet.
+            _events.UpdateEvent(Arg.Any<int>(), Arg.Any<EventRequest>())
+                .Throws(new ConcurrentUpdateException("Antall vakter er endret av noen andre."));
+
+            var response = await Send("PUT", "/api/events/5", With(ValidEvent, "resources[0].originalMinimumStaff", "3"));
+
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+            Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+            var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            Assert.Equal("Antall vakter er endret av noen andre.", body.GetProperty("detail").GetString());
+            await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalMinimumStaff == 3));
         }
 
         #endregion
