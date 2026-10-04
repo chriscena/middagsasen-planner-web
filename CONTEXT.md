@@ -75,5 +75,5 @@ At minst et gitt antall av vaktene i en oppgave skal være bemannet av noen med 
 _Unngå_: Kompetansekrav (uten presisering), MinimumRequired
 
 **Anleggskrav**:
-At minst et gitt antall av de som er på vakt i anlegget skal ha en bestemt kompetanse på hvert tidspunkt i åpningstiden, uansett vakttype, f.eks. minst én snøskuterfører. Kravet settes per vaktliste. Et brudd gir en advarsel, men hindrer ingenting.
+At minst et gitt antall av de som er på vakt i anlegget skal ha en bestemt kompetanse på hvert tidspunkt i åpningstiden, uansett vakttype, f.eks. minst én snøskuterfører. Kravet settes per vaktliste og mal. Et brudd gir en advarsel, men hindrer ingenting.
 _Unngå_: Kompetansekrav (uten presisering), beredskapskrav
