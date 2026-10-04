@@ -17,5 +17,6 @@
     <Build Remove="Scripts\**" />
     <PreDeploy Include="Scripts\Script.PreDeployment.sql" />
     <None Include="Scripts\FinnBrukernavnKollisjoner.sql" />
+    <None Include="Scripts\OpprettDeployBruker.sql" />
   </ItemGroup>
 </Project>

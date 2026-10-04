@@ -37,3 +37,9 @@ Duplikatfjerningen er dekket av `Database/PreDeploymentScriptTests.cs`.
 ## WorkHours.ShiftId
 
 Timer registreres uten kobling til vakt, så fremmednøkkelen `FK_WorkHours_Users_ShiftId` er fjernet fra `Tables/WorkHours.sql` og droppes ved publish (ingen datatap). Kolonnen `ShiftId` står igjen ubrukt (API-et mapper den ikke) og kan fjernes senere.
+
+## Deploy (GitHub Actions)
+
+Databasen deployes manuelt med workflowen `Database deploy` (`.github/workflows/db_deploy.yml`): `script` genererer deploy-skript og DeployReport uten å endre noe, `publish` oppdaterer databasen. Workflowen logger inn med managed identity (OIDC) og Entra-token, og åpner en midlertidig brannmurregel for runneren som slettes etterpå.
+
+Engangsoppsett: identiteten trenger SQL Server Contributor på SQL-serveren, og en databasebruker. Sett `@ClientId` (clientId, ikke objectId) i `Scripts/OpprettDeployBruker.sql` og kjør skriptet som Entra-admin i applikasjonsdatabasen (ikke master). Production-miljøet i GitHub trenger variablene `SQL_RESOURCE_GROUP`, `SQL_SERVER_NAME` (uten `.database.windows.net`) og `SQL_DATABASE_NAME`.

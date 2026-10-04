@@ -1,0 +1,136 @@
+# Deployer databasen (dacpac) med Entra-autentisering (managed identity via OIDC, ingen passord).
+# Forutsetninger:
+#   - Federert credential på managed identity med subject repo:chriscena/middagsasen-planner-web:environment:Production
+#     (samme identitet som secrets.AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID)
+#   - Rollen SQL Server Contributor på SQL-serveren (for midlertidig brannmurregel)
+#   - Databasebruker for identiteten, opprettet med src/Middagsasen.Planner.Database/Scripts/OpprettDeployBruker.sql
+#   - Variabler i Production-miljøet: SQL_RESOURCE_GROUP, SQL_SERVER_NAME (uten .database.windows.net), SQL_DATABASE_NAME
+
+name: Database deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'script = generer deploy-skript og rapport (ingen endringer), publish = oppdater databasen'
+        type: choice
+        default: script
+        options:
+          - script
+          - publish
+
+# Én databasedeploy om gangen — aldri avbryt en pågående
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-latest
+    environment: Production
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      DACPAC: src/Middagsasen.Planner.Database/bin/Release/middagsasen-planner-db.dacpac
+      OUT_DIR: ${{ github.workspace }}/db-deploy
+      SQL_RESOURCE_GROUP: ${{ vars.SQL_RESOURCE_GROUP }}
+      SQL_SERVER: ${{ vars.SQL_SERVER_NAME }}
+      SQL_DATABASE: ${{ vars.SQL_DATABASE_NAME }}
+
+    steps:
+      - name: Sjekk miljøvariabler
+        run: |
+          missing=0
+          for name in SQL_RESOURCE_GROUP SQL_SERVER SQL_DATABASE; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name er tom. Sett vars.SQL_RESOURCE_GROUP, vars.SQL_SERVER_NAME og vars.SQL_DATABASE_NAME i Production-miljøet."
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build database project
+        run: dotnet build src/Middagsasen.Planner.Database/middagsasen-planner-db.sqlproj --configuration Release
+
+      - name: Install sqlpackage
+        run: dotnet tool install -g microsoft.sqlpackage
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Åpner SQL-serveren for runnerens IP — fjernes i siste steg.
+      # Regelen kan bruke litt tid før den virker; sqlpackage-retry.sh prøver igjen ved feil 40615.
+      - name: Opprett midlertidig brannmurregel
+        run: |
+          IP=$(curl -fsS https://api.ipify.org)
+          RULE="github-actions-${{ github.run_id }}-${{ github.run_attempt }}"
+          echo "FIREWALL_RULE=$RULE" >> "$GITHUB_ENV"
+          az sql server firewall-rule create \
+            -g "$SQL_RESOURCE_GROUP" -s "$SQL_SERVER" -n "$RULE" \
+            --start-ip-address "$IP" --end-ip-address "$IP" \
+            --output none
+
+      - name: Hent access token for databasen
+        run: |
+          TOKEN=$(az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "SQL_ACCESS_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      # Viser hva som vil skje uten å endre databasen
+      - name: Generer deploy-skript og DeployReport
+        if: inputs.action == 'script'
+        run: |
+          mkdir -p "$OUT_DIR"
+          cp "$DACPAC" "$OUT_DIR/"
+          bash .github/scripts/sqlpackage-retry.sh /Action:Script \
+            /SourceFile:"$DACPAC" \
+            /AccessToken:"$SQL_ACCESS_TOKEN" \
+            /TargetServerName:"$SQL_SERVER.database.windows.net" \
+            /TargetDatabaseName:"$SQL_DATABASE" \
+            /OutputPath:"$OUT_DIR/deploy.sql" \
+            /p:BlockOnPossibleDataLoss=true
+          bash .github/scripts/sqlpackage-retry.sh /Action:DeployReport \
+            /SourceFile:"$DACPAC" \
+            /AccessToken:"$SQL_ACCESS_TOKEN" \
+            /TargetServerName:"$SQL_SERVER.database.windows.net" \
+            /TargetDatabaseName:"$SQL_DATABASE" \
+            /OutputPath:"$OUT_DIR/deploy-report.xml" \
+            /p:BlockOnPossibleDataLoss=true
+
+      - name: Last opp skript, rapport og dacpac
+        if: inputs.action == 'script'
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-deploy
+          path: ${{ env.OUT_DIR }}
+
+      # Stopper hvis endringen kan gi datatap
+      - name: Publiser til databasen
+        if: inputs.action == 'publish'
+        run: |
+          bash .github/scripts/sqlpackage-retry.sh /Action:Publish \
+            /SourceFile:"$DACPAC" \
+            /AccessToken:"$SQL_ACCESS_TOKEN" \
+            /TargetServerName:"$SQL_SERVER.database.windows.net" \
+            /TargetDatabaseName:"$SQL_DATABASE" \
+            /p:BlockOnPossibleDataLoss=true
+
+      # Kjører alltid, også når deploy feiler
+      - name: Slett midlertidig brannmurregel
+        if: always() && env.FIREWALL_RULE != ''
+        run: |
+          az sql server firewall-rule delete \
+            -g "$SQL_RESOURCE_GROUP" -s "$SQL_SERVER" -n "$FIREWALL_RULE"

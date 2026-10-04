@@ -14,6 +14,11 @@ on:
       - '.github/workflows/main_middagsasen-planner.yml'
   workflow_dispatch:
 
+# Én deploy om gangen — ikke avbryt en pågående deploy
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,6 +33,9 @@ jobs:
 
       - name: Build with dotnet
         run: dotnet build --configuration Release
+
+      - name: Test with dotnet
+        run: dotnet test src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
 
       - name: dotnet publish
         run: dotnet publish src/Middagsasen.Planner.Api/Middagsasen.Planner.Api.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
@@ -44,6 +52,10 @@ jobs:
     environment:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    # OIDC: federert credential med subject repo:chriscena/middagsasen-planner-web:environment:Production
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
       - name: Download artifact from build job
@@ -51,11 +63,17 @@ jobs:
         with:
           name: .net-app
 
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v3
         with:
           app-name: 'middagsasen-planner'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREWEBAPP_PUBLISHPROFILE_MAIN }}
           package: .
