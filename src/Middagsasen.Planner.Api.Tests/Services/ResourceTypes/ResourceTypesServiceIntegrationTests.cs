@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
@@ -32,7 +33,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
         private ResourceTypesService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
         {
             var currentUser = MockCurrentUser(userId, isAdmin);
-            return new ResourceTypesService(context, _storageService, currentUser);
+            return new ResourceTypesService(context, new ResourceReader(context, TimeProvider.System), _storageService, currentUser);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";

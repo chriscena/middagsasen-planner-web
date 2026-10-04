@@ -4153,9 +4153,7 @@ export interface components {
             /** Format: int32 */
             eventResourceId: number;
             user: components["schemas"]["ShiftUserResponse"];
-            /** Format: date-time */
             startTime?: null | string;
-            /** Format: date-time */
             endTime?: null | string;
             comment?: null | string;
             needsTraining: boolean;

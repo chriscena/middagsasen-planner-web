@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.Shifts;
 using Middagsasen.Planner.Api.Services.SmsSender;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
@@ -41,7 +42,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             currentUser.UserId.Returns(userId);
             currentUser.IsAdmin.Returns(isAdmin);
             var notifier = new TrainerNotifier(new TrainerRepository(context), _smsSender, NullLogger<TrainerNotifier>.Instance);
-            return new ShiftService(new ShiftRepository(context), currentUser, notifier, new FakeTimeProvider(now ?? BeforeResource));
+            var clock = new FakeTimeProvider(now ?? BeforeResource);
+            return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, clock);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -1344,10 +1346,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.True(result.CanSignUp);
             Assert.Single(result.Shifts);
 
-            // Samme mapper som GET api/events: en vanlig bruker kan nå ta vakt.
+            // Samme lesemodul som GET api/events: en vanlig bruker kan nå ta vakt.
             using var userContext = _fixture.CreateContext();
-            var mapper = await CreateService(userContext, user.UserId).CreateResourceMapper();
-            var forUser = mapper.Map((await new ShiftRepository(userContext).GetResource(resource.EventResourceId))!);
+            var reader = new ResourceReader(userContext, new FakeTimeProvider(BeforeResource));
+            var forUser = (await reader.GetResource(new Actor(user.UserId, IsAdmin: false), resource.EventResourceId))!;
             Assert.False(forUser.IsFull);
             Assert.True(forUser.CanSignUp);
         }

@@ -9,7 +9,9 @@ namespace Middagsasen.Planner.Api.Services.Events
     {
         public int Id { get; set; }
         public ResourceTypeResponse ResourceType { get; set; } = null!;
+        /// <summary>Ressursens start, norsk lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>).</summary>
         public string StartTime { get; set; } = null!;
+        /// <summary>Ressursens slutt, norsk lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>).</summary>
         public string EndTime { get; set; } = null!;
         public int MinimumStaff { get; set; }
         public IEnumerable<ShiftResponse> Shifts { get; set; } = new List<ShiftResponse>();

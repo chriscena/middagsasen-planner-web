@@ -5970,15 +5970,13 @@
             "type": [
               "null",
               "string"
-            ],
-            "format": "date-time"
+            ]
           },
           "endTime": {
             "type": [
               "null",
               "string"
-            ],
-            "format": "date-time"
+            ]
           },
           "comment": {
             "type": [

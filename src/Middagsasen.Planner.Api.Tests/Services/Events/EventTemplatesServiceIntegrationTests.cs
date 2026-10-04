@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 
 namespace Middagsasen.Planner.Api.Tests.Services.Events
@@ -18,7 +19,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         private EventTemplatesService CreateService(PlannerDbContext context)
         {
-            return new EventTemplatesService(context);
+            return new EventTemplatesService(context, new ResourceReader(context, TimeProvider.System));
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -559,6 +560,99 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.CreateTemplateFromEvent(999999, request));
+        }
+
+        #endregion
+
+        #region ResourceType i malsvar (#115)
+
+        [Fact]
+        public async Task GetEventTemplateById_ResourceTypeWithTrainersAndFiles_HasTrainingTrainersAndFiles()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var trainer = new User { UserName = UniqueName("user"), FirstName = "Trener", LastName = "Mal", Created = DateTime.UtcNow };
+            seedContext.Users.Add(trainer);
+            await seedContext.SaveChangesAsync();
+
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 2 };
+            rt.Trainers.Add(new ResourceTypeTrainer { UserId = trainer.UserId });
+            rt.Files.Add(new ResourceTypeFile
+            {
+                StorageName = Guid.NewGuid().ToString(),
+                FileName = "instruks.pdf",
+                Description = "Instruks",
+                MimeType = "application/pdf",
+                Created = new DateTime(2026, 1, 10, 8, 30, 0),
+                CreatedBy = trainer.UserId,
+                Updated = new DateTime(2026, 1, 10, 8, 30, 0),
+                UpdatedBy = trainer.UserId,
+            });
+            var template = new EventTemplate
+            {
+                Name = UniqueName("Mal"),
+                EventName = UniqueName("Event"),
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
+                ResourceTemplates =
+                [
+                    new ResourceTemplate { ResourceType = rt, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), MinimumStaff = 2 },
+                ],
+            };
+            seedContext.EventTemplates.Add(template);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context);
+
+            // Act
+            var byId = await service.GetEventTemplateById(template.EventTemplateId);
+            var fromList = (await service.GetEventTemplates()).Single(t => t.Id == template.EventTemplateId);
+
+            // Assert
+            foreach (var result in new[] { byId, fromList })
+            {
+                var resourceType = Assert.Single(result.ResourceTemplates!).ResourceType;
+                Assert.True(resourceType.HasTraining);
+                var resourceTypeTrainer = Assert.Single(resourceType.Trainers);
+                Assert.Equal(trainer.UserId, resourceTypeTrainer.UserId);
+                Assert.Equal("Trener Mal", resourceTypeTrainer.FullName);
+                var file = Assert.Single(resourceType.Files);
+                Assert.Equal("instruks.pdf", file.FileName);
+                Assert.Equal("Trener Mal", file.CreatedBy);
+            }
+        }
+
+        [Fact]
+        public async Task DeleteEventTemplate_ReturnsDeletedTemplateWithResourceTemplates()
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+            var template = new EventTemplate
+            {
+                Name = UniqueName("Slett"),
+                EventName = UniqueName("Event"),
+                StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
+                EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
+                ResourceTemplates =
+                [
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), MinimumStaff = 2 },
+                ],
+            };
+            seedContext.EventTemplates.Add(template);
+            await seedContext.SaveChangesAsync();
+
+            using var context = _fixture.CreateContext();
+
+            // Act
+            var result = await CreateService(context).DeleteEventTemplate(template.EventTemplateId);
+
+            // Assert
+            Assert.Equal(template.EventTemplateId, result.Id);
+            Assert.Equal(rt.ResourceTypeId, Assert.Single(result.ResourceTemplates!).ResourceType.Id);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.EventTemplates.AnyAsync(t => t.EventTemplateId == template.EventTemplateId));
         }
 
         #endregion

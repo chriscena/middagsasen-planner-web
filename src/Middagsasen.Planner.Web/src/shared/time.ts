@@ -10,6 +10,12 @@
 //   har samme form (uten sone) og kan gis direkte til visningsfunksjonene.
 //   For maler bruker backend bare klokkeslettet (TimeOfDay); datodelen er
 //   den faste referansedatoen fra `parseTime`.
+// - Svar med lokal tid uten sone, "yyyy-MM-ddTHH:mm": arrangementer,
+//   ressurser, maler og vakter (`startTime`/`endTime`).
+// - Svar med UTC-tidspunkt, "yyyy-MM-ddTHH:mm:ssZ": filer (`created`/
+//   `updated`), meldinger (`created`) og opplæring (`confirmed`).
+//   Begge formene kan gis direkte til visningsfunksjonene (`parseISO`
+//   håndterer sone).
 // - Timeføring (/api/workhours): UTC-tidspunkt fra `Date.toISOString()`,
 //   "yyyy-MM-ddTHH:mm:ss.sssZ" → `toInstantWire`.
 // - Vær (GET /api/weather?start=&end=): UTC uten millisekunder,

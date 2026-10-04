@@ -52,7 +52,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 if (trainers.Count == 0)
                     return new TrainerNotificationResult(true, 0, null);
 
-                var fullName = ResourceMapper.MapFullName(user.FirstName, user.LastName);
+                var fullName = user.FullName();
                 var messages = trainers.Select(trainer => new SmsMessage
                 {
                     ReceiverPhoneNo = trainer.UserName.ToNumericPhoneNo(),

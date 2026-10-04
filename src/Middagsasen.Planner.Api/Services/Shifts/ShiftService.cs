@@ -2,6 +2,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Resources;
 
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
@@ -21,25 +22,20 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
             => $"Du må svare på om du trenger opplæring på {resourceTypeName}.";
 
-        public ShiftService(IShiftRepository repository, ICurrentUserService currentUser, ITrainerNotifier trainerNotifier, TimeProvider timeProvider)
+        public ShiftService(IShiftRepository repository, IResourceReader reader, ICurrentUserService currentUser, ITrainerNotifier trainerNotifier, TimeProvider timeProvider)
         {
             Repository = repository;
+            Reader = reader;
             CurrentUser = currentUser;
             TrainerNotifier = trainerNotifier;
             TimeProvider = timeProvider;
         }
 
         public IShiftRepository Repository { get; }
+        public IResourceReader Reader { get; }
         public ICurrentUserService CurrentUser { get; }
         public ITrainerNotifier TrainerNotifier { get; }
         public TimeProvider TimeProvider { get; }
-
-        public async Task<ResourceMapper> CreateResourceMapper()
-        {
-            var actor = CurrentUser.ToActor();
-            var trainingResourceTypeIds = await Repository.GetTrainingResourceTypeIds(actor.UserId);
-            return new ResourceMapper(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds);
-        }
 
         /// <summary>
         /// Opplæring: svaret <see cref="SignUpRequest.TrainingCompleted"/> lagres i samme transaksjon som vakta, etter
@@ -63,7 +59,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             {
                 var resource = await Repository.GetResource(resourceId)
                     ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
-                var facts = ResourceMapper.ToFacts(resource);
+                var facts = ShiftFactsFactory.From(resource);
 
                 Enforce(ShiftRules.CheckSignUp(actor, facts, now, targetUserId, request.StartTime, request.EndTime));
 
@@ -308,7 +304,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             var resource = await Repository.GetResource(resourceId)
                 ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
-            var facts = ResourceMapper.ToFacts(resource);
+            var facts = ShiftFactsFactory.From(resource);
             var shift = facts.Shifts.SingleOrDefault(s => s.ShiftId == shiftId)
                 ?? throw new EntityNotFoundException(ShiftNotFoundMessage);
             return (resource, facts, shift);
@@ -322,15 +318,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         private async Task<ShiftResult> BuildResult(int resourceId, int? changedTrainingId, IReadOnlyList<string> warnings)
         {
-            var mapper = await CreateResourceMapper();
-            var resource = await Repository.GetResource(resourceId)
+            var resource = await Reader.GetResource(CurrentUser.ToActor(), resourceId)
                 ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
-            var training = changedTrainingId is { } id ? await Repository.GetTrainingForResponse(id) : null;
+            var training = changedTrainingId is { } id ? await Reader.GetTraining(id) : null;
 
             return new ShiftResult
             {
-                Resource = mapper.Map(resource),
-                ChangedTraining = training is null ? null : ResourceMapper.MapTraining(training),
+                Resource = resource,
+                ChangedTraining = training,
                 Warnings = warnings,
             };
         }

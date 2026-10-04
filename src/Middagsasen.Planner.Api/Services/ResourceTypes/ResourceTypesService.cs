@@ -2,44 +2,35 @@ using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.Storage;
 
 namespace Middagsasen.Planner.Api.Services.ResourceTypes
 {
     public class ResourceTypesService : IResourceTypesService
     {
-        public ResourceTypesService(PlannerDbContext dbContext, IStorageService storage, ICurrentUserService currentUser)
+        public ResourceTypesService(PlannerDbContext dbContext, IResourceReader reader, IStorageService storage, ICurrentUserService currentUser)
         {
             DbContext = dbContext;
+            Reader = reader;
             Storage = storage;
             CurrentUser = currentUser;
         }
 
         public PlannerDbContext DbContext { get; }
+        public IResourceReader Reader { get; }
         public IStorageService Storage { get; }
         public ICurrentUserService CurrentUser { get; }
 
-        private IQueryable<ResourceType> ResourceTypes => DbContext.ResourceTypes
-                .Include(r => r.Trainers)
-                    .ThenInclude(t => t.User)
-                .Include(r => r.Files);
-
         public async Task<IEnumerable<ResourceTypeResponse>> GetResourceTypes()
         {
-            var resourceTypes = await ResourceTypes
-                .AsNoTracking()
-                .Where(r => !r.Inactive)
-                .ToListAsync();
-            return resourceTypes.Select(Map).ToList();
+            return await Reader.GetResourceTypes();
         }
 
         public async Task<ResourceTypeResponse> GetResourceTypeById(int id)
         {
-            var resourceType = await ResourceTypes
-                .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == id)
+            return await Reader.GetResourceType(id)
                 ?? throw new EntityNotFoundException();
-            return Map(resourceType);
         }
 
         public async Task<ResourceTypeResponse> CreateResourceType(ResourceTypeRequest request)
@@ -101,7 +92,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             resourceType.Inactive = true;
 
             await DbContext.SaveChangesAsync();
-            return Map(resourceType);
+            return await GetResourceTypeById(id);
         }
 
         public async Task<FileInfoResponse> AddFile(int id, FileUploadRequest request)
@@ -129,14 +120,8 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
            DbContext.ResourceTypeFiles.Add(newFile);
            await DbContext.SaveChangesAsync();
 
-            var responseFile = DbContext.ResourceTypeFiles
-                .Include(f => f.ResourceType)
-                .Include(f => f.CreatedByUser)
-                .Include(f => f.UpdatedByUser)
-                .AsNoTracking()
-                .Single(f => f.ResourceTypeFileId == newFile.ResourceTypeFileId);
-
-            return Map(responseFile);
+            return await Reader.GetFile(newFile.ResourceTypeFileId)
+                ?? throw new EntityNotFoundException();
         }
 
         private string GetContainerPath(DateTime date)
@@ -168,43 +153,6 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
 
             var responseFile = DbContext.Remove(fileToDelete);
             await DbContext.SaveChangesAsync();
-        }
-
-        private ResourceTypeResponse Map(ResourceType resourceType) => new ResourceTypeResponse
-        {
-            Id = resourceType.ResourceTypeId,
-            Name = resourceType.Name,
-            DefaultStaff = resourceType.DefaultStaff,
-            NotificationMessage = resourceType.NotificationMessage,
-            HasTraining = resourceType.Trainers.Any(),
-            Trainers = resourceType.Trainers.Select(Map).ToList(),
-            Files = resourceType.Files.Select(Map).ToList(),
-        };
-
-        private ResourceTypeTrainerResponse Map(ResourceTypeTrainer resourceTypeTrainer) => new ResourceTypeTrainerResponse
-        {
-            Id = resourceTypeTrainer.ResourceTypeTrainerId,
-            UserId = resourceTypeTrainer.UserId,
-            FullName = MapFullName(resourceTypeTrainer.User.FirstName, resourceTypeTrainer.User.LastName),
-            PhoneNo = resourceTypeTrainer.User.UserName,
-        };
-
-        private FileInfoResponse Map(ResourceTypeFile file) => new FileInfoResponse
-        {
-            Id = file.ResourceTypeFileId,
-            ResourceTypeId = file.ResourceTypeId,
-            FileName = file.FileName,
-            Description = file.Description,
-            MimeType = file.MimeType,
-            Created = file.Created.AsUtc().ToIsoString(),
-            CreatedBy = MapFullName(file.CreatedByUser?.FirstName, file.CreatedByUser?.LastName),
-            Updated = file.Updated.AsUtc().ToIsoString(),
-            UpdatedBy = MapFullName(file.UpdatedByUser?.FirstName, file.UpdatedByUser?.LastName),
-        };
-
-        private string MapFullName(string? firstName, string? lastName)
-        {
-            return $"{firstName ?? ""} {lastName ?? ""}".Trim();
         }
     }
 }

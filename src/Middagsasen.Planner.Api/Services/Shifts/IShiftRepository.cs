@@ -13,7 +13,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<T> InResourceLock<T>(int resourceId, Func<Task<T>> work);
 
         /// <summary>
-        /// Henter ressursen uten tracking med alt som trengs for <see cref="ResourceMapper"/> og <see cref="ShiftRules"/>.
+        /// Henter ressursen uten tracking med det <see cref="ShiftService"/> og <see cref="ShiftRules"/> trenger
+        /// (<see cref="ShiftFactsFactory.From"/>): <c>ResourceType</c> (navnet brukes i feilmeldinger), <c>ResourceType.Trainers</c>
+        /// og <c>Shifts.User.Trainings</c>. Svaret til klienten leses separat via lesemodulen for ressurser.
         /// Inne i <see cref="InResourceLock{T}"/> gir den ferske data.
         /// </summary>
         Task<EventResource?> GetResource(int resourceId);
@@ -28,12 +30,6 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>Henter brukerens opplæring på ressurstypen med tracking, eller <c>null</c>.</summary>
         Task<ResourceTypeTraining?> GetTraining(int userId, int resourceTypeId);
-
-        /// <summary>Henter opplæringen uten tracking, med ressurstype og bekreftet av (for svar).</summary>
-        Task<ResourceTypeTraining> GetTrainingForResponse(int trainingId);
-
-        /// <summary>Ressurstypene brukeren har en opplæringsrad for (uansett status).</summary>
-        Task<IReadOnlyList<int>> GetTrainingResourceTypeIds(int userId);
 
         /// <summary>Setter minimum bemanning på ressursen direkte i databasen (uten SaveChanges).</summary>
         Task SetMinimumStaff(int resourceId, int minimumStaff);

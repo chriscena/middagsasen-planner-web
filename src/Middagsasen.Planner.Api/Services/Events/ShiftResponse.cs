@@ -8,8 +8,11 @@ namespace Middagsasen.Planner.Api.Services.Events
         public int Id { get; set; }
         public int EventResourceId { get; set; }
         public ShiftUserResponse User { get; set; } = null!;
-        public DateTime? StartTime { get; set; }
-        public DateTime? EndTime { get; set; }
+        /// <summary>Vaktens start, norsk lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>).</summary>
+        public string? StartTime { get; set; }
+
+        /// <summary>Vaktens slutt, norsk lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>).</summary>
+        public string? EndTime { get; set; }
         public string? Comment { get; set; }
 
         /// <summary>Eieren har bedt om opplæring på ressursens ressurstype og ikke fått den bekreftet ennå.</summary>
