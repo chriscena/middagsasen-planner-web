@@ -712,6 +712,262 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateEvent(999999, new EventRequest { Name = "X", StartTime = "2026-01-15T08:00:00", EndTime = "2026-01-15T16:00:00", Resources = new List<ResourceRequest>() }));
         }
 
+        #region Validering av tider
+
+        private static readonly string?[] InvalidTimes = [null, "", "   ", "ikke-en-tid", "2026-13-01T08:00", "2026-01-15T25:00"];
+
+        // (starttid, sluttid, forventet melding) for arrangementet.
+        public static TheoryData<string?, string?, string> InvalidEventTimes()
+        {
+            var data = new TheoryData<string?, string?, string>();
+            foreach (var invalid in InvalidTimes)
+            {
+                data.Add(invalid, "2026-01-15T16:00", EventsService.InvalidStartTimeMessage);
+                data.Add("2026-01-15T08:00", invalid, EventsService.InvalidEndTimeMessage);
+            }
+            return data;
+        }
+
+        // (starttid, sluttid, forventet melding) for en vakt.
+        public static TheoryData<string?, string?, string> InvalidResourceTimes()
+        {
+            var data = new TheoryData<string?, string?, string>();
+            foreach (var invalid in InvalidTimes)
+            {
+                data.Add(invalid, "2026-01-15T15:00", EventsService.InvalidResourceStartTimeMessage);
+                data.Add("2026-01-15T09:00", invalid, EventsService.InvalidResourceEndTimeMessage);
+            }
+            return data;
+        }
+
+        private static EventRequest ValidEventRequest(string name, int resourceTypeId, int? resourceId = null) => new()
+        {
+            Name = name,
+            StartTime = "2026-01-15T08:00",
+            EndTime = "2026-01-15T16:00",
+            Resources = new List<ResourceRequest>
+            {
+                new ResourceRequest { Id = resourceId, ResourceTypeId = resourceTypeId, StartTime = "2026-01-15T09:00", EndTime = "2026-01-15T15:00", MinimumStaff = 1 },
+            },
+        };
+
+        [Theory]
+        [MemberData(nameof(InvalidEventTimes))]
+        public async Task CreateEvent_ThrowsDomainValidation_WhenEventTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
+        {
+            // Arrange
+            var name = UniqueName("InvalidEventTime");
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = ValidEventRequest(name, rt.ResourceTypeId);
+            request.StartTime = startTime!;
+            request.EndTime = endTime!;
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).CreateEvent(request));
+
+            // Assert
+            Assert.Equal(expectedMessage, ex.Message);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Events.AnyAsync(e => e.Name == name));
+        }
+
+        [Theory]
+        [MemberData(nameof(InvalidResourceTimes))]
+        public async Task CreateEvent_ThrowsDomainValidation_WhenResourceTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
+        {
+            // Arrange
+            var name = UniqueName("InvalidResourceTime");
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = ValidEventRequest(name, rt.ResourceTypeId);
+            var resource = request.Resources.Single();
+            resource.StartTime = startTime!;
+            resource.EndTime = endTime!;
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).CreateEvent(request));
+
+            // Assert
+            Assert.Equal(expectedMessage, ex.Message);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(await verifyContext.Events.AnyAsync(e => e.Name == name));
+        }
+
+        [Theory]
+        [MemberData(nameof(InvalidEventTimes))]
+        public async Task UpdateEvent_ThrowsDomainValidation_WhenEventTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = ValidEventRequest(UniqueName("Updated"), resource.ResourceTypeId, resource.EventResourceId);
+            request.StartTime = startTime!;
+            request.EndTime = endTime!;
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
+
+            // Assert
+            Assert.Equal(expectedMessage, ex.Message);
+        }
+
+        [Theory]
+        [MemberData(nameof(InvalidResourceTimes))]
+        public async Task UpdateEvent_ThrowsDomainValidation_WhenResourceTimeIsInvalid(string? startTime, string? endTime, string expectedMessage)
+        {
+            // Arrange
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = ValidEventRequest(UniqueName("Updated"), resource.ResourceTypeId, resource.EventResourceId);
+            var resourceRequest = request.Resources.Single();
+            resourceRequest.StartTime = startTime!;
+            resourceRequest.EndTime = endTime!;
+
+            // Act
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
+
+            // Assert
+            Assert.Equal(expectedMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_LeavesEventUnchanged_WhenResourceTimeIsInvalid()
+        {
+            // Arrange: gyldige arrangementstider og en gyldig endret vakt, men en ny vakt med ugyldig sluttid.
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("Updated"),
+                Description = "Endret",
+                StartTime = "2026-01-16T10:00",
+                EndTime = "2026-01-16T18:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-16T11:00", EndTime = "2026-01-16T17:00", MinimumStaff = 5 },
+                    new ResourceRequest { ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-16T12:00", EndTime = "ikke-en-tid", MinimumStaff = 1 },
+                },
+            };
+
+            // Act
+            await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context).UpdateEvent(evt.EventId, request));
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId);
+            Assert.Equal(evt.Name, dbEvent.Name);
+            Assert.Null(dbEvent.Description);
+            Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbEvent.EndTime);
+            var dbResource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 15, 8, 0, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 15, 16, 0, 0), dbResource.EndTime);
+            Assert.Equal(2, dbResource.MinimumStaff);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_DoesNotValidateTimes_OnDeletedResources()
+        {
+            // Arrange: slettede ressurser brukes ikke, så tidene deres valideres ikke (som før).
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = evt.Name,
+                StartTime = "2026-01-15T08:00",
+                EndTime = "2026-01-15T16:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "", EndTime = "", IsDeleted = true },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).UpdateEvent(evt.EventId, request);
+
+            // Assert
+            Assert.Empty(result.Resources);
+        }
+
+        [Fact]
+        public async Task CreateEvent_StoresTimes_FromFrontendFormat()
+        {
+            // Arrange: frontend sender lokal tid uten sone, "yyyy-MM-ddTHH:mm" (toLocalWire), også over midnatt.
+            using var seedContext = _fixture.CreateContext();
+            var rt = await SeedResourceType(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = UniqueName("FrontendFormat"),
+                StartTime = "2026-01-15T22:00",
+                EndTime = "2026-01-16T02:00",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = "2026-01-15T23:00", EndTime = "2026-01-16T01:30", MinimumStaff = 1 },
+                },
+            };
+
+            // Act
+            var result = await CreateService(context).CreateEvent(request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            Assert.Equal(new DateTime(2026, 1, 15, 22, 0, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 2, 0, 0), dbEvent.EndTime);
+            var dbResource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 15, 23, 0, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 16, 1, 30, 0), dbResource.EndTime);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_StoresTimes_FromFrontendFormat()
+        {
+            // Arrange: frontend sender lokal tid uten sone, "yyyy-MM-ddTHH:mm" (toLocalWire).
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+
+            using var context = _fixture.CreateContext();
+            var request = new EventRequest
+            {
+                Name = evt.Name,
+                StartTime = "2026-01-17T09:15",
+                EndTime = "2026-01-17T17:45",
+                Resources = new List<ResourceRequest>
+                {
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = "2026-01-17T10:00", EndTime = "2026-01-17T12:30", MinimumStaff = 2 },
+                },
+            };
+
+            // Act
+            await CreateService(context).UpdateEvent(evt.EventId, request);
+
+            // Assert
+            using var verifyContext = _fixture.CreateContext();
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId);
+            Assert.Equal(new DateTime(2026, 1, 17, 9, 15, 0), dbEvent.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 17, 17, 45, 0), dbEvent.EndTime);
+            var dbResource = Assert.Single(dbEvent.Resources);
+            Assert.Equal(new DateTime(2026, 1, 17, 10, 0, 0), dbResource.StartTime);
+            Assert.Equal(new DateTime(2026, 1, 17, 12, 30, 0), dbResource.EndTime);
+        }
+
+        #endregion
+
         [Fact]
         public async Task CreateEventFromTemplate_ThrowsEntityNotFound_WhenNotFound()
         {

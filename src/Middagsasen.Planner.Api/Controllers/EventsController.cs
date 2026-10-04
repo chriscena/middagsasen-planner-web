@@ -48,6 +48,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("api/events")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Create([FromBody] EventRequest request)
         {
@@ -70,6 +71,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("api/events/{id}")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<EventResponse> Update(int id, [FromBody] EventRequest request)

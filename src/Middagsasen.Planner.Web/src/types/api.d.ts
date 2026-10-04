@@ -970,6 +970,15 @@ export interface paths {
                         "text/json": components["schemas"]["EventResponse"];
                     };
                 };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Unauthorized */
                 401: {
                     headers: {
@@ -1071,6 +1080,15 @@ export interface paths {
                         "text/plain": components["schemas"]["EventResponse"];
                         "application/json": components["schemas"]["EventResponse"];
                         "text/json": components["schemas"]["EventResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
                 /** @description Unauthorized */
