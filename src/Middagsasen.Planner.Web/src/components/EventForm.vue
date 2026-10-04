@@ -27,7 +27,9 @@
           outlined
           label="Navn"
           v-model="name"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
         ></q-input>
         <q-input
           outlined

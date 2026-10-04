@@ -7,7 +7,9 @@
     hide-bottom-space
     :readonly="props.readonly"
     :model-value="props.modelValue"
-    @update:model-value="(val) => emit('update:model-value', val as string | null)"
+    @update:model-value="
+      (val) => emit('update:model-value', val as string | null)
+    "
     @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
   >
     <template v-slot:append v-if="!props.readonly">

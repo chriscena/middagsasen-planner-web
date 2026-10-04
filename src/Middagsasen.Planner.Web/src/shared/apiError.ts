@@ -77,8 +77,8 @@ export function getApiErrorMessage(error: unknown, fallback: string): string {
     typeof response.status === "number"
       ? response.status
       : isProblemDetails(data)
-      ? data.status
-      : undefined;
+        ? data.status
+        : undefined;
   // 5xx-meldinger (generisk tekst, proxy-sider o.l.) vises aldri til bruker.
   if (typeof status === "number" && status >= 500) return fallback;
 

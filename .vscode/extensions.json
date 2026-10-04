@@ -1,7 +1,7 @@
 {
   "recommendations": [
+    "oxc.oxc-vscode",
     "dbaeumer.vscode-eslint",
-    "esbenp.prettier-vscode",
     "editorconfig.editorconfig",
     "vue.volar",
     "wayou.vscode-todo-highlight"
@@ -10,6 +10,7 @@
     "octref.vetur",
     "hookyqr.beautify",
     "dbaeumer.jshint",
+    "esbenp.prettier-vscode",
     "ms-vscode.vscode-typescript-tslint-plugin"
   ]
 }

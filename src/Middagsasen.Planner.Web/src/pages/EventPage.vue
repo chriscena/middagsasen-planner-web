@@ -20,7 +20,9 @@
           outlined
           label="Navn"
           v-model="name"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
         ></q-input>
         <q-input
           :error="!isValidStartDate"
@@ -29,7 +31,9 @@
           label="Dato"
           mask="##.##.####"
           placeholder="DD.MM.ÅÅÅÅ"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
           v-model="startDate"
           ><template v-slot:append>
             <q-icon name="event" class="cursor-pointer">
@@ -48,7 +52,9 @@
           label="Start"
           mask="##:##"
           placeholder="TT:MM"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
           v-model="startTime"
         >
           <template v-slot:append>
@@ -69,7 +75,9 @@
           placeholder="TT:MM"
           v-model="endTime"
           :error="!isValidEndTime"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
         >
           <template v-slot:append>
             <q-icon name="access_time" class="cursor-pointer">

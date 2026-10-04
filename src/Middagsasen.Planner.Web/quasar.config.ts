@@ -26,22 +26,19 @@ function versionJsonPlugin(): Plugin {
 
 export default defineConfig((/* ctx */) => {
   return {
-    eslint: {
-      // fix: true,
-      // include: [],
-      // exclude: [],
-      // rawOptions: {},
-      warnings: true,
-      errors: true,
-    },
-
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
 
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ["i18n", "axios", "notify-defaults", "vuedatepicker", "version-check"],
+    boot: [
+      "i18n",
+      "axios",
+      "notify-defaults",
+      "vuedatepicker",
+      "version-check",
+    ],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: [
@@ -242,7 +239,6 @@ export default defineConfig((/* ctx */) => {
     // Full list of options: https://v2.quasar.dev/quasar-cli-vite/developing-browser-extensions/configuring-bex
     bex: {
       // extraScripts: [],
-
       // extendBexScriptsConf (esbuildConf) {}
       // extendBexManifestJson (json) {}
     },

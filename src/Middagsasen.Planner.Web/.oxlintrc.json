@@ -1,0 +1,47 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "vue"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2022": true
+  },
+  "globals": {
+    "ga": "readonly",
+    "cordova": "readonly",
+    "__statics": "readonly",
+    "__QUASAR_SSR__": "readonly",
+    "__QUASAR_SSR_SERVER__": "readonly",
+    "__QUASAR_SSR_CLIENT__": "readonly",
+    "__QUASAR_SSR_PWA__": "readonly",
+    "process": "readonly",
+    "Capacitor": "readonly",
+    "chrome": "readonly",
+    "__APP_VERSION__": "readonly"
+  },
+  "rules": {
+    "no-debugger": "warn",
+    "typescript/no-explicit-any": "warn",
+    "no-array-constructor": "error",
+    "typescript/ban-ts-comment": "error",
+    "typescript/no-empty-object-type": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-require-imports": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-function-type": "error"
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "src-capacitor/**",
+    "src-cordova/**",
+    ".quasar/**",
+    "node_modules/**",
+    "quasar.config.*.temporary.compiled*",
+    "src/types/api.d.ts",
+    "src/types/index.ts",
+    "src/types/enums.ts"
+  ]
+}

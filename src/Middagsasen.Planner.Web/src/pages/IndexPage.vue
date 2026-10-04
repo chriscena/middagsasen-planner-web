@@ -406,7 +406,7 @@ async function getEventStatuses(eventOrView?: MonthYear | Event) {
 function getEventColor(date: string) {
   if (isPast(parseEventStatusDate(date))) return "#bdbdbd"; // grey-5
   const status = eventStore.eventStatuses[date];
-  return status ? "#e57373" /* red-4 */ : "#81c784" /* green-4 */;
+  return status ? "#e57373" /* red-4 */ : "#81c784"; /* green-4 */
 }
 
 const markers = computed(() => {

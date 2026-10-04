@@ -150,9 +150,8 @@ export const useEventStore = defineStore("events", {
     },
     async getResourceTypes(): Promise<void> {
       // if (this.resourceTypes.length) return;
-      const response = await api.get<ResourceTypeResponse[]>(
-        "/api/resourcetypes"
-      );
+      const response =
+        await api.get<ResourceTypeResponse[]>("/api/resourcetypes");
       this.resourceTypes = response.data;
     },
     // --- Vakter ---

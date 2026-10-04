@@ -1,11 +1,21 @@
 {
   "routes": [
-    { "route": "/assets/*", "headers": { "Cache-Control": "public, max-age=31536000, immutable" } },
+    {
+      "route": "/assets/*",
+      "headers": { "Cache-Control": "public, max-age=31536000, immutable" }
+    },
     { "route": "/version.json", "headers": { "Cache-Control": "no-store" } },
     { "route": "/*", "headers": { "Cache-Control": "no-cache" } }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/assets/*", "/icons/*", "/images/*.{png,jpg,gif}", "/css/*", "/version.json"]
+    "exclude": [
+      "/api/*",
+      "/assets/*",
+      "/icons/*",
+      "/images/*.{png,jpg,gif}",
+      "/css/*",
+      "/version.json"
+    ]
   }
 }

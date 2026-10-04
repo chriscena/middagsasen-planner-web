@@ -148,7 +148,9 @@
                     v-model.number="req.minimumRequired"
                     :min="1"
                     label="Min"
-                    @focus="(event) => (event.target as HTMLInputElement).select()"
+                    @focus="
+                      (event) => (event.target as HTMLInputElement).select()
+                    "
                   ></q-input>
                 </q-item-section>
                 <q-item-section side>
@@ -537,9 +539,8 @@ function removeCompetencyRequirement(index: number) {
 }
 
 async function loadCompetencyRequirements(resourceTypeId: number) {
-  const data = await competencyStore.getResourceTypeCompetencies(
-    resourceTypeId
-  );
+  const data =
+    await competencyStore.getResourceTypeCompetencies(resourceTypeId);
   // `name` finnes ikke i DTO-en (competencyName er påkrevd); fallbacken er
   // beholdt fra JS-versjonen.
   competencyRequirements.value = data.map(

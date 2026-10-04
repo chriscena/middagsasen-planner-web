@@ -311,10 +311,10 @@ function notifyError(error: unknown, fallbackMessage: string) {
     kind === "conflict"
       ? "Føringen er allerede behandlet og kan ikke endres lenger"
       : kind === "notFound"
-      ? "Føringen finnes ikke lenger"
-      : kind === "forbidden"
-      ? "Du har ikke tilgang til å endre denne føringen"
-      : fallbackMessage;
+        ? "Føringen finnes ikke lenger"
+        : kind === "forbidden"
+          ? "Du har ikke tilgang til å endre denne føringen"
+          : fallbackMessage;
   $q.notify({
     message: getApiErrorMessage(error, defaultMessage),
     color: "negative",

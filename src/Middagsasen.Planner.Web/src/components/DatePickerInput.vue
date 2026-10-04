@@ -8,7 +8,9 @@
     :readonly="props.readonly"
     @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
     :model-value="props.modelValue"
-    @update:model-value="(val) => emit('update:model-value', val as string | null)"
+    @update:model-value="
+      (val) => emit('update:model-value', val as string | null)
+    "
     ><template v-slot:append v-if="!props.readonly">
       <q-icon name="event" class="cursor-pointer">
         <q-popup-proxy transition-show="scale" transition-hide="scale">

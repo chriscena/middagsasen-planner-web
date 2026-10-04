@@ -266,7 +266,7 @@ const currentUser = computed(() => authStore.user);
 
 const users = computed((): UserResponse[] => {
   const filterValue = filter.value;
-  return !!filterValue
+  return filterValue
     ? userStore.users.filter(
         (p) =>
           !!p.fullName &&

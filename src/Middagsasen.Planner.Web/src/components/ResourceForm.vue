@@ -25,7 +25,9 @@
       ></q-select>
       <q-input
         outlined
-        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+        @focus="
+          (event) => (event.target as HTMLInputElement | null)?.select?.()
+        "
         label="Minste bemanning"
         suffix="stk"
         step="1"
@@ -38,7 +40,9 @@
         label="Start"
         mask="##:##"
         placeholder="TT:MM"
-        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+        @focus="
+          (event) => (event.target as HTMLInputElement | null)?.select?.()
+        "
         v-model="startTime"
       >
         <template v-slot:append>
@@ -58,7 +62,9 @@
         mask="##:##"
         placeholder="TT:MM"
         v-model="endTime"
-        @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+        @focus="
+          (event) => (event.target as HTMLInputElement | null)?.select?.()
+        "
       >
         <template v-slot:append>
           <q-icon name="access_time" class="cursor-pointer">

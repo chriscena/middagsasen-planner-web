@@ -20,14 +20,18 @@
           outlined
           label="Navn på mal"
           v-model="name"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
         ></q-input>
         <q-input
           hide-bottom-space
           outlined
           label="Navn på vaktliste"
           v-model="eventName"
-          @focus="(event) => (event.target as HTMLInputElement | null)?.select?.()"
+          @focus="
+            (event) => (event.target as HTMLInputElement | null)?.select?.()
+          "
         ></q-input>
         <TimePickerInput
           :error="!isValidStartTime"

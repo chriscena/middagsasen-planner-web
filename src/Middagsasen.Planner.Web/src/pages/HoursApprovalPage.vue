@@ -602,7 +602,7 @@ const seasonFilter = computed<number | null>(() => {
   const fromQuery = parseInt(String($route.query.s));
   return Number.isInteger(fromQuery)
     ? fromQuery
-    : seasonStore.currentSeason?.startYear ?? null;
+    : (seasonStore.currentSeason?.startYear ?? null);
 });
 
 // Valgt bruker fra URL (`u`), null = alle brukere.
@@ -748,10 +748,10 @@ async function changeStatus(
         kind === "conflict"
           ? "Statusen kunne ikke endres fordi føringen er endret av noen andre"
           : kind === "notFound"
-          ? "Føringen finnes ikke lenger"
-          : kind === "forbidden"
-          ? "Du har ikke tilgang til å endre denne føringen"
-          : "Klarte ikke å oppdatere status"
+            ? "Føringen finnes ikke lenger"
+            : kind === "forbidden"
+              ? "Du har ikke tilgang til å endre denne føringen"
+              : "Klarte ikke å oppdatere status"
       ),
     });
   } finally {
@@ -889,6 +889,8 @@ onMounted(async () => {
   width: 5%;
 }
 .grid-style-transition {
-  transition: transform 0.28s, background-color 0.28s;
+  transition:
+    transform 0.28s,
+    background-color 0.28s;
 }
 </style>
