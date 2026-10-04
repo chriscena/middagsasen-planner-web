@@ -422,7 +422,7 @@
               v-for="file in selectedResource!.resourceType.files"
               :key="file.id"
               clickable
-              @click="downloadResourceTypeFileOrNotify(file, $q.notify)"
+              @click="downloadResourceTypeFileOrNotify(file)"
             >
               <q-item-section
                 ><q-item-label lines="1">{{
@@ -513,7 +513,7 @@ import type { Timestamp } from "@timestamp-js/core";
 import { useEventStore } from "stores/EventStore";
 import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "src/shared/shiftList";
 import {
@@ -658,11 +658,6 @@ function notifyWarnings(warnings: string[]): void {
   }
 }
 
-function notifyError(error: unknown, fallback: string): void {
-  console.error(error);
-  $q.notify({ type: "negative", message: getApiErrorMessage(error, fallback) });
-}
-
 // Leser opplæringen til brukeren på ressursens ressurstype inn i dialogene
 // (for visning, og som utgangspunkt for svaret som sendes med vakta).
 function loadTraining(
@@ -744,7 +739,7 @@ async function signUpSelf(
     });
     notifyWarnings(result.warnings);
   } catch (error) {
-    notifyError(error, "Oh no! Noe tryna da du skulle ta vakta! 🙈");
+    notifyApiError(error, "Oh no! Noe tryna da du skulle ta vakta! 🙈");
   } finally {
     adding.value = false;
   }
@@ -782,7 +777,7 @@ async function saveOwnShift(): Promise<void> {
     $q.notify({ message: "Endringer er lagret 👍" });
     notifyWarnings(result.warnings);
   } catch (error) {
-    notifyError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
+    notifyApiError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
   } finally {
     saving.value = false;
   }
@@ -808,7 +803,7 @@ async function saveAdminShift(): Promise<void> {
     $q.notify({ message: "Endringer er lagret 👍" });
     notifyWarnings(result.warnings);
   } catch (error) {
-    notifyError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
+    notifyApiError(error, "Oh no! Noe tryna da vi skulle lagre endringene! 🙈");
   } finally {
     saving.value = false;
   }
@@ -824,7 +819,7 @@ async function withdrawShift(): Promise<void> {
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
   } catch (error) {
-    notifyError(error, "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈");
+    notifyApiError(error, "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈");
   } finally {
     saving.value = false;
   }
@@ -848,7 +843,10 @@ async function saveConfirmTraining(): Promise<void> {
     $q.notify({ message: "Opplæringen er bekreftet 👍" });
     notifyWarnings(result.warnings);
   } catch (error) {
-    notifyError(error, "Oh no! Noe tryna da vi skulle lagre opplæringen! 🙈");
+    notifyApiError(
+      error,
+      "Oh no! Noe tryna da vi skulle lagre opplæringen! 🙈"
+    );
   } finally {
     saving.value = false;
   }
@@ -870,8 +868,8 @@ async function getUsers(): Promise<void> {
   try {
     loadingUsers.value = true;
     await userStore.getUsers();
-  } catch {
-    $q.notify({ message: "Klarte ikke å hente lista over brukere." });
+  } catch (error) {
+    notifyApiError(error, "Klarte ikke å hente lista over brukere.");
   } finally {
     loadingUsers.value = false;
   }
@@ -899,10 +897,7 @@ async function saveMessage(): Promise<void> {
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er lagret. 📨" });
   } catch (error) {
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre beskjed. 😿"),
-    });
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å lagre beskjed. 😿");
   } finally {
     savingMessage.value = false;
   }
@@ -919,10 +914,7 @@ async function deleteMessage(message: MessageResponse): Promise<void> {
     newMessage.value = null;
     $q.notify({ message: "Beskjeden er slettet. 📤" });
   } catch (error) {
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å slette beskjed. 😿"),
-    });
-    console.log(error);
+    notifyApiError(error, "Klarte ikke å slette beskjed. 😿");
   } finally {
     deletingMessage.value = false;
   }
@@ -945,7 +937,7 @@ async function changeMinimumStaff(
     loading.value = true;
     await eventStore.patchMinimumStaff(resource.id, minimumStaff);
   } catch (error) {
-    notifyError(error, fallback);
+    notifyApiError(error, fallback);
   } finally {
     loading.value = false;
   }

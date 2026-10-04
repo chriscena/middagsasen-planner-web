@@ -86,7 +86,7 @@ import type {
   TemplateFormValue,
 } from "components/TemplateForm.vue";
 import type { EventTemplateRequest, EventTemplateResponse } from "src/types";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { formatTimeRange } from "src/shared/time";
 
 const emit = defineEmits<{
@@ -152,10 +152,7 @@ async function saveTemplate(model: TemplateFormModel) {
     }
     showingEditDialog.value = false;
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre."),
-    });
+    notifyApiError(error, "Klarte ikke å lagre.");
   } finally {
     savingTemplate.value = false;
   }
@@ -170,10 +167,7 @@ async function deleteTemplate(model: Pick<TemplateFormModel, "id">) {
     });
     showingEditDialog.value = false;
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å slette malen."),
-    });
+    notifyApiError(error, "Klarte ikke å slette malen.");
   } finally {
     savingTemplate.value = false;
   }

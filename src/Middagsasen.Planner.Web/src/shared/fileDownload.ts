@@ -3,7 +3,8 @@
 // En vanlig `<a href>` sender ikke Bearer-token, så filen hentes via `api`
 // (interceptoren legger på tokenet) som en Blob, og lagres så lokalt.
 import { api } from "boot/axios";
-import { getApiErrorMessage, getErrorResponse } from "src/shared/apiError";
+import { getErrorResponse } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import type { FileInfoResponse } from "src/types";
 
 // Hvor lenge object-URL-en lever etter klikket. Noen nettlesere (Firefox)
@@ -16,13 +17,9 @@ export const DOWNLOAD_TIMEOUT_MS = 120_000;
 
 export const DOWNLOAD_ERROR_FALLBACK = "Klarte ikke å hente filen.";
 
-// Tas inn som avhengighet (som i `unauthorizedHandler`), slik at tester kan
-// sende inn en fake i stedet for `$q.notify`.
-export type DownloadNotify = (options: { message: string }) => void;
-
 /**
  * Med `responseType: "blob"` blir også feil-bodyen en Blob. Gjør den om til
- * JSON (ProblemDetails) eller tekst, slik at `getApiErrorMessage` kan lese den.
+ * JSON (ProblemDetails) eller tekst, slik at `notifyApiError` kan lese den.
  */
 async function unwrapBlobError(error: unknown): Promise<void> {
   const response = getErrorResponse(error);
@@ -89,17 +86,15 @@ export async function downloadResourceTypeFile(
 }
 
 /**
- * Som `downloadResourceTypeFile`, men viser feilen til brukeren via `notify`
- * i stedet for å kaste. Brukes direkte fra klikk-handlere.
+ * Som `downloadResourceTypeFile`, men viser feilen til brukeren via
+ * `notifyApiError` i stedet for å kaste. Brukes direkte fra klikk-handlere.
  */
 export async function downloadResourceTypeFileOrNotify(
-  file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">,
-  notify: DownloadNotify
+  file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">
 ): Promise<void> {
   try {
     await downloadResourceTypeFile(file);
   } catch (error) {
-    console.log(error);
-    notify({ message: getApiErrorMessage(error, DOWNLOAD_ERROR_FALLBACK) });
+    notifyApiError(error, DOWNLOAD_ERROR_FALLBACK);
   }
 }

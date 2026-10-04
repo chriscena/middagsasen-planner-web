@@ -161,7 +161,7 @@ import {
   today,
 } from "src/shared/time";
 import { toResourceDateTimes } from "src/shared/timeValidation";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { newClientKey } from "src/shared/clientKey";
 
 const emit = defineEmits<{
@@ -230,12 +230,8 @@ onMounted(async () => {
       await eventStore.getResourceTypes();
     }
   } catch (error) {
-    console.error(error);
     loadFailed.value = true;
-    $q.notify({
-      type: "negative",
-      message: getApiErrorMessage(error, "Klarte ikke å hente vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å hente vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -322,10 +318,7 @@ async function saveEvent() {
     }
     emit("saved", model);
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å lagre vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -346,10 +339,7 @@ async function deleteEvent() {
     $q.notify({ message: "Vaktlista er slettet." });
     emit("deleted");
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å slette vaktlista."),
-    });
+    notifyApiError(error, "Klarte ikke å slette vaktlista.");
   } finally {
     loading.value = false;
   }
@@ -371,8 +361,8 @@ async function createTemplate(id: number | null) {
     await eventStore.createTemplateFromEvent(id!, templateName.value!);
     $q.notify({ message: "Ny mal opprettet." });
     showingCreateTemplate.value = false;
-  } catch {
-    $q.notify({ message: "Noe feilet mens malen skulle lagres." });
+  } catch (error) {
+    notifyApiError(error, "Noe feilet mens malen skulle lagres.");
   } finally {
     savingTemplate.value = false;
   }

@@ -178,7 +178,7 @@ import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { useUserStore } from "stores/UserStore";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { applyApproverResults, localApprovers } from "src/shared/approvers";
 import type {
   CompetencyApproverResponse,
@@ -253,8 +253,7 @@ async function editCompetency(competency: CompetencyResponse): Promise<void> {
     };
     showingEdit.value = true;
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å hente kompetanse." });
+    notifyApiError(error, "Klarte ikke å hente kompetanse.");
   }
 }
 
@@ -306,10 +305,7 @@ async function saveCompetency(): Promise<void> {
     showingEdit.value = false;
     $q.notify({ message: "Kompetansen er lagret." });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre kompetansen."),
-    });
+    notifyApiError(error, "Klarte ikke å lagre kompetansen.");
   }
 }
 
@@ -320,8 +316,7 @@ async function deleteCompetency(): Promise<void> {
     showingEdit.value = false;
     $q.notify({ message: "Kompetansen er slettet." });
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å slette kompetansen." });
+    notifyApiError(error, "Klarte ikke å slette kompetansen.");
   }
 }
 
@@ -348,8 +343,7 @@ async function addApprover(): Promise<void> {
     selectedApprover.value = null;
     $q.notify({ message: "Godkjenner er lagt til." });
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å legge til godkjenner." });
+    notifyApiError(error, "Klarte ikke å legge til godkjenner.");
   }
 }
 
@@ -369,8 +363,7 @@ async function removeApprover(
     );
     $q.notify({ message: "Godkjenner er fjernet." });
   } catch (error) {
-    console.log(error);
-    $q.notify({ message: "Klarte ikke å fjerne godkjenner." });
+    notifyApiError(error, "Klarte ikke å fjerne godkjenner.");
   }
 }
 </script>

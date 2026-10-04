@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach, type Mock } from "vitest";
 import {
   handleUnauthorized,
   isSafeRedirect,
+  isSessionExpiredError,
   type UnauthorizedError,
 } from "src/auth/unauthorizedHandler";
 
@@ -139,6 +140,26 @@ describe("handleUnauthorized", () => {
     expect(authStore.removeUserSession).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSessionExpiredError", () => {
+  it.each([
+    ["401 from API", createError(401, "/api/events"), true],
+    [
+      "401 from authentication endpoint",
+      createError(401, "/api/authentication/authenticate"),
+      false,
+    ],
+    ["403", createError(403, "/api/events"), false],
+    ["500", createError(500, "/api/events"), false],
+    ["network error", createError(undefined, "/api/events"), false],
+    ["401 without config", { response: { status: 401 } }, true],
+    ["null", null, false],
+    ["undefined", undefined, false],
+    ["string", "401", false],
+  ])("%s gives %s", (_, error, expected) => {
+    expect(isSessionExpiredError(error)).toBe(expected);
   });
 });
 

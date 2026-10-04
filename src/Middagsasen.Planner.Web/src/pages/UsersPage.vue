@@ -238,7 +238,7 @@ import { useUserStore } from "stores/UserStore";
 import { useAuthStore } from "stores/AuthStore";
 import { useCompetencyStore } from "stores/CompetencyStore";
 import { formatHours } from "src/shared/formatter";
-import { getApiErrorMessage } from "src/shared/apiError";
+import { notifyApiError } from "src/shared/notifyApiError";
 import { formatDate } from "src/shared/time";
 import type { UserCompetencyResponse, UserResponse } from "src/types";
 
@@ -279,14 +279,7 @@ onMounted(async () => {
     loading.value = true;
     await Promise.all([userStore.getUsers(), userStore.getWorkHourSums()]);
   } catch (error) {
-    console.error(error);
-    $q.notify({
-      type: "negative",
-      message: getApiErrorMessage(
-        error,
-        "Klarte ikke å hente brukere og timer."
-      ),
-    });
+    notifyApiError(error, "Klarte ikke å hente brukere og timer.");
   } finally {
     loading.value = false;
   }
@@ -387,11 +380,7 @@ async function doApprove(
     await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse godkjent" });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å godkjenne kompetanse",
-      color: "negative",
-    });
+    notifyApiError(error, "Klarte ikke å godkjenne kompetanse");
   } finally {
     approvingId.value = null;
   }
@@ -404,11 +393,7 @@ async function revokeCompetency(uc: UserCompetencyResponse): Promise<void> {
     await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse trukket tilbake" });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å trekke tilbake kompetanse",
-      color: "negative",
-    });
+    notifyApiError(error, "Klarte ikke å trekke tilbake kompetanse");
   } finally {
     revokingId.value = null;
   }
@@ -426,11 +411,7 @@ async function adminAddCompetency(): Promise<void> {
     await competencyStore.getUserCompetencies(selectedUser.value.id!);
     $q.notify({ message: "Kompetanse lagt til" });
   } catch (error) {
-    console.log(error);
-    $q.notify({
-      message: "Klarte ikke å legge til kompetanse",
-      color: "negative",
-    });
+    notifyApiError(error, "Klarte ikke å legge til kompetanse");
   } finally {
     adminAddingCompetency.value = false;
   }
@@ -465,9 +446,7 @@ async function saveUser(): Promise<void> {
     $q.notify({ message: "Bruker lagret" });
     showingEditDialog.value = false;
   } catch (error) {
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre bruker"),
-    });
+    notifyApiError(error, "Klarte ikke å lagre bruker");
   } finally {
     saving.value = false;
   }
@@ -480,8 +459,8 @@ async function deleteUser(): Promise<void> {
     await userStore.deleteUser({ id: selectedUser.value.id! });
     $q.notify({ message: "Bruker slettet" });
     showingEditDialog.value = false;
-  } catch {
-    $q.notify({ message: "Klarte ikke å slette bruker" });
+  } catch (error) {
+    notifyApiError(error, "Klarte ikke å slette bruker");
   } finally {
     saving.value = false;
   }

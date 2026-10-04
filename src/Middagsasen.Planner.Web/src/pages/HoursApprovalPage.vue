@@ -450,6 +450,7 @@ import type { BulkApprovalCounts } from "src/shared/workHours";
 import { ApprovalFilter, ApprovalStatus } from "src/types";
 import type { UserResponse, WorkHourResponse } from "src/types";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
+import { notifyApiError } from "src/shared/notifyApiError";
 
 // Filteret som sendes til q-table (`:filter`) og tilbake i @request.
 interface WorkHourFilter {
@@ -667,11 +668,7 @@ async function getUserWorkHours(props: TableRequestProps) {
     rejectedHours.value = seasonSums.rejectedHours;
     pendingHours.value = allSeasonSums.pendingHours;
   } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: "Klarte ikke å hente timeføringer",
-    });
+    notifyApiError(e, "Klarte ikke å hente timeføringer");
   } finally {
     // Synker side/rader til URL-en (setFilter leser dem fra pagination).
     setFilter();
@@ -743,11 +740,8 @@ async function changeStatus(
       color: "positive",
     });
   } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: getWorkHourError(e, "changeStatus").message,
-    });
+    // getWorkHourError tolker 409/403/404; den meldingen blir fallback.
+    notifyApiError(e, getWorkHourError(e, "changeStatus").message);
   } finally {
     loading.value = false;
     showWorkHourDialog.value = false;
@@ -852,11 +846,7 @@ onMounted(async () => {
       seasonStore.getSeasons(),
     ]);
   } catch (e) {
-    console.error(e);
-    $q.notify({
-      type: "negative",
-      message: "Klarte ikke å hente sesonger eller brukere",
-    });
+    notifyApiError(e, "Klarte ikke å hente sesonger eller brukere");
   }
   userOptions.value = userStore.users;
   // Tabellen rendres først når sesong er kjent, så første forespørsel har riktig filter.

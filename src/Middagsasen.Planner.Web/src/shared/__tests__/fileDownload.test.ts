@@ -9,6 +9,12 @@ vi.mock("boot/axios", () => ({
   api: mockApi,
 }));
 
+const mockNotifyApiError = vi.hoisted(() => vi.fn());
+
+vi.mock("src/shared/notifyApiError", () => ({
+  notifyApiError: mockNotifyApiError,
+}));
+
 import {
   DOWNLOAD_ERROR_FALLBACK,
   DOWNLOAD_TIMEOUT_MS,
@@ -140,14 +146,9 @@ describe("downloadResourceTypeFileOrNotify", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("viser ProblemDetails-meldingen fra backend via notify", async () => {
+  it("sender feilen med utpakket ProblemDetails til notifyApiError", async () => {
     const problem = { status: 403, detail: "Ingen tilgang." };
     mockApi.get.mockRejectedValue({
       response: {
@@ -155,21 +156,26 @@ describe("downloadResourceTypeFileOrNotify", () => {
         data: new Blob([JSON.stringify(problem)]),
       },
     });
-    const notify = vi.fn();
 
     await expect(
-      downloadResourceTypeFileOrNotify(file, notify)
+      downloadResourceTypeFileOrNotify(file)
     ).resolves.toBeUndefined();
 
-    expect(notify).toHaveBeenCalledWith({ message: "Ingen tilgang." });
+    expect(mockNotifyApiError).toHaveBeenCalledTimes(1);
+    const [error, fallback] = mockNotifyApiError.mock.calls[0]!;
+    expect(fallback).toBe(DOWNLOAD_ERROR_FALLBACK);
+    expect(getApiErrorMessage(error, fallback)).toBe("Ingen tilgang.");
   });
 
-  it("viser fallback-melding ved nettverksfeil", async () => {
-    mockApi.get.mockRejectedValue(new Error("Network Error"));
-    const notify = vi.fn();
+  it("sender nettverksfeil til notifyApiError med fallback", async () => {
+    const error = new Error("Network Error");
+    mockApi.get.mockRejectedValue(error);
 
-    await downloadResourceTypeFileOrNotify(file, notify);
+    await downloadResourceTypeFileOrNotify(file);
 
-    expect(notify).toHaveBeenCalledWith({ message: DOWNLOAD_ERROR_FALLBACK });
+    expect(mockNotifyApiError).toHaveBeenCalledWith(
+      error,
+      DOWNLOAD_ERROR_FALLBACK
+    );
   });
 });

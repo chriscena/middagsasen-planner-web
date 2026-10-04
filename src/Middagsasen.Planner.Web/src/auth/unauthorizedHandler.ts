@@ -36,17 +36,40 @@ export function isSafeRedirect(path: unknown): path is string {
   );
 }
 
+function getUrl(error: object): string {
+  if (!("config" in error)) return "";
+  const config = error.config;
+  if (typeof config !== "object" || config === null || !("url" in config)) {
+    return "";
+  }
+  return typeof config.url === "string" ? config.url : "";
+}
+
+/**
+ * Sant for 401 fra et vanlig API-endepunkt, dvs. utløpt/ugyldig sesjon.
+ * Disse håndteres av `handleUnauthorized` (rydder sesjon, ett «logget ut»-
+ * varsel), så kallere skal ikke vise et eget feilvarsel. 401 fra
+ * `/api/authentication/` (f.eks. feil passord) regnes ikke med.
+ */
+export function isSessionExpiredError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return false;
+  }
+  const response = error.response;
+  const status =
+    typeof response === "object" && response !== null && "status" in response
+      ? response.status
+      : undefined;
+  return status === 401 && !getUrl(error).startsWith(AUTH_ENDPOINT_PREFIX);
+}
+
 // Håndterer 401 fra API-et: rydder sesjonen og sender brukeren til innlogging.
 // Avviser alltid med den opprinnelige feilen slik at kallere kan håndtere den.
 export function handleUnauthorized(
   error: UnauthorizedError | null | undefined,
   { authStore, router, notify }: UnauthorizedDeps
 ): Promise<never> {
-  const isUnauthorized = error?.response?.status === 401;
-  const url = error?.config?.url ?? "";
-  const isAuthEndpoint = url.startsWith(AUTH_ENDPOINT_PREFIX);
-
-  if (isUnauthorized && !isAuthEndpoint) {
+  if (isSessionExpiredError(error)) {
     // Rydd alltid sesjonen, også når ingen bruker er lastet, slik at et
     // ugyldig token ikke blir liggende igjen.
     const hadUser = !!authStore.user;

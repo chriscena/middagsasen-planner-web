@@ -138,6 +138,7 @@ import {
 } from "src/shared/time";
 import { ApprovalStatus } from "src/types";
 import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
+import { notifyApiError } from "src/shared/notifyApiError";
 
 interface TimeTrackingViewModel {
   id: number | null;
@@ -310,9 +311,10 @@ function validateContent() {
   return true;
 }
 
-function notifyError(error: unknown, action: WorkHourAction) {
+function handleWorkHourError(error: unknown, action: WorkHourAction) {
   const { message, shouldReload } = getWorkHourError(error, action);
-  $q.notify({ message, color: "negative" });
+  // getWorkHourError tolker 409/403/404; den meldingen blir fallback.
+  notifyApiError(error, message);
   if (shouldReload) {
     // Forelder lukker og laster listen på nytt.
     emit("saved", null);
@@ -343,7 +345,7 @@ async function createHours() {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, "create");
+    handleWorkHourError(error, "create");
   } finally {
     viewModel.saving = false;
   }
@@ -381,7 +383,7 @@ async function updateHours() {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, "update");
+    handleWorkHourError(error, "update");
   } finally {
     viewModel.saving = false;
   }
@@ -409,7 +411,7 @@ async function approveHours(approvalStatus: ApprovalStatus) {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, approvalAction(approvalStatus));
+    handleWorkHourError(error, approvalAction(approvalStatus));
   } finally {
     viewModel.approving = null;
   }
@@ -425,7 +427,7 @@ async function deleteHours() {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, "delete");
+    handleWorkHourError(error, "delete");
   } finally {
     viewModel.deleting = false;
   }

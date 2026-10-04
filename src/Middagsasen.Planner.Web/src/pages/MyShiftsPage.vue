@@ -73,7 +73,6 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
-import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
 import { api } from "src/boot/axios";
 import type { ShiftSeasonResponse } from "src/types";
@@ -82,6 +81,7 @@ import {
   formatTimeRange,
   formatWeekday,
 } from "src/shared/time";
+import { notifyApiError } from "src/shared/notifyApiError";
 
 interface ViewModel {
   shifts: ShiftSeasonResponse[];
@@ -89,7 +89,6 @@ interface ViewModel {
 
 const emit = defineEmits<{ "toggle-right": [] }>();
 const loading = ref(false);
-const $q = useQuasar();
 const $router = useRouter();
 
 const viewModel = reactive<ViewModel>({
@@ -105,11 +104,8 @@ onMounted(async () => {
     loading.value = true;
     const response = await api.get<ShiftSeasonResponse[]>("/api/me/shifts");
     viewModel.shifts = response.data;
-  } catch {
-    $q.notify({
-      type: "negative",
-      message: "Klarte ikke å hente vaktene dine 🙈",
-    });
+  } catch (error) {
+    notifyApiError(error, "Klarte ikke å hente vaktene dine 🙈");
   } finally {
     loading.value = false;
   }
