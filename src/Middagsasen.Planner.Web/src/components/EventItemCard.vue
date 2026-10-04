@@ -126,6 +126,7 @@
         icon="add"
         class="q-pa-sm row"
         style="width: 50%; font-size: small"
+        :disable="loading"
         @click="addEmptyShift(resource)"
       >
         <q-icon name="add" size="sm" class="q-px-sm" />
@@ -140,6 +141,7 @@
         icon="remove"
         class="q-pa-sm row"
         style="width: 49.5%; font-size: small"
+        :disable="loading || resource.minimumStaff <= resource.shifts.length"
         @click="deleteEmptyShift(resource)"
       >
         <q-icon name="remove" size="sm" class="q-px-sm" />
@@ -657,8 +659,8 @@ function notifyWarnings(warnings: string[]): void {
 }
 
 function notifyError(error: unknown, fallback: string): void {
-  console.log(error);
-  $q.notify({ message: getApiErrorMessage(error, fallback) });
+  console.error(error);
+  $q.notify({ type: "negative", message: getApiErrorMessage(error, fallback) });
 }
 
 // Leser opplæringen til brukeren på ressursens ressurstype inn i dialogene
@@ -934,40 +936,41 @@ function canDeleteMessage(message: MessageResponse): boolean {
 }
 // patchMinimumStaff legger svaret (ressursen med flagg) i cachen, så her
 // regnes bare ut ny verdi som sendes.
-async function addEmptyShift(resource: ResourceResponse): Promise<void> {
+async function changeMinimumStaff(
+  resource: ResourceResponse,
+  minimumStaff: number,
+  fallback: string
+): Promise<void> {
   try {
     loading.value = true;
-
-    const minimumStaff =
-      resource.minimumStaff < resource.shifts.length
-        ? resource.shifts.length + 1
-        : resource.minimumStaff + 1;
     await eventStore.patchMinimumStaff(resource.id, minimumStaff);
   } catch (error) {
-    notifyError(
-      error,
-      "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
-    );
+    notifyError(error, fallback);
   } finally {
     loading.value = false;
   }
 }
-async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
-  try {
-    loading.value = true;
+async function addEmptyShift(resource: ResourceResponse): Promise<void> {
+  if (loading.value) return;
 
-    const minimumStaff =
-      resource.minimumStaff > resource.shifts.length
-        ? resource.minimumStaff - 1
-        : resource.minimumStaff;
-    await eventStore.patchMinimumStaff(resource.id, minimumStaff);
-  } catch (error) {
-    notifyError(
-      error,
-      "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
-    );
-  } finally {
-    loading.value = false;
-  }
+  const minimumStaff =
+    resource.minimumStaff < resource.shifts.length
+      ? resource.shifts.length + 1
+      : resource.minimumStaff + 1;
+  await changeMinimumStaff(
+    resource,
+    minimumStaff,
+    "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
+  );
+}
+async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
+  // Ingen ledige plasser å fjerne.
+  if (loading.value || resource.minimumStaff <= resource.shifts.length) return;
+
+  await changeMinimumStaff(
+    resource,
+    resource.minimumStaff - 1,
+    "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
+  );
 }
 </script>
