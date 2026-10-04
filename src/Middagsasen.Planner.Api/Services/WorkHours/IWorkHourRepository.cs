@@ -2,7 +2,6 @@ using Middagsasen.Planner.Api.Data;
 
 namespace Middagsasen.Planner.Api.Services.WorkHours
 {
-    /// <summary>Filter på godkjenningsstatus: 1 = godkjent, 2 = avslått, 3 = åpne, null/annet = alle.</summary>
     public interface IWorkHourRepository
     {
         /// <summary>Henter føring med tracking (for endring), inkl. ApprovedByUser/ModifiedByUser.</summary>
@@ -12,10 +11,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId);
 
         /// <summary>
-        /// Paginert liste sortert på starttid synkende. <paramref name="userId"/> null = alle brukere.
+        /// Paginert liste sortert på starttid synkende, filtrert på <paramref name="approved"/>. <paramref name="userId"/> null = alle brukere.
         /// <paramref name="from"/>/<paramref name="to"/> filtrerer på starttid i det halvåpne intervallet [from, to); null = ingen grense.
         /// </summary>
-        Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take);
+        Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, ApprovalFilter approved, DateTime? from, DateTime? to, int skip, int take);
 
         /// <summary>
         /// Avsluttede føringer (både start og slutt satt) for summering.
@@ -32,7 +31,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         Task SaveChangesAsync();
     }
 
-    public record WorkHourInterval(int UserId, int? ApprovalStatus, DateTime StartTime, DateTime EndTime)
+    public record WorkHourInterval(int UserId, ApprovalStatus? ApprovalStatus, DateTime StartTime, DateTime EndTime)
     {
         public double Hours => (EndTime - StartTime).TotalHours;
     }

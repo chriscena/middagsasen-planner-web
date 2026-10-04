@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
+import { ApprovalFilter, ApprovalStatus } from "src/types";
 import type {
   PagedResponseOfWorkHourResponse,
   WorkHourResponse,
@@ -30,7 +31,14 @@ describe("WorkHourStore", () => {
 
   describe("createWorkHour", () => {
     it("sends only startTime, endTime and description and returns data", async () => {
-      const created: WorkHourResponse = { workHourId: 1, userId: 42 };
+      const created: WorkHourResponse = {
+        workHourId: 1,
+        userId: 42,
+        canEdit: true,
+        canDelete: true,
+        canApprove: false,
+        canResetStatus: false,
+      };
       mockApi.post.mockResolvedValue({ data: created });
 
       // Ekstra felt (userId) skal ikke sendes videre; lagt i en variabel så
@@ -57,14 +65,20 @@ describe("WorkHourStore", () => {
       const updated: WorkHourResponse = {
         workHourId: 5,
         userId: 42,
-        approvalStatus: 1,
+        approvalStatus: ApprovalStatus.Approved,
+        canEdit: false,
+        canDelete: false,
+        canApprove: false,
+        canResetStatus: true,
       };
       mockApi.patch.mockResolvedValue({ data: updated });
 
-      const result = await store.patchWorkHour(5, { approvalStatus: 1 });
+      const result = await store.patchWorkHour(5, {
+        approvalStatus: ApprovalStatus.Approved,
+      });
 
       expect(mockApi.patch).toHaveBeenCalledWith("/api/WorkHours/5", {
-        approvalStatus: 1,
+        approvalStatus: ApprovalStatus.Approved,
       });
       expect(result).toEqual(updated);
     });
@@ -129,7 +143,7 @@ describe("WorkHourStore", () => {
       };
       mockApi.get.mockResolvedValue({ data });
       const params = {
-        approved: 3,
+        approved: ApprovalFilter.Pending,
         page: 1,
         pageSize: 15,
         season: 2025,

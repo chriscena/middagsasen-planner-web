@@ -2,8 +2,11 @@
   <q-card class="full-width">
     <q-card-section class="text-h6"
       >Timeføring
-      <q-badge v-if="viewModel.status === 1" color="positive">Godkjent</q-badge>
-      <q-badge v-if="viewModel.status === 2" color="negative">Avvist</q-badge>
+      <q-badge
+        v-if="statusDisplay.badgeColor"
+        :color="statusDisplay.badgeColor"
+        >{{ statusDisplay.label }}</q-badge
+      >
       <div v-if="modifiedByText" class="text-caption text-grey-7">
         {{ modifiedByText }}
       </div>
@@ -14,18 +17,18 @@
         unelevated
         color="negative"
         label="Avslå"
-        @click="approveHours(2)"
+        @click="approveHours(ApprovalStatus.Rejected)"
         :disable="(hasChanges && !validForm) || busy"
-        :loading="viewModel.approving === 2"
+        :loading="viewModel.approving === ApprovalStatus.Rejected"
       ></q-btn>
       <q-btn
         no-caps
         unelevated
         color="positive"
         label="Godkjenn"
-        @click="approveHours(1)"
+        @click="approveHours(ApprovalStatus.Approved)"
         :disable="(hasChanges && !validForm) || busy"
-        :loading="viewModel.approving === 1"
+        :loading="viewModel.approving === ApprovalStatus.Approved"
       ></q-btn>
     </q-card-actions>
     <q-card-section class="q-gutter-sm">
@@ -110,26 +113,30 @@
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from "vue";
 import { useWorkHourStore } from "stores/WorkHourStore";
-import { useAuthStore } from "src/stores/AuthStore";
 import TimePickerInput from "./TimePickerInput.vue";
 import DatePickerInput from "./DatePickerInput.vue";
 import { useQuasar } from "quasar";
 import {
+  approvalAction,
   buildWorkHourPatch,
+  getApprovalActionText,
+  getApprovalStatusDisplay,
   getWorkHourChanges,
-  getWorkHourErrorKind,
-} from "src/shared/workHourDiff";
-import { getApiErrorMessage } from "src/shared/apiError";
+  getWorkHourError,
+  hasDuration,
+} from "src/shared/workHours";
+import type { WorkHourAction, WorkHourValues } from "src/shared/workHours";
 import {
   formatDate,
   formatDateTime,
+  formatDuration,
   formatTime,
   intervalOn,
   isValidDate,
   isValidTime,
   toInstantWire,
 } from "src/shared/time";
-import type { ApprovalStatus, WorkHourValues } from "src/shared/workHourDiff";
+import { ApprovalStatus } from "src/types";
 import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
 
 interface TimeTrackingViewModel {
@@ -146,7 +153,8 @@ interface TimeTrackingViewModel {
   description: string | null;
   // Settes fra descriptionIsValid, som er et `&&`-uttrykk (ikke ren boolean).
   descriptionValid: boolean | string | null;
-  status: number | null | undefined;
+  // null = ubehandlet (også for ny føring).
+  status: ApprovalStatus | null;
   saving: boolean;
   deleting: boolean;
   approving: ApprovalStatus | null;
@@ -156,7 +164,8 @@ interface TimeTrackingViewModel {
 const props = withDefaults(
   defineProps<{
     modelValue?: WorkHourResponse | null | undefined;
-    // Viser «Godkjenn»/«Avslå» for admin på åpne føringer (brukes fra godkjenningssiden).
+    // Viser «Godkjenn»/«Avslå» der føringen kan godkjennes (`canApprove` fra
+    // serveren). Brukes fra godkjenningssiden.
     allowApproval?: boolean;
   }>(),
   {
@@ -171,8 +180,6 @@ const emit = defineEmits<{
 }>();
 const $q = useQuasar();
 const workHourStore = useWorkHourStore();
-const authStore = useAuthStore();
-const isAdmin = computed(() => authStore.isAdmin);
 const loading = ref(false);
 
 const viewModel = reactive<TimeTrackingViewModel>({
@@ -187,7 +194,7 @@ const viewModel = reactive<TimeTrackingViewModel>({
   endTimeValid: true,
   description: null,
   descriptionValid: true,
-  status: 0,
+  status: null,
   saving: false,
   deleting: false,
   approving: null,
@@ -238,15 +245,13 @@ const endDate = computed(() => {
   return endDate != viewModel.startDate ? `Sluttdato: ${endDate}` : undefined;
 });
 
-const calculatedHours = computed(() => {
-  if (!viewModel.startDateTime || !viewModel.endDateTime) return null;
-  const start = new Date(viewModel.startDateTime);
-  const end = new Date(viewModel.endDateTime);
-  const diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60); // Convert milliseconds to hours
-  const hours = Math.floor(diff);
-  const minutes = Math.round((diff - hours) * 60);
-  return `${hours}:${minutes.toString().padStart(2, "0")}`;
-});
+const calculatedHours = computed(() =>
+  formatDuration(viewModel.startDateTime, viewModel.endDateTime)
+);
+
+const statusDisplay = computed(() =>
+  getApprovalStatusDisplay(viewModel.status)
+);
 
 const currentValues = computed(() => ({
   startDateTime: viewModel.startDateTime,
@@ -295,7 +300,7 @@ function validateContent() {
     });
     return false;
   }
-  if (!calculatedHours.value || calculatedHours.value === "0:00") {
+  if (!hasDuration(viewModel.startDateTime, viewModel.endDateTime)) {
     $q.notify({
       message: "Null timer gidder vi ikke å lagre vel. 😝",
       color: "negative",
@@ -305,21 +310,10 @@ function validateContent() {
   return true;
 }
 
-function notifyError(error: unknown, fallbackMessage: string) {
-  const kind = getWorkHourErrorKind(error);
-  const defaultMessage =
-    kind === "conflict"
-      ? "Føringen er allerede behandlet og kan ikke endres lenger"
-      : kind === "notFound"
-        ? "Føringen finnes ikke lenger"
-        : kind === "forbidden"
-          ? "Du har ikke tilgang til å endre denne føringen"
-          : fallbackMessage;
-  $q.notify({
-    message: getApiErrorMessage(error, defaultMessage),
-    color: "negative",
-  });
-  if (kind === "conflict" || kind === "notFound") {
+function notifyError(error: unknown, action: WorkHourAction) {
+  const { message, shouldReload } = getWorkHourError(error, action);
+  $q.notify({ message, color: "negative" });
+  if (shouldReload) {
     // Forelder lukker og laster listen på nytt.
     emit("saved", null);
   }
@@ -349,10 +343,7 @@ async function createHours() {
       color: "positive",
     });
   } catch (error) {
-    $q.notify({
-      message: getApiErrorMessage(error, "Klarte ikke å lagre timer"),
-      color: "negative",
-    });
+    notifyError(error, "create");
   } finally {
     viewModel.saving = false;
   }
@@ -390,7 +381,7 @@ async function updateHours() {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, "Klarte ikke å lagre endringer");
+    notifyError(error, "update");
   } finally {
     viewModel.saving = false;
   }
@@ -414,17 +405,11 @@ async function approveHours(approvalStatus: ApprovalStatus) {
     );
     emit("saved", result);
     $q.notify({
-      message:
-        approvalStatus === 1 ? "Timeføring godkjent" : "Timeføring avslått",
+      message: getApprovalActionText(approvalStatus).done,
       color: "positive",
     });
   } catch (error) {
-    notifyError(
-      error,
-      approvalStatus === 1
-        ? "Klarte ikke å godkjenne timeføring"
-        : "Klarte ikke å avslå timeføring"
-    );
+    notifyError(error, approvalAction(approvalStatus));
   } finally {
     viewModel.approving = null;
   }
@@ -440,7 +425,7 @@ async function deleteHours() {
       color: "positive",
     });
   } catch (error) {
-    notifyError(error, "Klarte ikke å slette timeføring");
+    notifyError(error, "delete");
   } finally {
     viewModel.deleting = false;
   }
@@ -450,16 +435,14 @@ const descriptionIsValid = computed(
   () => viewModel.description && viewModel.description.trim() !== ""
 );
 
-const isOpen = computed(() => viewModel.status == null);
+// Tilgang avgjøres av serveren (flaggene i WorkHourResponse). En ny føring
+// (uten modelValue) kan alltid lagres, men ikke slettes eller godkjennes.
+const canSave = computed(() => props.modelValue?.canEdit ?? true);
 
-const canDelete = computed(() => !!viewModel.id && isOpen.value);
-
-const canSave = computed(
-  () => viewModel.status !== 1 && viewModel.status !== 2
-);
+const canDelete = computed(() => props.modelValue?.canDelete ?? false);
 
 const canApprove = computed(
-  () => props.allowApproval && isAdmin.value && !!viewModel.id && isOpen.value
+  () => props.allowApproval && (props.modelValue?.canApprove ?? false)
 );
 
 const validateDescription = () => {
@@ -475,7 +458,7 @@ onMounted(() => {
     // DTO-en har description som valgfri; null og undefined behandles likt i diffen.
     viewModel.description = props.modelValue.description ?? null;
     viewModel.id = props.modelValue.workHourId;
-    viewModel.status = props.modelValue.approvalStatus;
+    viewModel.status = props.modelValue.approvalStatus ?? null;
     calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
     // Lagres etter calculateTime slik at uendret skjema gir tom diff
     // (også når servertiden har sekunder som skjemaet ikke viser).

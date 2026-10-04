@@ -8,7 +8,7 @@ namespace Middagsasen.Planner.Api.Data
         public DateTime? EndTime { get; set; }
         public string? Description { get; set; }
         public int? ApprovedBy { get; set; }
-        public int? ApprovalStatus { get; set; }
+        public ApprovalStatus? ApprovalStatus { get; set; }
         public DateTime? ApprovedTime { get; set; }
         public int? ModifiedBy { get; set; }
         public DateTime? ModifiedTime { get; set; }

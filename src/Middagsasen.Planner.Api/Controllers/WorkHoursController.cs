@@ -47,6 +47,8 @@ namespace Middagsasen.Planner.Api.Controllers
             return await WorkHoursService.UpdateApprovedBy(workHourId, request);
         }
 
+        /// <summary>Sletter en timeføring.</summary>
+        /// <returns>Den slettede føringen. Alle tilgangsflagg (canEdit, canDelete, canApprove, canResetStatus) er false.</returns>
         [HttpDelete("{workHourId}")]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
@@ -62,7 +64,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        public async Task<PagedResponse<WorkHourResponse>> Get(int? page, int? pageSize, int? approved, int? season, int? userId)
+        public async Task<PagedResponse<WorkHourResponse>> Get(int? page, int? pageSize, ApprovalFilter? approved, int? season, int? userId)
         {
             return await WorkHoursService.GetWorkHours(userId, approved, season, page, pageSize);
         }
@@ -80,7 +82,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType<PagedResponse<WorkHourResponse>>(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        public async Task<PagedResponse<WorkHourResponse>> GetByUserId(int userId, int? page, int? pageSize, int? approved, int? season)
+        public async Task<PagedResponse<WorkHourResponse>> GetByUserId(int userId, int? page, int? pageSize, ApprovalFilter? approved, int? season)
         {
             return await WorkHoursService.GetWorkHoursByUser(userId, approved, season, page, pageSize);
         }

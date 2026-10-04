@@ -5,6 +5,8 @@ import type { components } from "./api";
 
 type Schemas = components["schemas"];
 
+export { ApprovalFilter } from "./enums";
+export { ApprovalStatus } from "./enums";
 export type ApproveCompetencyRequest = Schemas["ApproveCompetencyRequest"];
 export type ApprovedByRequest = Schemas["ApprovedByRequest"];
 export type ApprovedByResponse = Schemas["ApprovedByResponse"];
