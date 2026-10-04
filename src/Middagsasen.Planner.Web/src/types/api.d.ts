@@ -2266,15 +2266,6 @@ export interface paths {
                         "text/json": components["schemas"]["ResourceResponse"];
                     };
                 };
-                /** @description Bad Request */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/problem+json": components["schemas"]["ProblemDetails"];
-                    };
-                };
                 /** @description Unauthorized */
                 401: {
                     headers: {

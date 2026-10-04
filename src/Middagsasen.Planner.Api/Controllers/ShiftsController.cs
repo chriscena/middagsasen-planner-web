@@ -77,7 +77,6 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPost("api/resources/{eventResourceId}/emptySlots")]
         [Authorize(Role = Roles.Administrator)]
         [ProducesResponseType(typeof(ResourceResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<ResourceResponse> AddEmptySlot(int eventResourceId)

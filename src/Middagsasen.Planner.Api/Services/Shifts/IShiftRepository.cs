@@ -21,11 +21,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<EventResource?> GetResource(int resourceId);
 
         /// <summary>
-        /// Leser bare bemanningen på ressursen (<c>MinimumStaff</c> og antall vakter) med én spørring, eller <c>null</c>
-        /// hvis ressursen ikke finnes. For endringer som ikke trenger hele grafen fra <see cref="GetResource"/>.
-        /// Inne i <see cref="InResourceLock{T}"/> gir den ferske data.
+        /// Leser bare bemanningen på ressursen (<c>MinimumStaff</c> og antall vakter) med én spørring. For endringer som
+        /// ikke trenger hele grafen fra <see cref="GetResource"/>. Kalles inne i <see cref="InResourceLock{T}"/>, som gir
+        /// ferske data og allerede har kastet <see cref="EntityNotFoundException"/> hvis ressursen ikke finnes.
         /// </summary>
-        Task<ResourceStaffing?> GetStaffing(int resourceId);
+        /// <exception cref="InvalidOperationException">Ressursen finnes ikke (kalt utenfor ressurslåsen).</exception>
+        Task<ResourceStaffing> GetStaffing(int resourceId);
 
         /// <summary>Henter vakta med tracking (for endring/sletting).</summary>
         Task<EventResourceUser?> GetShift(int shiftId);

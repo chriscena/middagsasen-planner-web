@@ -221,8 +221,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
             await Repository.InResourceLock(resourceId, async () =>
             {
-                var staffing = await Repository.GetStaffing(resourceId)
-                    ?? throw new EntityNotFoundException(ResourceNotFoundMessage);
+                var staffing = await Repository.GetStaffing(resourceId);
                 await Repository.SetMinimumStaff(resourceId, newMinimumStaff(staffing));
                 return true;
             });

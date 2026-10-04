@@ -487,11 +487,72 @@ describe("EventStore", () => {
       expect(other.minimumStaff).toBe(3);
     });
 
+    it("synkroniserer ressurslisten: oppdaterer, fjerner slettede og legger til nye i serverens rekkefølge", async () => {
+      store.events = [
+        eventWith(1, [
+          resource(10, [], { minimumStaff: 2 }),
+          resource(11, [], { minimumStaff: 4 }),
+        ]),
+        eventWith(2, [resource(20, [], { minimumStaff: 3 })]),
+      ];
+      const cachedEvent = store.events[0]!;
+      const kept = cachedEvent.resources[0]!;
+      const otherEvent = store.events[1]!;
+      const otherResources = otherEvent.resources;
+      const added = resource(12, [], { minimumStaff: 5 });
+      const fresh = {
+        ...eventWith(1, [added, resource(10, [], { minimumStaff: 1 })]),
+        name: "Nytt navn",
+      } as EventResponse;
+      mockApi.get.mockResolvedValue({ data: fresh });
+
+      await store.refreshEventResources(1);
+
+      expect(store.events[0]).toBe(cachedEvent);
+      expect(cachedEvent.name).toBe("Nytt navn");
+      expect(cachedEvent.resources.map((r) => r.id)).toEqual([12, 10]);
+      expect(cachedEvent.resources[1]).toBe(kept);
+      expect(kept.minimumStaff).toBe(1);
+      expect(cachedEvent.resources[0]).toEqual(added);
+      expect(store.events[1]).toBe(otherEvent);
+      expect(otherEvent.resources).toBe(otherResources);
+      expect(otherResources.map((r) => r.minimumStaff)).toEqual([3]);
+    });
+
+    it("fjerner arrangementet fra cachen når det ikke finnes lenger (404)", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [])]),
+        eventWith(2, [resource(20, [])]),
+      ];
+      const other = store.events[1]!;
+      mockApi.get.mockRejectedValue({ response: { status: 404 } });
+
+      await store.refreshEventResources(1);
+
+      expect(store.events).toEqual([other]);
+      expect(store.events[0]).toBe(other);
+    });
+
+    it("gjør ingenting når arrangementet ikke er i cachen", async () => {
+      store.events = [eventWith(2, [resource(20, [])])];
+      mockApi.get.mockResolvedValue({
+        data: eventWith(1, [resource(10, [])]),
+      });
+
+      await store.refreshEventResources(1);
+
+      expect(store.events.map((e) => e.id)).toEqual([2]);
+    });
+
     it("kaster videre når hentingen feiler", async () => {
-      const error = new Error("500");
+      store.events = [eventWith(1, [resource(10, [])])];
+      const error = Object.assign(new Error("500"), {
+        response: { status: 500 },
+      });
       mockApi.get.mockRejectedValue(error);
 
       await expect(store.refreshEventResources(1)).rejects.toBe(error);
+      expect(store.events.map((e) => e.id)).toEqual([1]);
     });
   });
 
@@ -504,6 +565,16 @@ describe("EventStore", () => {
       await expect(store.getEvent(2)).rejects.toBe(error);
 
       expect(store.selectedEvent).toBeNull();
+    });
+
+    it("henter arrangementet og setter selectedEvent", async () => {
+      const fresh = event(2, "2026-10-05T10:00:00");
+      mockApi.get.mockResolvedValue({ data: fresh });
+
+      await store.getEvent(2);
+
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/2");
+      expect(store.selectedEvent).toEqual(fresh);
     });
   });
 

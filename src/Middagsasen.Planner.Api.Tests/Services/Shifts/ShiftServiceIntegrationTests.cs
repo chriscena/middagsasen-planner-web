@@ -452,24 +452,25 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var contextA = _fixture.CreateContext();
             using var contextB = _fixture.CreateContext();
             var results = await Task.WhenAll(
-                Attempt(CreateService(contextA, a.UserId), resource.EventResourceId),
-                Attempt(CreateService(contextB, b.UserId), resource.EventResourceId));
+                Attempt(() => CreateService(contextA, a.UserId).SignUp(resource.EventResourceId, new SignUpRequest())),
+                Attempt(() => CreateService(contextB, b.UserId).SignUp(resource.EventResourceId, new SignUpRequest())));
 
             Assert.Single(results, r => r is null);
             Assert.Single(results, r => r is DomainValidationException);
             Assert.Single(await GetShifts(resource.EventResourceId));
+        }
 
-            static async Task<Exception?> Attempt(IShiftService service, int resourceId)
+        /// <summary>Kjører <paramref name="call"/> og returnerer unntaket den kastet, eller <c>null</c> hvis den lyktes.</summary>
+        private static async Task<Exception?> Attempt(Func<Task> call)
+        {
+            try
             {
-                try
-                {
-                    await service.SignUp(resourceId, new SignUpRequest());
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    return ex;
-                }
+                await call();
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return ex;
             }
         }
 
@@ -1392,41 +1393,48 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         /// <summary>
         /// Kjører <paramref name="action"/> to ganger, A og B, med hver sin kontekst, styrt slik at B starter mens A er inne
         /// i ressurslåsen og har lest bemanningen, men ikke skrevet ny verdi (<see cref="BeforeWriteAfterReadInterceptor"/>).
-        /// A venter da til B er ferdig, men høyst ett sekund: med lås blokkerer B på låsen til A committer, uten lås rekker
-        /// B å lese den samme gamle verdien og skrive før A, slik at A overskriver B.
+        /// A fortsetter først når B enten står og venter på en lås (låsen virker) eller er ferdig (ingen lås: B leste den
+        /// samme gamle verdien og skrev før A, slik at A overskriver B).
         /// </summary>
         /// <returns>Unntaket fra A og B (<c>null</c> hvis kallet lyktes), og om B ble ferdig mens A var inne i låsen.</returns>
         private async Task<(Exception? First, Exception? Second, bool SecondFinishedInsideFirst)> RunInterleaved(
             int adminUserId, Func<IShiftService, Task> action)
         {
+            // B sin tilkobling åpnes og varmes opp på forhånd, så B kan lese med en gang den startes. Ellers kan en treg
+            // tilkobling gjøre at A rekker å committe før B leser, og testen blir grønn selv uten lås.
             using var contextB = _fixture.CreateContext();
+            await contextB.Database.OpenConnectionAsync();
+            var sessionB = await GetSessionId(contextB);
             var serviceB = CreateService(contextB, adminUserId, isAdmin: true);
+
+            using var monitor = _fixture.CreateContext();
+            await monitor.Database.OpenConnectionAsync();
+            await IsWaitingForLock(monitor, sessionB);
+
             Task<Exception?>? second = null;
             var secondFinishedInsideFirst = false;
 
             using var contextA = _fixture.CreateContext(new BeforeWriteAfterReadInterceptor(async () =>
             {
-                second = Task.Run(() => Capture(() => action(serviceB)));
-                await Task.WhenAny(second, Task.Delay(TimeSpan.FromSeconds(1)));
+                second = Task.Run(() => Attempt(() => action(serviceB)));
+                var timeout = Task.Delay(TimeSpan.FromSeconds(5));
+                while (!second.IsCompleted && !timeout.IsCompleted && !await IsWaitingForLock(monitor, sessionB))
+                    await Task.Delay(10);
                 secondFinishedInsideFirst = second.IsCompleted;
             }));
-            var first = await Capture(() => action(CreateService(contextA, adminUserId, isAdmin: true)));
+            var first = await Attempt(() => action(CreateService(contextA, adminUserId, isAdmin: true)));
 
             Assert.NotNull(second); // interceptoren kjørte, B ble startet inne i A
             return (first, await second, secondFinishedInsideFirst);
 
-            static async Task<Exception?> Capture(Func<Task> call)
-            {
-                try
-                {
-                    await call();
-                    return null;
-                }
-                catch (Exception ex)
-                {
-                    return ex;
-                }
-            }
+            static async Task<short> GetSessionId(PlannerDbContext context)
+                => await context.Database.SqlQuery<short>($"SELECT @@SPID AS [Value]").SingleAsync();
+
+            // SQL Server-spesifikt (testene kjører mot MSSQL i Testcontainers): sesjonen venter på en lås (LCK_M_*).
+            static async Task<bool> IsWaitingForLock(PlannerDbContext monitor, short sessionId)
+                => await monitor.Database.SqlQuery<int>(
+                    $"SELECT COUNT(*) AS [Value] FROM sys.dm_exec_requests WHERE session_id = {sessionId} AND wait_type LIKE 'LCK%'")
+                    .SingleAsync() > 0;
         }
 
         [Fact]

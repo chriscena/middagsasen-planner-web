@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import { api } from "@/boot/axios";
+import { getErrorResponse } from "@/shared/apiError";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
   ChangeShiftRequest,
@@ -53,6 +54,12 @@ export interface SaveShiftRequest {
 // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
 let latestEventsRequest = 0;
 
+// Felles henting av ett arrangement (getEvent og refreshEventResources).
+async function fetchEvent(id: number | string): Promise<EventResponse> {
+  const response = await api.get<EventResponse>(`/api/events/${id}`);
+  return response.data;
+}
+
 export const useEventStore = defineStore("events", {
   state: (): EventState => ({
     selectedEvent: null,
@@ -105,8 +112,7 @@ export const useEventStore = defineStore("events", {
       // Nullstilles først, så en mislykket lasting aldri etterlater en
       // tidligere lastet vaktliste (som Slett ellers kunne slettet).
       this.selectedEvent = null;
-      const response = await api.get<EventResponse>(`/api/events/${id}`);
-      this.selectedEvent = response.data;
+      this.selectedEvent = await fetchEvent(id);
     },
     async deleteEvent(id: number): Promise<void> {
       await api.delete(`/api/events/${id}`);
@@ -215,15 +221,34 @@ export const useEventStore = defineStore("events", {
         if (resource) Object.assign(resource, updated);
       }
     },
-    // Henter arrangementet på nytt og legger ressursene i cachen via
-    // applyResource (beholder objektidentiteten). Brukes for å rette opp
-    // utdaterte tall etter at en operasjon er avvist fordi noen andre har
-    // endret ressursen i mellomtiden.
+    // Henter arrangementet på nytt og synkroniserer det i events-cachen med
+    // svaret: ressurslisten får serverens innhold og rekkefølge, slettede
+    // ressurser fjernes og nye legges til. Eksisterende ressurser (og
+    // arrangementet selv) oppdateres med Object.assign, så objektene beholder
+    // identiteten (som i applyResource). Brukes for å rette opp utdaterte tall
+    // etter at en operasjon er avvist fordi noen andre har endret ressursen
+    // (eller slettet den/arrangementet) i mellomtiden. Finnes ikke
+    // arrangementet lenger (404), fjernes det fra cachen. selectedEvent røres
+    // ikke: den er skjemadata for redigering og hentes på nytt av EventPage.
     async refreshEventResources(eventId: number): Promise<void> {
-      const response = await api.get<EventResponse>(`/api/events/${eventId}`);
-      for (const resource of response.data.resources) {
-        this.applyResource(resource);
+      let fresh: EventResponse;
+      try {
+        fresh = await fetchEvent(eventId);
+      } catch (error) {
+        if (getErrorResponse(error)?.status === 404) {
+          this.events = this.events.filter((e) => e.id !== eventId);
+          return;
+        }
+        throw error;
       }
+      const event = this.events.find((e) => e.id === eventId);
+      if (!event) return;
+      const existing = new Map(event.resources.map((r) => [r.id, r]));
+      const resources = fresh.resources.map((r) => {
+        const cached = existing.get(r.id);
+        return cached ? Object.assign(cached, r) : r;
+      });
+      Object.assign(event, fresh, { resources });
     },
     // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
     // opplæring endret (changedTraining), kan flaggene på andre ressurser av

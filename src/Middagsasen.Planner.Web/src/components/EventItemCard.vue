@@ -514,6 +514,8 @@ import { useEventStore } from "@/stores/EventStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useAuthStore } from "@/stores/AuthStore";
 import { notifyApiError } from "@/shared/notifyApiError";
+import { getErrorResponse } from "@/shared/apiError";
+import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import {
@@ -930,7 +932,15 @@ function canDeleteMessage(message: MessageResponse): boolean {
 // legger svaret (ressursen med flagg) i cachen, så her håndteres bare
 // loading-sperre og feilvarsel. Feiler endringen (f.eks. 400 fordi noen
 // meldte seg på i mellomtiden), er cachen trolig utdatert; da hentes
-// arrangementet på nytt så tallene og knappene stemmer med serveren.
+// arrangementet på nytt så tallene og knappene stemmer med serveren. Unntak:
+// utløpt sesjon (401, brukeren er alt logget ut og sendt til innlogging, så
+// hentingen gir bare et nytt 401) og 403 (ikke lenger admin; oppfrisking
+// hjelper ikke).
+function shouldRefreshAfter(error: unknown): boolean {
+  return (
+    !isSessionExpiredError(error) && getErrorResponse(error)?.status !== 403
+  );
+}
 async function changeEmptySlots(
   resource: ResourceResponse,
   change: () => Promise<unknown>,
@@ -941,6 +951,7 @@ async function changeEmptySlots(
     await change();
   } catch (error) {
     notifyApiError(error, fallback);
+    if (!shouldRefreshAfter(error)) return;
     try {
       await eventStore.refreshEventResources(resource.eventId);
     } catch (refreshError) {
