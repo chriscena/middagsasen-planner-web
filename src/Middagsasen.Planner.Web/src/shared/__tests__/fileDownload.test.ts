@@ -83,7 +83,7 @@ describe("downloadResourceTypeFile", () => {
     expect(timeout).toHaveBeenCalledWith(DOWNLOAD_TIMEOUT_MS);
     const [, config] = mockApi.get.mock.calls[0] as [
       string,
-      { signal: unknown }
+      { signal: unknown },
     ];
     expect(config.signal).toBe(timeout.mock.results[0]?.value);
     timeout.mockRestore();

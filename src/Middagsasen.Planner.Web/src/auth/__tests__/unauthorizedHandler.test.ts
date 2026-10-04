@@ -1,19 +1,22 @@
-import { vi, describe, it, expect, beforeEach, type Mock } from 'vitest';
+import { vi, describe, it, expect, beforeEach, type Mock } from "vitest";
 import {
   handleUnauthorized,
   isSafeRedirect,
   type UnauthorizedError,
-} from 'src/auth/unauthorizedHandler';
+} from "src/auth/unauthorizedHandler";
 
 function createError(status: number | undefined, url: string) {
-  const error: Error & UnauthorizedError = Object.assign(new Error('Request failed'), {
-    config: { url },
-  });
+  const error: Error & UnauthorizedError = Object.assign(
+    new Error("Request failed"),
+    {
+      config: { url },
+    }
+  );
   if (status !== undefined) error.response = { status };
   return error;
 }
 
-describe('handleUnauthorized', () => {
+describe("handleUnauthorized", () => {
   let authStore: {
     user: { id: number } | null;
     removeUserSession: Mock<() => void>;
@@ -36,39 +39,39 @@ describe('handleUnauthorized', () => {
       }),
     };
     router = {
-      currentRoute: { value: { path: '/hours', fullPath: '/hours' } },
+      currentRoute: { value: { path: "/hours", fullPath: "/hours" } },
       replace: vi.fn(),
     };
     notify = vi.fn();
   });
 
-  it('clears session, notifies once and redirects to login on 401 from API', async () => {
-    const error = createError(401, '/api/events');
+  it("clears session, notifies once and redirects to login on 401 from API", async () => {
+    const error = createError(401, "/api/events");
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
     expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledWith({
-      message: 'Du er logget ut. Logg inn på nytt.',
+      message: "Du er logget ut. Logg inn på nytt.",
     });
     expect(router.replace).toHaveBeenCalledWith({
-      path: '/login',
-      query: { redirect: '/hours' },
+      path: "/login",
+      query: { redirect: "/hours" },
     });
   });
 
-  it('handles 401 with a ProblemDetails body', async () => {
-    const error = Object.assign(new Error('Request failed'), {
-      config: { url: '/api/events' },
+  it("handles 401 with a ProblemDetails body", async () => {
+    const error = Object.assign(new Error("Request failed"), {
+      config: { url: "/api/events" },
       response: {
         status: 401,
         data: {
-          type: 'https://tools.ietf.org/html/rfc9110#section-15.5.2',
-          title: 'Unauthorized',
+          type: "https://tools.ietf.org/html/rfc9110#section-15.5.2",
+          title: "Unauthorized",
           status: 401,
-          detail: 'Bruker er ikke autentisert.',
-          traceId: '00-abc',
+          detail: "Bruker er ikke autentisert.",
+          traceId: "00-abc",
         },
       },
     });
@@ -77,14 +80,14 @@ describe('handleUnauthorized', () => {
 
     expect(authStore.removeUserSession).toHaveBeenCalledTimes(1);
     expect(router.replace).toHaveBeenCalledWith({
-      path: '/login',
-      query: { redirect: '/hours' },
+      path: "/login",
+      query: { redirect: "/hours" },
     });
   });
 
-  it('only notifies and redirects for the first of several parallel 401s', async () => {
-    const first = createError(401, '/api/events');
-    const second = createError(401, '/api/me');
+  it("only notifies and redirects for the first of several parallel 401s", async () => {
+    const first = createError(401, "/api/events");
+    const second = createError(401, "/api/me");
 
     await expect(handleUnauthorized(first, deps())).rejects.toBe(first);
     await expect(handleUnauthorized(second, deps())).rejects.toBe(second);
@@ -94,8 +97,8 @@ describe('handleUnauthorized', () => {
     expect(router.replace).toHaveBeenCalledTimes(1);
   });
 
-  it('ignores 401 from authentication endpoints', async () => {
-    const error = createError(401, '/api/authentication/authenticate');
+  it("ignores 401 from authentication endpoints", async () => {
+    const error = createError(401, "/api/authentication/authenticate");
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
@@ -104,9 +107,9 @@ describe('handleUnauthorized', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('clears stale session but does not notify or navigate when no user is loaded', async () => {
+  it("clears stale session but does not notify or navigate when no user is loaded", async () => {
     authStore.user = null;
-    const error = createError(401, '/api/events');
+    const error = createError(401, "/api/events");
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
@@ -115,9 +118,9 @@ describe('handleUnauthorized', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('does not notify or navigate when already on login page', async () => {
-    router.currentRoute.value = { path: '/login', fullPath: '/login' };
-    const error = createError(401, '/api/me');
+  it("does not notify or navigate when already on login page", async () => {
+    router.currentRoute.value = { path: "/login", fullPath: "/login" };
+    const error = createError(401, "/api/me");
 
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
@@ -127,10 +130,10 @@ describe('handleUnauthorized', () => {
   });
 
   it.each([
-    ['403', createError(403, '/api/events')],
-    ['500', createError(500, '/api/events')],
-    ['network error', createError(undefined, '/api/events')],
-  ])('passes %s through untouched', async (_, error) => {
+    ["403", createError(403, "/api/events")],
+    ["500", createError(500, "/api/events")],
+    ["network error", createError(undefined, "/api/events")],
+  ])("passes %s through untouched", async (_, error) => {
     await expect(handleUnauthorized(error, deps())).rejects.toBe(error);
 
     expect(authStore.removeUserSession).not.toHaveBeenCalled();
@@ -139,17 +142,17 @@ describe('handleUnauthorized', () => {
   });
 });
 
-describe('isSafeRedirect', () => {
+describe("isSafeRedirect", () => {
   it.each([
-    ['/hours', true],
-    ['/edit/12?x=1', true],
-    ['//evil.com', false],
-    ['/\\evil.com', false],
-    ['https://evil.com', false],
-    ['', false],
+    ["/hours", true],
+    ["/edit/12?x=1", true],
+    ["//evil.com", false],
+    ["/\\evil.com", false],
+    ["https://evil.com", false],
+    ["", false],
     [undefined, false],
-    [['/hours'], false],
-  ])('isSafeRedirect(%j) is %s', (path, expected) => {
+    [["/hours"], false],
+  ])("isSafeRedirect(%j) is %s", (path, expected) => {
     expect(isSafeRedirect(path)).toBe(expected);
   });
 });

@@ -632,8 +632,8 @@ function resourceClasses(resource: ResourceResponse): string {
     (resource.isPast
       ? "bg-grey-3"
       : resource.isMissingStaff
-      ? "bg-red-1"
-      : "bg-green-1")
+        ? "bg-red-1"
+        : "bg-green-1")
   );
 }
 

@@ -49,10 +49,11 @@ src/
 ```bash
 npm run dev          # Start dev server
 npm run build        # Produksjonsbygg
-npm run lint         # ESLint
+npm run lint         # oxlint + ESLint (kun eslint-plugin-vue for .vue-templates)
 npm run typecheck    # vue-tsc --noEmit
 npm run gen:api      # Generer src/types/ fra backendens openapi.json
-npm run format       # Prettier
+npm run format       # oxfmt (skriver)
+npm run format:check # oxfmt --check
 npm run test         # Vitest
 npm run test:watch   # Vitest watch-modus
 ```

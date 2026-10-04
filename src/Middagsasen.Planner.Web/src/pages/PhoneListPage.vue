@@ -85,7 +85,7 @@ const filter = ref<string | null>(null);
 
 const phoneList = computed((): PhoneResponse[] => {
   const filterValue = filter.value;
-  return !!filterValue
+  return filterValue
     ? userStore.phoneList.filter(
         (p) =>
           !!p.fullName &&
