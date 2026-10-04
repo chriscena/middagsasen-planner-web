@@ -3240,7 +3240,7 @@ export interface paths {
                 query?: {
                     page?: number;
                     pageSize?: number;
-                    approved?: number;
+                    approved?: components["schemas"]["ApprovalFilter"];
                     season?: number;
                     userId?: number;
                 };
@@ -3644,7 +3644,7 @@ export interface paths {
                 query?: {
                     page?: number;
                     pageSize?: number;
-                    approved?: number;
+                    approved?: components["schemas"]["ApprovalFilter"];
                     season?: number;
                 };
                 header?: never;
@@ -3829,21 +3829,23 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @enum {integer} */
+        ApprovalFilter: 0 | 1 | 2 | 3;
+        /** @enum {integer} */
+        ApprovalStatus: 1 | 2;
         ApproveCompetencyRequest: {
             /** Format: date-time */
             expiryDate?: null | string;
         };
         ApprovedByRequest: {
-            /** Format: int32 */
-            approvalStatus?: null | number;
+            approvalStatus?: null | components["schemas"]["ApprovalStatus"];
         };
         ApprovedByResponse: {
             /** Format: int32 */
             workHourId: number;
             /** Format: int32 */
             approvedBy?: null | number;
-            /** Format: int32 */
-            approvalStatus?: null | number;
+            approvalStatus?: null | components["schemas"]["ApprovalStatus"];
             /** Format: date-time */
             approvedTime?: null | string;
         };
@@ -4225,8 +4227,7 @@ export interface components {
             /** Format: date-time */
             endTime?: null | string;
             description?: null | string;
-            /** Format: int32 */
-            approvalStatus?: null | number;
+            approvalStatus?: null | components["schemas"]["ApprovalStatus"];
         };
         UserCompetencyRequest: {
             /** Format: int32 */
@@ -4325,13 +4326,16 @@ export interface components {
             approvedByName?: null | string;
             /** Format: date-time */
             approvedTime?: null | string;
-            /** Format: int32 */
-            approvalStatus?: null | number;
+            approvalStatus?: null | components["schemas"]["ApprovalStatus"];
             /** Format: int32 */
             modifiedBy?: null | number;
             modifiedByName?: null | string;
             /** Format: date-time */
             modifiedTime?: null | string;
+            canEdit: boolean;
+            canDelete: boolean;
+            canApprove: boolean;
+            canResetStatus: boolean;
         };
         WorkHourSumResponse: {
             /** Format: double */

@@ -13,6 +13,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string StartTimeRequiredMessage = "Starttid må oppgis.";
         internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
         internal const string InvalidSeasonMessage = "Ugyldig sesong.";
+        internal const string InvalidStatusMessage = "Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).";
 
         public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
         {
@@ -62,7 +63,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             {
                 if (!WorkHourPolicy.CanRead(workHour, actor))
                     throw new ForbiddenAccessException(ForbiddenMessage);
-                return Map(workHour);
+                return Map(workHour, actor);
             }
 
             // Rekkefølge: 404 (over) → 403 → 409 → 400. Tilgangssjekker gjøres mot tilstanden FØR endring.
@@ -125,21 +126,23 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public async Task<WorkHourResponse> DeleteWorkHour(int workHourId)
         {
             var workHour = await GetTracked(workHourId);
-            Ensure(LockedMessage, WorkHourPolicy.CanEdit(workHour, CurrentUser.ToActor()));
+            var actor = CurrentUser.ToActor();
+            Ensure(LockedMessage, WorkHourPolicy.CanDelete(workHour, actor));
 
-            var response = Map(workHour);
+            // Føringen finnes ikke etter slettingen, så ingen handlinger er lenger tillatt.
+            var response = Map(workHour, WorkHourPermissions.None);
             Repository.Remove(workHour);
             await Repository.SaveChangesAsync();
             return response;
         }
 
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? userId, int? approved, int? season, int? page = 1, int? pageSize = 20)
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHours(int? userId, ApprovalFilter? approved, int? season, int? page = 1, int? pageSize = 20)
         {
             EnsureAdmin();
             return await GetPaged(userId, approved, season, page, pageSize);
         }
 
-        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, int? approved, int? season, int? page = 1, int? pageSize = 20)
+        public async Task<PagedResponse<WorkHourResponse>> GetWorkHoursByUser(int userId, ApprovalFilter? approved, int? season, int? page = 1, int? pageSize = 20)
         {
             EnsureAdminOrSelf(userId);
             return await GetPaged(userId, approved, season, page, pageSize);
@@ -150,10 +153,11 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             var workHour = await Repository.GetWorkHourByIdReadOnly(workHourId)
                 ?? throw new EntityNotFoundException(NotFoundMessage);
 
-            if (!WorkHourPolicy.CanRead(workHour, CurrentUser.ToActor()))
+            var actor = CurrentUser.ToActor();
+            if (!WorkHourPolicy.CanRead(workHour, actor))
                 throw new ForbiddenAccessException(ForbiddenMessage);
 
-            return Map(workHour);
+            return Map(workHour, actor);
         }
 
         public async Task<WorkHourSumResponse> GetWorkHoursSum(int? userId = null, int? season = null)
@@ -214,15 +218,16 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return (from, to);
         }
 
-        private async Task<PagedResponse<WorkHourResponse>> GetPaged(int? userId, int? approved, int? season, int? page, int? pageSize)
+        private async Task<PagedResponse<WorkHourResponse>> GetPaged(int? userId, ApprovalFilter? approved, int? season, int? page, int? pageSize)
         {
             var take = pageSize ?? 20;
             var pageToUse = page.HasValue && page.Value > 0 ? page.Value : 1;
             var skip = (pageToUse - 1) * take;
 
             var (from, to) = ToSeasonRange(season);
-            var (items, totalCount) = await Repository.GetWorkHours(userId, approved, from, to, skip, take);
-            return new PagedResponse<WorkHourResponse> { Result = items.Select(Map).ToList(), TotalCount = totalCount };
+            var (items, totalCount) = await Repository.GetWorkHours(userId, approved ?? ApprovalFilter.All, from, to, skip, take);
+            var actor = CurrentUser.ToActor();
+            return new PagedResponse<WorkHourResponse> { Result = items.Select(w => Map(w, actor)).ToList(), TotalCount = totalCount };
         }
 
         private async Task<WorkHour> GetTracked(int workHourId)
@@ -235,13 +240,16 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         {
             var workHour = await Repository.GetWorkHourByIdReadOnly(workHourId)
                 ?? throw new EntityNotFoundException(NotFoundMessage);
-            return Map(workHour);
+            return Map(workHour, CurrentUser.ToActor());
         }
 
-        private static void ValidateStatus(int? status)
+        /// <summary>
+        /// System.Text.Json godtar ethvert heltall for en enum, så udefinerte verdier (f.eks. 0 eller 3) må avvises her (400).
+        /// </summary>
+        private static void ValidateStatus(ApprovalStatus? status)
         {
-            if (status.HasValue && status is not (WorkHourPolicy.Approved or WorkHourPolicy.Rejected))
-                throw new DomainValidationException("Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).");
+            if (status.HasValue && !Enum.IsDefined(status.Value))
+                throw new DomainValidationException(InvalidStatusMessage);
         }
 
         private static void ValidateTimes(DateTime? startTime, DateTime? endTime)
@@ -250,7 +258,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 throw new DomainValidationException(EndBeforeStartMessage);
         }
 
-        private static void ApplyStatus(WorkHour workHour, int? status, int userId)
+        private static void ApplyStatus(WorkHour workHour, ApprovalStatus? status, int userId)
         {
             workHour.ApprovalStatus = status;
             if (status.HasValue)
@@ -288,16 +296,26 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         private static (double Pending, double Approved, double Rejected) SumByStatus(IEnumerable<WorkHourInterval> intervals)
         {
-            var byStatus = intervals
-                .GroupBy(h => h.ApprovalStatus ?? 0)
-                .ToDictionary(g => g.Key, g => g.Sum(h => h.Hours));
+            double pending = 0, approved = 0, rejected = 0;
+            foreach (var interval in intervals)
+            {
+                switch (interval.ApprovalStatus)
+                {
+                    case ApprovalStatus.Approved: approved += interval.Hours; break;
+                    case ApprovalStatus.Rejected: rejected += interval.Hours; break;
+                    // Kolonnen har ingen CHECK-constraint, og eldre rader kan ha udefinerte verdier (f.eks. 0).
+                    // Alt som ikke er godkjent/avslått telles som ubehandlet, slik som før (?? 0).
+                    default: pending += interval.Hours; break;
+                }
+            }
 
-            static double Get(Dictionary<int, double> d, int key) => d.TryGetValue(key, out var v) ? Math.Round(v, 1) : 0;
-
-            return (Get(byStatus, 0), Get(byStatus, WorkHourPolicy.Approved), Get(byStatus, WorkHourPolicy.Rejected));
+            return (Math.Round(pending, 1), Math.Round(approved, 1), Math.Round(rejected, 1));
         }
 
-        private static WorkHourResponse Map(WorkHour workHour)
+        private static WorkHourResponse Map(WorkHour workHour, Actor actor) =>
+            Map(workHour, WorkHourPolicy.GetPermissions(workHour, actor));
+
+        private static WorkHourResponse Map(WorkHour workHour, WorkHourPermissions permissions)
         {
             decimal interval = 0;
             if (workHour.EndTime.HasValue && workHour.StartTime.HasValue)
@@ -320,6 +338,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 ModifiedBy = workHour.ModifiedBy,
                 ModifiedByName = workHour.ModifiedByUser?.FullName(),
                 ModifiedTime = workHour.ModifiedTime.AsUtc(),
+                CanEdit = permissions.CanEdit,
+                CanDelete = permissions.CanDelete,
+                CanApprove = permissions.CanApprove,
+                CanResetStatus = permissions.CanResetStatus,
             };
         }
     }

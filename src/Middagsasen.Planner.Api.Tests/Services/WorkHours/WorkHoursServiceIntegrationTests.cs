@@ -51,7 +51,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             return user;
         }
 
-        private async Task<WorkHour> SeedWorkHour(User owner, int? status = null, User? approvedBy = null, string? description = "Opprinnelig")
+        private async Task<WorkHour> SeedWorkHour(User owner, ApprovalStatus? status = null, User? approvedBy = null, string? description = "Opprinnelig")
         {
             using var context = _fixture.CreateContext();
             var workHour = new WorkHour
@@ -70,7 +70,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         }
 
         /// <summary>Seeder en føring på 3 timer som starter på <paramref name="startTime"/>.</summary>
-        private async Task<WorkHour> SeedWorkHourAt(User owner, DateTime startTime, int? status = null, User? approvedBy = null)
+        private async Task<WorkHour> SeedWorkHourAt(User owner, DateTime startTime, ApprovalStatus? status = null, User? approvedBy = null)
         {
             using var context = _fixture.CreateContext();
             var workHour = new WorkHour
@@ -230,9 +230,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 1 });
+            var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = ApprovalStatus.Approved });
 
-            Assert.Equal(1, result.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
             Assert.Null(result.ModifiedBy);
             Assert.Null((await Reload(wh.WorkHourId)).ModifiedBy);
         }
@@ -272,11 +272,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest
             {
                 Description = "Rettet",
-                ApprovalStatus = 1,
+                ApprovalStatus = ApprovalStatus.Approved,
             });
 
             Assert.Equal("Rettet", result.Description);
-            Assert.Equal(1, result.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
             Assert.Equal(admin.UserId, result.ApprovedBy);
             Assert.Equal("Gunn Godkjenner", result.ApprovedByName);
             Assert.Equal(admin.UserId, result.ModifiedBy);
@@ -284,7 +284,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Rettet", db.Description);
-            Assert.Equal(1, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, db.ApprovalStatus);
             Assert.Equal(admin.UserId, db.ApprovedBy);
             Assert.NotNull(db.ApprovedTime);
         }
@@ -294,19 +294,23 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
             // Tom PATCH (alle felter null) endrer ingenting.
             var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest());
 
-            Assert.Equal(1, result.ApprovalStatus);
-            Assert.Equal(1, (await Reload(wh.WorkHourId)).ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, (await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
-        [Fact]
-        public async Task Update_InvalidStatus_ThrowsInvalidOperation()
+        // System.Text.Json godtar ethvert heltall for en enum, så udefinerte verdier må gi 400.
+        [Theory]
+        [InlineData(0)]
+        [InlineData(3)]
+        [InlineData(-1)]
+        public async Task Update_UndefinedStatus_ThrowsValidation(int status)
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
@@ -314,8 +318,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            await Assert.ThrowsAsync<DomainValidationException>(() =>
-                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 3 }));
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() =>
+                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = (ApprovalStatus)status }));
+            Assert.Equal(WorkHoursService.InvalidStatusMessage, ex.Message);
+            Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
         [Fact]
@@ -349,7 +355,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var owner = await SeedUser();
             var other = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var service = CreateService(context, other);
 
@@ -366,18 +372,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var service = CreateService(context, owner);
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
-                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = 1 }));
+                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = ApprovalStatus.Approved }));
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Opprinnelig", db.Description);
             Assert.Null(db.ApprovalStatus);
         }
 
         [Theory]
-        [InlineData(false, 1)]
-        [InlineData(false, 2)]
-        [InlineData(true, 1)]
-        [InlineData(true, 2)]
-        public async Task Update_LockedEntry_OwnerOrAdmin_ThrowsLocked(bool asAdmin, int status)
+        [InlineData(false, ApprovalStatus.Approved)]
+        [InlineData(false, ApprovalStatus.Rejected)]
+        [InlineData(true, ApprovalStatus.Approved)]
+        [InlineData(true, ApprovalStatus.Rejected)]
+        public async Task Update_LockedEntry_OwnerOrAdmin_ThrowsLocked(bool asAdmin, ApprovalStatus status)
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
@@ -395,13 +401,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 2, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Rejected, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
             await Assert.ThrowsAsync<EntityLockedException>(() =>
-                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 1 }));
-            Assert.Equal(2, (await Reload(wh.WorkHourId)).ApprovalStatus);
+                service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = ApprovalStatus.Approved }));
+            Assert.Equal(ApprovalStatus.Rejected, (await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
         #endregion
@@ -418,13 +424,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var service = CreateService(context, admin);
 
             var before = DateTime.UtcNow.AddMinutes(-1);
-            var result = await service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 2 });
+            var result = await service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Rejected });
 
-            Assert.Equal(2, result.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, result.ApprovalStatus);
             Assert.Equal(admin.UserId, result.ApprovedBy);
             Assert.True(result.ApprovedTime > before);
             var db = await Reload(wh.WorkHourId);
-            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, db.ApprovalStatus);
             Assert.Equal(admin.UserId, db.ApprovedBy);
             Assert.Null(db.ModifiedBy);
         }
@@ -434,7 +440,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
@@ -471,7 +477,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var service = CreateService(context, owner);
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
-                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 1 }));
+                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Approved }));
             Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
@@ -483,7 +489,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var service = CreateService(context, admin);
 
             await Assert.ThrowsAsync<EntityNotFoundException>(() =>
-                service.UpdateApprovedBy(int.MaxValue, new ApprovedByRequest { ApprovalStatus = 1 }));
+                service.UpdateApprovedBy(int.MaxValue, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Approved }));
         }
 
         #endregion
@@ -524,7 +530,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<EntityLockedException>(() => CreateService(context, owner).DeleteWorkHour(wh.WorkHourId));
@@ -559,7 +565,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true, firstName: "Per", lastName: "Sjef");
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             var result = await CreateService(context, owner).GetWorkHourById(wh.WorkHourId);
@@ -609,13 +615,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var admin = await SeedUser(isAdmin: true);
             await SeedWorkHour(owner);
             await SeedWorkHour(owner);
-            await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var service = CreateService(context, owner);
 
             var all = await service.GetWorkHoursByUser(owner.UserId, null, null);
-            var open = await service.GetWorkHoursByUser(owner.UserId, 3, null);
-            var approved = await service.GetWorkHoursByUser(owner.UserId, 1, null);
+            var open = await service.GetWorkHoursByUser(owner.UserId, ApprovalFilter.Pending, null);
+            var approved = await service.GetWorkHoursByUser(owner.UserId, ApprovalFilter.Approved, null);
             var paged = await service.GetWorkHoursByUser(owner.UserId, null, null, page: 1, pageSize: 2);
 
             Assert.Equal(3, all.TotalCount);
@@ -623,6 +629,34 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(1, approved.TotalCount);
             Assert.Equal(3, paged.TotalCount);
             Assert.Equal(2, paged.Result.Count());
+        }
+
+        [Theory]
+        [InlineData(ApprovalFilter.All, 4)]
+        [InlineData(ApprovalFilter.Pending, 2)]
+        [InlineData(ApprovalFilter.Approved, 1)]
+        [InlineData(ApprovalFilter.Rejected, 1)]
+        public async Task GetWorkHours_FilteredOnStatus_ReturnsMatchingEntries(ApprovalFilter filter, int expected)
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            await SeedWorkHour(owner);
+            await SeedWorkHour(owner);
+            await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
+            await SeedWorkHour(owner, status: ApprovalStatus.Rejected, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, admin).GetWorkHours(owner.UserId, filter, null, pageSize: 100);
+
+            Assert.Equal(expected, result.TotalCount);
+            ApprovalStatus? expectedStatus = filter switch
+            {
+                ApprovalFilter.Approved => ApprovalStatus.Approved,
+                ApprovalFilter.Rejected => ApprovalStatus.Rejected,
+                _ => null,
+            };
+            if (filter != ApprovalFilter.All)
+                Assert.All(result.Result, r => Assert.Equal(expectedStatus, r.ApprovalStatus));
         }
 
         [Fact]
@@ -711,9 +745,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
             await SeedWorkHour(owner);
-            await SeedWorkHour(owner, status: 1, approvedBy: admin);
-            await SeedWorkHour(owner, status: 2, approvedBy: admin);
-            await SeedWorkHour(owner, status: 2, approvedBy: admin);
+            await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
+            await SeedWorkHour(owner, status: ApprovalStatus.Rejected, approvedBy: admin);
+            await SeedWorkHour(owner, status: ApprovalStatus.Rejected, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             var result = await CreateService(context, owner).GetWorkHoursSum(owner.UserId);
@@ -721,6 +755,25 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(3.0, result.PendingHours);
             Assert.Equal(3.0, result.ApprovedHours);
             Assert.Equal(6.0, result.RejectedHours);
+        }
+
+        [Fact]
+        public async Task GetSum_UndefinedStatusInDatabase_CountsAsPending()
+        {
+            // Eldre rader kan ha uvaliderte verdier (f.eks. 0) siden kolonnen mangler CHECK-constraint.
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var legacy = await SeedWorkHour(owner);
+            await SeedWorkHour(owner);
+            await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
+            await SetStatusInDatabase(legacy.WorkHourId, (ApprovalStatus)0, null)();
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, owner).GetWorkHoursSum(owner.UserId);
+
+            Assert.Equal(6.0, result.PendingHours);
+            Assert.Equal(3.0, result.ApprovedHours);
+            Assert.Equal(0.0, result.RejectedHours);
         }
 
         [Fact]
@@ -760,9 +813,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
             await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 22, 0, 0));                               // 3 t, åpen (1. juli 00:00 Oslo)
-            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 21, 0, 0), status: 1, approvedBy: admin); // 3 t, godkjent (30. juni 23:00 Oslo)
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 21, 0, 0), status: ApprovalStatus.Approved, approvedBy: admin); // 3 t, godkjent (30. juni 23:00 Oslo)
             await SeedWorkHourAt(owner, new DateTime(2024, 6, 30, 21, 0, 0));                               // forrige sesong
-            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 22, 0, 0), status: 1, approvedBy: admin); // neste sesong
+            await SeedWorkHourAt(owner, new DateTime(2025, 6, 30, 22, 0, 0), status: ApprovalStatus.Approved, approvedBy: admin); // neste sesong
             using var context = _fixture.CreateContext();
             var service = CreateService(context, owner);
 
@@ -920,7 +973,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<EntityLockedException>(() => CreateService(context, owner)
@@ -942,7 +995,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
-                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = status }));
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = (ApprovalStatus)status }));
         }
 
         [Theory]
@@ -955,11 +1008,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
-                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = status }));
+                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = (ApprovalStatus)status }));
         }
 
-        [Fact]
-        public async Task UpdateApprovedBy_AdminInvalidStatusOnOpen_ThrowsInvalidOperation()
+        [Theory]
+        [InlineData(0)]
+        [InlineData(3)]
+        public async Task UpdateApprovedBy_AdminUndefinedStatusOnOpen_ThrowsValidation(int status)
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
@@ -967,7 +1022,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, admin)
-                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 3 }));
+                .UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = (ApprovalStatus)status }));
             Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
@@ -976,11 +1031,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<EntityLockedException>(() => CreateService(context, admin)
-                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 3 }));
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = (ApprovalStatus)3 }));
         }
 
         [Fact]
@@ -988,11 +1043,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, owner)
-                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = 1 }));
+                .UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = ApprovalStatus.Approved }));
         }
 
         [Theory]
@@ -1002,14 +1057,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             var result = await CreateService(context, asAdmin ? admin : owner).UpdateWorkHour(wh.WorkHourId,
                 new UpdateWorkHourRequest { StartTime = Start, EndTime = End, Description = "Opprinnelig" });
 
             Assert.Equal(wh.WorkHourId, result.WorkHourId);
-            Assert.Equal(1, result.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
             Assert.Null(result.ModifiedBy);
         }
 
@@ -1019,11 +1074,138 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var owner = await SeedUser();
             var other = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, other).UpdateWorkHour(wh.WorkHourId,
                 new UpdateWorkHourRequest { StartTime = Start, Description = "Opprinnelig" }));
+        }
+
+        #endregion
+
+        #region Flagg i svaret (canEdit, canDelete, canApprove, canResetStatus)
+
+        public enum Viewer { Owner, Admin }
+
+        /// <summary>Forventede flagg: eier og admin (ikke eier) på åpen, godkjent og avslått føring.</summary>
+        public static TheoryData<Viewer, ApprovalStatus?, bool, bool, bool, bool> FlagCases => new()
+        {
+            // Viewer, status, canEdit, canDelete, canApprove, canResetStatus
+            { Viewer.Owner, null, true, true, false, false },
+            { Viewer.Owner, ApprovalStatus.Approved, false, false, false, false },
+            { Viewer.Owner, ApprovalStatus.Rejected, false, false, false, false },
+            { Viewer.Admin, null, true, true, true, false },
+            { Viewer.Admin, ApprovalStatus.Approved, false, false, false, true },
+            { Viewer.Admin, ApprovalStatus.Rejected, false, false, false, true },
+        };
+
+        private static void AssertFlags(WorkHourResponse response, bool canEdit, bool canDelete, bool canApprove, bool canResetStatus)
+        {
+            Assert.Equal(canEdit, response.CanEdit);
+            Assert.Equal(canDelete, response.CanDelete);
+            Assert.Equal(canApprove, response.CanApprove);
+            Assert.Equal(canResetStatus, response.CanResetStatus);
+        }
+
+        /// <summary>Flaggene skal være nøyaktig det policyen sier for aktøren.</summary>
+        private static void AssertMatchesPolicy(WorkHourResponse response, WorkHour entry, User viewer)
+        {
+            var expected = WorkHourPolicy.GetPermissions(entry, new Actor(viewer.UserId, viewer.IsAdmin));
+            AssertFlags(response, expected.CanEdit, expected.CanDelete, expected.CanApprove, expected.CanResetStatus);
+        }
+
+        [Theory]
+        [MemberData(nameof(FlagCases))]
+        public async Task Flags_GetById_MatchPolicy(Viewer viewerKind, ApprovalStatus? status,
+            bool canEdit, bool canDelete, bool canApprove, bool canResetStatus)
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: status, approvedBy: status.HasValue ? admin : null);
+            var viewer = viewerKind == Viewer.Owner ? owner : admin;
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, viewer).GetWorkHourById(wh.WorkHourId);
+
+            AssertFlags(result, canEdit, canDelete, canApprove, canResetStatus);
+            AssertMatchesPolicy(result, wh, viewer);
+        }
+
+        [Theory]
+        [MemberData(nameof(FlagCases))]
+        public async Task Flags_GetWorkHoursByUser_MatchPolicy(Viewer viewerKind, ApprovalStatus? status,
+            bool canEdit, bool canDelete, bool canApprove, bool canResetStatus)
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner, status: status, approvedBy: status.HasValue ? admin : null);
+            var viewer = viewerKind == Viewer.Owner ? owner : admin;
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, viewer).GetWorkHoursByUser(owner.UserId, null, null);
+
+            var item = Assert.Single(result.Result);
+            AssertFlags(item, canEdit, canDelete, canApprove, canResetStatus);
+            AssertMatchesPolicy(item, wh, viewer);
+        }
+
+        [Fact]
+        public async Task Flags_GetWorkHours_AdminList_PerEntryMatchesPolicy()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var open = await SeedWorkHourAt(owner, Start);
+            var approved = await SeedWorkHourAt(owner, Start.AddDays(1), status: ApprovalStatus.Approved, approvedBy: admin);
+            var rejected = await SeedWorkHourAt(owner, Start.AddDays(2), status: ApprovalStatus.Rejected, approvedBy: admin);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, admin).GetWorkHours(owner.UserId, null, null, pageSize: 100);
+
+            var byId = result.Result.ToDictionary(r => r.WorkHourId);
+            Assert.Equal(3, byId.Count);
+            AssertFlags(byId[open.WorkHourId], canEdit: true, canDelete: true, canApprove: true, canResetStatus: false);
+            AssertFlags(byId[approved.WorkHourId], canEdit: false, canDelete: false, canApprove: false, canResetStatus: true);
+            AssertFlags(byId[rejected.WorkHourId], canEdit: false, canDelete: false, canApprove: false, canResetStatus: true);
+            AssertMatchesPolicy(byId[open.WorkHourId], open, admin);
+            AssertMatchesPolicy(byId[approved.WorkHourId], approved, admin);
+            AssertMatchesPolicy(byId[rejected.WorkHourId], rejected, admin);
+        }
+
+        [Fact]
+        public async Task Flags_Create_OwnerCanEditAndDelete()
+        {
+            var owner = await SeedUser();
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, owner).CreateWorkHour(new CreateWorkHourRequest { StartTime = Start, EndTime = End });
+
+            AssertFlags(result, canEdit: true, canDelete: true, canApprove: false, canResetStatus: false);
+        }
+
+        [Fact]
+        public async Task Flags_Update_ReflectStateAfterApproval()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true);
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, admin).UpdateWorkHour(wh.WorkHourId,
+                new UpdateWorkHourRequest { ApprovalStatus = ApprovalStatus.Approved });
+
+            AssertFlags(result, canEdit: false, canDelete: false, canApprove: false, canResetStatus: true);
+        }
+
+        [Fact]
+        public async Task Flags_Delete_AllFalseSinceEntryNoLongerExists()
+        {
+            var owner = await SeedUser();
+            var wh = await SeedWorkHour(owner);
+            using var context = _fixture.CreateContext();
+
+            var result = await CreateService(context, owner).DeleteWorkHour(wh.WorkHourId);
+
+            AssertFlags(result, canEdit: false, canDelete: false, canApprove: false, canResetStatus: false);
         }
 
         #endregion
@@ -1039,7 +1221,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
             public Task<WorkHour?> GetWorkHourById(int workHourId) => _inner.GetWorkHourById(workHourId);
             public Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId) => _inner.GetWorkHourByIdReadOnly(workHourId);
-            public Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take)
+            public Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, ApprovalFilter approved, DateTime? from, DateTime? to, int skip, int take)
                 => _inner.GetWorkHours(userId, approved, from, to, skip, take);
             public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null)
                 => _inner.GetIntervals(userId, from, to);
@@ -1065,12 +1247,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         }
 
         /// <summary>Endrer status direkte i databasen via en annen context, utenom servicen.</summary>
-        private Func<Task> SetStatusInDatabase(int workHourId, int? status, User? approvedBy) => async () =>
+        private Func<Task> SetStatusInDatabase(int workHourId, ApprovalStatus? status, User? approvedBy) => async () =>
         {
             using var other = _fixture.CreateContext();
             var approvedById = approvedBy?.UserId;
+            var statusValue = (int?)status;
             await other.Database.ExecuteSqlInterpolatedAsync(
-                $"UPDATE WorkHours SET ApprovalStatus = {status}, ApprovedBy = {approvedById} WHERE WorkHourId = {workHourId}");
+                $"UPDATE WorkHours SET ApprovalStatus = {statusValue}, ApprovedBy = {approvedById} WHERE WorkHourId = {workHourId}");
         };
 
         [Fact]
@@ -1081,7 +1264,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
             var (service, repository) = CreateRacingService(context, owner);
-            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 1, admin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, ApprovalStatus.Approved, admin);
 
             var ex = await Assert.ThrowsAsync<EntityLockedException>(() => service.UpdateWorkHour(wh.WorkHourId,
                 new UpdateWorkHourRequest { Description = "Etter race", EndTime = End.AddHours(1) }));
@@ -1090,7 +1273,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Opprinnelig", db.Description);
             Assert.Equal(End, db.EndTime);
-            Assert.Equal(1, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, db.ApprovalStatus);
             Assert.Equal(admin.UserId, db.ApprovedBy);
         }
 
@@ -1103,14 +1286,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
             var (service, repository) = CreateRacingService(context, admin);
-            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 2, otherAdmin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, ApprovalStatus.Rejected, otherAdmin);
 
             await Assert.ThrowsAsync<EntityLockedException>(() => service.UpdateWorkHour(wh.WorkHourId,
-                new UpdateWorkHourRequest { Description = "Rettet", ApprovalStatus = 1 }));
+                new UpdateWorkHourRequest { Description = "Rettet", ApprovalStatus = ApprovalStatus.Approved }));
 
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Opprinnelig", db.Description);
-            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, db.ApprovalStatus);
             Assert.Equal(otherAdmin.UserId, db.ApprovedBy);
             Assert.Null(db.ModifiedBy);
         }
@@ -1124,13 +1307,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
             var (service, repository) = CreateRacingService(context, admin);
-            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 2, otherAdmin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, ApprovalStatus.Rejected, otherAdmin);
 
             await Assert.ThrowsAsync<EntityLockedException>(() =>
-                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 1 }));
+                service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Approved }));
 
             var db = await Reload(wh.WorkHourId);
-            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, db.ApprovalStatus);
             Assert.Equal(otherAdmin.UserId, db.ApprovedBy);
         }
 
@@ -1139,7 +1322,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         {
             var owner = await SeedUser();
             var admin = await SeedUser(isAdmin: true);
-            var wh = await SeedWorkHour(owner, status: 1, approvedBy: admin);
+            var wh = await SeedWorkHour(owner, status: ApprovalStatus.Approved, approvedBy: admin);
             using var context = _fixture.CreateContext();
             var (service, repository) = CreateRacingService(context, admin);
             repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, null, null);
@@ -1156,11 +1339,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
             using var context = _fixture.CreateContext();
             var (service, repository) = CreateRacingService(context, owner);
-            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, 1, admin);
+            repository.BeforeSave = SetStatusInDatabase(wh.WorkHourId, ApprovalStatus.Approved, admin);
 
             await Assert.ThrowsAsync<EntityLockedException>(() => service.DeleteWorkHour(wh.WorkHourId));
 
-            Assert.Equal(1, (await Reload(wh.WorkHourId)).ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, (await Reload(wh.WorkHourId)).ApprovalStatus);
         }
 
         [Fact]
@@ -1192,9 +1375,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             var wh = await SeedWorkHour(owner);
 
             using (var c = _fixture.CreateContext())
-                await CreateService(c, admin).UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = 1 });
+                await CreateService(c, admin).UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Approved });
 
-            // «Ingen status» fra godkjent → null: WHERE ApprovalStatus = 1.
+            // «Ingen status» fra godkjent → null: WHERE ApprovalStatus = ApprovalStatus.Approved.
             using (var c = _fixture.CreateContext())
                 await CreateService(c, admin).UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = null });
             Assert.Null((await Reload(wh.WorkHourId)).ApprovalStatus);
@@ -1204,11 +1387,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 await CreateService(c, owner).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { Description = "Rettet" });
 
             using (var c = _fixture.CreateContext())
-                await CreateService(c, admin).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = 2 });
+                await CreateService(c, admin).UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { ApprovalStatus = ApprovalStatus.Rejected });
 
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Rettet", db.Description);
-            Assert.Equal(2, db.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, db.ApprovalStatus);
             Assert.Equal(admin.UserId, db.ApprovedBy);
         }
 

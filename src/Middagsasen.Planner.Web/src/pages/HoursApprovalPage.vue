@@ -98,7 +98,7 @@
                 :disable="loading"
                 :model-value="approvedFilter"
                 label="Ubehandlet"
-                :val="3"
+                :val="ApprovalFilter.Pending"
                 @update:model-value="(val) => setFilter({ approved: val })"
                 ><q-badge class="q-ml-xs" v-show="pendingHours > 0">{{
                   formatHours(pendingHours)
@@ -113,7 +113,7 @@
               :disable="loading"
               :model-value="approvedFilter"
               label="Godkjent"
-              :val="1"
+              :val="ApprovalFilter.Approved"
               @update:model-value="(val) => setFilter({ approved: val })"
               ><q-badge
                 color="positive"
@@ -127,7 +127,7 @@
               :disable="loading"
               :model-value="approvedFilter"
               label="Avslått"
-              :val="2"
+              :val="ApprovalFilter.Rejected"
               @update:model-value="(val) => setFilter({ approved: val })"
               ><q-badge
                 color="warning"
@@ -147,7 +147,7 @@
                 :size="$q.screen.gt.sm ? 'large' : 'medium'"
                 @click="
                   showApprovalDialog = true;
-                  approvalType = 1;
+                  approvalType = ApprovalStatus.Approved;
                 "
                 color="primary"
               />
@@ -160,16 +160,19 @@
                 :size="$q.screen.gt.sm ? 'large' : 'medium'"
                 @click="
                   showApprovalDialog = true;
-                  approvalType = 2;
+                  approvalType = ApprovalStatus.Rejected;
                 "
                 color="primary"
               />
             </span>
           </span>
-          <q-card v-if="$q.screen.lt.md && approvedFilter === 3" class="col-12">
+          <q-card
+            v-if="$q.screen.lt.md && approvedFilter === ApprovalFilter.Pending"
+            class="col-12"
+          >
             <q-card-section>
               <q-checkbox
-                v-model="selectAllBox"
+                :model-value="selectAllState"
                 label="Velg alle"
                 @update:model-value="toggleSelectAll"
               >
@@ -188,19 +191,18 @@
             <q-card-section>
               <div class="row">
                 <q-icon
+                  v-if="!isOpen(props.row.approvalStatus)"
                   size="lg"
-                  name="check_circle"
-                  class="green-text q-pr-lg"
-                  v-if="props.row.approvalStatus === 1"
-                />
-                <q-icon
-                  size="lg"
-                  name="cancel"
-                  class="red-text q-pr-lg"
-                  v-if="props.row.approvalStatus === 2"
+                  :name="
+                    getApprovalStatusDisplay(props.row.approvalStatus).icon
+                  "
+                  :class="
+                    getApprovalStatusDisplay(props.row.approvalStatus).iconClass
+                  "
+                  class="q-pr-lg"
                 />
                 <!-- Valg for masse-godkjenning skal ikke åpne dialogen -->
-                <div v-if="props.row.approvalStatus === null" @click.stop>
+                <div v-if="props.row.canApprove" @click.stop>
                   <q-checkbox v-model="props.selected" class="q-pr-md" />
                 </div>
                 <div class="text-h6 q-pr-lg">
@@ -234,21 +236,21 @@
             <q-card-section class="row">
               <q-space></q-space>
               <q-item-label caption>
-                {{ approvedByText(props.row) }}
+                {{ getApprovedByText(props.row) }}
               </q-item-label>
             </q-card-section>
           </q-card>
         </template>
-        <template #header-selection="props" v-if="$q.screen.gt.md">
+        <template #header-selection v-if="$q.screen.gt.md">
           <q-checkbox
-            v-if="isAdmin && approvedFilter === 3"
-            :props="props"
-            v-model="props.selected"
+            v-if="isAdmin && approvedFilter === ApprovalFilter.Pending"
+            :model-value="selectAllState"
+            @update:model-value="toggleSelectAll"
           />
         </template>
         <template #body-selection="props">
           <q-checkbox
-            v-if="!props.row.approvalStatus && isAdmin"
+            v-if="props.row.canApprove"
             :props="props"
             v-model="props.selected"
           />
@@ -256,16 +258,12 @@
         <template #body-cell-status="props">
           <q-td :props="props">
             <q-icon
+              v-if="!isOpen(props.row.approvalStatus)"
               size="md"
-              name="check_circle"
-              class="green-text"
-              v-if="props.row.approvalStatus === 1"
-            />
-            <q-icon
-              size="md"
-              name="cancel"
-              class="red-text"
-              v-if="props.row.approvalStatus === 2"
+              :name="getApprovalStatusDisplay(props.row.approvalStatus).icon"
+              :class="
+                getApprovalStatusDisplay(props.row.approvalStatus).iconClass
+              "
             />
           </q-td>
         </template>
@@ -292,7 +290,7 @@
   <q-dialog v-model="showApprovalDialog">
     <q-card>
       <q-card-section class="text-h6">
-        Bekreft {{ approvalType == 1 ? "godkjenning" : "avslag" }}
+        Bekreft {{ approvalText.noun }}
       </q-card-section>
       <q-card-section>
         <div>
@@ -300,10 +298,9 @@
           {{ selectedWorkHours.length > 1 ? "timeføringer" : "timeføring" }}
           til
           <span
-            :class="
-              approvalType == 1 ? 'green-text text-bold ' : 'red-text text-bold'
-            "
-            >{{ approvalType == 1 ? "godkjent" : "avslått" }}</span
+            :class="getApprovalStatusDisplay(approvalType).iconClass"
+            class="text-bold"
+            >{{ approvalText.past }}</span
           >?
         </div>
       </q-card-section>
@@ -341,13 +338,13 @@
         <div class="row">
           <q-btn-dropdown
             size="lg"
-            :icon="dialogIcon.name"
-            :class="dialogIcon.class"
+            :icon="dialogStatus.icon"
+            :class="dialogStatus.iconClass"
             class="q-pa-xs q-pl-sm"
           >
             <q-list>
               <q-item
-                v-if="foundWorkHour.approvalStatus !== null"
+                v-if="foundWorkHour.canResetStatus"
                 clickable
                 @click="changeStatus(foundWorkHour.workHourId, null)"
               >
@@ -355,8 +352,9 @@
                   <div>
                     <q-icon
                       size="md"
-                      class="q-pr-sm grey-text"
-                      name="radio_button_unchecked"
+                      class="q-pr-sm"
+                      :class="getApprovalStatusDisplay(null).iconClass"
+                      :name="getApprovalStatusDisplay(null).icon"
                     />
                     Ingen status
                   </div>
@@ -417,10 +415,10 @@
         <q-space></q-space>
         <q-btn label="Lukk" @click="closeWorkHourDialog" />
       </q-card-actions>
-      <q-card-section v-if="foundWorkHour.approvalStatus !== null" class="row">
+      <q-card-section v-if="!isOpen(foundWorkHour.approvalStatus)" class="row">
         <q-space></q-space>
         <q-item-label caption>
-          {{ approvedByText(foundWorkHour) }}
+          {{ getApprovedByText(foundWorkHour) }}
         </q-item-label>
       </q-card-section>
     </q-card>
@@ -438,17 +436,24 @@ import { useRoute, useRouter } from "vue-router";
 import { formatHours, formatNumber } from "src/shared/formatter";
 import { formatDate, formatDateTime, formatTime } from "src/shared/time";
 import {
-  getWorkHourErrorKind,
+  countBulkApprovalError,
+  getApprovalActionText,
+  getApprovalStatusDisplay,
+  getApprovedByText,
+  getWorkHourError,
+  isOpen,
+  parseApprovalFilter,
+  seasonForQuery,
   summarizeBulkApproval,
-} from "src/shared/workHourDiff";
-import { getApiErrorMessage } from "src/shared/apiError";
-import type { BulkApprovalCounts } from "src/shared/workHourDiff";
+} from "src/shared/workHours";
+import type { BulkApprovalCounts } from "src/shared/workHours";
+import { ApprovalFilter, ApprovalStatus } from "src/types";
 import type { UserResponse, WorkHourResponse } from "src/types";
 import TimeTrackingForm from "components/TimeTrackingForm.vue";
 
 // Filteret som sendes til q-table (`:filter`) og tilbake i @request.
 interface WorkHourFilter {
-  approved: number;
+  approved: ApprovalFilter;
   season: number | null;
   userId: number | null;
 }
@@ -471,7 +476,6 @@ const emit = defineEmits<{
 }>();
 
 // refs
-const selectAllBox = ref(false);
 const approvedHours = ref(0);
 const pendingHours = ref(0);
 const rejectedHours = ref(0);
@@ -486,8 +490,8 @@ const loading = ref(false);
 const seasonsLoaded = ref(false);
 const userOptions = ref<UserResponse[]>([]);
 const showApprovalDialog = ref(false);
-// 1 = godkjenn, 2 = avslå. Settes alltid før bekreftelsesdialogen åpnes.
-const approvalType = ref<1 | 2>(1);
+// Statusen masse-godkjenningen setter. Settes alltid før bekreftelsesdialogen åpnes.
+const approvalType = ref<ApprovalStatus>(ApprovalStatus.Approved);
 const userWorkHours = ref<WorkHourResponse[]>([]);
 const currentPage = ref(1);
 const currentUser = computed(() => authStore.user);
@@ -505,10 +509,6 @@ const pagination = ref<{
   page: Number.isInteger(parseInt(String($route.query.page)))
     ? parseInt(String($route.query.page))
     : 1,
-});
-const dialogIcon = ref({
-  class: "",
-  name: "",
 });
 
 // constants
@@ -582,8 +582,10 @@ const columns: QTableColumn<WorkHourResponse>[] = [
 const visibleColumns = computed<string[]>(() => {
   const cols: string[] = [];
   cols.push("user");
-  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("status");
-  if ($q.screen.gt.xs && approvedFilter.value !== 3) cols.push("approvedBy");
+  // Ubehandlede føringer har verken status eller godkjenner å vise.
+  const showStatus = approvedFilter.value !== ApprovalFilter.Pending;
+  if ($q.screen.gt.xs && showStatus) cols.push("status");
+  if ($q.screen.gt.xs && showStatus) cols.push("approvedBy");
   if ($q.screen.gt.sm) cols.push("description");
   cols.push("from");
   cols.push("to");
@@ -593,9 +595,16 @@ const visibleColumns = computed<string[]>(() => {
 
 const isAdmin = computed(() => currentUser.value?.isAdmin ?? false);
 
-const approvedFilter = computed<number>(() => {
-  return $route.query.a !== undefined ? parseInt(String($route.query.a)) : 3;
-});
+const approvedFilter = computed<ApprovalFilter>(() =>
+  parseApprovalFilter($route.query.a)
+);
+
+const approvalText = computed(() => getApprovalActionText(approvalType.value));
+
+// Statusikonet i dialogen for en behandlet føring.
+const dialogStatus = computed(() =>
+  getApprovalStatusDisplay(foundWorkHour.value.approvalStatus)
+);
 
 // Sesongens startår fra URL (`s`), ellers inneværende sesong.
 const seasonFilter = computed<number | null>(() => {
@@ -632,14 +641,12 @@ async function getUserWorkHours(props: TableRequestProps) {
   loading.value = true;
   resetTable();
   try {
-    // Ubehandlede timer vises på tvers av sesonger, så de ikke skjules av
-    // sesongfilteret. Axios utelater null/undefined params.
-    const ignoreSeason = filter.approved === 3;
+    // Axios utelater null/undefined params.
     const params = {
       approved: filter.approved,
       page: props.pagination.page,
       pageSize: props.pagination.rowsPerPage,
-      season: ignoreSeason ? null : filter.season,
+      season: seasonForQuery(filter.approved, filter.season),
       userId: filter.userId,
     };
 
@@ -681,7 +688,9 @@ function onWorkHourSaved() {
   tableRef.value?.requestServerInteraction();
 }
 
-async function approveUpdateRows(status: number) {
+// Etter masse-godkjenning lastes listen på nytt (requestServerInteraction),
+// slik at radene får ferske tilgangsflagg fra serveren.
+async function approveUpdateRows(status: ApprovalStatus) {
   const counts: Required<BulkApprovalCounts> = {
     ok: 0,
     alreadyProcessed: 0,
@@ -699,14 +708,7 @@ async function approveUpdateRows(status: number) {
         counts.ok++;
       } catch (e) {
         console.error(e);
-        const kind = getWorkHourErrorKind(e);
-        if (kind === "conflict") {
-          counts.alreadyProcessed++;
-        } else if (kind === "notFound") {
-          counts.notFound++;
-        } else {
-          counts.failed++;
-        }
+        countBulkApprovalError(counts, e);
       }
     }
     const summary = summarizeBulkApproval(counts, status);
@@ -722,9 +724,11 @@ async function approveUpdateRows(status: number) {
   }
 }
 
+// Svaret (ApprovedByResponse) har ikke tilgangsflagg, så listen lastes på
+// nytt etterpå (requestServerInteraction i finally).
 async function changeStatus(
   workHourId: number | undefined,
-  status: number | null
+  status: ApprovalStatus | null
 ) {
   try {
     loading.value = true;
@@ -740,19 +744,9 @@ async function changeStatus(
     });
   } catch (e) {
     console.error(e);
-    const kind = getWorkHourErrorKind(e);
     $q.notify({
       type: "negative",
-      message: getApiErrorMessage(
-        e,
-        kind === "conflict"
-          ? "Statusen kunne ikke endres fordi føringen er endret av noen andre"
-          : kind === "notFound"
-            ? "Føringen finnes ikke lenger"
-            : kind === "forbidden"
-              ? "Du har ikke tilgang til å endre denne føringen"
-              : "Klarte ikke å oppdatere status"
-      ),
+      message: getWorkHourError(e, "changeStatus").message,
     });
   } finally {
     loading.value = false;
@@ -769,31 +763,37 @@ async function openWorkHours(workHourRow: WorkHourResponse) {
     return;
   }
   foundWorkHour.value = found;
-  if (found.approvalStatus === null) {
+  if (found.canEdit) {
     // Åpen føring: kan redigeres og godkjennes/avslås i skjemaet.
     editWorkHour.value = { ...found };
     showEditDialog.value = true;
     return;
   }
-  if (found.approvalStatus === 1) {
-    dialogIcon.value.class = "green-text";
-    dialogIcon.value.name = "check_circle";
-  } else if (found.approvalStatus === 2) {
-    dialogIcon.value.class = "red-text";
-    dialogIcon.value.name = "cancel";
-  } else {
-    dialogIcon.value.class = "grey-text";
-    dialogIcon.value.name = "radio_button_unchecked";
-  }
+  // Behandlet føring: vis status, med «Ingen status» der det er lov.
   showWorkHourDialog.value = true;
 }
 
-function toggleSelectAll(val: boolean) {
-  if (val) {
-    selectedWorkHours.value = [...userWorkHours.value];
-  } else {
-    selectedWorkHours.value = [];
-  }
+// «Velg alle» gjelder bare føringer innlogget bruker kan godkjenne – de
+// andre radene har ingen avkrysningsboks.
+const selectableWorkHours = computed(() =>
+  userWorkHours.value.filter((workHour) => workHour.canApprove)
+);
+
+// Avkrysset når alle valgbare er valgt, ubestemt (null) når noen er valgt.
+const selectAllState = computed<boolean | null>(() => {
+  const selectable = selectableWorkHours.value;
+  const selectedIds = new Set(
+    selectedWorkHours.value.map((workHour) => workHour.workHourId)
+  );
+  const count = selectable.filter((workHour) =>
+    selectedIds.has(workHour.workHourId)
+  ).length;
+  if (count === 0) return false;
+  return count === selectable.length ? true : null;
+});
+
+function toggleSelectAll(val: boolean | null) {
+  selectedWorkHours.value = val ? [...selectableWorkHours.value] : [];
 }
 
 // Oppdaterer URL-query (a, page, rowPP, s, u). Felter som ikke er med i
@@ -804,7 +804,8 @@ async function setFilter(changes: Partial<WorkHourFilter> = {}) {
   const season = "season" in changes ? changes.season : seasonFilter.value;
   const userId = "userId" in changes ? changes.userId : userFilter.value;
 
-  if (approved !== 3) {
+  // Masse-godkjenning gjelder bare ubehandlede føringer.
+  if (approved !== ApprovalFilter.Pending) {
     selectedWorkHours.value = [];
   }
   if (
@@ -836,14 +837,6 @@ function filterUsers(val: string, update: (callbackFn: () => void) => void) {
         )
       : userStore.users;
   });
-}
-
-function approvedByText(row: Partial<WorkHourResponse>) {
-  if (!row.approvedBy || row.approvalStatus === null) return "";
-  const name = row.approvedByName ?? "ukjent";
-  return row.approvalStatus === 1
-    ? `Godkjent av: ${name}`
-    : `Avslått av: ${name}`;
 }
 
 function userNameById(id: number | undefined) {

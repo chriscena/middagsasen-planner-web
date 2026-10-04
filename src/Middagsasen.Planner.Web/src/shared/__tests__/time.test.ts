@@ -1,6 +1,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import {
+  durationHours,
   formatDate,
+  formatDuration,
   formatDateTime,
   formatDayMonth,
   formatShortDate,
@@ -386,5 +388,57 @@ describe("wire-format", () => {
     expect(Number.isNaN(parseEventStatusDate("2026-10-03").getTime())).toBe(
       true
     );
+  });
+});
+
+describe("varighet", () => {
+  it("durationHours gir timer som desimaltall", () => {
+    expect(
+      durationHours("2026-01-10T08:00:00.000Z", "2026-01-10T09:30:00.000Z")
+    ).toBe(1.5);
+    expect(
+      durationHours(new Date(2026, 0, 10, 8), new Date(2026, 0, 10, 8))
+    ).toBe(0);
+  });
+
+  it("durationHours gir null for manglende eller ugyldig verdi", () => {
+    expect(durationHours(null, "2026-01-10T09:00:00Z")).toBeNull();
+    expect(durationHours("2026-01-10T09:00:00Z", undefined)).toBeNull();
+    expect(durationHours("tull", "2026-01-10T09:00:00Z")).toBeNull();
+  });
+
+  it("durationHours regner faktisk tid over sommertidsskifte", () => {
+    // 25.10.2026 02:00–03:00 kommer to ganger: 00:00–04:00 lokal tid er 5 timer.
+    expect(
+      durationHours(new Date(2026, 9, 25, 0, 0), new Date(2026, 9, 25, 4, 0))
+    ).toBe(5);
+  });
+
+  it("formatDuration gir H:MM", () => {
+    expect(
+      formatDuration("2026-01-10T08:00:00.000Z", "2026-01-10T12:05:00.000Z")
+    ).toBe("4:05");
+    expect(
+      formatDuration("2026-01-10T08:00:00.000Z", "2026-01-10T08:00:00.000Z")
+    ).toBe("0:00");
+    expect(
+      formatDuration("2026-01-10T20:00:00.000Z", "2026-01-11T08:30:00.000Z")
+    ).toBe("12:30");
+  });
+
+  it("formatDuration runder til nærmeste minutt uten å gi :60", () => {
+    expect(
+      formatDuration("2026-01-10T08:00:00.000Z", "2026-01-10T08:59:45.000Z")
+    ).toBe("1:00");
+    expect(
+      formatDuration("2026-01-10T08:00:00.000Z", "2026-01-10T08:00:20.000Z")
+    ).toBe("0:00");
+  });
+
+  it("formatDuration gir tom streng for ugyldig eller negativt tidsrom", () => {
+    expect(formatDuration(null, "2026-01-10T08:00:00Z")).toBe("");
+    expect(
+      formatDuration("2026-01-10T09:00:00.000Z", "2026-01-10T08:00:00.000Z")
+    ).toBe("");
   });
 });

@@ -30,7 +30,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             _currentUser.IsAdmin.Returns(isAdmin);
         }
 
-        private WorkHour Stub(int? status = null)
+        private WorkHour Stub(ApprovalStatus? status = null)
         {
             var wh = new WorkHour
             {
@@ -52,11 +52,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             LoginAs(AdminId, true);
             var wh = Stub();
 
-            await _sut.UpdateWorkHour(5, new UpdateWorkHourRequest { Description = "Etter", ApprovalStatus = 1 });
+            await _sut.UpdateWorkHour(5, new UpdateWorkHourRequest { Description = "Etter", ApprovalStatus = ApprovalStatus.Approved });
 
             await _repository.Received(1).SaveChangesAsync();
             Assert.Equal("Etter", wh.Description);
-            Assert.Equal(1, wh.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Approved, wh.ApprovalStatus);
             Assert.Equal(AdminId, wh.ApprovedBy);
             Assert.Equal(AdminId, wh.ModifiedBy);
         }
@@ -65,7 +65,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task Update_Locked_DoesNotSave()
         {
             LoginAs(OwnerId, false);
-            Stub(status: 1);
+            Stub(status: ApprovalStatus.Approved);
 
             await Assert.ThrowsAsync<EntityLockedException>(() =>
                 _sut.UpdateWorkHour(5, new UpdateWorkHourRequest { Description = "x" }));
@@ -77,14 +77,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task Update_AdminContentOnLockedWithStatus_ThrowsLockedAndDoesNotSave()
         {
             LoginAs(AdminId, true);
-            var wh = Stub(status: 2);
+            var wh = Stub(status: ApprovalStatus.Rejected);
 
             await Assert.ThrowsAsync<EntityLockedException>(() =>
-                _sut.UpdateWorkHour(5, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = 1 }));
+                _sut.UpdateWorkHour(5, new UpdateWorkHourRequest { Description = "x", ApprovalStatus = ApprovalStatus.Approved }));
 
             await _repository.DidNotReceive().SaveChangesAsync();
             Assert.Equal("Før", wh.Description);
-            Assert.Equal(2, wh.ApprovalStatus);
+            Assert.Equal(ApprovalStatus.Rejected, wh.ApprovalStatus);
         }
 
         [Fact]
@@ -140,7 +140,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task GetWorkHours_ValidSeasonBoundary_IsAccepted(int season)
         {
             LoginAs(AdminId, true);
-            _repository.GetWorkHours(Arg.Any<int?>(), Arg.Any<int?>(), Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<int>(), Arg.Any<int>())
+            _repository.GetWorkHours(Arg.Any<int?>(), Arg.Any<ApprovalFilter>(), Arg.Any<DateTime?>(), Arg.Any<DateTime?>(), Arg.Any<int>(), Arg.Any<int>())
                 .Returns(((IReadOnlyList<WorkHour>)Array.Empty<WorkHour>(), 0));
 
             var result = await _sut.GetWorkHours(null, null, season);

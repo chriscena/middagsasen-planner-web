@@ -62,6 +62,8 @@ export const CHART_TIME_FORMAT = TIME_FORMAT;
 // klokkeslett ikke avhenger av hvilken dag det er i dag.
 const TIME_REFERENCE_DATE = new Date(2000, 0, 1);
 
+const MS_PER_HOUR = 60 * 60 * 1000;
+
 /** Verdi som kan vises: Date, ISO-streng (med eller uten sone), eller mangler. */
 export type DateInput = Date | string | null | undefined;
 
@@ -126,6 +128,34 @@ export function formatWeekNumber(value: DateInput): string {
  */
 export function formatShortDate(value: DateInput): string {
   return formatOrEmpty(value, SHORT_DATE_FORMAT, { locale: nb });
+}
+
+// ---------------------------------------------------------------------------
+// Varighet. Regnes som faktisk forløpt tid mellom to tidspunkter (også over
+// sommertidsskifte).
+
+/**
+ * Varighet i timer (desimaltall) fra `start` til `end`, eller null hvis en
+ * av verdiene mangler eller er ugyldig. Slutt før start gir negativt tall.
+ */
+export function durationHours(start: DateInput, end: DateInput): number | null {
+  const startDate = toDate(start);
+  const endDate = toDate(end);
+  if (!startDate || !endDate) return null;
+  return (endDate.getTime() - startDate.getTime()) / MS_PER_HOUR;
+}
+
+/**
+ * Varighet som "H:MM" (timer uten utfylling, minutter rundet til nærmeste
+ * hele), f.eks. "1:30" og "12:05". Tom streng hvis en verdi mangler eller er
+ * ugyldig, eller slutt er før start.
+ */
+export function formatDuration(start: DateInput, end: DateInput): string {
+  const hours = durationHours(start, end);
+  if (hours === null || hours < 0) return "";
+  const totalMinutes = Math.round(hours * 60);
+  const minutes = totalMinutes % 60;
+  return `${(totalMinutes - minutes) / 60}:${String(minutes).padStart(2, "0")}`;
 }
 
 // ---------------------------------------------------------------------------

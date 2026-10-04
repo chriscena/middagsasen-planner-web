@@ -18,6 +18,9 @@ Håndheves i backend via `WorkHourPolicy` (statisk, uten avhengigheter).
 - Redigerbare felter: starttid, sluttid, beskrivelse. **Eier kan aldri endres.**
 - Manglende tilgang → `403 Forbidden`. Føringen er låst → `409 Conflict`.
 - «Ingen status» beholdes som bevisst angrevei: admin låser opp, retter og godkjenner på nytt.
+- Status er enumen `ApprovalStatus` (`Approved = 1`, `Rejected = 2`, null = åpen); heltallsverdiene lagres i databasen. Udefinerte verdier gir `400`.
+- **Flagg i svaret:** `WorkHourResponse` har `canEdit`, `canDelete`, `canApprove` (godkjenne/avslå) og `canResetStatus` («Ingen status») for innlogget bruker, beregnet av `WorkHourPolicy.GetPermissions` — samme regler som håndheves. Frontend skal lese flaggene i stedet for å tolke status selv.
+- Listefilteret `approved` er enumen `ApprovalFilter` (`All = 0`, `Approved = 1`, `Rejected = 2`, `Pending = 3`).
 
 ## Backend
 

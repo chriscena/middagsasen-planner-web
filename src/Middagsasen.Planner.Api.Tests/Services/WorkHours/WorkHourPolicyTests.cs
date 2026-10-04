@@ -11,21 +11,21 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
         public enum Action { Edit, Delete, Approve, Reject, Unlock }
 
-        private const int Approved = 1;
-        private const int Rejected = 2;
+        private const ApprovalStatus Approved = ApprovalStatus.Approved;
+        private const ApprovalStatus Rejected = ApprovalStatus.Rejected;
 
-        private static WorkHour Entry(int? status) => new() { WorkHourId = 1, UserId = OwnerId, ApprovalStatus = status };
+        private static WorkHour Entry(ApprovalStatus? status) => new() { WorkHourId = 1, UserId = OwnerId, ApprovalStatus = status };
 
         private static WorkHourAccess Evaluate(WorkHour entry, Actor actor, Action action) => action switch
         {
             Action.Edit or Action.Delete => WorkHourPolicy.CanEdit(entry, actor),
-            Action.Approve => WorkHourPolicy.CanSetStatus(entry, actor, 1),
-            Action.Reject => WorkHourPolicy.CanSetStatus(entry, actor, 2),
+            Action.Approve => WorkHourPolicy.CanSetStatus(entry, actor, Approved),
+            Action.Reject => WorkHourPolicy.CanSetStatus(entry, actor, Rejected),
             Action.Unlock => WorkHourPolicy.CanSetStatus(entry, actor, null),
             _ => throw new ArgumentOutOfRangeException(nameof(action)),
         };
 
-        // Kolonner: eier, admin, status (null = åpen, 1 = godkjent, 2 = avslått), handling, forventet
+        // Kolonner: eier, admin, status (null = åpen), handling, forventet
         [Theory]
         // --- Eier, vanlig bruker ---
         [InlineData(true, false, null, Action.Edit, WorkHourAccess.Allowed)]
@@ -91,7 +91,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         [InlineData(true, true, Rejected, Action.Approve, WorkHourAccess.Locked)]
         [InlineData(true, true, Rejected, Action.Reject, WorkHourAccess.Locked)]
         [InlineData(true, true, Rejected, Action.Unlock, WorkHourAccess.Allowed)]
-        public void RuleTable(bool isOwner, bool isAdmin, int? status, Action action, WorkHourAccess expected)
+        public void RuleTable(bool isOwner, bool isAdmin, ApprovalStatus? status, Action action, WorkHourAccess expected)
         {
             var userId = isOwner ? OwnerId : OtherId;
 
@@ -111,11 +111,39 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         [InlineData(false, true, Approved, true)]
         [InlineData(false, true, Rejected, true)]
         [InlineData(true, true, null, true)]
-        public void CanRead(bool isOwner, bool isAdmin, int? status, bool expected)
+        public void CanRead(bool isOwner, bool isAdmin, ApprovalStatus? status, bool expected)
         {
             var userId = isOwner ? OwnerId : OtherId;
 
             Assert.Equal(expected, WorkHourPolicy.CanRead(Entry(status), new Actor(userId, isAdmin)));
+        }
+
+        // Flaggene i svaret skal bruke nøyaktig de samme reglene som håndheves.
+        [Theory]
+        [InlineData(true, false, null, true, true, false, false)]
+        [InlineData(true, false, Approved, false, false, false, false)]
+        [InlineData(true, false, Rejected, false, false, false, false)]
+        [InlineData(false, false, null, false, false, false, false)]
+        [InlineData(false, false, Approved, false, false, false, false)]
+        [InlineData(false, true, null, true, true, true, false)]
+        [InlineData(false, true, Approved, false, false, false, true)]
+        [InlineData(false, true, Rejected, false, false, false, true)]
+        [InlineData(true, true, null, true, true, true, false)]
+        [InlineData(true, true, Approved, false, false, false, true)]
+        public void GetPermissions_MatchesRules(bool isOwner, bool isAdmin, ApprovalStatus? status,
+            bool canEdit, bool canDelete, bool canApprove, bool canResetStatus)
+        {
+            var entry = Entry(status);
+            var actor = new Actor(isOwner ? OwnerId : OtherId, isAdmin);
+
+            var permissions = WorkHourPolicy.GetPermissions(entry, actor);
+
+            Assert.Equal(new WorkHourPermissions(canEdit, canDelete, canApprove, canResetStatus), permissions);
+            Assert.Equal(Evaluate(entry, actor, Action.Edit) == WorkHourAccess.Allowed, permissions.CanEdit);
+            Assert.Equal(Evaluate(entry, actor, Action.Delete) == WorkHourAccess.Allowed, permissions.CanDelete);
+            Assert.Equal(Evaluate(entry, actor, Action.Approve) == WorkHourAccess.Allowed, permissions.CanApprove);
+            Assert.Equal(Evaluate(entry, actor, Action.Reject) == WorkHourAccess.Allowed, permissions.CanApprove);
+            Assert.Equal(Evaluate(entry, actor, Action.Unlock) == WorkHourAccess.Allowed, permissions.CanResetStatus);
         }
 
         // Policyen vurderer kun tilgang/tilstand; verdien valideres av servicen etterpå (403 → 409 → 400).
@@ -127,9 +155,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         [InlineData(3, true, null, WorkHourAccess.Allowed)]
         [InlineData(-1, true, null, WorkHourAccess.Allowed)]
         [InlineData(3, true, Approved, WorkHourAccess.Locked)]
-        public void CanSetStatus_IgnoresStatusValue(int status, bool isAdmin, int? current, WorkHourAccess expected)
+        public void CanSetStatus_IgnoresStatusValue(int status, bool isAdmin, ApprovalStatus? current, WorkHourAccess expected)
         {
-            Assert.Equal(expected, WorkHourPolicy.CanSetStatus(Entry(current), new Actor(OwnerId, isAdmin), status));
+            Assert.Equal(expected, WorkHourPolicy.CanSetStatus(Entry(current), new Actor(OwnerId, isAdmin), (ApprovalStatus)status));
         }
     }
 }

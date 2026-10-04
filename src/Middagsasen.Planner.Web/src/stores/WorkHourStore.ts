@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { api } from "boot/axios";
 import type {
+  ApprovalFilter,
+  ApprovalStatus,
   ApprovedByResponse,
   CreateWorkHourRequest,
   PagedResponseOfWorkHourResponse,
@@ -27,7 +29,7 @@ interface WorkHourState {
 interface WorkHourQuery {
   page?: number | null;
   pageSize?: number | null;
-  approved?: number | null;
+  approved?: ApprovalFilter | null;
   season?: number | null;
   userId?: number | null;
 }
@@ -117,10 +119,11 @@ export const useWorkHourStore = defineStore("workHours", {
       return response.data;
     },
 
-    // approvalStatus: 1 = godkjent, 2 = avslått, null = ingen status.
+    // approvalStatus null = ingen status. Svaret har ikke tilgangsflagg;
+    // hent føringen/listen på nytt for oppdaterte flagg.
     async updateApproval(model: {
       workHourId: number;
-      approvalStatus: number | null;
+      approvalStatus: ApprovalStatus | null;
     }): Promise<ApprovedByResponse> {
       const response = await api.patch<ApprovedByResponse>(
         `/api/WorkHours/${model.workHourId}/ApprovedBy`,

@@ -29,7 +29,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .SingleOrDefaultAsync(w => w.WorkHourId == workHourId);
         }
 
-        public async Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, int? approved, DateTime? from, DateTime? to, int skip, int take)
+        public async Task<(IReadOnlyList<WorkHour> Items, int TotalCount)> GetWorkHours(int? userId, ApprovalFilter approved, DateTime? from, DateTime? to, int skip, int take)
         {
             var query = DbContext.WorkHours.AsNoTracking();
 
@@ -42,9 +42,11 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
             query = approved switch
             {
-                1 => query.Where(w => w.ApprovalStatus == 1),
-                2 => query.Where(w => w.ApprovalStatus == 2),
-                3 => query.Where(w => !w.ApprovalStatus.HasValue),
+                ApprovalFilter.Approved => query.Where(w => w.ApprovalStatus == ApprovalStatus.Approved),
+                ApprovalFilter.Rejected => query.Where(w => w.ApprovalStatus == ApprovalStatus.Rejected),
+                ApprovalFilter.Pending => query.Where(w => !w.ApprovalStatus.HasValue),
+                // All = ingen filtrering. Udefinerte verdier (f.eks. ?approved=5) når ikke hit fra API-et:
+                // EnumTypeModelBinder avviser verdier som ikke er definert i enumen, og [ApiController] gir 400.
                 _ => query,
             };
 

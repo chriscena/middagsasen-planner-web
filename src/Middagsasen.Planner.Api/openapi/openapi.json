@@ -4070,8 +4070,7 @@
             "name": "approved",
             "in": "query",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/ApprovalFilter"
             }
           },
           {
@@ -4546,8 +4545,7 @@
             "name": "approved",
             "in": "query",
             "schema": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/ApprovalFilter"
             }
           },
           {
@@ -4751,6 +4749,32 @@
   },
   "components": {
     "schemas": {
+      "ApprovalFilter": {
+        "enum": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "type": "integer",
+        "x-enum-varnames": [
+          "All",
+          "Approved",
+          "Rejected",
+          "Pending"
+        ]
+      },
+      "ApprovalStatus": {
+        "enum": [
+          1,
+          2
+        ],
+        "type": "integer",
+        "x-enum-varnames": [
+          "Approved",
+          "Rejected"
+        ]
+      },
       "ApproveCompetencyRequest": {
         "type": "object",
         "properties": {
@@ -4767,11 +4791,14 @@
         "type": "object",
         "properties": {
           "approvalStatus": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalStatus"
+              }
+            ]
           }
         }
       },
@@ -4793,11 +4820,14 @@
             "format": "int32"
           },
           "approvalStatus": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalStatus"
+              }
+            ]
           },
           "approvedTime": {
             "type": [
@@ -6262,11 +6292,14 @@
             ]
           },
           "approvalStatus": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalStatus"
+              }
+            ]
           }
         }
       },
@@ -6576,7 +6609,11 @@
       "WorkHourResponse": {
         "required": [
           "workHourId",
-          "userId"
+          "userId",
+          "canEdit",
+          "canDelete",
+          "canApprove",
+          "canResetStatus"
         ],
         "type": "object",
         "properties": {
@@ -6636,11 +6673,14 @@
             "format": "date-time"
           },
           "approvalStatus": {
-            "type": [
-              "null",
-              "integer"
-            ],
-            "format": "int32"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApprovalStatus"
+              }
+            ]
           },
           "modifiedBy": {
             "type": [
@@ -6661,6 +6701,18 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean"
+          },
+          "canApprove": {
+            "type": "boolean"
+          },
+          "canResetStatus": {
+            "type": "boolean"
           }
         }
       },

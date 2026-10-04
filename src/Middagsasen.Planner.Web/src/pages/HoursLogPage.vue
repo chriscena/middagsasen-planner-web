@@ -57,7 +57,7 @@
         >
           <q-item dense v-if="viewModel.pendingHoursSum > 0">
             <q-item-section avatar>
-              <q-icon name="radio_button_unchecked" class="grey-text" />
+              <q-icon :name="openDisplay.icon" :class="openDisplay.iconClass" />
             </q-item-section>
 
             <q-item-section>
@@ -73,7 +73,10 @@
           <q-separator v-if="viewModel.pendingHoursSum > 0" />
           <q-item dense v-if="viewModel.approvedHoursSum > 0">
             <q-item-section avatar>
-              <q-icon name="check_circle" class="green-text" />
+              <q-icon
+                :name="approvedDisplay.icon"
+                :class="approvedDisplay.iconClass"
+              />
             </q-item-section>
 
             <q-item-section>
@@ -89,11 +92,14 @@
           <q-separator v-if="viewModel.approvedHoursSum > 0" />
           <q-item dense v-if="viewModel.rejectedHoursSum > 0">
             <q-item-section avatar>
-              <q-icon name="cancel" class="red-text" />
+              <q-icon
+                :name="rejectedDisplay.icon"
+                :class="rejectedDisplay.iconClass"
+              />
             </q-item-section>
 
             <q-item-section>
-              <q-item-label overline>Avviste timer </q-item-label>
+              <q-item-label overline>Avslåtte timer </q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-item-label overline>
@@ -118,19 +124,10 @@
           >
             <q-item-section avatar>
               <q-icon
-                name="check_circle"
-                class="green-text"
-                v-if="hours.approvalStatus === 1"
-              />
-              <q-icon
-                name="cancel"
-                class="red-text"
-                v-if="hours.approvalStatus === 2"
-              />
-              <q-icon
-                name="radio_button_unchecked"
-                class="grey-text"
-                v-if="!hours.approvalStatus"
+                :name="getApprovalStatusDisplay(hours.approvalStatus).icon"
+                :class="
+                  getApprovalStatusDisplay(hours.approvalStatus).iconClass
+                "
               />
             </q-item-section>
 
@@ -185,6 +182,8 @@ import TimeTrackingForm from "components/TimeTrackingForm.vue";
 import { formatHours, formatNumber } from "src/shared/formatter";
 import { formatDate, formatTime } from "src/shared/time";
 import { getSeasonStartYear } from "src/shared/season";
+import { getApprovalStatusDisplay } from "src/shared/workHours";
+import { ApprovalStatus } from "src/types";
 import type { WorkHourResponse } from "src/types";
 
 // store init
@@ -228,6 +227,11 @@ const viewModel = reactive<HoursLogViewModel>({
 });
 
 const infiniteScroll = useTemplateRef<QInfiniteScroll>("infiniteScroll");
+
+// Ikonene i summene per status.
+const openDisplay = getApprovalStatusDisplay(null);
+const approvedDisplay = getApprovalStatusDisplay(ApprovalStatus.Approved);
+const rejectedDisplay = getApprovalStatusDisplay(ApprovalStatus.Rejected);
 
 const currentUser = computed(() => authStore.user);
 // Siden ligger bak innlogging (router-guard), så user er satt her.
