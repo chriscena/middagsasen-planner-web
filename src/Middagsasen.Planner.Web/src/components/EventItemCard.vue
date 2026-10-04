@@ -510,18 +510,18 @@
 import { computed, ref } from "vue";
 import { useQuasar } from "quasar";
 import type { Timestamp } from "@timestamp-js/core";
-import { useEventStore } from "stores/EventStore";
-import { useUserStore } from "stores/UserStore";
-import { useAuthStore } from "stores/AuthStore";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
-import { createShiftList, type ShiftListItem } from "src/shared/shiftList";
+import { useEventStore } from "@/stores/EventStore";
+import { useUserStore } from "@/stores/UserStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import {
   formatShortDate,
   formatTimeRange,
   isFuture,
   isPast,
-} from "src/shared/time";
+} from "@/shared/time";
 import type {
   EventResponse,
   MessageRequest,
@@ -530,7 +530,7 @@ import type {
   ShiftResponse,
   ShiftUserResponse,
   UserResponse,
-} from "src/types";
+} from "@/types";
 
 // Maks lengde på en beskjed; speiler MessageRequest.MaxLength i backend.
 const MESSAGE_MAX_LENGTH = 4000;

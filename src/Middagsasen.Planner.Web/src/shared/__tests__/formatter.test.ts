@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatHours, formatNumber } from "src/shared/formatter";
+import { formatHours, formatNumber } from "@/shared/formatter";
 
 describe("formatNumber", () => {
   it("formats with comma and one decimal by default", () => {

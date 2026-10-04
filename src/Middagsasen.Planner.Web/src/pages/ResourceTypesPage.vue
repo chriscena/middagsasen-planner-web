@@ -343,18 +343,18 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
-import { useEventStore } from "stores/EventStore";
-import { useUserStore } from "stores/UserStore";
-import { useCompetencyStore } from "stores/CompetencyStore";
-import { downloadResourceTypeFileOrNotify } from "src/shared/fileDownload";
-import { notifyApiError } from "src/shared/notifyApiError";
+import { useEventStore } from "@/stores/EventStore";
+import { useUserStore } from "@/stores/UserStore";
+import { useCompetencyStore } from "@/stores/CompetencyStore";
+import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { notifyApiError } from "@/shared/notifyApiError";
 import {
   newEditableTrainer,
   toEditableResourceType,
   toResourceTypeRequest,
   type EditableResourceType,
   type EditableTrainer,
-} from "src/shared/resourceTypeForm";
+} from "@/shared/resourceTypeForm";
 import { computed } from "vue";
 import type {
   CompetencyResponse,
@@ -362,7 +362,7 @@ import type {
   ResourceTypeCompetencyResponse,
   ResourceTypeResponse,
   UserResponse,
-} from "src/types";
+} from "@/types";
 
 interface FileForm {
   file: File | null;

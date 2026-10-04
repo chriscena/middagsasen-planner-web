@@ -1,4 +1,4 @@
-import { getErrorResponse } from "src/shared/apiError";
+import { getErrorResponse } from "@/shared/apiError";
 
 const LOGIN_PATH = "/login";
 const AUTH_ENDPOINT_PREFIX = "/api/authentication/";

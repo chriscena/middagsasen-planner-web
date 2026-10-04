@@ -1,18 +1,18 @@
 import type { RouteRecordRaw } from "vue-router";
-import { today } from "src/shared/time";
+import { today } from "@/shared/time";
 
 const routes: RouteRecordRaw[] = [
   {
     path: "/",
-    component: () => import("layouts/MainLayout.vue"),
+    component: () => import("@/layouts/MainLayout.vue"),
     children: [
       {
         path: "/weather",
-        component: () => import("pages/WeatherPage.vue"),
+        component: () => import("@/pages/WeatherPage.vue"),
       },
       {
         path: "login",
-        component: () => import("pages/LoginPage.vue"),
+        component: () => import("@/pages/LoginPage.vue"),
       },
       {
         path: "",
@@ -22,7 +22,7 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "day/:date",
-        component: () => import("pages/IndexPage.vue"),
+        component: () => import("@/pages/IndexPage.vue"),
         props: true,
       },
       {
@@ -31,45 +31,45 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: "create/:date",
-        component: () => import("pages/EventPage.vue"),
+        component: () => import("@/pages/EventPage.vue"),
         props: true,
       },
       {
         path: "edit/:id",
-        component: () => import("pages/EventPage.vue"),
+        component: () => import("@/pages/EventPage.vue"),
         props: true,
       },
       {
         path: "resourceTypes",
-        component: () => import("pages/ResourceTypesPage.vue"),
+        component: () => import("@/pages/ResourceTypesPage.vue"),
       },
       {
         path: "phonelist",
-        component: () => import("pages/PhoneListPage.vue"),
+        component: () => import("@/pages/PhoneListPage.vue"),
       },
       {
         path: "users",
-        component: () => import("pages/UsersPage.vue"),
+        component: () => import("@/pages/UsersPage.vue"),
       },
       {
         path: "templates",
-        component: () => import("pages/TemplatesPage.vue"),
+        component: () => import("@/pages/TemplatesPage.vue"),
       },
       {
         path: "competencies",
-        component: () => import("pages/CompetenciesPage.vue"),
+        component: () => import("@/pages/CompetenciesPage.vue"),
       },
       {
         path: "shifts",
-        component: () => import("pages/MyShiftsPage.vue"),
+        component: () => import("@/pages/MyShiftsPage.vue"),
       },
       {
         path: "hours",
-        component: () => import("pages/HoursLogPage.vue"),
+        component: () => import("@/pages/HoursLogPage.vue"),
       },
       {
         path: "approveHours",
-        component: () => import("pages/HoursApprovalPage.vue"),
+        component: () => import("@/pages/HoursApprovalPage.vue"),
       },
     ],
   },
@@ -78,7 +78,7 @@ const routes: RouteRecordRaw[] = [
   // but you can also remove it
   {
     path: "/:catchAll(.*)*",
-    component: () => import("pages/ErrorNotFound.vue"),
+    component: () => import("@/pages/ErrorNotFound.vue"),
   },
 ];
 

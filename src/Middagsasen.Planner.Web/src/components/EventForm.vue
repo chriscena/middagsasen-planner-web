@@ -144,12 +144,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
-import { useEventStore } from "stores/EventStore";
-import TimePickerInput from "components/TimePickerInput.vue";
-import DatePickerInput from "components/DatePickerInput.vue";
-import ResourceList from "components/ResourceList.vue";
-import type { ResourceFormModel } from "components/ResourceForm.vue";
-import type { EventRequest } from "src/types";
+import { useEventStore } from "@/stores/EventStore";
+import TimePickerInput from "@/components/TimePickerInput.vue";
+import DatePickerInput from "@/components/DatePickerInput.vue";
+import ResourceList from "@/components/ResourceList.vue";
+import type { ResourceFormModel } from "@/components/ResourceForm.vue";
+import type { EventRequest } from "@/types";
 import {
   formatDate,
   formatTime,
@@ -159,10 +159,10 @@ import {
   isValidTime,
   toLocalWire,
   today,
-} from "src/shared/time";
-import { toResourceDateTimes } from "src/shared/timeValidation";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { newClientKey } from "src/shared/clientKey";
+} from "@/shared/time";
+import { toResourceDateTimes } from "@/shared/timeValidation";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { newClientKey } from "@/shared/clientKey";
 
 const emit = defineEmits<{
   cancel: [];

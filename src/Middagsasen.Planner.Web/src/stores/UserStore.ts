@@ -1,13 +1,13 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
-import { useAuthStore } from "src/stores/AuthStore";
+import { api } from "@/boot/axios";
+import { useAuthStore } from "@/stores/AuthStore";
 import type {
   PhoneResponse,
   UpdateMeRequest,
   UserRequest,
   UserResponse,
   UserWorkHourSumResponse,
-} from "src/types";
+} from "@/types";
 
 const authStore = useAuthStore();
 

@@ -6,7 +6,7 @@ import {
   formatVersion,
   isChunkLoadError,
   type ReloadLocation,
-} from "src/shared/appVersion";
+} from "@/shared/appVersion";
 
 function jsonResponse(body: unknown, ok = true) {
   return { ok, json: () => Promise.resolve(body) };

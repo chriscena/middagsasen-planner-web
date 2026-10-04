@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "quasar": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "--fetch-retries=0",
+        "@quasar/mcp@latest",
+        "--project",
+        "src/Middagsasen.Planner.Web"
+      ]
+    }
+  }
+}

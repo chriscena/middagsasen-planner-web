@@ -112,7 +112,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from "vue";
-import { useWorkHourStore } from "stores/WorkHourStore";
+import { useWorkHourStore } from "@/stores/WorkHourStore";
 import TimePickerInput from "./TimePickerInput.vue";
 import DatePickerInput from "./DatePickerInput.vue";
 import { useQuasar } from "quasar";
@@ -124,8 +124,8 @@ import {
   getWorkHourChanges,
   getWorkHourError,
   hasDuration,
-} from "src/shared/workHours";
-import type { WorkHourAction, WorkHourValues } from "src/shared/workHours";
+} from "@/shared/workHours";
+import type { WorkHourAction, WorkHourValues } from "@/shared/workHours";
 import {
   formatDate,
   formatDateTime,
@@ -135,10 +135,10 @@ import {
   isValidDate,
   isValidTime,
   toInstantWire,
-} from "src/shared/time";
-import { ApprovalStatus } from "src/types";
-import type { UpdateWorkHourRequest, WorkHourResponse } from "src/types";
-import { notifyApiError } from "src/shared/notifyApiError";
+} from "@/shared/time";
+import { ApprovalStatus } from "@/types";
+import type { UpdateWorkHourRequest, WorkHourResponse } from "@/types";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 interface TimeTrackingViewModel {
   id: number | null;

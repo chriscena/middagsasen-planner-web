@@ -1,12 +1,12 @@
 // Skjemamodell for vakttyper (ResourceTypesPage): kopi av API-dataene som kan
 // endres uten å røre store-staten, og mapping tilbake til request.
-import { newClientKey } from "src/shared/clientKey";
+import { newClientKey } from "@/shared/clientKey";
 import type {
   FileInfoResponse,
   ResourceTypeRequest,
   ResourceTypeResponse,
   ResourceTypeTrainerResponse,
-} from "src/types";
+} from "@/types";
 
 // Trener i skjemaet: fra ResourceTypeResponse, evt. markert som slettet.
 // Nye trenere (id 0) får fullName fra UserResponse, der den er valgfri.

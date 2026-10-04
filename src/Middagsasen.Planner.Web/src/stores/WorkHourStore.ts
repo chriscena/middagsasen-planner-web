@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
+import { api } from "@/boot/axios";
 import type {
   ApprovalFilter,
   ApprovalStatus,
@@ -9,7 +9,7 @@ import type {
   UpdateWorkHourRequest,
   WorkHourResponse,
   WorkHourSumResponse,
-} from "src/types";
+} from "@/types";
 
 // Initialverdiene i state er tomme objekter/lister (bevart fra JS-versjonen),
 // selv om feltene senere fylles med DTO-er.

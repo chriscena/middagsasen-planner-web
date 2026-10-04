@@ -317,9 +317,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
-import { useEventStore } from "stores/EventStore";
+import { useEventStore } from "@/stores/EventStore";
 import { useRouter } from "vue-router";
-import type { EventRequest, ResourceTypeResponse } from "src/types";
+import type { EventRequest, ResourceTypeResponse } from "@/types";
 import {
   QUASAR_DATE_MASK,
   QUASAR_TIME_MASK,
@@ -333,10 +333,10 @@ import {
   toDayKey,
   toLocalWire,
   today,
-} from "src/shared/time";
-import { toResourceDateTimes } from "src/shared/timeValidation";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { newClientKey } from "src/shared/clientKey";
+} from "@/shared/time";
+import { toResourceDateTimes } from "@/shared/timeValidation";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { newClientKey } from "@/shared/clientKey";
 
 // Vakt i skjemaet: lastet fra eventet (med id/eventId), lagt til lokalt, eller
 // en ny vakt under redigering (isNew, uten isDeleted).

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { newClientKey } from "src/shared/clientKey";
+import { newClientKey } from "@/shared/clientKey";
 
 describe("newClientKey", () => {
   it("uses the existing id", () => {

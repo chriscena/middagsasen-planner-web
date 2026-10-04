@@ -1,16 +1,16 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
-import type { SeasonResponse } from "src/types";
+import type { SeasonResponse } from "@/types";
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
-vi.mock("boot/axios", () => ({
+vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
-import { useSeasonStore } from "stores/SeasonStore";
+import { useSeasonStore } from "@/stores/SeasonStore";
 
 const seasons: SeasonResponse[] = [
   { startYear: 2026, label: "2026/2027", isCurrent: true },

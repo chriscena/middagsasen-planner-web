@@ -28,7 +28,7 @@ import {
   toLocalWire,
   toUtcWire,
   today,
-} from "src/shared/time";
+} from "@/shared/time";
 
 const HOUR = 60 * 60 * 1000;
 

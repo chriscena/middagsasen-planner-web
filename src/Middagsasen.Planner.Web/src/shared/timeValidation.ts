@@ -1,7 +1,7 @@
 // Validering av beregnede vakttider fra skjemaene, slik at ugyldige verdier
 // (f.eks. «1») stoppes før `toLocalWire` kaster RangeError.
 
-import { isValidDate, isValidTime, parseDateTime } from "src/shared/time";
+import { isValidDate, isValidTime, parseDateTime } from "@/shared/time";
 
 export interface ResourceDateTimes {
   start: Date;

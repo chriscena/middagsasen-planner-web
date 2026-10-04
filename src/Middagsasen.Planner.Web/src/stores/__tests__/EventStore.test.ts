@@ -6,7 +6,7 @@ import type {
   ShiftResponse,
   ShiftResult,
   TrainingResponse,
-} from "src/types";
+} from "@/types";
 
 const mockApi = vi.hoisted(() => ({
   get: vi.fn(),
@@ -16,11 +16,11 @@ const mockApi = vi.hoisted(() => ({
   patch: vi.fn(),
 }));
 
-vi.mock("boot/axios", () => ({
+vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
-import { useEventStore } from "stores/EventStore";
+import { useEventStore } from "@/stores/EventStore";
 
 // Kun feltene storen bruker (id og startTime) er relevante her.
 function event(id: number, startTime: string): EventResponse {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { createShiftList } from "src/shared/shiftList";
-import type { ShiftResponse } from "src/types";
+import { createShiftList } from "@/shared/shiftList";
+import type { ShiftResponse } from "@/types";
 
 function shift(id: number): ShiftResponse {
   return {

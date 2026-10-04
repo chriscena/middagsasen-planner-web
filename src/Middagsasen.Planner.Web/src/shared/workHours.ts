@@ -10,7 +10,7 @@
 import { getErrorResponse } from "./apiError";
 import { durationHours } from "./time";
 import type { DateInput } from "./time";
-import { ApprovalFilter, ApprovalStatus } from "src/types";
+import { ApprovalFilter, ApprovalStatus } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Status

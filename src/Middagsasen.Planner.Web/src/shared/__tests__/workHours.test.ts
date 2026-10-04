@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ApprovalFilter, ApprovalStatus } from "src/types";
+import { ApprovalFilter, ApprovalStatus } from "@/types";
 import {
   approvalAction,
   buildWorkHourPatch,
@@ -16,7 +16,7 @@ import {
   parseApprovalFilter,
   seasonForQuery,
   summarizeBulkApproval,
-} from "src/shared/workHours";
+} from "@/shared/workHours";
 
 const original = {
   startDateTime: "2026-01-10T08:00:00.000Z",

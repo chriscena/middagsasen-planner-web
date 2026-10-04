@@ -4,7 +4,7 @@ import {
   getApiErrorMessage,
   getErrorResponse,
   isProblemDetails,
-} from "src/shared/apiError";
+} from "@/shared/apiError";
 
 function problem(status: number, detail: string | null | undefined) {
   return {

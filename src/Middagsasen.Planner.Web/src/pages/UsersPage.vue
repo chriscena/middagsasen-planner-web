@@ -234,13 +234,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
-import { useUserStore } from "stores/UserStore";
-import { useAuthStore } from "stores/AuthStore";
-import { useCompetencyStore } from "stores/CompetencyStore";
-import { formatHours } from "src/shared/formatter";
-import { notifyApiError } from "src/shared/notifyApiError";
-import { formatDate } from "src/shared/time";
-import type { UserCompetencyResponse, UserResponse } from "src/types";
+import { useUserStore } from "@/stores/UserStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import { useCompetencyStore } from "@/stores/CompetencyStore";
+import { formatHours } from "@/shared/formatter";
+import { notifyApiError } from "@/shared/notifyApiError";
+import { formatDate } from "@/shared/time";
+import type { UserCompetencyResponse, UserResponse } from "@/types";
 
 // Skjemaet i redigeringsdialogen. Ved redigering er det en kopi av
 // UserResponse (inkl. øvrige felt), ved ny bruker er id null.

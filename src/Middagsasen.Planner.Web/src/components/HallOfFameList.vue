@@ -46,13 +46,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import { api } from "boot/axios";
+import { api } from "@/boot/axios";
 import type {
   HallOfFameResponse,
   HallOfFamerResponse,
   UserResponse,
-} from "src/types";
-import { notifyApiError } from "src/shared/notifyApiError";
+} from "@/types";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 const emit = defineEmits<{
   close: [];

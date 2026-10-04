@@ -1,9 +1,9 @@
-import { defineBoot } from "#q-app/wrappers";
+import { defineBoot } from "#q-app";
 import axios from "axios";
 import { Notify } from "quasar";
-import { useAuthStore } from "src/stores/AuthStore";
-import { handleUnauthorized } from "src/auth/unauthorizedHandler";
-import { applyRequestDefaults } from "src/shared/requestDefaults";
+import { useAuthStore } from "@/stores/AuthStore";
+import { handleUnauthorized } from "@/auth/unauthorizedHandler";
+import { applyRequestDefaults } from "@/shared/requestDefaults";
 
 // Be careful when using SSR for cross-request state pollution
 // due to creating a Singleton instance here;

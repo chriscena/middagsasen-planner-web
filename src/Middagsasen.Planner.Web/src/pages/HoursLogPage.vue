@@ -174,18 +174,18 @@
 import { useQuasar } from "quasar";
 import type { QInfiniteScroll } from "quasar";
 import { computed, useTemplateRef, reactive, onMounted } from "vue";
-import { useWorkHourStore } from "src/stores/WorkHourStore";
-import { useAuthStore } from "src/stores/AuthStore";
-import { useSeasonStore } from "src/stores/SeasonStore";
+import { useWorkHourStore } from "@/stores/WorkHourStore";
+import { useAuthStore } from "@/stores/AuthStore";
+import { useSeasonStore } from "@/stores/SeasonStore";
 import { useRouter } from "vue-router";
-import TimeTrackingForm from "components/TimeTrackingForm.vue";
-import { formatHours, formatNumber } from "src/shared/formatter";
-import { formatDate, formatTime } from "src/shared/time";
-import { getSeasonStartYear } from "src/shared/season";
-import { getApprovalStatusDisplay } from "src/shared/workHours";
-import { ApprovalStatus } from "src/types";
-import type { WorkHourResponse } from "src/types";
-import { notifyApiError } from "src/shared/notifyApiError";
+import TimeTrackingForm from "@/components/TimeTrackingForm.vue";
+import { formatHours, formatNumber } from "@/shared/formatter";
+import { formatDate, formatTime } from "@/shared/time";
+import { getSeasonStartYear } from "@/shared/season";
+import { getApprovalStatusDisplay } from "@/shared/workHours";
+import { ApprovalStatus } from "@/types";
+import type { WorkHourResponse } from "@/types";
+import { notifyApiError } from "@/shared/notifyApiError";
 
 // store init
 const $router = useRouter();

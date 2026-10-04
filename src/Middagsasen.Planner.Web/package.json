@@ -29,16 +29,17 @@
     "chart.js": "^4.4.6",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^2.30.0",
-    "pinia": "^2.0.11",
+    "pinia": "^3.0.4",
     "quasar": "^2.34.0",
     "vue": "^3.5.43",
     "vue-chartjs": "^5.3.4",
     "vue-i18n": "^9.0.0",
-    "vue-router": "^4.0.0"
+    "vue-router": "^5.3.1"
   },
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^5.2.0",
-    "@quasar/app-vite": "^2.0.0",
+    "@quasar/app-vite": "^3.10.1",
+    "@types/node": "^22.20.5",
     "@typescript-eslint/parser": "^8.71.0",
     "@vue/test-utils": "^2.5.1",
     "autoprefixer": "^10.6.1",
@@ -49,12 +50,12 @@
     "oxlint": "^1.86.0",
     "postcss": "^8.4.14",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.2",
+    "vitest": "^4.1.11",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.3.12"
   },
   "engines": {
-    "node": ">=22.13",
+    "node": ">=22.22",
     "npm": ">= 10.8.2"
   },
   "overrides": {

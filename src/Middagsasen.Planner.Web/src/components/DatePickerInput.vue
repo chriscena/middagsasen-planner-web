@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { QUASAR_DATE_MASK } from "src/shared/time";
+import { QUASAR_DATE_MASK } from "@/shared/time";
 
 // Wrapper rundt q-input; QInput typer verdien som string | number | null,
 // men uten type="number" sender den aldri number.

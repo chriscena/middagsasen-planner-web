@@ -1,5 +1,5 @@
 import { defineStore } from "pinia";
-import { api } from "boot/axios";
+import { api } from "@/boot/axios";
 import type {
   ApproveCompetencyRequest,
   CompetencyApproverResponse,
@@ -9,7 +9,7 @@ import type {
   SetResourceTypeCompetencyRequest,
   UserCompetencyRequest,
   UserCompetencyResponse,
-} from "src/types";
+} from "@/types";
 
 interface CompetencyState {
   competencies: CompetencyResponse[];

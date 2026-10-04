@@ -4,8 +4,8 @@ import {
   newEditableTrainer,
   toEditableResourceType,
   toResourceTypeRequest,
-} from "src/shared/resourceTypeForm";
-import type { ResourceTypeResponse } from "src/types";
+} from "@/shared/resourceTypeForm";
+import type { ResourceTypeResponse } from "@/types";
 
 function resourceType(): ResourceTypeResponse {
   return {

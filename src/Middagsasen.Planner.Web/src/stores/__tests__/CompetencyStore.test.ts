@@ -9,7 +9,7 @@ import type {
   SetResourceTypeCompetencyRequest,
   UserCompetencyRequest,
   UserCompetencyResponse,
-} from "src/types";
+} from "@/types";
 
 // Mock the axios api - use vi.hoisted so the variable is available in the hoisted vi.mock factory
 const mockApi = vi.hoisted(() => ({
@@ -19,11 +19,11 @@ const mockApi = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock("boot/axios", () => ({
+vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
-import { useCompetencyStore } from "stores/CompetencyStore";
+import { useCompetencyStore } from "@/stores/CompetencyStore";
 
 function competency(
   fields: Pick<CompetencyResponse, "id" | "name"> & Partial<CompetencyResponse>
