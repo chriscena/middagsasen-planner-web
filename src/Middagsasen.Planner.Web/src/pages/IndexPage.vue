@@ -127,7 +127,7 @@
         :date="selectedDay"
         @cancel="showingEventForm = false"
         @saved="onEventSaved"
-        @deleted="onEventSaved"
+        @deleted="onEventSaved()"
       ></EventForm>
     </q-dialog>
     <q-dialog v-model="showingTimetrackingForm" persistent>

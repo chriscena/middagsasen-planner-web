@@ -157,6 +157,7 @@ import {
   isDayKey,
   isValidDate,
   isValidTime,
+  toDayKey,
   toLocalWire,
   today,
 } from "@/shared/time";
@@ -164,13 +165,17 @@ import { notifyApiError } from "@/shared/notifyApiError";
 import {
   findInvalidResource,
   toResourceRequests,
+  visibleResources,
 } from "@/shared/resourceRequests";
 import { newClientKey } from "@/shared/clientKey";
 
+// Brukes både som dialog (IndexPage) og som side (EventPage); forelderen
+// bestemmer hva som skjer etter lagring, sletting og avbryt.
 const emit = defineEmits<{
   cancel: [];
   saved: [value: EventRequest];
-  deleted: [];
+  // Dag-nøkkel ("yyyy-MM-dd") for den slettede vaktlista slik den ble lastet.
+  deleted: [day: string];
 }>();
 const loading = ref(false);
 // Settes når lasting av vaktlista feiler. Skjemaet står da med standardverdier,
@@ -209,6 +214,7 @@ onMounted(async () => {
         });
         return;
       }
+      loadedDay.value = toDayKey(event.startTime);
       name.value = event.name;
       description.value = event.description;
       startDate.value = formatDate(event.startTime);
@@ -244,6 +250,8 @@ onMounted(async () => {
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
+// Dagen vaktlista lå på da den ble lastet (til `deleted`).
+const loadedDay = ref("");
 const name = ref<string | null>(null);
 const description = ref<string | null | undefined>(null);
 
@@ -266,7 +274,9 @@ const canSave = computed(() => {
     name.value &&
     isValidStartDate.value &&
     isValidStartTime.value &&
-    isValidEndTime.value
+    isValidEndTime.value &&
+    // Minst én vakt; slettede vakter teller ikke.
+    visibleResources(resources.value).length
   );
 });
 
@@ -331,7 +341,7 @@ async function deleteEvent() {
     showingDelete.value = false;
     await eventStore.deleteEvent(props.id);
     $q.notify({ message: "Vaktlista er slettet." });
-    emit("deleted");
+    emit("deleted", loadedDay.value);
   } catch (error) {
     notifyApiError(error, "Klarte ikke å slette vaktlista.");
   } finally {
