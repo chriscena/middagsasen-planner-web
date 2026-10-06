@@ -19,7 +19,7 @@
       bordered
       :id="eventId"
       :date="props.date"
-      @cancel="$router.go(-1)"
+      @cancel="goBack"
       @saved="(model) => goToDay(toDayKey(model.startTime))"
       @deleted="goToDay"
     ></EventForm>
@@ -34,6 +34,7 @@ import { useRouter } from "vue-router";
 import EventForm from "@/components/EventForm.vue";
 import { toDayKey, today } from "@/shared/time";
 
+defineEmits<{ "toggle-right": [] }>();
 const $router = useRouter();
 
 const props = withDefaults(
@@ -48,13 +49,30 @@ const props = withDefaults(
 );
 
 // Route-param som tall; null ved ny vaktliste eller ugyldig id.
-const eventId = computed(() =>
-  props.id !== null && /^[1-9]\d*$/.test(props.id) ? Number(props.id) : null
-);
+const eventId = computed(() => {
+  if (props.id === null || !/^[1-9]\d*$/.test(props.id)) return null;
+  const id = Number(props.id);
+  return Number.isSafeInteger(id) ? id : null;
+});
 const invalidId = computed(() => props.id !== null && eventId.value === null);
 
+// Dagen er aldri tom: den kommer fra en lagret (validert) eller lastet
+// vaktliste. Feiler navigeringen, forblir skjemaet låst (se `finished` i
+// EventForm), så en ny lagring ikke gir duplikat eller 409.
 function goToDay(day: string) {
-  // Tom dag-nøkkel (ugyldig dato) gir forsiden, som sender til i dag.
-  void $router.push(day ? `/day/${day}` : "/");
+  void $router.push(`/day/${day}`);
+}
+
+// Tilbake hvis forrige side er i appen (vue-router 4 legger forrige sti i
+// history.state.back, null ved første side), ellers til kalenderen. Ellers
+// ville Avbryt forlate appen når siden er åpnet direkte via URL.
+function goBack() {
+  const state: unknown = window.history.state;
+  const back =
+    typeof state === "object" && state !== null && "back" in state
+      ? state.back
+      : null;
+  if (back) $router.back();
+  else void $router.push("/");
 }
 </script>

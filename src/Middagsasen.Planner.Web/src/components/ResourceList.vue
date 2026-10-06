@@ -34,7 +34,8 @@
         @click="addResource"
       ></q-btn
     ></q-card-actions>
-    <q-dialog v-model="showingEdit">
+    <!-- persistent: Esc/klikk utenfor forkaster ikke endringer; Avbryt lukker. -->
+    <q-dialog v-model="showingEdit" persistent>
       <ResourceForm
         v-if="selectedResource"
         :model-value="selectedResource"
