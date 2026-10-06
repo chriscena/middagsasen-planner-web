@@ -1,27 +1,30 @@
 <template>
   <q-card
     ><q-form @submit="saveEvent"
-      ><q-card-section class="row">
-        <q-btn
-          flat
-          dense
-          round
-          icon="close"
-          @click="emit('cancel')"
-          title="Lukk"
-        ></q-btn>
-        <div class="text-h6">Vaktliste</div>
-        <q-space></q-space>
-        <q-btn
-          color="primary"
-          flat
-          label="Lagre"
-          type="submit"
-          :disable="!canSave || loadFailed || loading"
-          no-caps
-        ></q-btn>
-      </q-card-section>
-      <q-separator></q-separator>
+      ><!-- Lukk og Lagre er synlige når skjemaet scrolles (dialog og side). -->
+      <div class="sticky-header">
+        <q-card-section class="row">
+          <q-btn
+            flat
+            dense
+            round
+            icon="close"
+            @click="emit('cancel')"
+            title="Lukk"
+          ></q-btn>
+          <div class="text-h6">Vaktliste</div>
+          <q-space></q-space>
+          <q-btn
+            color="primary"
+            flat
+            label="Lagre"
+            type="submit"
+            :disable="!canSave || locked"
+            no-caps
+          ></q-btn>
+        </q-card-section>
+        <q-separator></q-separator>
+      </div>
       <q-card-section class="q-gutter-sm">
         <q-input
           outlined
@@ -66,7 +69,7 @@
       <q-btn
         v-if="props.id"
         @click="showCreateTemplate"
-        :disable="loadFailed"
+        :disable="locked"
         icon="file_copy"
         no-caps
         unelevated
@@ -78,7 +81,7 @@
       <q-btn
         v-if="props.id"
         @click="confirmDeleteEvent"
-        :disable="loadFailed"
+        :disable="locked"
         icon="delete"
         no-caps
         unelevated
@@ -157,6 +160,7 @@ import {
   isDayKey,
   isValidDate,
   isValidTime,
+  toDayKey,
   toLocalWire,
   today,
 } from "@/shared/time";
@@ -164,18 +168,31 @@ import { notifyApiError } from "@/shared/notifyApiError";
 import {
   findInvalidResource,
   toResourceRequests,
+  visibleResources,
 } from "@/shared/resourceRequests";
 import { newClientKey } from "@/shared/clientKey";
 
+// Brukes både som dialog (IndexPage) og som side (EventPage); forelderen
+// bestemmer hva som skjer etter lagring, sletting og avbryt.
 const emit = defineEmits<{
   cancel: [];
   saved: [value: EventRequest];
-  deleted: [];
+  // Dag-nøkkel ("yyyy-MM-dd") for den slettede vaktlista slik den ble lastet.
+  deleted: [day: string];
 }>();
 const loading = ref(false);
 // Settes når lasting av vaktlista feiler. Skjemaet står da med standardverdier,
 // så Lagre/Slett/Opprett mal sperres for ikke å overskrive eller slette feil data.
 const loadFailed = ref(false);
+// Settes etter vellykket lagring eller sletting, før forelderen lukker
+// dialogen eller navigerer. Skjemaet forblir låst, så Lagre/Slett/Opprett mal
+// (og Enter) ikke kan gi ny POST, 409 eller 404 mens navigeringen pågår.
+const finished = ref(false);
+// Lagre/Slett/Opprett mal er sperret mens noe pågår, etter mislykket lasting
+// og etter fullført lagring/sletting.
+const locked = computed(
+  () => loading.value || loadFailed.value || finished.value
+);
 const $q = useQuasar();
 const eventStore = useEventStore();
 
@@ -209,6 +226,7 @@ onMounted(async () => {
         });
         return;
       }
+      loadedDay.value = toDayKey(event.startTime);
       name.value = event.name;
       description.value = event.description;
       startDate.value = formatDate(event.startTime);
@@ -244,6 +262,8 @@ onMounted(async () => {
 
 const resourceTypes = computed(() => eventStore.resourceTypes);
 
+// Dagen vaktlista lå på da den ble lastet (til `deleted`).
+const loadedDay = ref("");
 const name = ref<string | null>(null);
 const description = ref<string | null | undefined>(null);
 
@@ -266,7 +286,9 @@ const canSave = computed(() => {
     name.value &&
     isValidStartDate.value &&
     isValidStartTime.value &&
-    isValidEndTime.value
+    isValidEndTime.value &&
+    // Minst én vakt; slettede vakter teller ikke.
+    visibleResources(resources.value).length
   );
 });
 
@@ -274,7 +296,7 @@ async function saveEvent() {
   // Ingen ny lagring mens lasting/lagring/sletting pågår (dobbeltklikk eller
   // Enter i et felt); en ny lagring med samme originalMinimumStaff ville gitt
   // 409 når den første er lagret.
-  if (loading.value || loadFailed.value) return;
+  if (locked.value) return;
   // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
   // Enter; ugyldig dato eller tid ville gitt RangeError i toLocalWire.
   if (!canSave.value) return;
@@ -310,6 +332,7 @@ async function saveEvent() {
         message: "Vaktlista er lagt til.",
       });
     }
+    finished.value = true;
     emit("saved", model);
   } catch (error) {
     notifyApiError(error, "Klarte ikke å lagre vaktlista.");
@@ -325,13 +348,14 @@ function confirmDeleteEvent() {
 
 async function deleteEvent() {
   // props.id er vaktlista som faktisk er åpen; selectedEvent kan peke på en annen.
-  if (loadFailed.value || !props.id) return;
+  if (locked.value || !props.id) return;
   try {
     loading.value = true;
     showingDelete.value = false;
     await eventStore.deleteEvent(props.id);
     $q.notify({ message: "Vaktlista er slettet." });
-    emit("deleted");
+    finished.value = true;
+    emit("deleted", loadedDay.value);
   } catch (error) {
     notifyApiError(error, "Klarte ikke å slette vaktlista.");
   } finally {
@@ -348,7 +372,7 @@ function showCreateTemplate() {
 
 const savingTemplate = ref(false);
 async function createTemplate(id: number | null) {
-  if (loadFailed.value) return;
+  if (locked.value) return;
   try {
     savingTemplate.value = true;
     // Knappen vises kun med id, og Lagre er deaktivert uten malnavn.
@@ -362,3 +386,14 @@ async function createTemplate(id: number | null) {
   }
 }
 </script>
+
+<style scoped>
+/* Dialogkortet (maximized) scroller selv; på siden er det vinduet som scroller.
+   top: 0 virker i begge tilfeller. */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+}
+</style>

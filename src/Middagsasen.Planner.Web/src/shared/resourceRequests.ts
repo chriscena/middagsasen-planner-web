@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 import { isValidTime, toTimeWire } from "@/shared/time";
 
-// Det skjemaene (ResourceFormModel og EventPage sin vaktmodell) har felles.
+// Det skjemaene (ResourceFormModel i EventForm og TemplateForm) har felles.
 export interface ResourceDraft {
   id?: number | null | undefined;
   resourceType: Pick<ResourceTypeResponse, "id"> | null;
@@ -21,7 +21,7 @@ export interface ResourceDraft {
   isDeleted?: boolean | undefined;
 }
 
-// Vakt i vaktlisteskjemaet (EventForm/EventPage).
+// Vakt i vaktlisteskjemaet (EventForm).
 export interface EventResourceDraft extends ResourceDraft {
   // Bemanningen vakta ble lastet med fra serveren. Endres ikke av
   // vaktdialogene. Backend sammenligner med lagret verdi: er den lik, settes

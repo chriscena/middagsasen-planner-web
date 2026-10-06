@@ -127,7 +127,7 @@
         :date="selectedDay"
         @cancel="showingEventForm = false"
         @saved="onEventSaved"
-        @deleted="onEventSaved"
+        @deleted="onEventDeleted"
       ></EventForm>
     </q-dialog>
     <q-dialog v-model="showingTimetrackingForm" persistent>
@@ -431,13 +431,18 @@ function setNow(value: string) {
 }
 
 // EventForm sender EventRequest ved lagring (startTime er "yyyy-MM-ddTHH:mm"
-// i lokal tid) og ingenting ved sletting. Da blir vi stående på valgt dag.
-function onEventSaved(model?: EventRequest) {
+// i lokal tid); kalenderen går til dagen for vaktlista.
+function onEventSaved(model: EventRequest) {
   showingEventForm.value = false;
-  const eventDay = model ? toDayKey(model.startTime) : "";
-  if (eventDay) selectedDay.value = eventDay;
+  selectedDay.value = toDayKey(model.startTime);
   calendar.value!.updateCurrent(); // satt etter mount, se onToday
   // URL-en oppdateres av watch(selectedDay).
+}
+
+// Etter sletting blir kalenderen stående på valgt dag.
+function onEventDeleted() {
+  showingEventForm.value = false;
+  calendar.value!.updateCurrent(); // satt etter mount, se onToday
 }
 
 const selectedEventId = ref<number | null>(null);

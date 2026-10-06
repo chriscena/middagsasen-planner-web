@@ -98,7 +98,7 @@ function updateMessages(
 }
 
 // Felles henting av ett arrangement (getEvent og refreshEventResources).
-async function fetchEvent(id: number | string): Promise<EventResponse> {
+async function fetchEvent(id: number): Promise<EventResponse> {
   const response = await api.get<EventResponse>(`/api/events/${id}`);
   return response.data;
 }
@@ -168,8 +168,7 @@ export const useEventStore = defineStore("events", {
       upsertEvent(this.events, response.data);
       this.markEventsChanged();
     },
-    // id kan være en streng når den kommer fra en route-param (EventPage).
-    async getEvent(id: number | string): Promise<void> {
+    async getEvent(id: number): Promise<void> {
       // Nullstilles først, så en mislykket lasting aldri etterlater en
       // tidligere lastet vaktliste (som Slett ellers kunne slettet).
       this.selectedEvent = null;
@@ -181,7 +180,7 @@ export const useEventStore = defineStore("events", {
       this.events = this.events.filter((e) => e.id !== id);
       this.markEventsChanged();
     },
-    async updateEvent(id: number | string, event: EventRequest): Promise<void> {
+    async updateEvent(id: number, event: EventRequest): Promise<void> {
       const response = await api.put<EventResponse>(`/api/events/${id}`, event);
       const updatedEvent = response.data;
       // findIndex i stedet for indexOf(find(...)): samme resultat (-1 når den
@@ -290,7 +289,7 @@ export const useEventStore = defineStore("events", {
     // etter at en operasjon er avvist fordi noen andre har endret ressursen
     // (eller slettet den/arrangementet) i mellomtiden. Finnes ikke
     // arrangementet lenger (404), fjernes det fra cachen. selectedEvent røres
-    // ikke: den er skjemadata for redigering og hentes på nytt av EventPage.
+    // ikke: den er skjemadata for redigering og hentes på nytt av EventForm.
     async refreshEventResources(eventId: number): Promise<void> {
       let fresh: EventResponse;
       try {
@@ -361,9 +360,8 @@ export const useEventStore = defineStore("events", {
       await api.delete(`/api/templates/${template.id}`);
       await this.getTemplates();
     },
-    // eventId kan være en streng når den kommer fra en route-param (EventPage).
     async createTemplateFromEvent(
-      eventId: number | string,
+      eventId: number,
       name: string
     ): Promise<void> {
       await api.post(`/api/events/${eventId}/template`, {
