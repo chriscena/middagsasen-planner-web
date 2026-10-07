@@ -3,7 +3,8 @@ import { createI18n } from "vue-i18n";
 import messages, { type MessageSchema } from "@/i18n";
 
 export default defineBoot(({ app }) => {
-  const i18n = createI18n<[MessageSchema], "en-US">({
+  const i18n = createI18n<[MessageSchema], "en-US", false>({
+    legacy: false,
     locale: "en-US",
     globalInjection: true,
     messages,
