@@ -49,6 +49,9 @@
           :startTime="startTime"
           :endTime="endTime"
         ></ResourceList>
+        <CompetencyRequirementList
+          v-model="competencyRequirements"
+        ></CompetencyRequirementList>
       </q-card-section>
 
       <q-card-section class="q-mt-xl text-center">
@@ -95,8 +98,10 @@
 import { computed, onMounted, ref } from "vue";
 import TimePickerInput from "@/components/TimePickerInput.vue";
 import ResourceList from "@/components/ResourceList.vue";
+import CompetencyRequirementList from "@/components/CompetencyRequirementList.vue";
 import type { ResourceFormModel } from "@/components/ResourceForm.vue";
 import type {
+  CompetencyRequirementRequest,
   EventTemplateResponse,
   ResourceTemplateRequest,
   ResourceTypeResponse,
@@ -108,11 +113,21 @@ import {
   toResourceTemplateRequests,
   visibleResources,
 } from "@/shared/resourceRequests";
+import {
+  areValidCompetencyRequirements,
+  toCompetencyRequirementDrafts,
+  toCompetencyRequirementRequests,
+  type CompetencyRequirementDraft,
+} from "@/shared/competencyRequirements";
 
 // Malen slik TemplatesPage sender den: en EventTemplateResponse, eller en ny
-// mal med id 0 og name null.
-export type TemplateFormValue = Omit<EventTemplateResponse, "name"> & {
+// mal med id 0, name null og uten anleggskrav.
+export type TemplateFormValue = Omit<
+  EventTemplateResponse,
+  "name" | "competencyRequirements"
+> & {
   name: string | null;
+  competencyRequirements?: EventTemplateResponse["competencyRequirements"];
 };
 
 // EventTemplateRequest + id (brukes av eventStore.updateTemplate/deleteTemplate).
@@ -124,6 +139,8 @@ export interface TemplateFormModel {
   startTime: string;
   endTime: string;
   resourceTemplates: ResourceTemplateRequest[];
+  // Hele lista sendes alltid; tom liste fjerner alle anleggskrav.
+  competencyRequirements: CompetencyRequirementRequest[];
 }
 
 const emit = defineEmits<{
@@ -162,6 +179,9 @@ onMounted(async () => {
       };
     }
   );
+  competencyRequirements.value = toCompetencyRequirementDrafts(
+    props.modelValue.competencyRequirements
+  );
 });
 
 const name = ref<string | null>(null);
@@ -178,6 +198,7 @@ const hasValidResourceTimes = computed(
 const startTime = ref<string | null>("10:00");
 const endTime = ref<string | null>("17:00");
 const resources = ref<ResourceFormModel[]>([]);
+const competencyRequirements = ref<CompetencyRequirementDraft[]>([]);
 
 const canSave = computed(() => {
   // EventTemplateRequest krever både malnavn og navn på vaktliste.
@@ -188,7 +209,9 @@ const canSave = computed(() => {
     isValidEndTime.value &&
     // Slettede vakter teller ikke.
     visibleResources(resources.value).length &&
-    hasValidResourceTimes.value
+    hasValidResourceTimes.value &&
+    // Samme regler som backend (minst 1, ikke samme kompetanse to ganger).
+    areValidCompetencyRequirements(competencyRequirements.value)
   );
 });
 
@@ -209,6 +232,9 @@ function mapToModel(): TemplateFormModel {
     startTime: toTimeWire(startTime.value),
     endTime: toTimeWire(endTime.value),
     resourceTemplates: toResourceTemplateRequests(resources.value),
+    competencyRequirements: toCompetencyRequirementRequests(
+      competencyRequirements.value
+    ),
   };
   return model;
 }

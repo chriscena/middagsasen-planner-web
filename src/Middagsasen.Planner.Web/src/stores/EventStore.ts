@@ -343,6 +343,10 @@ export const useEventStore = defineStore("events", {
         startTime: template.startTime,
         endTime: template.endTime,
         resourceTemplates: [...template.resourceTemplates],
+        // Hele lista sendes (tom liste = ingen anleggskrav); utelatt = ingen.
+        competencyRequirements: template.competencyRequirements
+          ? [...template.competencyRequirements]
+          : null,
       };
       await api.post("/api/templates", request);
       await this.getTemplates();

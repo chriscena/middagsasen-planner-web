@@ -3981,6 +3981,19 @@ export interface components {
             resourceTypeIds?: null | number[];
             resourceTypeCompetencies?: null | components["schemas"]["ResourceTypeCompetencyRequest"][];
         };
+        CompetencyRequirementRequest: {
+            /** Format: int32 */
+            competencyId: number;
+            /** Format: int32 */
+            minimumRequired: number;
+        };
+        CompetencyRequirementResponse: {
+            /** Format: int32 */
+            competencyId: number;
+            competencyName: string;
+            /** Format: int32 */
+            minimumRequired: number;
+        };
         CompetencyResourceTypeResponse: {
             /** Format: int32 */
             resourceTypeId: number;
@@ -4024,6 +4037,7 @@ export interface components {
             /** Format: date-time */
             endTime: string;
             resources: components["schemas"]["ResourceRequest"][];
+            competencyRequirements?: null | components["schemas"]["CompetencyRequirementRequest"][];
         };
         EventResponse: {
             /** Format: int32 */
@@ -4033,6 +4047,8 @@ export interface components {
             startTime: string;
             endTime: string;
             resources: components["schemas"]["ResourceResponse"][];
+            competencyRequirements: components["schemas"]["CompetencyRequirementResponse"][];
+            competencyWarnings: components["schemas"]["FacilityCompetencyWarningResponse"][];
         };
         EventStatusResponse: {
             date: string;
@@ -4046,6 +4062,7 @@ export interface components {
             /** Format: time */
             endTime: string;
             resourceTemplates: components["schemas"]["ResourceTemplateRequest"][];
+            competencyRequirements?: null | components["schemas"]["CompetencyRequirementRequest"][];
         };
         EventTemplateResponse: {
             /** Format: int32 */
@@ -4055,6 +4072,16 @@ export interface components {
             startTime: string;
             endTime: string;
             resourceTemplates?: null | components["schemas"]["ResourceTemplateResponse"][];
+            competencyRequirements: components["schemas"]["CompetencyRequirementResponse"][];
+        };
+        FacilityCompetencyWarningResponse: {
+            competencyName: string;
+            /** Format: int32 */
+            minimumRequired: number;
+            /** Format: int32 */
+            currentCount: number;
+            startTime: string;
+            endTime: string;
         };
         FileInfoResponse: {
             /** Format: int32 */

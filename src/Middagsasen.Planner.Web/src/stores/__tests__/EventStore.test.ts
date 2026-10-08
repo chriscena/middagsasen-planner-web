@@ -3,6 +3,7 @@ import { setActivePinia, createPinia } from "pinia";
 import type {
   EventRequest,
   EventResponse,
+  EventTemplateRequest,
   MessageResponse,
   ResourceResponse,
   ShiftResponse,
@@ -860,6 +861,43 @@ describe("EventStore", () => {
       expect(
         store.getEventsForDate({ date: "2026-10-05" }).map((e) => e.id)
       ).toEqual([1]);
+    });
+  });
+
+  describe("createTemplate", () => {
+    const template: EventTemplateRequest = {
+      name: "Disko",
+      eventName: "Diskokveld",
+      startTime: "18:00",
+      endTime: "21:00",
+      resourceTemplates: [],
+      competencyRequirements: [{ competencyId: 3, minimumRequired: 1 }],
+    };
+
+    it("sender anleggskravene med", async () => {
+      mockApi.post.mockResolvedValue({ data: {} });
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.createTemplate(template);
+
+      expect(mockApi.post).toHaveBeenCalledWith(
+        "/api/templates",
+        expect.objectContaining({
+          competencyRequirements: [{ competencyId: 3, minimumRequired: 1 }],
+        })
+      );
+    });
+
+    it("sender tom liste når malen ikke har anleggskrav", async () => {
+      mockApi.post.mockResolvedValue({ data: {} });
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.createTemplate({ ...template, competencyRequirements: [] });
+
+      expect(mockApi.post).toHaveBeenCalledWith(
+        "/api/templates",
+        expect.objectContaining({ competencyRequirements: [] })
+      );
     });
   });
 });

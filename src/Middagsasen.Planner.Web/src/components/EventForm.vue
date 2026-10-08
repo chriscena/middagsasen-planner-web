@@ -63,6 +63,9 @@
           :startTime="startTime"
           :endTime="endTime"
         ></ResourceList>
+        <CompetencyRequirementList
+          v-model="competencyRequirements"
+        ></CompetencyRequirementList>
       </q-card-section>
     </q-form>
     <q-card-section class="q-mt-lg text-center">
@@ -151,6 +154,7 @@ import { useEventStore } from "@/stores/EventStore";
 import TimePickerInput from "@/components/TimePickerInput.vue";
 import DatePickerInput from "@/components/DatePickerInput.vue";
 import ResourceList from "@/components/ResourceList.vue";
+import CompetencyRequirementList from "@/components/CompetencyRequirementList.vue";
 import type { ResourceFormModel } from "@/components/ResourceForm.vue";
 import type { EventRequest } from "@/types";
 import {
@@ -171,6 +175,12 @@ import {
   visibleResources,
 } from "@/shared/resourceRequests";
 import { newClientKey } from "@/shared/clientKey";
+import {
+  areValidCompetencyRequirements,
+  toCompetencyRequirementDrafts,
+  toCompetencyRequirementRequests,
+  type CompetencyRequirementDraft,
+} from "@/shared/competencyRequirements";
 
 // Brukes både som dialog (IndexPage) og som side (EventPage); forelderen
 // bestemmer hva som skjer etter lagring, sletting og avbryt.
@@ -246,6 +256,9 @@ onMounted(async () => {
           isDeleted: false,
         };
       });
+      competencyRequirements.value = toCompetencyRequirementDrafts(
+        event.competencyRequirements
+      );
     } else {
       // Ugyldig dato i URL-en (/create/:date) gir dagens dato.
       startDate.value = formatDate(isDayKey(props.date) ? props.date : today());
@@ -280,6 +293,7 @@ const startDate = ref<string | null>(formatDate(new Date()));
 const startTime = ref<string | null>("10:00");
 const endTime = ref<string | null>("17:00");
 const resources = ref<ResourceFormModel[]>([]);
+const competencyRequirements = ref<CompetencyRequirementDraft[]>([]);
 
 const canSave = computed(() => {
   return !!(
@@ -288,7 +302,9 @@ const canSave = computed(() => {
     isValidStartTime.value &&
     isValidEndTime.value &&
     // Minst én vakt; slettede vakter teller ikke.
-    visibleResources(resources.value).length
+    visibleResources(resources.value).length &&
+    // Samme regler som backend (minst 1, ikke samme kompetanse to ganger).
+    areValidCompetencyRequirements(competencyRequirements.value)
   );
 });
 
@@ -320,6 +336,10 @@ async function saveEvent() {
       startTime: toLocalWire(interval.value.start),
       endTime: toLocalWire(interval.value.end),
       resources: toResourceRequests(resources.value),
+      // Hele lista sendes alltid; tom liste fjerner alle anleggskrav.
+      competencyRequirements: toCompetencyRequirementRequests(
+        competencyRequirements.value
+      ),
     };
     if (props.id) {
       await eventStore.updateEvent(props.id, model);

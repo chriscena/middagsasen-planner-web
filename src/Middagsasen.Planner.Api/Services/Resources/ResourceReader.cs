@@ -57,7 +57,8 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
         private IQueryable<EventResource> Resources => WithResourceIncludes(DbContext.EventResource, null);
 
-        private IQueryable<Event> Events => WithResourceIncludes(DbContext.Events, nameof(Event.Resources));
+        private IQueryable<Event> Events => WithResourceIncludes(DbContext.Events, nameof(Event.Resources))
+            .Include(e => e.CompetencyRequirements).ThenInclude(c => c.Competency);
 
         private IQueryable<EventResourceMessage> Messages => DbContext.Messages
             .Include(m => m.CreatedByUser)
@@ -207,7 +208,53 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 StartTime = evnt.StartTime.ToSimpleIsoString(),
                 EndTime = evnt.EndTime.ToSimpleIsoString(),
                 Resources = evnt.Resources.Select(Map).OrderBy(r => r.ResourceType.Id).ThenBy(r => r.StartTime).ToList(),
+                CompetencyRequirements = CompetencyRequirementSet.Sorted(
+                    evnt.CompetencyRequirements.Select(CompetencyRequirementSet.Map)),
+                CompetencyWarnings = GetFacilityCompetencyWarnings(evnt),
             };
+
+            /// <summary>
+            /// Brudd på anleggskravene i åpningstiden. Alle bemannede vakter teller, uansett vakttype, når brukeren har en
+            /// gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>), som for kompetansekravene per ressurs.
+            /// </summary>
+            private List<FacilityCompetencyWarningResponse> GetFacilityCompetencyWarnings(Event evnt)
+            {
+                var warnings = new List<FacilityCompetencyWarningResponse>();
+
+                foreach (var requirement in evnt.CompetencyRequirements)
+                {
+                    if (requirement.Competency == null) continue;
+
+                    var periods = evnt.Resources
+                        .SelectMany(resource => resource.Shifts
+                            .Where(s => s.User?.Competencies.Any(uc =>
+                                uc.CompetencyId == requirement.CompetencyId && CompetencyRules.IsValid(uc, UtcNow)) == true)
+                            .Select(s =>
+                            {
+                                var (start, end) = FacilityRequirementRules.EffectivePeriod(
+                                    s.StartTime, s.EndTime, resource.StartTime, resource.EndTime);
+                                return new FacilityRequirementRules.StaffedPeriod(s.UserId, start, end);
+                            }));
+
+                    var breaches = FacilityRequirementRules.FindBreaches(
+                        evnt.StartTime, evnt.EndTime, requirement.MinimumRequired, periods);
+
+                    warnings.AddRange(breaches.Select(b => new FacilityCompetencyWarningResponse
+                    {
+                        CompetencyName = requirement.Competency.Name,
+                        MinimumRequired = requirement.MinimumRequired,
+                        CurrentCount = b.Count,
+                        StartTime = b.Start.ToSimpleIsoString(),
+                        EndTime = b.End.ToSimpleIsoString(),
+                    }));
+                }
+
+                // Starttiden har fast format (yyyy-MM-ddTHH:mm), så ordinal sortering er kronologisk.
+                return warnings
+                    .OrderBy(w => w.CompetencyName)
+                    .ThenBy(w => w.StartTime, StringComparer.Ordinal)
+                    .ToList();
+            }
 
             public ResourceResponse Map(EventResource resource)
             {
