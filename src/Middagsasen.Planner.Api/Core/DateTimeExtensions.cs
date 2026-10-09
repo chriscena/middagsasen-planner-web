@@ -68,6 +68,25 @@
         }
 
         /// <summary>
+        /// Inversen av <see cref="ToNorwegianLocalTime"/>: tolker <paramref name="localTime"/> som norsk lokal tid
+        /// (<see cref="SeasonTimeZone"/>; <see cref="DateTime.Kind"/> ignoreres) og returnerer tidspunktet i UTC
+        /// (<see cref="DateTimeKind.Utc"/>). Brukes når tider som lagres som norsk lokal tid uten sone (f.eks. start på
+        /// vaktlister) skal sammenlignes med UTC-lagrede verdier.
+        /// </summary>
+        /// <remarks>
+        /// Sommertid: en tid som ikke finnes (i timen som hoppes over om våren, f.eks. 02:30) tolkes med normaltid, altså som
+        /// tiden etter hoppet (02:30 = 03:30 sommertid). En tid som finnes to ganger (i timen som gjentas om høsten) tolkes
+        /// som normaltid, altså den siste av de to.
+        /// </remarks>
+        public static DateTime NorwegianLocalTimeToUtc(this DateTime localTime)
+        {
+            var unspecified = DateTime.SpecifyKind(localTime, DateTimeKind.Unspecified);
+            if (SeasonTimeZone.IsInvalidTime(unspecified))
+                return DateTime.SpecifyKind(unspecified - SeasonTimeZone.BaseUtcOffset, DateTimeKind.Utc);
+            return TimeZoneInfo.ConvertTimeToUtc(unspecified, SeasonTimeZone);
+        }
+
+        /// <summary>
         /// Returnerer sesongnavn (f.eks. "2024/2025") for en <b>kalenderdato</b> (lokal/unspecified tid).
         /// Ren kalenderlogikk uten tidssonekonvertering — se <see cref="GetSeasonStartYear(DateTime)"/>.
         /// </summary>

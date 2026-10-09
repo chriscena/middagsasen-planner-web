@@ -314,20 +314,29 @@ export const useEventStore = defineStore("events", {
       });
       Object.assign(event, fresh, { resources });
     },
-    // Legger svaret fra en vaktoperasjon i cachen via applyResource. Ble en
-    // opplæring endret (changedTraining), kan flaggene på andre ressurser av
-    // samme ressurstype (mustAnswerTraining, needsTraining, canConfirmTraining
-    // osv.) også være endret. De beregnes av serveren, så perioden kalenderen
-    // viser hentes på nytt. Operasjonen har lyktes uansett, så feil i
-    // hentingen ignoreres (cachen er da bare ikke oppdatert for de andre).
+    // Legger svaret fra en vaktoperasjon i cachen via applyResource, og henter
+    // deretter verdier serveren beregner utenfor den endrede ressursen på nytt:
+    // - Anleggskrav (event.competencyWarnings) beregnes for hele vaktlisten og
+    //   påvirkes av alle påmeldinger, avmeldinger og endrede vakttider, så
+    //   vaktlisten hentes på nytt (refreshEventResources).
+    // - Ble en opplæring endret (changedTraining), kan flaggene på andre
+    //   ressurser av samme ressurstype (mustAnswerTraining, needsTraining,
+    //   canConfirmTraining osv.) i andre arrangementer også være endret, så
+    //   hele perioden kalenderen viser hentes i stedet. Den dekker også
+    //   vaktlisten, så den hentes ikke i tillegg.
+    // Operasjonen har lyktes uansett, så feil i hentingen logges og svelges
+    // (cachen er da bare ikke oppdatert utover den endrede ressursen).
     async applyShiftResult(result: ShiftResult): Promise<void> {
       this.applyResource(result.resource);
-      if (!result.changedTraining || !this.eventsRange) return;
       try {
-        await this.getEventsForDates(
-          this.eventsRange.start,
-          this.eventsRange.end
-        );
+        if (result.changedTraining && this.eventsRange) {
+          await this.getEventsForDates(
+            this.eventsRange.start,
+            this.eventsRange.end
+          );
+        } else {
+          await this.refreshEventResources(result.resource.eventId);
+        }
       } catch (error) {
         console.error(error);
       }

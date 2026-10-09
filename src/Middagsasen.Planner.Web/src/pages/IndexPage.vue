@@ -105,7 +105,7 @@
               </div>
               <div
                 v-for="warning in event.competencyWarnings"
-                :key="`${warning.competencyName}-${warning.startTime}`"
+                :key="`${warning.competencyId}-${warning.startTime}`"
                 class="row items-center no-wrap"
               >
                 <q-icon

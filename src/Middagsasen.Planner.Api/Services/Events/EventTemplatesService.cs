@@ -125,7 +125,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         {
             var existingEvent = await DbContext.Events
                 .Include(e => e.Resources)
-                .Include(e => e.CompetencyRequirements)
+                .Include(e => e.CompetencyRequirements).ThenInclude(r => r.Competency)
                 .AsNoTracking()
                 .SingleOrDefaultAsync(e => e.EventId == id)
                 ?? throw new EntityNotFoundException();
@@ -144,11 +144,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     EndTime = ToTemplateTime(TimeOnly.FromDateTime(r.EndTime)),
                     MinimumStaff = r.MinimumStaff,
                 }).ToList(),
-                CompetencyRequirements = existingEvent.CompetencyRequirements.Select(r => new EventTemplateCompetencyRequirement
-                {
-                    CompetencyId = r.CompetencyId,
-                    MinimumRequired = r.MinimumRequired,
-                }).ToList(),
+                CompetencyRequirements = CompetencyRequirementSet.CopyToTemplate(existingEvent.CompetencyRequirements),
             };
 
             DbContext.EventTemplates.Add(template);
@@ -175,8 +171,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 ResourceTemplates = template.ResourceTemplates
                     .Select(r => Map(r, resourceTypes[r.ResourceTypeId]))
                     .ToList(),
-                CompetencyRequirements = CompetencyRequirementSet.Sorted(
-                    template.CompetencyRequirements.Select(CompetencyRequirementSet.Map)),
+                CompetencyRequirements = CompetencyRequirementSet.MapActive(template.CompetencyRequirements),
             }).ToList();
         }
 

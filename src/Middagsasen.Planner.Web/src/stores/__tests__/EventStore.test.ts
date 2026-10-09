@@ -4,6 +4,7 @@ import type {
   EventRequest,
   EventResponse,
   EventTemplateRequest,
+  FacilityCompetencyWarningResponse,
   MessageResponse,
   ResourceResponse,
   ShiftResponse,
@@ -95,6 +96,31 @@ function eventWith(id: number, resources: ResourceResponse[]): EventResponse {
   return { id, resources } as EventResponse;
 }
 
+function facilityWarning(
+  competencyId: number,
+  startTime: string
+): FacilityCompetencyWarningResponse {
+  return {
+    competencyId,
+    competencyName: "Førstehjelp",
+    minimumRequired: 2,
+    currentCount: 1,
+    startTime,
+    endTime: "2026-10-05T16:00",
+  };
+}
+
+// Vaktoperasjonene henter vaktlisten på nytt (anleggskrav). Svarer på
+// GET /api/events/{id} med vaktlisten slik den er i cachen etter
+// operasjonen (JSON-kopi, ikke den reaktive proxyen).
+function mockEventRefresh(store: { events: EventResponse[] }): void {
+  mockApi.get.mockImplementation(async (url: string) => {
+    const id = Number(url.replace("/api/events/", ""));
+    const cached = store.events.find((e) => e.id === id);
+    return { data: JSON.parse(JSON.stringify(cached ?? null)) };
+  });
+}
+
 // Et svar fra api-mocken som testen selv bestemmer når kommer.
 function deferred<T>() {
   let resolve!: (value: { data: T }) => void;
@@ -138,16 +164,30 @@ describe("EventStore", () => {
       expect(held.canSignUp).toBe(false);
     });
 
-    it("henter ikke events på nytt uten changedTraining", async () => {
-      store.events = [eventWith(1, [resource(10, [])])];
+    it("henter vaktlisten på nytt uten changedTraining, så anleggskravene oppdateres", async () => {
+      store.events = [
+        {
+          ...eventWith(1, [resource(10, [])]),
+          competencyWarnings: [facilityWarning(3, "2026-10-05T10:00")],
+        },
+      ];
       store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+      const held = store.events[0]!.resources[0]!;
+      const updated = resource(10, [shift(1, 10, CURRENT_USER_ID)]);
+      mockApi.get.mockResolvedValueOnce({
+        data: { ...eventWith(1, [updated]), competencyWarnings: [] },
+      });
 
-      await store.applyShiftResult(result(resource(10, [])));
+      await store.applyShiftResult(result(updated));
 
-      expect(mockApi.get).not.toHaveBeenCalled();
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
+      expect(store.events[0]!.competencyWarnings).toEqual([]);
+      expect(store.events[0]!.resources[0]).toBe(held);
+      expect(held.shifts.map((s) => s.id)).toEqual([1]);
     });
 
-    it("henter perioden kalenderen viser på nytt ved changedTraining", async () => {
+    it("henter perioden kalenderen viser på nytt ved changedTraining, uten å hente vaktlisten i tillegg", async () => {
       mockApi.get.mockResolvedValueOnce({ data: [] });
       await store.getEventsForDates("2026-10-05", "2026-10-11");
       const refetched = [
@@ -163,24 +203,29 @@ describe("EventStore", () => {
       expect(mockApi.get).toHaveBeenLastCalledWith(
         "/api/events?start=2026-10-05&end=2026-10-12"
       );
+      expect(mockApi.get).not.toHaveBeenCalledWith("/api/events/1");
       expect(store.events).toEqual(refetched);
     });
 
-    it("henter ikke på nytt når ingen periode er hentet", async () => {
+    it("henter vaktlisten ved changedTraining når ingen periode er hentet", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
+      mockEventRefresh(store);
 
       await store.applyShiftResult(
         result(resource(10, [shift(1, 10, CURRENT_USER_ID)]), training(false))
       );
 
-      expect(mockApi.get).not.toHaveBeenCalled();
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
       expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
         1,
       ]);
     });
 
-    it("feil ved ny henting kaster ikke, og ressursen er oppdatert", async () => {
-      vi.spyOn(console, "error").mockImplementation(() => {});
+    it("feil ved ny henting av perioden kaster ikke, og ressursen er oppdatert", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
       store.events = [eventWith(1, [resource(10, [])])];
       store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
       mockApi.get.mockRejectedValue(new Error("nettverk"));
@@ -191,6 +236,26 @@ describe("EventStore", () => {
         )
       ).resolves.toBeUndefined();
 
+      expect(consoleError).toHaveBeenCalled();
+      expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
+        1,
+      ]);
+    });
+
+    it("feil ved ny henting av vaktlisten kaster ikke, og ressursen er oppdatert", async () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.get.mockRejectedValue(new Error("nettverk"));
+
+      await expect(
+        store.applyShiftResult(
+          result(resource(10, [shift(1, 10, CURRENT_USER_ID)]))
+        )
+      ).resolves.toBeUndefined();
+
+      expect(consoleError).toHaveBeenCalled();
       expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
         1,
       ]);
@@ -198,6 +263,8 @@ describe("EventStore", () => {
   });
 
   describe("saveShift", () => {
+    beforeEach(() => mockEventRefresh(store));
+
     it("ledig plass poster til ressursen og legger svaret i cachen", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       const response = result(resource(10, [shift(1, 10, OTHER_USER_ID)]));
@@ -343,6 +410,8 @@ describe("EventStore", () => {
   });
 
   describe("vaktoperasjoner", () => {
+    beforeEach(() => mockEventRefresh(store));
+
     it("setTraining sender svaret og henter perioden på nytt", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
@@ -373,6 +442,7 @@ describe("EventStore", () => {
       await store.withdraw(1);
 
       expect(mockApi.delete).toHaveBeenCalledWith("/api/shifts/1");
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
       expect(store.events[0]!.resources[0]!.shifts).toEqual([]);
     });
   });
@@ -577,13 +647,17 @@ describe("EventStore", () => {
       const second = [
         eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
       ];
-      mockApi.get.mockResolvedValueOnce({ data: second });
+      // Først vaktlisten (anleggskrav), så perioden på nytt.
+      mockApi.get
+        .mockResolvedValueOnce({ data: second[0] })
+        .mockResolvedValueOnce({ data: second });
 
       await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
       fetch.response.resolve({ data: [eventWith(1, [resource(10, [])])] });
       await fetch.done;
 
-      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(mockApi.get).toHaveBeenCalledTimes(3);
+      expect(mockApi.get).toHaveBeenLastCalledWith(WEEK_URL);
       expect(store.events).toEqual(second);
     });
 

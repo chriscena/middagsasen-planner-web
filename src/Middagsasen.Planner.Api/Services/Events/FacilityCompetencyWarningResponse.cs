@@ -6,6 +6,7 @@ namespace Middagsasen.Planner.Api.Services.Events
     /// </summary>
     public class FacilityCompetencyWarningResponse
     {
+        public int CompetencyId { get; internal set; }
         public string CompetencyName { get; internal set; } = null!;
         public int MinimumRequired { get; internal set; }
         /// <summary>Antall ulike brukere på vakt med gyldig kompetanse i hele tidsrommet.</summary>

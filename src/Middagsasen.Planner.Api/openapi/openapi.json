@@ -5450,6 +5450,7 @@
       },
       "FacilityCompetencyWarningResponse": {
         "required": [
+          "competencyId",
           "competencyName",
           "minimumRequired",
           "currentCount",
@@ -5458,6 +5459,10 @@
         ],
         "type": "object",
         "properties": {
+          "competencyId": {
+            "type": "integer",
+            "format": "int32"
+          },
           "competencyName": {
             "type": "string"
           },

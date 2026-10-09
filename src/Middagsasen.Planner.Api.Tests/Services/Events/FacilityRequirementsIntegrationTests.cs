@@ -40,9 +40,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         private static EventTemplatesService CreateTemplatesService(PlannerDbContext context)
             => new(context, new ResourceReader(context, Clock));
 
-        private static async Task<Competency> SeedCompetency(PlannerDbContext context, string? name = null)
+        private static async Task<Competency> SeedCompetency(PlannerDbContext context, string? name = null, bool inactive = false)
         {
-            var competency = new Competency { Name = name ?? UniqueName("Kompetanse") };
+            var competency = new Competency { Name = name ?? UniqueName("Kompetanse"), Inactive = inactive };
             context.Competencies.Add(competency);
             await context.SaveChangesAsync();
             return competency;
@@ -208,10 +208,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Empty(await StoredRequirements(eventId));
         }
 
-        public static TheoryData<string> InvalidCases => new() { "duplicate", "zero", "negative", "unknown" };
+        public static TheoryData<string> InvalidCases => new() { "duplicate", "zero", "negative", "unknown", "null", "inactive" };
 
-        private static List<CompetencyRequirementRequest> InvalidRequirements(string invalidCase, Competency competency) => invalidCase switch
+        private static List<CompetencyRequirementRequest> InvalidRequirements(string invalidCase, Competency competency, Competency inactive) => invalidCase switch
         {
+            "null" => [Req(competency), null!],
+            "inactive" => [Req(competency), Req(inactive)],
             "duplicate" => [Req(competency), Req(competency, 2)],
             "zero" => [Req(competency, 0)],
             "negative" => [Req(competency, -1)],
@@ -225,7 +227,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             using var seed = _fixture.CreateContext();
             var competency = await SeedCompetency(seed);
-            var request = EventRequest(InvalidRequirements(invalidCase, competency));
+            var inactive = await SeedCompetency(seed, inactive: true);
+            var request = EventRequest(InvalidRequirements(invalidCase, competency, inactive));
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<DomainValidationException>(() => CreateEventsService(context).CreateEvent(request));
@@ -240,8 +243,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             using var seed = _fixture.CreateContext();
             var competency = await SeedCompetency(seed);
+            var inactive = await SeedCompetency(seed, inactive: true);
             var eventId = await SeedEventWithRequirements((competency, 1));
-            var request = EventRequest(InvalidRequirements(invalidCase, competency));
+            var request = EventRequest(InvalidRequirements(invalidCase, competency, inactive));
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<DomainValidationException>(() => CreateEventsService(context).UpdateEvent(eventId, request));
@@ -249,6 +253,59 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal([(competency.CompetencyId, 1)], await StoredRequirements(eventId));
             using var verify = _fixture.CreateContext();
             Assert.NotEqual(request.Name, (await verify.Events.AsNoTracking().SingleAsync(e => e.EventId == eventId)).Name);
+        }
+
+        [Fact]
+        public async Task CreateEvent_NullRequirement_GivesMissingMessage()
+        {
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() =>
+                CreateEventsService(context).CreateEvent(EventRequest([null!])));
+
+            Assert.Equal(CompetencyRequirementSet.MissingRequirementMessage, ex.Message);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_InactiveCompetency_GivesDeletedMessage()
+        {
+            using var seed = _fixture.CreateContext();
+            var inactive = await SeedCompetency(seed, inactive: true);
+            var eventId = await SeedEventWithRequirements((inactive, 1));
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(() =>
+                CreateEventsService(context).UpdateEvent(eventId, EventRequest([Req(inactive)])));
+
+            Assert.Equal(CompetencyRequirementSet.InactiveCompetencyMessage, ex.Message);
+            Assert.Equal([(inactive.CompetencyId, 1)], await StoredRequirements(eventId));
+        }
+
+        [Fact]
+        public async Task UpdateEvent_InactiveRequirement_IsKeptWhenNull_AndRemovedWhenResponseListIsSentBack()
+        {
+            using var seed = _fixture.CreateContext();
+            var active = await SeedCompetency(seed);
+            var deleted = await SeedCompetency(seed);
+            var eventId = await SeedEventWithRequirements((active, 1), (deleted, 2));
+            deleted.Inactive = true;
+            await seed.SaveChangesAsync();
+
+            // null = uendret: kravet til den slettede kompetansen blir stående i databasen, men vises ikke.
+            using var keepContext = _fixture.CreateContext();
+            var kept = await CreateEventsService(keepContext).UpdateEvent(eventId, EventRequest(null));
+            Assert.Equal([active.CompetencyId], kept.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal(
+                new[] { (active.CompetencyId, 1), (deleted.CompetencyId, 2) }.OrderBy(r => r.Item1),
+                await StoredRequirements(eventId));
+
+            // Klienten sender hele listen den fikk (uten det skjulte kravet), så det fjernes.
+            var sentBack = kept.CompetencyRequirements
+                .Select(r => new CompetencyRequirementRequest { CompetencyId = r.CompetencyId, MinimumRequired = r.MinimumRequired })
+                .ToList();
+            using var saveContext = _fixture.CreateContext();
+            var saved = await CreateEventsService(saveContext).UpdateEvent(eventId, EventRequest(sentBack));
+            Assert.Equal([active.CompetencyId], saved.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal([(active.CompetencyId, 1)], await StoredRequirements(eventId));
         }
 
         [Fact]
@@ -275,16 +332,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var first = await SeedCompetency(seed);
             var second = await SeedCompetency(seed);
 
-            EventTemplateRequest TemplateRequest(IEnumerable<CompetencyRequirementRequest>? requirements) => new()
-            {
-                Name = UniqueName("Mal"),
-                EventName = UniqueName("Vaktliste"),
-                StartTime = new TimeOnly(17, 0),
-                EndTime = new TimeOnly(21, 0),
-                ResourceTemplates = [],
-                CompetencyRequirements = requirements,
-            };
-
             using var context = _fixture.CreateContext();
             var service = CreateTemplatesService(context);
             var created = await service.CreateEventTemplate(TemplateRequest([Req(first, 2)]));
@@ -304,6 +351,134 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var invalidContext = _fixture.CreateContext();
             await Assert.ThrowsAsync<DomainValidationException>(() =>
                 CreateTemplatesService(invalidContext).UpdateEventTemplate(created.Id, TemplateRequest([Req(first, 0)])));
+        }
+
+        private static EventTemplateRequest TemplateRequest(IEnumerable<CompetencyRequirementRequest>? requirements) => new()
+        {
+            Name = UniqueName("Mal"),
+            EventName = UniqueName("Vaktliste"),
+            StartTime = new TimeOnly(17, 0),
+            EndTime = new TimeOnly(21, 0),
+            ResourceTemplates = [],
+            CompetencyRequirements = requirements,
+        };
+
+        private async Task<EventTemplate> SeedTemplateWithRequirements(params (Competency Competency, int Minimum)[] requirements)
+        {
+            using var context = _fixture.CreateContext();
+            var template = new EventTemplate
+            {
+                Name = UniqueName("Mal"),
+                EventName = UniqueName("Vaktliste"),
+                StartTime = new DateTime(2000, 1, 1, 17, 0, 0),
+                EndTime = new DateTime(2000, 1, 1, 21, 0, 0),
+                CompetencyRequirements = requirements
+                    .Select(r => new EventTemplateCompetencyRequirement { CompetencyId = r.Competency.CompetencyId, MinimumRequired = r.Minimum })
+                    .ToList(),
+            };
+            context.EventTemplates.Add(template);
+            await context.SaveChangesAsync();
+            return template;
+        }
+
+        private async Task<List<(int CompetencyId, int MinimumRequired)>> StoredTemplateRequirements(int templateId)
+        {
+            using var context = _fixture.CreateContext();
+            return (await context.EventTemplateCompetencyRequirements.AsNoTracking()
+                    .Where(r => r.EventTemplateId == templateId)
+                    .OrderBy(r => r.CompetencyId)
+                    .Select(r => new { r.CompetencyId, r.MinimumRequired })
+                    .ToListAsync())
+                .Select(r => (r.CompetencyId, r.MinimumRequired))
+                .ToList();
+        }
+
+        [Fact]
+        public async Task Template_NullRequirement_GivesMissingMessage()
+        {
+            var template = await SeedTemplateWithRequirements();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateTemplatesService(context);
+
+            var create = await Assert.ThrowsAsync<DomainValidationException>(() => service.CreateEventTemplate(TemplateRequest([null!])));
+            Assert.Equal(CompetencyRequirementSet.MissingRequirementMessage, create.Message);
+
+            var update = await Assert.ThrowsAsync<DomainValidationException>(() =>
+                service.UpdateEventTemplate(template.EventTemplateId, TemplateRequest([null!])));
+            Assert.Equal(CompetencyRequirementSet.MissingRequirementMessage, update.Message);
+        }
+
+        [Fact]
+        public async Task Template_InactiveCompetency_IsRejected()
+        {
+            using var seed = _fixture.CreateContext();
+            var inactive = await SeedCompetency(seed, inactive: true);
+            var template = await SeedTemplateWithRequirements();
+
+            using var context = _fixture.CreateContext();
+            var service = CreateTemplatesService(context);
+
+            var create = await Assert.ThrowsAsync<DomainValidationException>(() => service.CreateEventTemplate(TemplateRequest([Req(inactive)])));
+            Assert.Equal(CompetencyRequirementSet.InactiveCompetencyMessage, create.Message);
+
+            var update = await Assert.ThrowsAsync<DomainValidationException>(() =>
+                service.UpdateEventTemplate(template.EventTemplateId, TemplateRequest([Req(inactive)])));
+            Assert.Equal(CompetencyRequirementSet.InactiveCompetencyMessage, update.Message);
+        }
+
+        [Fact]
+        public async Task Template_InactiveRequirement_IsHidden_KeptWhenNull_AndRemovedWhenResponseListIsSentBack()
+        {
+            using var seed = _fixture.CreateContext();
+            var active = await SeedCompetency(seed);
+            var deleted = await SeedCompetency(seed, inactive: true);
+            var template = await SeedTemplateWithRequirements((active, 1), (deleted, 2));
+
+            using var keepContext = _fixture.CreateContext();
+            var kept = await CreateTemplatesService(keepContext).UpdateEventTemplate(template.EventTemplateId, TemplateRequest(null));
+            Assert.Equal([active.CompetencyId], kept.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal(2, (await StoredTemplateRequirements(template.EventTemplateId)).Count);
+
+            var sentBack = kept.CompetencyRequirements
+                .Select(r => new CompetencyRequirementRequest { CompetencyId = r.CompetencyId, MinimumRequired = r.MinimumRequired })
+                .ToList();
+            using var saveContext = _fixture.CreateContext();
+            var saved = await CreateTemplatesService(saveContext).UpdateEventTemplate(template.EventTemplateId, TemplateRequest(sentBack));
+            Assert.Equal([active.CompetencyId], saved.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal([(active.CompetencyId, 1)], await StoredTemplateRequirements(template.EventTemplateId));
+        }
+
+        [Fact]
+        public async Task CreateEventFromTemplate_DoesNotCopyInactiveRequirements()
+        {
+            using var seed = _fixture.CreateContext();
+            var active = await SeedCompetency(seed);
+            var deleted = await SeedCompetency(seed, inactive: true);
+            var template = await SeedTemplateWithRequirements((active, 1), (deleted, 2));
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateEventsService(context)
+                .CreateEventFromTemplate(template.EventTemplateId, new EventFromTemplateRequest { StartDate = DateOnly.FromDateTime(Day) });
+
+            Assert.Equal([active.CompetencyId], result.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal([(active.CompetencyId, 1)], await StoredRequirements(result.Id));
+        }
+
+        [Fact]
+        public async Task CreateTemplateFromEvent_DoesNotCopyInactiveRequirements()
+        {
+            using var seed = _fixture.CreateContext();
+            var active = await SeedCompetency(seed);
+            var deleted = await SeedCompetency(seed, inactive: true);
+            var eventId = await SeedEventWithRequirements((active, 1), (deleted, 2));
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateTemplatesService(context)
+                .CreateTemplateFromEvent(eventId, new TemplateFromEventRequest { Name = UniqueName("FraVaktliste") });
+
+            Assert.Equal([active.CompetencyId], result.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal([(active.CompetencyId, 1)], await StoredTemplateRequirements(result.Id));
         }
 
         [Fact]
@@ -364,8 +539,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         /// Issue-eksemplet: vaktliste 17–21 med anleggskrav om én snøskuterfører. <paramref name="driver"/> står i kiosken
         /// 17–19 (vaktens egne tider); en annen bruker uten kompetansen står i storheisen 18–21 (oppgavens tider, vakttider null).
         /// </summary>
-        private async Task<WarningScenario> SeedIssueExample(Func<PlannerDbContext, Competency, Task<User>> driver)
+        private async Task<WarningScenario> SeedIssueExample(Func<PlannerDbContext, Competency, Task<User>> driver, DateTime? day = null)
         {
+            var date = day ?? Day;
+            DateTime At(int hour) => date.AddHours(hour);
+
             using var context = _fixture.CreateContext();
             var competency = await SeedCompetency(context, UniqueName("Snøskuterfører"));
             var kiosk = await SeedResourceType(context);
@@ -408,6 +586,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var evt = await ReadEvent(scenario.EventId);
 
             var warning = Assert.Single(evt.CompetencyWarnings);
+            Assert.Equal(scenario.Competency.CompetencyId, warning.CompetencyId);
             Assert.Equal(scenario.Competency.Name, warning.CompetencyName);
             Assert.Equal(1, warning.MinimumRequired);
             Assert.Equal(0, warning.CurrentCount);
@@ -456,6 +635,71 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal("2026-01-15T17:00", warning.StartTime);
             Assert.Equal("2026-01-15T21:00", warning.EndTime);
             Assert.Equal(0, warning.CurrentCount);
+        }
+
+        // Vaktlisten starter 2026-01-15 17:00 norsk tid = 16:00 UTC (vintertid). «Nå» er 2026-01-01 12:00 UTC.
+
+        [Fact]
+        public async Task GetEvent_CompetencyExpiringBetweenNowAndEventStart_DoesNotCount()
+        {
+            var scenario = await SeedIssueExample((c, competency) => SeedUser(c, competency, expiry: new DateTime(2026, 1, 10)));
+
+            var warning = Assert.Single((await ReadEvent(scenario.EventId)).CompetencyWarnings);
+            Assert.Equal("2026-01-15T17:00", warning.StartTime);
+            Assert.Equal("2026-01-15T21:00", warning.EndTime);
+            Assert.Equal(0, warning.CurrentCount);
+        }
+
+        [Theory]
+        [InlineData(15, 59, false)] // utløper før start
+        [InlineData(16, 0, false)]  // utløper akkurat ved start (ExpiryDate <= tidspunktet)
+        [InlineData(16, 1, true)]   // utløper etter start (17:01 norsk tid); ville ikke telt om 17:00 ble lest som UTC
+        public async Task GetEvent_CompetencyValidity_IsEvaluatedAtEventStartInUtc(int expiryHourUtc, int expiryMinuteUtc, bool counts)
+        {
+            var expiry = new DateTime(2026, 1, 15, expiryHourUtc, expiryMinuteUtc, 0);
+            var scenario = await SeedIssueExample((c, competency) => SeedUser(c, competency, expiry: expiry));
+
+            var warning = Assert.Single((await ReadEvent(scenario.EventId)).CompetencyWarnings);
+            Assert.Equal(counts ? "2026-01-15T19:00" : "2026-01-15T17:00", warning.StartTime);
+            Assert.Equal("2026-01-15T21:00", warning.EndTime);
+        }
+
+        [Fact]
+        public async Task GetEvent_PastEvent_CompetencyExpiredAfterEvent_StillCounts()
+        {
+            // Vaktlisten var 2025-12-15; kompetansen utløp 2025-12-20, altså etter vaktlisten, men før «nå».
+            var scenario = await SeedIssueExample(
+                (c, competency) => SeedUser(c, competency, expiry: new DateTime(2025, 12, 20)),
+                day: new DateTime(2025, 12, 15));
+
+            var warning = Assert.Single((await ReadEvent(scenario.EventId)).CompetencyWarnings);
+            Assert.Equal("2025-12-15T19:00", warning.StartTime);
+            Assert.Equal("2025-12-15T21:00", warning.EndTime);
+        }
+
+        [Fact]
+        public async Task GetEvent_PastEvent_CompetencyExpiredBeforeEvent_DoesNotCount()
+        {
+            var scenario = await SeedIssueExample(
+                (c, competency) => SeedUser(c, competency, expiry: new DateTime(2025, 12, 10)),
+                day: new DateTime(2025, 12, 15));
+
+            var warning = Assert.Single((await ReadEvent(scenario.EventId)).CompetencyWarnings);
+            Assert.Equal("2025-12-15T17:00", warning.StartTime);
+        }
+
+        [Fact]
+        public async Task GetEvent_InactiveCompetencyRequirement_IsHiddenFromRequirementsAndWarnings()
+        {
+            using var seed = _fixture.CreateContext();
+            var active = await SeedCompetency(seed);
+            var deleted = await SeedCompetency(seed, inactive: true);
+            var eventId = await SeedEventWithRequirements((active, 1), (deleted, 1));
+
+            var evt = await ReadEvent(eventId);
+
+            Assert.Equal([active.CompetencyId], evt.CompetencyRequirements.Select(r => r.CompetencyId));
+            Assert.Equal([active.CompetencyId], evt.CompetencyWarnings.Select(w => w.CompetencyId));
         }
 
         [Fact]

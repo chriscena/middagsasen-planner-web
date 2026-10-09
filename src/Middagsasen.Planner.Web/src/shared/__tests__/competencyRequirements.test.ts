@@ -161,6 +161,7 @@ describe("formatFacilityWarning", () => {
   it("viser kompetanse, tidsrom og antall", () => {
     expect(
       formatFacilityWarning({
+        competencyId: 4,
         competencyName: "Snøskuterfører",
         minimumRequired: 1,
         currentCount: 0,

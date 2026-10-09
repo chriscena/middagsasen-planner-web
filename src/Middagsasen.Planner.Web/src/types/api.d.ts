@@ -4075,6 +4075,8 @@ export interface components {
             competencyRequirements: components["schemas"]["CompetencyRequirementResponse"][];
         };
         FacilityCompetencyWarningResponse: {
+            /** Format: int32 */
+            competencyId: number;
             competencyName: string;
             /** Format: int32 */
             minimumRequired: number;
