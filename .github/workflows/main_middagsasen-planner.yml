@@ -9,9 +9,12 @@ on:
       - main
     paths:
       - 'src/Middagsasen.Planner.Api/**/*'
+      - 'src/Middagsasen.Planner.Database/**'
       - 'Directory.Packages.props'
       - 'global.json'
       - '.github/workflows/main_middagsasen-planner.yml'
+      - '.github/workflows/db_deploy.yml'
+      - '.github/scripts/sqlpackage-retry.sh'
   workflow_dispatch:
 
 # Én deploy om gangen — ikke avbryt en pågående deploy
@@ -46,9 +49,21 @@ jobs:
           name: .net-app
           path: ${{env.DOTNET_ROOT}}/myapp
 
+  # Publiserer databaseskjemaet før API-et deployes. Feiler denne, deployes ikke API-et.
+  database:
+    needs: build
+    uses: ./.github/workflows/db_deploy.yml
+    with:
+      action: publish
+    secrets: inherit
+    # Kalt workflow kan ikke få flere rettigheter enn kallerjobben gir
+    permissions:
+      id-token: write
+      contents: read
+
   deploy:
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, database]
     environment:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
