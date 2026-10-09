@@ -30,7 +30,7 @@
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^2.30.0",
     "pinia": "^3.0.4",
-    "quasar": "^2.34.0",
+    "quasar": "^2.35.0",
     "vue": "^3.5.43",
     "vue-chartjs": "^5.3.4",
     "vue-i18n": "^11.4.13",
@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@intlify/unplugin-vue-i18n": "^11.2.5",
-    "@quasar/app-vite": "^3.10.1",
+    "@quasar/app-vite": "^3.10.2",
     "@types/node": "^22.20.5",
     "@typescript-eslint/parser": "^8.71.0",
     "@vue/test-utils": "^2.5.1",
