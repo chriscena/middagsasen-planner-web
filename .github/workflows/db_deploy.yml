@@ -1,4 +1,6 @@
 # Deployer databasen (dacpac) med Entra-autentisering (managed identity via OIDC, ingen passord).
+# Kjøres automatisk (publish) fra API-workflowen (main_middagsasen-planner.yml) før API-et deployes,
+# og kan fortsatt kjøres manuelt, f.eks. med script for å se hva som vil endres.
 # Forutsetninger:
 #   - Federert credential på managed identity med subject repo:chriscena/middagsasen-planner-web:environment:Production
 #     (samme identitet som secrets.AZURE_CLIENT_ID/AZURE_TENANT_ID/AZURE_SUBSCRIPTION_ID)
@@ -18,10 +20,18 @@ on:
         options:
           - script
           - publish
+  workflow_call:
+    inputs:
+      action:
+        description: 'script = generer deploy-skript og rapport (ingen endringer), publish = oppdater databasen'
+        type: string
+        default: publish
 
-# Én databasedeploy om gangen — aldri avbryt en pågående
+# Én databasedeploy om gangen — aldri avbryt en pågående.
+# Fast gruppenavn: når workflowen kalles, er github.workflow navnet på kalleren, og samme
+# gruppe som API-workflowen ville gitt vranglås (kalleren holder gruppen og venter på denne).
 concurrency:
-  group: ${{ github.workflow }}
+  group: database-deploy
   cancel-in-progress: false
 
 jobs:
