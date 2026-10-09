@@ -1015,6 +1015,108 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #endregion
 
+        #region Vakter følger ressursens tider (#173)
+
+        private async Task<List<EventResourceUser>> SeedShifts(PlannerDbContext context, int eventResourceId, params (DateTime? Start, DateTime? End)[] times)
+        {
+            // Én bruker per vakt: en bruker kan bare ha én vakt per ressurs.
+            var shifts = new List<EventResourceUser>();
+            foreach (var (start, end) in times)
+            {
+                var user = await SeedUser(context);
+                shifts.Add(new EventResourceUser { EventResourceId = eventResourceId, UserId = user.UserId, StartTime = start, EndTime = end });
+            }
+            context.Shifts.AddRange(shifts);
+            await context.SaveChangesAsync();
+            return shifts;
+        }
+
+        private async Task<Dictionary<int, (DateTime? Start, DateTime? End)>> StoredShiftTimes(int eventResourceId)
+        {
+            using var context = _fixture.CreateContext();
+            var shifts = await context.Shifts.AsNoTracking()
+                .Where(s => s.EventResourceId == eventResourceId)
+                .ToListAsync();
+            return shifts.ToDictionary(s => s.EventResourceUserId, s => (s.StartTime, s.EndTime));
+        }
+
+        private static EventRequest MoveRequest(Event evt, EventResource resource, DateTime eventStart, DateTime eventEnd, TimeOnly start, TimeOnly end) => new()
+        {
+            Name = evt.Name,
+            StartTime = eventStart,
+            EndTime = eventEnd,
+            Resources =
+            [
+                new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = start, EndTime = end, MinimumStaff = resource.MinimumStaff },
+            ],
+        };
+
+        [Fact]
+        public async Task UpdateEvent_MovedToOtherDate_MovesShifts()
+        {
+            // Arrange: ressurs 15. jan 08–16 med hel vakt, delvakt og vakt uten egne tider
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+            var shifts = await SeedShifts(seedContext, resource.EventResourceId,
+                (new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 16, 0, 0)),
+                (new DateTime(2026, 1, 15, 10, 0, 0), new DateTime(2026, 1, 15, 12, 0, 0)),
+                (null, null));
+
+            // Act: vaktlista flyttes til 17. jan, samme klokkeslett
+            using var context = _fixture.CreateContext();
+            await CreateService(context).UpdateEvent(evt.EventId, MoveRequest(evt, resource,
+                new DateTime(2026, 1, 17, 8, 0, 0), new DateTime(2026, 1, 17, 16, 0, 0), new TimeOnly(8, 0), new TimeOnly(16, 0)));
+
+            // Assert
+            var stored = await StoredShiftTimes(resource.EventResourceId);
+            Assert.Equal((new DateTime(2026, 1, 17, 8, 0, 0), new DateTime(2026, 1, 17, 16, 0, 0)), stored[shifts[0].EventResourceUserId]);
+            Assert.Equal((new DateTime(2026, 1, 17, 10, 0, 0), new DateTime(2026, 1, 17, 12, 0, 0)), stored[shifts[1].EventResourceUserId]);
+            Assert.Equal(((DateTime?)null, (DateTime?)null), stored[shifts[2].EventResourceUserId]);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_ExtendedResource_ShiftsWithAnchoredEndFollow()
+        {
+            // Arrange: ressurs 08–16 med hel vakt og delvakt 08–12
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+            var shifts = await SeedShifts(seedContext, resource.EventResourceId,
+                (new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 16, 0, 0)),
+                (new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 12, 0, 0)));
+
+            // Act: oppgaven utvides til 08–20
+            using var context = _fixture.CreateContext();
+            await CreateService(context).UpdateEvent(evt.EventId, MoveRequest(evt, resource,
+                new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 20, 0, 0), new TimeOnly(8, 0), new TimeOnly(20, 0)));
+
+            // Assert
+            var stored = await StoredShiftTimes(resource.EventResourceId);
+            Assert.Equal((new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 20, 0, 0)), stored[shifts[0].EventResourceUserId]);
+            Assert.Equal((new DateTime(2026, 1, 15, 8, 0, 0), new DateTime(2026, 1, 15, 12, 0, 0)), stored[shifts[1].EventResourceUserId]);
+        }
+
+        [Fact]
+        public async Task UpdateEvent_UnchangedResourceTimes_LeavesShiftsUntouched()
+        {
+            // Arrange: admin-satt vakt utenfor ressursen fra før
+            using var seedContext = _fixture.CreateContext();
+            var (evt, resource) = await SeedEventWithResource(seedContext);
+            var shifts = await SeedShifts(seedContext, resource.EventResourceId,
+                (new DateTime(2026, 1, 15, 6, 0, 0), new DateTime(2026, 1, 15, 7, 0, 0)));
+
+            // Act: samme tider, nytt navn
+            using var context = _fixture.CreateContext();
+            var request = MoveRequest(evt, resource, evt.StartTime, evt.EndTime, new TimeOnly(8, 0), new TimeOnly(16, 0));
+            request.Name = UniqueName("Renamed");
+            await CreateService(context).UpdateEvent(evt.EventId, request);
+
+            // Assert
+            var stored = await StoredShiftTimes(resource.EventResourceId);
+            Assert.Equal((new DateTime(2026, 1, 15, 6, 0, 0), new DateTime(2026, 1, 15, 7, 0, 0)), stored[shifts[0].EventResourceUserId]);
+        }
+
+        #endregion
+
         [Fact]
         public async Task CreateEventFromTemplate_ThrowsEntityNotFound_WhenNotFound()
         {

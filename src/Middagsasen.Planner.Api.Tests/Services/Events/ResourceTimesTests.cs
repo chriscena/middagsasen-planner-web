@@ -88,5 +88,88 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             Assert.Equal(D(expected), ResourceTimes.NormalizeEventEnd(D(eventStart), D(eventEnd)));
         }
+
+        private static DateTime? N(string? value) => value is null ? null : D(value);
+
+        [Theory]
+        // Utvidet slutt 10–17 → 10–20: hel vakt følger, delvakt foran urørt, delvakt med forankret slutt følger
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 10:00", "2026-02-01 20:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-01 10:00", "2026-02-01 14:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 14:00", "2026-02-01 17:00", "2026-02-01 14:00", "2026-02-01 20:00")]
+        // Forskjøvet 10–17 → 12–19
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 12:00", "2026-02-01 19:00", "2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 12:00", "2026-02-01 19:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 12:00", "2026-02-01 19:00", "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-01 12:00", "2026-02-01 14:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 12:00", "2026-02-01 19:00", "2026-02-01 13:00", "2026-02-01 17:00", "2026-02-01 13:00", "2026-02-01 19:00")]
+        // Vaktlista flyttet fra 1. til 3. feb: alle vakter flyttes 2 døgn
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", "2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", "2026-02-01 11:00", "2026-02-01 14:00", "2026-02-03 11:00", "2026-02-03 14:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", "2026-02-01 14:00", "2026-02-01 17:00", "2026-02-03 14:00", "2026-02-03 17:00")]
+        // Krymping 10–20 → 10–15: hel vakt og delvakt klippes; delvakt helt etter ny slutt får ressursens tider
+        [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", "2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", "2026-02-01 12:00", "2026-02-01 18:00", "2026-02-01 12:00", "2026-02-01 15:00")]
+        [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", "2026-02-01 16:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00")]
+        // 10–14 når ressursen går 10–17 → 15–19: start forankret til 15, slutt 14 → helt utenfor → ressursens tider
+        [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 15:00", "2026-02-01 19:00", "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-01 15:00", "2026-02-01 19:00")]
+        // Over midnatt 18–02 flyttet 2 døgn: vakter før og etter midnatt havner på riktig døgn
+        [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-03 18:00", "2026-02-04 02:00", "2026-02-01 22:00", "2026-02-02 02:00", "2026-02-03 22:00", "2026-02-04 02:00")]
+        [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-03 18:00", "2026-02-04 02:00", "2026-02-02 00:00", "2026-02-02 01:00", "2026-02-04 00:00", "2026-02-04 01:00")]
+        [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-03 18:00", "2026-02-04 02:00", "2026-02-01 18:00", "2026-02-01 23:00", "2026-02-03 18:00", "2026-02-03 23:00")]
+        // Over midnatt 18–02 utvidet til 18–04: forankret slutt følger til 04 neste døgn
+        [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-02 04:00", "2026-02-02 00:00", "2026-02-02 02:00", "2026-02-02 00:00", "2026-02-02 04:00")]
+        // 18–02 krympet til 18–23: vakt etter midnatt havner helt utenfor → ressursens tider
+        [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-01 23:00", "2026-02-02 00:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-01 23:00")]
+        // Ressurs som starter dagen før vaktlista (23:45) flyttes 1 døgn
+        [InlineData("2026-02-01 23:45", "2026-02-02 06:00", "2026-02-02 23:45", "2026-02-03 06:00", "2026-02-02 01:00", "2026-02-02 03:00", "2026-02-03 01:00", "2026-02-03 03:00")]
+        public void FollowResource_AdjustsShiftToResource(
+            string oldStart, string oldEnd, string newStart, string newEnd,
+            string shiftStart, string shiftEnd, string expectedStart, string expectedEnd)
+        {
+            var (start, end) = ResourceTimes.FollowResource(D(oldStart), D(oldEnd), D(newStart), D(newEnd), D(shiftStart), D(shiftEnd));
+
+            Assert.Equal(D(expectedStart), start);
+            Assert.Equal(D(expectedEnd), end);
+        }
+
+        [Theory]
+        // Helt utenfor fra før (f.eks. admin-satte tider): røres ikke når ressursen er uendret
+        [InlineData("2026-02-01 08:00", "2026-02-01 09:00")]
+        [InlineData("2026-02-01 12:00", "2026-02-01 14:00")]
+        [InlineData(null, null)]
+        public void FollowResource_UnchangedResource_LeavesShiftUntouched(string? shiftStart, string? shiftEnd)
+        {
+            var (start, end) = ResourceTimes.FollowResource(
+                D("2026-02-01 10:00"), D("2026-02-01 17:00"), D("2026-02-01 10:00"), D("2026-02-01 17:00"), N(shiftStart), N(shiftEnd));
+
+            Assert.Equal(N(shiftStart), start);
+            Assert.Equal(N(shiftEnd), end);
+        }
+
+        [Theory]
+        // Begge null: følger allerede ressursen og forblir null
+        [InlineData(null, null, null, null)]
+        // Bare slutt satt: start tolkes som ressursens kant, slutt flyttes med døgnforskyvningen
+        [InlineData(null, "2026-02-01 14:00", null, "2026-02-03 14:00")]
+        // Bare start satt, slutt tolkes som ny slutt
+        [InlineData("2026-02-01 12:00", null, "2026-02-03 12:00", null)]
+        public void FollowResource_NullFields_StayNull_AndOtherFieldIsAdjusted(
+            string? shiftStart, string? shiftEnd, string? expectedStart, string? expectedEnd)
+        {
+            var (start, end) = ResourceTimes.FollowResource(
+                D("2026-02-01 10:00"), D("2026-02-01 17:00"), D("2026-02-03 10:00"), D("2026-02-03 17:00"), N(shiftStart), N(shiftEnd));
+
+            Assert.Equal(N(expectedStart), start);
+            Assert.Equal(N(expectedEnd), end);
+        }
+
+        [Fact]
+        public void FollowResource_OnlyEndSet_OutsideAfterShrink_GetsResourceEnd()
+        {
+            // Ressurs 10–20 → 15–20; vakt (null)–14: start tolkes som 15, slutt 14 → helt utenfor → slutt blir 20
+            var (start, end) = ResourceTimes.FollowResource(
+                D("2026-02-01 10:00"), D("2026-02-01 20:00"), D("2026-02-01 15:00"), D("2026-02-01 20:00"), null, D("2026-02-01 14:00"));
+
+            Assert.Null(start);
+            Assert.Equal(D("2026-02-01 20:00"), end);
+        }
     }
 }

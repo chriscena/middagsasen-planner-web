@@ -627,6 +627,51 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Fact]
+        public async Task UpdateEvent_ExtendedResource_ShiftFollows_AndGivesNoFalseWarning()
+        {
+            // Snøskuterføreren står i kiosken 17–19 med vaktens egne tider lik oppgavens. Oppgaven utvides til 17–21 (#173):
+            // vakten følger, så anleggskravet er dekket hele åpningstiden.
+            int eventId, resourceId, resourceTypeId;
+            using (var context = _fixture.CreateContext())
+            {
+                var competency = await SeedCompetency(context);
+                var rt = await SeedResourceType(context);
+                var driver = await SeedUser(context, competency);
+                var kiosk = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(17), EndTime = At(19), MinimumStaff = 1 };
+                var evt = new Event
+                {
+                    Name = UniqueName("Vaktliste"),
+                    StartTime = At(17),
+                    EndTime = At(21),
+                    Resources = [kiosk],
+                    CompetencyRequirements = [new EventCompetencyRequirement { CompetencyId = competency.CompetencyId, MinimumRequired = 1 }],
+                };
+                context.Events.Add(evt);
+                await context.SaveChangesAsync();
+                context.Shifts.Add(new EventResourceUser { EventResourceId = kiosk.EventResourceId, UserId = driver.UserId, StartTime = At(17), EndTime = At(19) });
+                await context.SaveChangesAsync();
+                (eventId, resourceId, resourceTypeId) = (evt.EventId, kiosk.EventResourceId, rt.ResourceTypeId);
+            }
+            Assert.Single((await ReadEvent(eventId)).CompetencyWarnings);
+
+            using (var context = _fixture.CreateContext())
+            {
+                var request = EventRequest(null);
+                request.Resources =
+                [
+                    new ResourceRequest { Id = resourceId, ResourceTypeId = resourceTypeId, StartTime = new TimeOnly(17, 0), EndTime = new TimeOnly(21, 0), MinimumStaff = 1 },
+                ];
+                await CreateEventsService(context).UpdateEvent(eventId, request);
+            }
+
+            var result = await ReadEvent(eventId);
+            Assert.Empty(result.CompetencyWarnings);
+            var shift = Assert.Single(Assert.Single(result.Resources).Shifts);
+            Assert.Equal("2026-01-15T17:00", shift.StartTime);
+            Assert.Equal("2026-01-15T21:00", shift.EndTime);
+        }
+
+        [Fact]
         public async Task GetEvent_ExpiredCompetency_DoesNotCount()
         {
             var scenario = await SeedIssueExample((c, competency) => SeedUser(c, competency, expiry: UtcNow.AddDays(-1)));

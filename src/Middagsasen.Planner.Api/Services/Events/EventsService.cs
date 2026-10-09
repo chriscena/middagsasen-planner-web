@@ -130,6 +130,11 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// Anleggskravene erstattes av <see cref="EventRequest.CompetencyRequirements"/> i samme transaksjon, og beholdes
         /// uendret når feltet er <c>null</c>.
         /// </para>
+        /// <para>
+        /// Bemannede vakter følger ressursens tider (#173): endres tidene på en eksisterende ressurs (f.eks. når vaktlista
+        /// flyttes til en annen dato, eller oppgaven utvides), justeres vaktene med <see cref="ResourceTimes.FollowResource"/>
+        /// i samme transaksjon og under samme ressurslås.
+        /// </para>
         /// </summary>
         /// <exception cref="DomainValidationException">Anleggskravene er ugyldige.</exception>
         /// <exception cref="ConcurrentUpdateException">Antall vakter er endret av noen andre siden skjemaet ble lastet.</exception>
@@ -144,7 +149,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 await DbContext.LockEventResources(eventId);
 
                 var existingEvent = await DbContext.Events
-                    .Include(e => e.Resources)
+                    .Include(e => e.Resources).ThenInclude(r => r.Shifts)
                     .Include(e => e.CompetencyRequirements)
                     .SingleOrDefaultAsync(e => e.EventId == eventId)
                     ?? throw new EntityNotFoundException(EventNotFoundMessage);
@@ -176,7 +181,9 @@ namespace Middagsasen.Planner.Api.Services.Events
                         // Før vakttype og tider endres, så en konfliktmelding viser de lagrede verdiene.
                         await ApplyMinimumStaff(resource, resourceToUpdate);
                         resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
+                        var (oldStart, oldEnd) = (resourceToUpdate.StartTime, resourceToUpdate.EndTime);
                         (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
+                        FollowResource(resourceToUpdate, oldStart, oldEnd);
                     }
                 }
 
@@ -221,6 +228,21 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
 
             stored.MinimumStaff = request.MinimumStaff;
+        }
+
+        /// <summary>
+        /// Justerer vaktene på <paramref name="resource"/> etter at tidene er endret fra (<paramref name="oldStart"/>,
+        /// <paramref name="oldEnd"/>). Uendrede tider rører ingen vakter.
+        /// </summary>
+        private static void FollowResource(EventResource resource, DateTime oldStart, DateTime oldEnd)
+        {
+            if (resource.StartTime == oldStart && resource.EndTime == oldEnd) return;
+
+            foreach (var shift in resource.Shifts)
+            {
+                (shift.StartTime, shift.EndTime) = ResourceTimes.FollowResource(
+                    oldStart, oldEnd, resource.StartTime, resource.EndTime, shift.StartTime, shift.EndTime);
+            }
         }
 
         /// <summary>Konfliktmelding med de lagrede verdiene til ressursen.</summary>

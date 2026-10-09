@@ -1,7 +1,8 @@
 namespace Middagsasen.Planner.Api.Services.Events
 {
     /// <summary>
-    /// Bestemmer hvilket døgn en vakt (ressurs) i en vaktliste havner på, gitt bare klokkeslett.
+    /// Bestemmer hvilket døgn en vakt (ressurs) i en vaktliste havner på, gitt bare klokkeslett,
+    /// og hvordan bemannede vakter følger ressursen når tidene endres.
     /// </summary>
     public static class ResourceTimes
     {
@@ -41,6 +42,39 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (end < start) end = end.AddDays(1);
 
             return (start, end);
+        }
+
+        /// <summary>
+        /// Justerer tidene på en bemannet vakt når ressursen flyttes fra (<paramref name="oldStart"/>, <paramref name="oldEnd"/>)
+        /// til (<paramref name="newStart"/>, <paramref name="newEnd"/>) (#173):
+        /// <list type="number">
+        /// <item>Kant-forankring: vaktstart lik ressursens gamle start blir ny start, vaktslutt lik gammel slutt blir ny slutt.</item>
+        /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes like mange døgn som ressursens start
+        /// (<c>newStart.Date - oldStart.Date</c>).</item>
+        /// <item>Klipping til ressursen: start = max(start, newStart), slutt = min(slutt, newEnd).</item>
+        /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den ressursens fulle nye tider.</item>
+        /// </list>
+        /// Et <c>null</c>-felt følger allerede ressursen og forblir <c>null</c>; i beregningen tolkes det som ressursens kant.
+        /// Er ressursens tider uendret, returneres vaktens tider urørt.
+        /// </summary>
+        public static (DateTime? Start, DateTime? End) FollowResource(
+            DateTime oldStart, DateTime oldEnd, DateTime newStart, DateTime newEnd, DateTime? shiftStart, DateTime? shiftEnd)
+        {
+            if (oldStart == newStart && oldEnd == newEnd)
+                return (shiftStart, shiftEnd);
+
+            var dayDelta = newStart.Date - oldStart.Date;
+
+            var start = shiftStart is not { } s || s == oldStart ? newStart : s + dayDelta;
+            var end = shiftEnd is not { } e || e == oldEnd ? newEnd : e + dayDelta;
+
+            if (start < newStart) start = newStart;
+            if (end > newEnd) end = newEnd;
+
+            if (start >= end)
+                (start, end) = (newStart, newEnd);
+
+            return (shiftStart.HasValue ? start : null, shiftEnd.HasValue ? end : null);
         }
 
         private static TimeSpan DistanceToInterval(DateTime value, DateTime from, DateTime to)
