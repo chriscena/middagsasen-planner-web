@@ -11,6 +11,6 @@ create table EventResourceUsers (
 )
 GO
 
--- Samme bruker kan bare stå én gang på samme ressurs (vakt). Navnet brukes av ShiftRepository i API-et for å
+-- Samme bruker kan bare stå én gang på samme oppgave. Navnet brukes av ShiftRepository i API-et for å
 -- kjenne igjen bruddet. Eksisterende duplikater fjernes av Scripts/Script.PreDeployment.sql før indeksen opprettes.
 CREATE UNIQUE INDEX UQ_EventResourceUsers_EventResourceId_UserId ON EventResourceUsers (EventResourceId, UserId)

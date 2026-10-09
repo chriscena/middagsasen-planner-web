@@ -131,7 +131,7 @@ namespace Middagsasen.Planner.Api.Data
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_EventResourceUsers_Users");
 
-                // Samme bruker kan bare stå én gang på samme ressurs. Navnet brukes av ShiftRepository for å
+                // Samme bruker kan bare stå én gang på samme oppgave. Navnet brukes av ShiftRepository for å
                 // kjenne igjen bruddet. Eksisterende duplikater fjernes av Scripts/Script.PreDeployment.sql.
                 entity.HasIndex(e => new { e.EventResourceId, e.UserId })
                     .IsUnique()

@@ -8,15 +8,15 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 {
     public class ShiftService : IShiftService
     {
-        internal const string ResourceNotFoundMessage = "Fant ikke vaktressursen.";
+        internal const string ResourceNotFoundMessage = "Fant ikke oppgaven.";
         internal const string ShiftNotFoundMessage = "Fant ikke vakta.";
         internal const string UserNotFoundMessage = "Fant ikke brukeren.";
-        internal const string PastMessage = "Vakta er avsluttet og kan ikke endres.";
-        internal const string FullMessage = "Det er ingen ledige plasser på denne vakta.";
-        internal const string DuplicateMessage = "Brukeren står allerede på denne vakta.";
-        internal const string InvalidTimesMessage = "Tidene må ligge innenfor vaktas tider, og start kan ikke være etter slutt.";
+        internal const string PastMessage = "Oppgaven er avsluttet og kan ikke endres.";
+        internal const string FullMessage = "Det er ingen ledige vakter på denne oppgaven.";
+        internal const string DuplicateMessage = "Brukeren står allerede på denne oppgaven.";
+        internal const string InvalidTimesMessage = "Tidene må ligge innenfor oppgavens tider, og start kan ikke være etter slutt.";
         internal const string NoTrainingMessage = "Denne vakttypen har ikke opplæring.";
-        internal const string NoEmptySlotMessage = "Det er ingen ledige plasser å fjerne.";
+        internal const string NoEmptySlotMessage = "Det er ingen ledige vakter å fjerne.";
         internal const string SmsFailedWarning = "Endringen er lagret, men SMS til trenerne kunne ikke sendes. Gi beskjed til en trener direkte.";
 
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
@@ -144,7 +144,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         }
 
         /// <summary>
-        /// Upserter opplæringen til eieren av vakta på ressursens ressurstype (se <see cref="UpsertTraining"/>), også når
+        /// Upserter opplæringen til eieren av vakta på oppgavens vakttype (se <see cref="UpsertTraining"/>), også når
         /// verdien er lik den lagrede (trenerens bekreftelse oppdateres da). Trenerne varsles etter commit, men bare når
         /// opplæringen ikke allerede var ønsket (så gjentatte kall ikke sender SMS på nytt).
         /// </summary>
@@ -209,7 +209,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 ?? throw new DomainValidationException(NoEmptySlotMessage));
 
         /// <summary>
-        /// Endrer <c>ShiftCount</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under ressurslåsen
+        /// Endrer <c>ShiftCount</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under oppgavelåsen
         /// (<see cref="IShiftRepository.GetStaffing"/>), ikke fra klientens cache, så to samtidige klikk gir to endringer (#142).
         /// Låsen trengs også fordi ShiftCount inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig
         /// påmelding ser enten den gamle eller den nye verdien.
@@ -236,7 +236,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>
         /// Felles opplæringsregel for påmelding og endring av vakt. Gjelder <paramref name="owner"/>, eieren av vakta etter endringen:
         /// <list type="bullet">
-        /// <item>Ressurstypen har ikke opplæring: svaret ignoreres.</item>
+        /// <item>Vakttypen har ikke opplæring: svaret ignoreres.</item>
         /// <item>Eieren har ingen opplæringsrad: <c>null</c> gir 400 når <paramref name="answerRequired"/>, ellers skjer ingenting.
         /// Et svar oppretter raden (se <see cref="UpsertTraining"/>).</item>
         /// <item>Eieren har en rad: <c>null</c> eller samme verdi som lagret endrer ingenting (ingen ny bekreftelse, ingen SMS).

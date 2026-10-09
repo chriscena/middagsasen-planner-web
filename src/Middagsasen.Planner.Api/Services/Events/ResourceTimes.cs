@@ -1,8 +1,8 @@
 namespace Middagsasen.Planner.Api.Services.Events
 {
     /// <summary>
-    /// Bestemmer hvilket døgn en vakt (ressurs) i en vaktliste havner på, gitt bare klokkeslett,
-    /// og hvordan bemannede vakter følger ressursen når tidene endres.
+    /// Bestemmer hvilket døgn en oppgave i en vaktliste havner på, gitt bare klokkeslett,
+    /// og hvordan bemannede vakter følger oppgaven når tidene endres.
     /// </summary>
     public static class ResourceTimes
     {
@@ -15,10 +15,10 @@ namespace Middagsasen.Planner.Api.Services.Events
             eventEnd < eventStart ? eventEnd.AddDays(1) : eventEnd;
 
         /// <summary>
-        /// Plasserer en vakt "nærmest vaktlista". Vaktstart velges blant
+        /// Plasserer en oppgave "nærmest vaktlista". Starten velges blant
         /// <c>eventStart.Date + d + startTime</c> for d ∈ {-1, 0, +1} dager: kandidaten med minst avstand
         /// til intervallet [eventStart, eventEnd] (0 hvis innenfor) vinner, ved likhet foretrekkes d = 0,
-        /// deretter d = +1. Vaktslutt er <c>start.Date + endTime</c>, og neste døgn hvis det er før start.
+        /// deretter d = +1. Slutten er <c>start.Date + endTime</c>, og neste døgn hvis det er før start.
         /// Vaktlistas slutt normaliseres med <see cref="NormalizeEventEnd"/> først.
         /// </summary>
         public static (DateTime Start, DateTime End) Place(DateTime eventStart, DateTime eventEnd, TimeSpan startTimeOfDay, TimeSpan endTimeOfDay)
@@ -53,19 +53,19 @@ namespace Middagsasen.Planner.Api.Services.Events
             TimeSpan.FromDays(Math.Round((newEventStart - oldEventStart).TotalDays, MidpointRounding.AwayFromZero));
 
         /// <summary>
-        /// Justerer tidene på en bemannet vakt når ressursen flyttes fra (<paramref name="oldStart"/>, <paramref name="oldEnd"/>)
+        /// Justerer tidene på en bemannet vakt når oppgaven flyttes fra (<paramref name="oldStart"/>, <paramref name="oldEnd"/>)
         /// til (<paramref name="newStart"/>, <paramref name="newEnd"/>) (#173):
         /// <list type="number">
-        /// <item>Kant-forankring: vaktstart lik ressursens gamle start blir ny start, vaktslutt lik gammel slutt blir ny slutt.</item>
+        /// <item>Kant-forankring: vaktstart lik oppgavens gamle start blir ny start, vaktslutt lik gammel slutt blir ny slutt.</item>
         /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes <paramref name="dayShift"/>: like mange hele døgn som
-        /// vaktlista er flyttet (se <see cref="DayShift"/>). Ressursens egen start kan bytte døgn uten at vaktlista flyttes
+        /// vaktlista er flyttet (se <see cref="DayShift"/>). Oppgavens egen start kan bytte døgn uten at vaktlista flyttes
         /// (f.eks. 23:00 → 00:00 i en vaktliste over midnatt), så den brukes ikke.</item>
-        /// <item>Klipping til ressursen: start = max(start, newStart), slutt = min(slutt, newEnd).</item>
-        /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den ressursens fulle nye tider. Unntak: en vakt
-        /// som hadde null lengde fra før (start = slutt), og som fortsatt ligger innenfor ressursen, beholdes som nullengde.</item>
+        /// <item>Klipping til oppgaven: start = max(start, newStart), slutt = min(slutt, newEnd).</item>
+        /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den oppgavens fulle nye tider. Unntak: en vakt
+        /// som hadde null lengde fra før (start = slutt), og som fortsatt ligger innenfor oppgaven, beholdes som nullengde.</item>
         /// </list>
-        /// Et <c>null</c>-felt følger allerede ressursen og forblir <c>null</c>; i beregningen tolkes det som ressursens kant.
-        /// Er ressursens tider uendret, returneres vaktens tider urørt.
+        /// Et <c>null</c>-felt følger allerede oppgaven og forblir <c>null</c>; i beregningen tolkes det som oppgavens kant.
+        /// Er oppgavens tider uendret, returneres vaktens tider urørt.
         /// </summary>
         public static (DateTime? Start, DateTime? End) FollowResource(
             DateTime oldStart, DateTime oldEnd, DateTime newStart, DateTime newEnd, TimeSpan dayShift,
@@ -84,7 +84,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             if (start < newStart) start = newStart;
             if (end > newEnd) end = newEnd;
 
-            // Klippet ned til null lengde (f.eks. 10–14 når ressursen blir 14–17) gir fulle tider; var vakten nullengde fra før, beholdes den.
+            // Klippet ned til null lengde (f.eks. 10–14 når oppgaven blir 14–17) gir fulle tider; var vakten nullengde fra før, beholdes den.
             if (start > end || (start == end && !wasZeroLength))
                 (start, end) = (newStart, newEnd);
 

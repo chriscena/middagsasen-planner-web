@@ -33,8 +33,8 @@ namespace Middagsasen.Planner.Api.Services.Resources
             .AsSplitQuery();
 
         /// <summary>
-        /// Navigasjonene mappingen av en ressurs trenger, relativt til <see cref="EventResource"/>. Samme liste brukes for
-        /// ressurser og (med prefikset <c>Resources</c>) for arrangementer, så de to ikke kan gli fra hverandre.
+        /// Navigasjonene mappingen av en oppgave trenger, relativt til <see cref="EventResource"/>. Samme liste brukes for
+        /// oppgaver og (med prefikset <c>Resources</c>) for arrangementer, så de to ikke kan gli fra hverandre.
         /// </summary>
         private static readonly string[] ResourceIncludePaths =
         [
@@ -64,7 +64,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             .Include(m => m.CreatedByUser)
             .AsNoTracking();
 
-        // --- Arrangementer og ressurser (med flagg) ---
+        // --- Arrangementer og oppgaver (med flagg) ---
 
         public async Task<IReadOnlyList<EventResponse>> GetEvents(Actor actor, DateTime? start = null, DateTime? end = null)
         {
@@ -108,7 +108,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             return new Viewer(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds);
         }
 
-        // --- Ressurstyper ---
+        // --- Vakttyper ---
 
         public async Task<IReadOnlyList<ResourceTypeResponse>> GetResourceTypes()
         {
@@ -174,14 +174,14 @@ namespace Middagsasen.Planner.Api.Services.Resources
         }
 
         /// <summary>
-        /// Mapper arrangementer og ressurser med flagg for én innlogget bruker. Ressursene må være lastet med
+        /// Mapper arrangementer og oppgaver med flagg for én innlogget bruker. Oppgavene må være lastet med
         /// <see cref="ResourceIncludePaths"/>.
         /// </summary>
         private sealed class Viewer
         {
             /// <param name="actor">Innlogget bruker.</param>
             /// <param name="utcNow">Nå.</param>
-            /// <param name="trainingResourceTypeIds">Ressurstypene innlogget bruker har en opplæringsrad for.</param>
+            /// <param name="trainingResourceTypeIds">Vakttypene innlogget bruker har en opplæringsrad for.</param>
             public Viewer(Actor actor, DateTimeOffset utcNow, IEnumerable<int> trainingResourceTypeIds)
             {
                 Actor = actor;
@@ -192,10 +192,10 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
             private Actor Actor { get; }
 
-            /// <summary>Nå i norsk lokal tid, som ressursenes tider lagres i.</summary>
+            /// <summary>Nå i norsk lokal tid, som oppgavenes tider lagres i.</summary>
             private DateTime Now { get; }
 
-            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med for kompetansekravene per ressurs.</summary>
+            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med for kompetansekravene per oppgave.</summary>
             private DateTime UtcNow { get; }
 
             private HashSet<int> TrainingResourceTypeIds { get; }
@@ -215,7 +215,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <summary>
             /// Brudd på anleggskravene i åpningstiden. Krav til inaktive (slettede) kompetanser hoppes over. Alle bemannede
             /// vakter teller, uansett vakttype, når brukeren har en gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>)
-            /// <b>da vaktlisten starter</b>, ikke nå som for kompetansekravene per ressurs: en kompetanse som utløper før
+            /// <b>da vaktlisten starter</b>, ikke nå som for kompetansekravene per oppgave: en kompetanse som utløper før
             /// vaktlisten starter, teller ikke, og en vaktliste i fortiden får ikke nye advarsler fordi en kompetanse har
             /// utløpt senere. Godkjenning vurderes som den er nå.
             /// </summary>
@@ -305,7 +305,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             };
 
             /// <summary>
-            /// Kompetansekrav for ressurstypen som ikke er oppfylt av vaktene. En vakt teller når brukeren har en
+            /// Kompetansekrav for vakttypen som ikke er oppfylt av vaktene. En vakt teller når brukeren har en
             /// gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>).
             /// </summary>
             private List<CompetencyWarningResponse> GetCompetencyWarnings(EventResource resource)

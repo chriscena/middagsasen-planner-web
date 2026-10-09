@@ -99,7 +99,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 Description = request.Description,
                 StartTime = eventStart,
                 EndTime = eventEnd,
-                // Slettede ressurser (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                // Slettede oppgaver (IsDeleted) finnes ikke fra før og skal ikke opprettes.
                 Resources = request.Resources.Where(r => !r.IsDeleted).Select(r => Map(r, eventStart, eventEnd)).ToList(),
             };
             CompetencyRequirementSet.Apply(newEvent.CompetencyRequirements, request.CompetencyRequirements);
@@ -114,26 +114,26 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// Lagrer vaktlisteskjemaet. Alt lagres i én transaksjon: ved konflikt på antall vakter lagres ingenting,
         /// heller ikke navn og tider.
         /// <para>
-        /// Antall vakter (#151) på eksisterende ressurser med <see cref="ResourceRequest.OriginalShiftCount"/> avgjøres mot
-        /// verdien som er lagret nå («sammenlign og sett», se <see cref="ApplyShiftCount"/>), slik at ledige plasser andre har
+        /// Antall vakter (#151) på eksisterende oppgaver med <see cref="ResourceRequest.OriginalShiftCount"/> avgjøres mot
+        /// verdien som er lagret nå («sammenlign og sett», se <see cref="ApplyShiftCount"/>), slik at ledige vakter andre har
         /// lagt til eller fjernet i mellomtiden, ikke overskrives i stillhet. Uten <see cref="ResourceRequest.OriginalShiftCount"/>
         /// settes verdien absolutt, som før.
         /// </para>
         /// <para>
-        /// Låsing (<see cref="RowLocks"/>): vaktlista låses først, så alle ressursene i den. Det serialiserer samtidige lagringer
-        /// av samme vaktliste, og det er samme ressurslås som påmelding og «Legg til/Fjern ledig plass» bruker
+        /// Låsing (<see cref="RowLocks"/>): vaktlista låses først, så alle oppgavene i den. Det serialiserer samtidige lagringer
+        /// av samme vaktliste, og det er samme oppgavelås som påmelding og «Legg til/Fjern ledig vakt» bruker
         /// (<see cref="IShiftRepository.InResourceLock{T}"/>). Dermed skjer også endringer i tider og vakttype under
-        /// ressurslåsen, så en samtidig påmelding vurderes enten mot de gamle eller de nye tidene, ikke en blanding.
-        /// Vaktlista og ressursene lastes først etter låsen, slik at de sporede entitetene har fersk <c>ShiftCount</c>.
+        /// oppgavelåsen, så en samtidig påmelding vurderes enten mot de gamle eller de nye tidene, ikke en blanding.
+        /// Vaktlista og oppgavene lastes først etter låsen, slik at de sporede entitetene har fersk <c>ShiftCount</c>.
         /// </para>
         /// <para>
         /// Anleggskravene erstattes av <see cref="EventRequest.CompetencyRequirements"/> i samme transaksjon, og beholdes
         /// uendret når feltet er <c>null</c>.
         /// </para>
         /// <para>
-        /// Bemannede vakter følger ressursens tider (#173): endres tidene på en eksisterende ressurs (f.eks. når vaktlista
+        /// Bemannede vakter følger oppgavens tider (#173): endres tidene på en eksisterende oppgave (f.eks. når vaktlista
         /// flyttes til en annen dato, eller oppgaven utvides), justeres vaktene med <see cref="ResourceTimes.FollowResource"/>
-        /// i samme transaksjon og under samme ressurslås.
+        /// i samme transaksjon og under samme oppgavelås.
         /// </para>
         /// </summary>
         /// <exception cref="DomainValidationException">Anleggskravene er ugyldige.</exception>
@@ -159,7 +159,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
                 existingEvent.Name = request.Name;
                 existingEvent.Description = request.Description;
-                // Døgnforskyvningen vaktene følger, fra vaktlistas flytting (ikke ressursens).
+                // Døgnforskyvningen vaktene følger, fra vaktlistas flytting (ikke oppgavens).
                 var dayShift = ResourceTimes.DayShift(existingEvent.StartTime, eventStart);
                 existingEvent.StartTime = eventStart;
                 existingEvent.EndTime = eventEnd;
@@ -197,7 +197,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>
-        /// Setter antall vakter på en eksisterende ressurs. <paramref name="stored"/> er lest under ressurslåsen, så verdien er fersk.
+        /// Setter antall vakter på en eksisterende oppgave. <paramref name="stored"/> er lest under oppgavelåsen, så verdien er fersk.
         /// Med <see cref="ResourceRequest.OriginalShiftCount"/> («sammenlign og sett»):
         /// <list type="bullet">
         /// <item>Uendret i skjemaet (lik original): ingenting skrives, så andres endringer beholdes.</item>
@@ -235,7 +235,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// <summary>
         /// Justerer vaktene på <paramref name="resource"/> etter at tidene er endret fra (<paramref name="oldStart"/>,
         /// <paramref name="oldEnd"/>), med vaktlistas døgnforskyvning <paramref name="dayShift"/>. Uendrede tider rører ingen
-        /// vakter, og da lastes de heller ikke. Ellers lastes vaktene for akkurat denne ressursen, under ressurslåsen.
+        /// vakter, og da lastes de heller ikke. Ellers lastes vaktene for akkurat denne oppgaven, under oppgavelåsen.
         /// </summary>
         private async Task FollowResource(EventResource resource, DateTime oldStart, DateTime oldEnd, TimeSpan dayShift)
         {
@@ -249,14 +249,14 @@ namespace Middagsasen.Planner.Api.Services.Events
             }
         }
 
-        /// <summary>Konfliktmelding med de lagrede verdiene til ressursen.</summary>
+        /// <summary>Konfliktmelding med de lagrede verdiene til oppgaven.</summary>
         internal static string StaffingChangedMessage(string resourceTypeName, DateTime start, DateTime end, int currentShiftCount)
             => $"Antall vakter på {resourceTypeName} {start:HH\\:mm}–{end:HH\\:mm} er endret av noen andre (nå {currentShiftCount}). "
                 + "Last vaktlista på nytt og prøv igjen.";
 
         public async Task<EventResponse> DeleteEvent(int id)
         {
-            // Svaret leses før slettingen, så det inneholder det slettede arrangementet med ressursene.
+            // Svaret leses før slettingen, så det inneholder det slettede arrangementet med oppgavene.
             var response = await Reader.GetEvent(CurrentUser.ToActor(), id)
                 ?? throw new EntityNotFoundException(EventNotFoundMessage);
 
@@ -272,7 +272,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         private async Task EnsureEventResourceExists(int eventResourceId)
         {
             if (!await DbContext.EventResource.AnyAsync(er => er.EventResourceId == eventResourceId))
-                throw new EntityNotFoundException("Fant ikke vaktressursen.");
+                throw new EntityNotFoundException("Fant ikke oppgaven.");
         }
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
@@ -318,12 +318,12 @@ namespace Middagsasen.Planner.Api.Services.Events
             (request.StartTime, ResourceTimes.NormalizeEventEnd(request.StartTime, request.EndTime));
 
         /// <summary>
-        /// Bruker kun klokkeslettet fra innsendte ressurstider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
+        /// Bruker kun klokkeslettet fra innsendte oppgavetider; døgnet bestemmes av <see cref="ResourceTimes.Place"/>.
         /// </summary>
         private static (DateTime Start, DateTime End) PlaceResource(ResourceRequest request, DateTime eventStart, DateTime eventEnd) =>
             ResourceTimes.Place(eventStart, eventEnd, request.StartTime.ToTimeSpan(), request.EndTime.ToTimeSpan());
 
-        /// <summary>Ny ressurs. En eventuell <see cref="ResourceRequest.Id"/> ignoreres; id-en settes av databasen.</summary>
+        /// <summary>Ny oppgave. En eventuell <see cref="ResourceRequest.Id"/> ignoreres; id-en settes av databasen.</summary>
         private static EventResource Map(ResourceRequest request, DateTime eventStart, DateTime eventEnd)
         {
             var (start, end) = PlaceResource(request, eventStart, eventEnd);

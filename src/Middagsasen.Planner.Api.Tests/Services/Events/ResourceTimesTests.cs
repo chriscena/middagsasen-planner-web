@@ -104,11 +104,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", 2, "2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", 2, "2026-02-01 11:00", "2026-02-01 14:00", "2026-02-03 11:00", "2026-02-03 14:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", 2, "2026-02-01 14:00", "2026-02-01 17:00", "2026-02-03 14:00", "2026-02-03 17:00")]
-        // Krymping 10–20 → 10–15: hel vakt og delvakt klippes; delvakt helt etter ny slutt får ressursens tider
+        // Krymping 10–20 → 10–15: hel vakt og delvakt klippes; delvakt helt etter ny slutt får oppgavens tider
         [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", 0, "2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", 0, "2026-02-01 12:00", "2026-02-01 18:00", "2026-02-01 12:00", "2026-02-01 15:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00", 0, "2026-02-01 16:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 15:00")]
-        // 10–14 når ressursen går 10–17 → 15–19: start forankret til 15, slutt 14 → helt utenfor → ressursens tider
+        // 10–14 når oppgaven går 10–17 → 15–19: start forankret til 15, slutt 14 → helt utenfor → oppgavens tider
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 15:00", "2026-02-01 19:00", 0, "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-01 15:00", "2026-02-01 19:00")]
         // Over midnatt 18–02 flyttet 2 døgn: vakter før og etter midnatt havner på riktig døgn
         [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-03 18:00", "2026-02-04 02:00", 2, "2026-02-01 22:00", "2026-02-02 02:00", "2026-02-03 22:00", "2026-02-04 02:00")]
@@ -116,18 +116,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-03 18:00", "2026-02-04 02:00", 2, "2026-02-01 18:00", "2026-02-01 23:00", "2026-02-03 18:00", "2026-02-03 23:00")]
         // Over midnatt 18–02 utvidet til 18–04: forankret slutt følger til 04 neste døgn
         [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-02 04:00", 0, "2026-02-02 00:00", "2026-02-02 02:00", "2026-02-02 00:00", "2026-02-02 04:00")]
-        // 18–02 krympet til 18–23: vakt etter midnatt havner helt utenfor → ressursens tider
+        // 18–02 krympet til 18–23: vakt etter midnatt havner helt utenfor → oppgavens tider
         [InlineData("2026-02-01 18:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-01 23:00", 0, "2026-02-02 00:00", "2026-02-02 02:00", "2026-02-01 18:00", "2026-02-01 23:00")]
-        // Ressurs som starter dagen før vaktlista (23:45) flyttes 1 døgn
+        // Oppgave som starter dagen før vaktlista (23:45) flyttes 1 døgn
         [InlineData("2026-02-01 23:45", "2026-02-02 06:00", "2026-02-02 23:45", "2026-02-03 06:00", 1, "2026-02-02 01:00", "2026-02-02 03:00", "2026-02-03 01:00", "2026-02-03 03:00")]
-        // Vaktliste 1. feb 18–02 uendret, ressurs 23–02 → 00–02 (havner på 2. feb): ingen døgnforskyvning, delvakter beholder døgnet
+        // Vaktliste 1. feb 18–02 uendret, oppgave 23–02 → 00–02 (havner på 2. feb): ingen døgnforskyvning, delvakter beholder døgnet
         [InlineData("2026-02-01 23:00", "2026-02-02 02:00", "2026-02-02 00:00", "2026-02-02 02:00", 0, "2026-02-02 01:00", "2026-02-02 02:00", "2026-02-02 01:00", "2026-02-02 02:00")]
         [InlineData("2026-02-01 23:00", "2026-02-02 02:00", "2026-02-02 00:00", "2026-02-02 02:00", 0, "2026-02-01 23:30", "2026-02-02 01:30", "2026-02-02 00:00", "2026-02-02 01:30")]
-        // Vaktliste flyttet fra 1. til 3. feb og ressursen samtidig endret 10–17 → 12–19
+        // Vaktliste flyttet fra 1. til 3. feb og oppgaven samtidig endret 10–17 → 12–19
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 12:00", "2026-02-03 19:00", 2, "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-03 12:00", "2026-02-03 14:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 12:00", "2026-02-03 19:00", 2, "2026-02-01 13:00", "2026-02-01 17:00", "2026-02-03 13:00", "2026-02-03 19:00")]
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 12:00", "2026-02-03 19:00", 2, "2026-02-01 11:00", "2026-02-01 16:00", "2026-02-03 12:00", "2026-02-03 16:00")]
-        // Vaktliste over midnatt flyttet fra 1. til 3. feb og ressursen samtidig endret 23–02 → 00–02: delvakt etter midnatt havner 4. feb
+        // Vaktliste over midnatt flyttet fra 1. til 3. feb og oppgaven samtidig endret 23–02 → 00–02: delvakt etter midnatt havner 4. feb
         [InlineData("2026-02-01 23:00", "2026-02-02 02:00", "2026-02-04 00:00", "2026-02-04 02:00", 2, "2026-02-02 01:00", "2026-02-02 02:00", "2026-02-04 01:00", "2026-02-04 02:00")]
         [InlineData("2026-02-01 23:00", "2026-02-02 02:00", "2026-02-04 00:00", "2026-02-04 02:00", 2, "2026-02-01 23:30", "2026-02-02 01:30", "2026-02-04 00:00", "2026-02-04 01:30")]
         public void FollowResource_AdjustsShiftToResource(
@@ -142,7 +142,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Theory]
-        // Helt utenfor fra før (f.eks. admin-satte tider): røres ikke når ressursen er uendret
+        // Helt utenfor fra før (f.eks. admin-satte tider): røres ikke når oppgaven er uendret
         [InlineData("2026-02-01 08:00", "2026-02-01 09:00")]
         [InlineData("2026-02-01 12:00", "2026-02-01 14:00")]
         [InlineData(null, null)]
@@ -156,9 +156,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Theory]
-        // Begge null: følger allerede ressursen og forblir null
+        // Begge null: følger allerede oppgaven og forblir null
         [InlineData(null, null, null, null)]
-        // Bare slutt satt: start tolkes som ressursens kant, slutt flyttes med døgnforskyvningen
+        // Bare slutt satt: start tolkes som oppgavens kant, slutt flyttes med døgnforskyvningen
         [InlineData(null, "2026-02-01 14:00", null, "2026-02-03 14:00")]
         // Bare start satt, slutt tolkes som ny slutt
         [InlineData("2026-02-01 12:00", null, "2026-02-03 12:00", null)]
@@ -175,7 +175,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public void FollowResource_OnlyEndSet_OutsideAfterShrink_GetsResourceEnd()
         {
-            // Ressurs 10–20 → 15–20; vakt (null)–14: start tolkes som 15, slutt 14 → helt utenfor → slutt blir 20
+            // Oppgave 10–20 → 15–20; vakt (null)–14: start tolkes som 15, slutt 14 → helt utenfor → slutt blir 20
             var (start, end) = ResourceTimes.FollowResource(
                 D("2026-02-01 10:00"), D("2026-02-01 20:00"), D("2026-02-01 15:00"), D("2026-02-01 20:00"), TimeSpan.Zero, null, D("2026-02-01 14:00"));
 
@@ -184,17 +184,17 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         }
 
         [Theory]
-        // Nullengde 12–12 når ressursen utvides 10–17 → 10–20: beholdes
+        // Nullengde 12–12 når oppgaven utvides 10–17 → 10–20: beholdes
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 10:00", "2026-02-01 20:00", 0, "2026-02-01 12:00", "2026-02-01 12:00", "2026-02-01 12:00", "2026-02-01 12:00")]
         // Nullengde 12–12 når vaktlista flyttes fra 1. til 3. feb: flyttes, fortsatt nullengde
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-03 10:00", "2026-02-03 17:00", 2, "2026-02-01 12:00", "2026-02-01 12:00", "2026-02-03 12:00", "2026-02-03 12:00")]
-        // Nullengde 17–17 når ressursen krympes 10–20 → 10–17: ligger på ny kant, beholdes
+        // Nullengde 17–17 når oppgaven krympes 10–20 → 10–17: ligger på ny kant, beholdes
         [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 17:00", 0, "2026-02-01 17:00", "2026-02-01 17:00", "2026-02-01 17:00", "2026-02-01 17:00")]
-        // Nullengde 18–18 når ressursen krympes 10–20 → 10–17: utenfor ressursen → ressursens tider
+        // Nullengde 18–18 når oppgaven krympes 10–20 → 10–17: utenfor oppgaven → oppgavens tider
         [InlineData("2026-02-01 10:00", "2026-02-01 20:00", "2026-02-01 10:00", "2026-02-01 17:00", 0, "2026-02-01 18:00", "2026-02-01 18:00", "2026-02-01 10:00", "2026-02-01 17:00")]
-        // 10–14 når ressursen blir 10–17 → 14–17: klippet ned til null lengde → ressursens tider (bevisst valg)
+        // 10–14 når oppgaven blir 10–17 → 14–17: klippet ned til null lengde → oppgavens tider (bevisst valg)
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 14:00", "2026-02-01 17:00", 0, "2026-02-01 10:00", "2026-02-01 14:00", "2026-02-01 14:00", "2026-02-01 17:00")]
-        // 12–14 når ressursen blir 10–17 → 14–17: klippet ned til null lengde → ressursens tider
+        // 12–14 når oppgaven blir 10–17 → 14–17: klippet ned til null lengde → oppgavens tider
         [InlineData("2026-02-01 10:00", "2026-02-01 17:00", "2026-02-01 14:00", "2026-02-01 17:00", 0, "2026-02-01 12:00", "2026-02-01 14:00", "2026-02-01 14:00", "2026-02-01 17:00")]
         public void FollowResource_ZeroLength_KeptOnlyIfZeroLengthBefore(
             string oldStart, string oldEnd, string newStart, string newEnd, int dayShift,
@@ -231,7 +231,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public void FollowResource_EventStartCrossesMidnightBackwards_ResourceUnchanged_LeavesShiftUntouched()
         {
-            // Vaktliste 1. feb 00:30–06:00 → 31. jan 23:30–06:00; ressurs 01:00–05:00 uendret; delvakt 02:00–03:00
+            // Vaktliste 1. feb 00:30–06:00 → 31. jan 23:30–06:00; oppgave 01:00–05:00 uendret; delvakt 02:00–03:00
             var dayShift = ResourceTimes.DayShift(D("2026-02-01 00:30"), D("2026-01-31 23:30"));
             var (start, end) = ResourceTimes.FollowResource(
                 D("2026-02-01 01:00"), D("2026-02-01 05:00"), D("2026-02-01 01:00"), D("2026-02-01 05:00"), dayShift,
@@ -245,7 +245,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public void FollowResource_EventStartCrossesMidnightBackwards_ResourceChanged_ShiftKeepsDay()
         {
-            // Samme vaktliste, men ressursen endres 01:00–05:00 → 01:00–06:00: delvakten 02:00–03:00 skal fortsatt ligge 1. feb
+            // Samme vaktliste, men oppgaven endres 01:00–05:00 → 01:00–06:00: delvakten 02:00–03:00 skal fortsatt ligge 1. feb
             var dayShift = ResourceTimes.DayShift(D("2026-02-01 00:30"), D("2026-01-31 23:30"));
             var (start, end) = ResourceTimes.FollowResource(
                 D("2026-02-01 01:00"), D("2026-02-01 05:00"), D("2026-02-01 01:00"), D("2026-02-01 06:00"), dayShift,

@@ -45,7 +45,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             _ => throw new ArgumentOutOfRangeException(nameof(who)),
         };
 
-        // --- Ressursstatus ---
+        // --- Oppgavestatus ---
 
         [Theory]
         [InlineData(2, 0, true, false)]
@@ -63,14 +63,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(new ResourceStaffing(shiftCount, staffedCount)));
         }
 
-        // --- Ledige plasser ---
+        // --- Ledige vakter ---
 
         [Theory]
         // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter
         [InlineData(3, 0, 4)]
         [InlineData(3, 2, 4)]
         [InlineData(3, 3, 4)]
-        [InlineData(1, 3, 4)] // overbooket: én ledig plass utover vaktene
+        [InlineData(1, 3, 4)] // overbooket: én ledig vakt utover vaktene
         [InlineData(0, 0, 1)]
         public void ShiftCountAfterAddingEmptySlot(int shiftCount, int staffedCount, int expected)
         {
@@ -78,7 +78,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Theory]
-        // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter (null = ingen ledig plass)
+        // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter (null = ingen ledig vakt)
         [InlineData(3, 0, 2)]
         [InlineData(3, 2, 2)]
         [InlineData(1, 0, 0)]
@@ -161,7 +161,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Theory]
-        // Kolonner: start-offset i timer fra ressursens start (null = ressursens), slutt-offset fra ressursens slutt (null = ressursens), gyldig
+        // Kolonner: start-offset i timer fra oppgavens start (null = oppgavens), slutt-offset fra oppgavens slutt (null = oppgavens), gyldig
         [InlineData(null, null, true)]
         [InlineData(0, 0, true)]
         [InlineData(1, -1, true)]
@@ -245,7 +245,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             var shift = OwnerShift();
             var resource = Resource(2, true, shift);
-            // Lagrede tider utenfor ressursen (ressursen er flyttet etter at vakta ble tatt).
+            // Lagrede tider utenfor oppgaven (oppgaven er flyttet etter at vakta ble tatt).
             var storedStart = Start.AddHours(-2);
 
             Assert.Null(ShiftRules.CheckChange(Owner, resource, Before, shift, null, null, null, storedStart, End));

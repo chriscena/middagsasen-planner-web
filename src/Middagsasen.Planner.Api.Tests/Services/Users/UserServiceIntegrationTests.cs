@@ -44,7 +44,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         /// <summary>
-        /// Oppretter et arrangement med to ressurser, som starter og slutter <paramref name="daysFromToday"/> dager fra i dag.
+        /// Oppretter et arrangement med to oppgaver, som starter og slutter <paramref name="daysFromToday"/> dager fra i dag.
         /// </summary>
         private static async Task<Event> SeedEvent(PlannerDbContext context, int daysFromToday)
         {

@@ -13,13 +13,13 @@ namespace Middagsasen.Planner.Api.Services.Events
         [Range(0, int.MaxValue)]
         public required int ShiftCount { get; set; }
         /// <summary>
-        /// <see cref="ShiftCount"/> slik den var da skjemaet ble lastet. Gjelder bare eksisterende ressurser (med <see cref="Id"/>)
+        /// <see cref="ShiftCount"/> slik den var da skjemaet ble lastet. Gjelder bare eksisterende oppgaver (med <see cref="Id"/>)
         /// ved oppdatering av vaktlista, og sammenlignes med verdien som er lagret nå (#151):
-        /// lik <see cref="ShiftCount"/> betyr uendret i skjemaet, og ingenting skrives (ledige plasser andre har lagt til eller
+        /// lik <see cref="ShiftCount"/> betyr uendret i skjemaet, og ingenting skrives (ledige vakter andre har lagt til eller
         /// fjernet i mellomtiden, beholdes). Ellers settes <see cref="ShiftCount"/> hvis lagret verdi fortsatt er lik denne
         /// (eller allerede er lik <see cref="ShiftCount"/>), og hvis noen andre har endret den, avvises lagringen med 409.
         /// <c>null</c> betyr at <see cref="ShiftCount"/> settes som absolutt verdi (bakoverkompatibelt for klienter som ikke sender feltet).
-        /// Ignoreres for nye ressurser.
+        /// Ignoreres for nye oppgaver.
         /// </summary>
         public int? OriginalShiftCount { get; set; }
         public bool IsDeleted { get; set; }

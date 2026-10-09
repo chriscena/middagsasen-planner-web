@@ -6,9 +6,9 @@ using Middagsasen.Planner.Api.Services.Shifts;
 namespace Middagsasen.Planner.Api.Controllers
 {
     /// <summary>
-    /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele ressursen etter endringen
-    /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er ressursen, ikke en ny vakt.
-    /// Ledige plasser (antall vakter) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer ressursen.
+    /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele oppgaven etter endringen
+    /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er oppgaven, ikke en ny vakt.
+    /// Ledige vakter (antall vakter) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer oppgaven.
     /// </summary>
     [ApiController, Authorize]
     public class ShiftsController : ControllerBase
@@ -21,7 +21,7 @@ namespace Middagsasen.Planner.Api.Controllers
         public IShiftService ShiftService { get; }
 
         /// <summary>
-        /// Ta vakt på ressursen (eller sett opp en annen bruker, kun admin). Opplæringen (<c>trainingCompleted</c>) lagres i
+        /// Ta vakt på oppgaven (eller sett opp en annen bruker, kun admin). Opplæringen (<c>trainingCompleted</c>) lagres i
         /// samme transaksjon som vakta.
         /// </summary>
         [HttpPost("api/resources/{id}/shifts")]
@@ -48,7 +48,7 @@ namespace Middagsasen.Planner.Api.Controllers
             return await ShiftService.Change(id, request);
         }
 
-        /// <summary>Sette opplæringen til eieren av vakta (eier, trener for ressurstypen eller admin).</summary>
+        /// <summary>Sette opplæringen til eieren av vakta (eier, trener for vakttypen eller admin).</summary>
         [HttpPut("api/shifts/{id}/training")]
         [ProducesResponseType(typeof(ShiftResult), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
@@ -71,8 +71,8 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         /// <summary>
-        /// Legg til én ledig plass på ressursen (kun admin). Nytt antall vakter regnes ut på serveren, så samtidige
-        /// klikk teller hver for seg. Returnerer ressursen med oppdaterte flagg.
+        /// Legg til én ledig vakt på oppgaven (kun admin). Nytt antall vakter regnes ut på serveren, så samtidige
+        /// klikk teller hver for seg. Returnerer oppgaven med oppdaterte flagg.
         /// </summary>
         [HttpPost("api/resources/{eventResourceId}/emptySlots")]
         [Authorize(Role = Roles.Administrator)]
@@ -85,8 +85,8 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         /// <summary>
-        /// Fjern én ledig plass fra ressursen (kun admin). 400 hvis ressursen ikke har noen ledig plass.
-        /// Returnerer ressursen med oppdaterte flagg.
+        /// Fjern én ledig vakt fra oppgaven (kun admin). 400 hvis oppgaven ikke har noen ledig vakt.
+        /// Returnerer oppgaven med oppdaterte flagg.
         /// </summary>
         [HttpDelete("api/resources/{eventResourceId}/emptySlots")]
         [Authorize(Role = Roles.Administrator)]

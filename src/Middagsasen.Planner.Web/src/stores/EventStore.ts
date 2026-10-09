@@ -31,7 +31,7 @@ interface EventState {
   // mangler mannskap.
   eventStatuses: Record<string, boolean>;
   // Siste periode hentet med getEventsForDates (det kalenderen viser), så
-  // events kan hentes på nytt etter en endring som påvirker flere ressurser.
+  // events kan hentes på nytt etter en endring som påvirker flere oppgaver.
   eventsRange: { start: string; end: string } | null;
   // Løpenummer for getEventsForDates, slik at et tregt svar på en eldre
   // forespørsel ikke overskriver events fra en nyere (f.eks. rask bla i uker).
@@ -41,7 +41,7 @@ interface EventState {
   eventsChangeCount: number;
 }
 
-// Lagre en vakt med saveShift. shiftId null = ta ledig plass på resourceId
+// Lagre en vakt med saveShift. shiftId null = ta ledig vakt på resourceId
 // (POST), ellers endre vakta (PUT). userId utelatt/null = innlogget bruker
 // (annen bruker kun admin). comment er påkrevd og sendes alltid: backend
 // setter kommentaren ved endring, og manglende felt tolkes som null og sletter
@@ -60,7 +60,7 @@ export interface SaveShiftRequest {
 // lokalt underveis (se getEventsForDates).
 const MAX_EVENTS_FETCHES = 3;
 
-// Erstatter ressursen med samme id (i alle events) med Object.assign, så
+// Erstatter oppgaven med samme id (i alle events) med Object.assign, så
 // objektet beholder identiteten (se applyResource).
 function assignResource(
   events: EventResponse[],
@@ -80,8 +80,8 @@ function upsertEvent(events: EventResponse[], event: EventResponse): void {
   else events.push(event);
 }
 
-// Oppdaterer beskjedene på ressursen som er sendt inn (f.eks. dialogens
-// selectedResource) og på ressursen med samme id i events, hvis det er et
+// Oppdaterer beskjedene på oppgaven som er sendt inn (f.eks. dialogens
+// selectedResource) og på oppgaven med samme id i events, hvis det er et
 // annet objekt (events kan være hentet på nytt mens dialogen var åpen).
 function updateMessages(
   events: EventResponse[],
@@ -225,12 +225,12 @@ export const useEventStore = defineStore("events", {
       this.resourceTypes = response.data;
     },
     // --- Vakter ---
-    // Alle skriveoperasjonene returnerer ShiftResult med hele ressursen etter
+    // Alle skriveoperasjonene returnerer ShiftResult med hele oppgaven etter
     // endringen (med flagg for innlogget bruker). Svaret legges i cachen med
     // applyShiftResult og returneres, så komponenten kan vise warnings.
 
-    // Ta ledig plass eller endre vakta i ett kall (én transaksjon i backend).
-    // shiftId null = POST på ressursen, ellers PUT på vakta. Felt som ikke er
+    // Ta ledig vakt eller endre vakta i ett kall (én transaksjon i backend).
+    // shiftId null = POST på oppgaven, ellers PUT på vakta. Felt som ikke er
     // satt, sendes ikke (exactOptionalPropertyTypes). comment sendes alltid,
     // ved både POST og PUT.
     async saveShift(request: SaveShiftRequest): Promise<ShiftResult> {
@@ -254,7 +254,7 @@ export const useEventStore = defineStore("events", {
       await this.applyShiftResult(result);
       return result;
     },
-    // Sette opplæringen til eieren av vakta på ressursens ressurstype.
+    // Sette opplæringen til eieren av vakta på oppgavens vakttype.
     async setTraining(
       shiftId: number,
       trainingCompleted: boolean
@@ -274,19 +274,19 @@ export const useEventStore = defineStore("events", {
       await this.applyShiftResult(result);
       return result;
     },
-    // Erstatter ressursen med samme id (i alle events) med svaret fra serveren.
+    // Erstatter oppgaven med samme id (i alle events) med svaret fra serveren.
     // Object.assign, så objektet beholder identiteten: komponenter og dialoger
-    // som holder på ressursen (f.eks. selectedResource) ser de nye verdiene.
+    // som holder på oppgaven (f.eks. selectedResource) ser de nye verdiene.
     applyResource(updated: ResourceResponse): void {
       assignResource(this.events, updated);
       this.markEventsChanged();
     },
     // Henter arrangementet på nytt og synkroniserer det i events-cachen med
-    // svaret: ressurslisten får serverens innhold og rekkefølge, slettede
-    // ressurser fjernes og nye legges til. Eksisterende ressurser (og
+    // svaret: oppgavelisten får serverens innhold og rekkefølge, slettede
+    // oppgaver fjernes og nye legges til. Eksisterende oppgaver (og
     // arrangementet selv) oppdateres med Object.assign, så objektene beholder
     // identiteten (som i applyResource). Brukes for å rette opp utdaterte tall
-    // etter at en operasjon er avvist fordi noen andre har endret ressursen
+    // etter at en operasjon er avvist fordi noen andre har endret oppgaven
     // (eller slettet den/arrangementet) i mellomtiden. Finnes ikke
     // arrangementet lenger (404), fjernes det fra cachen. selectedEvent røres
     // ikke: den er skjemadata for redigering og hentes på nytt av EventForm.
@@ -315,17 +315,17 @@ export const useEventStore = defineStore("events", {
       Object.assign(event, fresh, { resources });
     },
     // Legger svaret fra en vaktoperasjon i cachen via applyResource, og henter
-    // deretter verdier serveren beregner utenfor den endrede ressursen på nytt:
+    // deretter verdier serveren beregner utenfor den endrede oppgaven på nytt:
     // - Anleggskrav (event.competencyWarnings) beregnes for hele vaktlisten og
     //   påvirkes av alle påmeldinger, avmeldinger og endrede vakttider, så
     //   vaktlisten hentes på nytt (refreshEventResources).
     // - Ble en opplæring endret (changedTraining), kan flaggene på andre
-    //   ressurser av samme ressurstype (mustAnswerTraining, needsTraining,
+    //   oppgaver av samme vakttype (mustAnswerTraining, needsTraining,
     //   canConfirmTraining osv.) i andre arrangementer også være endret, så
     //   hele perioden kalenderen viser hentes i stedet. Den dekker også
     //   vaktlisten, så den hentes ikke i tillegg.
     // Operasjonen har lyktes uansett, så feil i hentingen logges og svelges
-    // (cachen er da bare ikke oppdatert utover den endrede ressursen).
+    // (cachen er da bare ikke oppdatert utover den endrede oppgaven).
     async applyShiftResult(result: ShiftResult): Promise<void> {
       this.applyResource(result.resource);
       try {
@@ -417,8 +417,8 @@ export const useEventStore = defineStore("events", {
       );
       await this.getResourceTypes();
     },
-    // Beskjedene tar imot selve ressursobjektet (dialogens selectedResource)
-    // og oppdaterer både det og ressursen med samme id i events.
+    // Beskjedene tar imot selve oppgaveobjektet (dialogens selectedResource)
+    // og oppdaterer både det og oppgaven med samme id i events.
     async addMessage(
       resource: ResourceResponse,
       message: MessageRequest
@@ -442,8 +442,8 @@ export const useEventStore = defineStore("events", {
       );
       this.markEventsChanged();
     },
-    // Kun admin. Serveren regner ut ny shiftCount under ressurslås, så
-    // samtidige klikk ikke overskriver hverandre. Svaret er hele ressursen med
+    // Kun admin. Serveren regner ut ny shiftCount under lås på oppgaven, så
+    // samtidige klikk ikke overskriver hverandre. Svaret er hele oppgaven med
     // flagg (isMissingStaff, isFull osv.), som legges i cachen via
     // applyResource og returneres.
     async addEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
@@ -453,7 +453,7 @@ export const useEventStore = defineStore("events", {
       this.applyResource(response.data);
       return response.data;
     },
-    // Kun admin. Gir 400 hvis ressursen ikke har noen ledig plass å fjerne.
+    // Kun admin. Gir 400 hvis oppgaven ikke har noen ledig vakt å fjerne.
     async removeEmptySlot(eventResourceId: number): Promise<ResourceResponse> {
       const response = await api.delete<ResourceResponse>(
         `/api/resources/${eventResourceId}/emptySlots`

@@ -3,13 +3,13 @@ using Middagsasen.Planner.Api.Data;
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
     /// <summary>
-    /// Lager faktaene <see cref="ShiftRules"/> trenger ut fra en lastet ressurs. Brukes både av <see cref="ShiftService"/>
-    /// (håndhevelse) og av lesemodulen for ressurser (flagg), slik at begge ser de samme faktaene.
+    /// Lager faktaene <see cref="ShiftRules"/> trenger ut fra en lastet oppgave. Brukes både av <see cref="ShiftService"/>
+    /// (håndhevelse) og av lesemodulen for oppgaver (flagg), slik at begge ser de samme faktaene.
     /// </summary>
     public static class ShiftFactsFactory
     {
         /// <summary>
-        /// Faktaene om ressursen og vaktene. Krever <c>ResourceType.Trainers</c> og <c>Shifts.User.Trainings</c>.
+        /// Faktaene om oppgaven og vaktene. Krever <c>ResourceType.Trainers</c> og <c>Shifts.User.Trainings</c>.
         /// </summary>
         public static ResourceFacts From(EventResource resource) => new(
             resource.EventResourceId,

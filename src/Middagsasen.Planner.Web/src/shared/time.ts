@@ -7,15 +7,15 @@
 // Wire-format mot API-et (endres ikke her, bare samlet):
 // - Vaktlister (POST/PUT /api/events): lokal tid uten tidssone,
 //   "yyyy-MM-ddTHH:mm" → `toLocalWire`.
-// - Vakter i vaktlister (`resources` i /api/events) og maler med vakter
+// - Oppgaver i vaktlister (`resources` i /api/events) og maler med oppgaver
 //   (POST/PUT /api/templates): bare klokkeslett, "HH:mm" (TimeOnly i
-//   backend) → `toTimeWire`. Backend bestemmer selv hvilket døgn en vakt
+//   backend) → `toTimeWire`. Backend bestemmer selv hvilket døgn en oppgave
 //   havner på (se `Services/Events/ResourceTimes.cs` i API-prosjektet).
-//   Ugyldige tider gir 400, også for vakter som slettes (`isDeleted`).
+//   Ugyldige tider gir 400, også for oppgaver som slettes (`isDeleted`).
 // - Vaktliste fra mal (POST /api/events/template/{id}): `startDate` er
 //   dato "yyyy-MM-dd" → `toDayKey`.
 // - Svar med lokal tid uten sone, "yyyy-MM-ddTHH:mm": arrangementer,
-//   ressurser, maler og vakter (`startTime`/`endTime`). Maler har den faste
+//   oppgaver, maler og vakter (`startTime`/`endTime`). Maler har den faste
 //   datoen 2000-01-01; bare klokkeslettet er meningsfullt.
 // - Svar med UTC-tidspunkt, "yyyy-MM-ddTHH:mm:ssZ": filer (`created`/
 //   `updated`), meldinger (`created`) og opplæring (`confirmed`).

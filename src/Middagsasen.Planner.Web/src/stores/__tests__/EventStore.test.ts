@@ -144,9 +144,9 @@ describe("EventStore", () => {
   });
 
   describe("applyShiftResult", () => {
-    it("oppdaterer ressursen i cachen uten å bytte objektet", async () => {
+    it("oppdaterer oppgaven i cachen uten å bytte objektet", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
-      // Slik en dialog holder på ressursen (selectedResource).
+      // Slik en dialog holder på oppgaven (selectedResource).
       const held = store.events[0]!.resources[0]!;
 
       await store.applyShiftResult(
@@ -222,7 +222,7 @@ describe("EventStore", () => {
       ]);
     });
 
-    it("feil ved ny henting av perioden kaster ikke, og ressursen er oppdatert", async () => {
+    it("feil ved ny henting av perioden kaster ikke, og oppgaven er oppdatert", async () => {
       const consoleError = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -242,7 +242,7 @@ describe("EventStore", () => {
       ]);
     });
 
-    it("feil ved ny henting av vaktlisten kaster ikke, og ressursen er oppdatert", async () => {
+    it("feil ved ny henting av vaktlisten kaster ikke, og oppgaven er oppdatert", async () => {
       const consoleError = vi
         .spyOn(console, "error")
         .mockImplementation(() => {});
@@ -265,7 +265,7 @@ describe("EventStore", () => {
   describe("saveShift", () => {
     beforeEach(() => mockEventRefresh(store));
 
-    it("ledig plass poster til ressursen og legger svaret i cachen", async () => {
+    it("ledig vakt poster til oppgaven og legger svaret i cachen", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       const response = result(resource(10, [shift(1, 10, OTHER_USER_ID)]));
       mockApi.post.mockResolvedValue({ data: response });
@@ -290,7 +290,7 @@ describe("EventStore", () => {
       ]);
     });
 
-    it("ledig plass sender alltid comment, men utelater andre felt som ikke er satt", async () => {
+    it("ledig vakt sender alltid comment, men utelater andre felt som ikke er satt", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       mockApi.post.mockResolvedValue({
         data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
@@ -433,7 +433,7 @@ describe("EventStore", () => {
       );
     });
 
-    it("withdraw sletter og legger ressursen i cachen", async () => {
+    it("withdraw sletter og legger oppgaven i cachen", async () => {
       store.events = [
         eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
       ];
@@ -448,7 +448,7 @@ describe("EventStore", () => {
   });
 
   describe("addEmptySlot", () => {
-    it("poster uten body og legger ressursen med flagg i cachen", async () => {
+    it("poster uten body og legger oppgaven med flagg i cachen", async () => {
       store.events = [
         eventWith(1, [
           resource(10, [shift(1, 10, CURRENT_USER_ID)], {
@@ -478,7 +478,7 @@ describe("EventStore", () => {
   });
 
   describe("removeEmptySlot", () => {
-    it("sletter uten body og legger ressursen med flagg i cachen", async () => {
+    it("sletter uten body og legger oppgaven med flagg i cachen", async () => {
       store.events = [
         eventWith(1, [
           resource(10, [shift(1, 10, CURRENT_USER_ID)], {
@@ -757,10 +757,10 @@ describe("EventStore", () => {
   });
 
   describe("beskjeder", () => {
-    it("addMessage legger beskjeden i ressursen som sendes inn, også når den ikke er i events", async () => {
+    it("addMessage legger beskjeden i oppgaven som sendes inn, også når den ikke er i events", async () => {
       const cached = resource(10, []);
       store.events = [eventWith(1, [cached])];
-      // Som en dialog som holder på en ressurs fra før events ble hentet på nytt.
+      // Som en dialog som holder på en oppgave fra før events ble hentet på nytt.
       const detached = resource(10, []);
       const message = { id: 5, message: "Hei" } as MessageResponse;
       mockApi.post.mockResolvedValue({ data: message });
@@ -775,7 +775,7 @@ describe("EventStore", () => {
       expect(store.events[0]!.resources[0]!.messages).toEqual([message]);
     });
 
-    it("addMessage legger beskjeden inn én gang når ressursen er den i events", async () => {
+    it("addMessage legger beskjeden inn én gang når oppgaven er den i events", async () => {
       store.events = [eventWith(1, [resource(10, [])])];
       const held = store.events[0]!.resources[0]!;
       const message = { id: 5, message: "Hei" } as MessageResponse;
@@ -786,7 +786,7 @@ describe("EventStore", () => {
       expect(held.messages).toEqual([message]);
     });
 
-    it("deleteMessage fjerner beskjeden fra ressursen og fra events", async () => {
+    it("deleteMessage fjerner beskjeden fra oppgaven og fra events", async () => {
       const message = { id: 5, message: "Hei" } as MessageResponse;
       store.events = [
         eventWith(1, [resource(10, [], { messages: [message] })]),
@@ -805,7 +805,7 @@ describe("EventStore", () => {
   });
 
   describe("refreshEventResources", () => {
-    it("henter arrangementet og legger ressursene i cachen", async () => {
+    it("henter arrangementet og legger oppgavene i cachen", async () => {
       store.events = [
         eventWith(1, [
           resource(10, [], { shiftCount: 2, isMissingStaff: true }),
@@ -834,7 +834,7 @@ describe("EventStore", () => {
       expect(other.shiftCount).toBe(3);
     });
 
-    it("synkroniserer ressurslisten: oppdaterer, fjerner slettede og legger til nye i serverens rekkefølge", async () => {
+    it("synkroniserer oppgavelisten: oppdaterer, fjerner slettede og legger til nye i serverens rekkefølge", async () => {
       store.events = [
         eventWith(1, [
           resource(10, [], { shiftCount: 2 }),

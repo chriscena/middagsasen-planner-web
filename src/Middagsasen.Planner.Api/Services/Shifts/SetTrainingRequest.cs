@@ -1,7 +1,7 @@
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
     /// <summary>
-    /// Sette opplæringen til eieren av vakta på ressursens ressurstype (<c>PUT api/shifts/{id}/training</c>).
+    /// Sette opplæringen til eieren av vakta på oppgavens vakttype (<c>PUT api/shifts/{id}/training</c>).
     /// </summary>
     public class SetTrainingRequest
     {

@@ -1,7 +1,7 @@
 <template>
   <q-card class="full-width">
     <q-card-section class="row">
-      <div class="text-h6">Vakt</div>
+      <div class="text-h6">Oppgave</div>
       <q-space></q-space>
       <q-btn
         v-if="!props.modelValue.isNew"
@@ -15,7 +15,7 @@
     <q-card-section class="q-gutter-md">
       <q-select
         autofocus
-        label="Vakt"
+        label="Vakttype"
         outlined
         :options="props.resourceTypes"
         option-label="name"
@@ -102,7 +102,7 @@ import { computed, onMounted, ref } from "vue";
 import type { ResourceTypeResponse } from "@/types";
 import { QUASAR_TIME_MASK } from "@/shared/time";
 
-// Skjemamodell for en vakt (ressurs) i ResourceList/EventForm/TemplateForm.
+// Skjemamodell for en oppgave i ResourceList/EventForm/TemplateForm.
 // Ikke en DTO: tidene er "HH:mm", og resourceType er hele objektet.
 export interface ResourceFormModel {
   // Stabil nøkkel for `:key` i lister (se newClientKey). Sendes ikke til API-et.
@@ -112,9 +112,9 @@ export interface ResourceFormModel {
   resourceType: ResourceTypeResponse | null;
   // q-input type="number" sender verdien som string når brukeren skriver.
   shiftCount: number | string | null;
-  // Bare vaktlister: antall vakter vaktlista ble lastet med fra serveren (se
+  // Bare vaktlister: antall vakter oppgaven ble lastet med fra serveren (se
   // EventResourceDraft). Dialogen sender den ikke, så ResourceList beholder
-  // originalverdien når vakta redigeres.
+  // originalverdien når oppgaven redigeres.
   originalShiftCount?: number | null | undefined;
   startTime: string | null;
   endTime: string | null;
@@ -126,7 +126,7 @@ const emit = defineEmits<{
   "update:model-value": [value: ResourceFormModel];
   cancel: [];
   save: [value: ResourceFormModel];
-  // Sletting: forelderen markerer den opprinnelige vakta som slettet.
+  // Sletting: forelderen markerer den opprinnelige oppgaven som slettet.
   delete: [];
 }>();
 
@@ -182,7 +182,7 @@ function mapToModel(): ResourceFormModel {
 }
 
 // Sender ikke skjemaverdiene: ulagrede endringer (f.eks. en ugyldig tid)
-// forkastes, slik at den slettede vakta beholder tidene den hadde.
+// forkastes, slik at den slettede oppgaven beholder tidene den hadde.
 function deleteResource() {
   emit("delete");
 }

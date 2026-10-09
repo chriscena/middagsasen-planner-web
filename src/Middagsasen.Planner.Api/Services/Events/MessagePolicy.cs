@@ -3,7 +3,7 @@ using Middagsasen.Planner.Api.Data;
 namespace Middagsasen.Planner.Api.Services.Events
 {
     /// <summary>
-    /// Tilgangsregler for beskjeder på vaktressurser. Ren og uten avhengigheter.
+    /// Tilgangsregler for beskjeder på oppgaver. Ren og uten avhengigheter.
     /// </summary>
     public static class MessagePolicy
     {

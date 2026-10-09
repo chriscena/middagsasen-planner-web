@@ -1,17 +1,17 @@
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
-    /// <summary>Fakta om en vakt (en bruker på en ressurs), slik <see cref="ShiftRules"/> ser den.</summary>
+    /// <summary>Fakta om en vakt (en bruker på en oppgave), slik <see cref="ShiftRules"/> ser den.</summary>
     /// <param name="ShiftId">Id til vakta (EventResourceUserId).</param>
     /// <param name="UserId">Eieren av vakta.</param>
-    /// <param name="NeedsTraining">Om eieren har bedt om opplæring på ressursens ressurstype (TrainingComplete = false).</param>
+    /// <param name="NeedsTraining">Om eieren har bedt om opplæring på oppgavens vakttype (TrainingComplete = false).</param>
     public sealed record ShiftFacts(int ShiftId, int UserId, bool NeedsTraining);
 
-    /// <summary>Fakta om en ressurs og vaktene på den, slik <see cref="ShiftRules"/> ser den.</summary>
-    /// <param name="StartTime">Ressursens start, norsk lokal tid.</param>
-    /// <param name="EndTime">Ressursens slutt, norsk lokal tid.</param>
-    /// <param name="HasTraining">Om ressurstypen har opplæring (har trenere).</param>
-    /// <param name="TrainerUserIds">Trenerne for ressurstypen.</param>
-    /// <param name="Shifts">Vaktene på ressursen.</param>
+    /// <summary>Fakta om en oppgave og vaktene på den, slik <see cref="ShiftRules"/> ser den.</summary>
+    /// <param name="StartTime">Oppgavens start, norsk lokal tid.</param>
+    /// <param name="EndTime">Oppgavens slutt, norsk lokal tid.</param>
+    /// <param name="HasTraining">Om vakttypen har opplæring (har trenere).</param>
+    /// <param name="TrainerUserIds">Trenerne for vakttypen.</param>
+    /// <param name="Shifts">Vaktene på oppgaven.</param>
     public sealed record ResourceFacts(
         int ResourceId,
         int ResourceTypeId,
@@ -27,7 +27,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     }
 
     /// <summary>
-    /// Bemanningen på en ressurs: antall vakter og bemannede vakter. Nok til reglene for ledige plasser, og kan leses
+    /// Bemanningen på en oppgave: antall vakter og bemannede vakter. Nok til reglene for ledige vakter, og kan leses
     /// med en lett spørring (<see cref="IShiftRepository.GetStaffing"/>) i stedet for hele <see cref="ResourceFacts"/>.
     /// </summary>
     public sealed record ResourceStaffing(int ShiftCount, int StaffedCount);
@@ -37,18 +37,18 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     {
         /// <summary>Brukeren har ikke tilgang (403).</summary>
         Forbidden,
-        /// <summary>Ressursen er avsluttet, og bare admin kan endre den.</summary>
+        /// <summary>Oppgaven er avsluttet, og bare admin kan endre den.</summary>
         Past,
-        /// <summary>Ressursen er full (bemannede vakter &gt;= ShiftCount), og bare admin kan overbooke.</summary>
+        /// <summary>Oppgaven er full (bemannede vakter &gt;= ShiftCount), og bare admin kan overbooke.</summary>
         Full,
-        /// <summary>Brukeren står allerede på ressursen.</summary>
+        /// <summary>Brukeren står allerede på oppgaven.</summary>
         Duplicate,
-        /// <summary>Vaktens tider ligger utenfor ressursens tider, eller start er etter slutt.</summary>
+        /// <summary>Vaktens tider ligger utenfor oppgavens tider, eller start er etter slutt.</summary>
         InvalidTimes,
     }
 
     /// <summary>
-    /// Regler for vakter. Ren og uten avhengigheter: alt som krever databaseoppslag (vaktene på ressursen,
+    /// Regler for vakter. Ren og uten avhengigheter: alt som krever databaseoppslag (vaktene på oppgaven,
     /// trenerne, opplæringen) og «nå» slås opp av servicen og sendes inn.
     /// <para>
     /// Samme funksjoner brukes både til flaggene i svarene (f.eks. <c>CanSignUp</c>, <c>CanEdit</c>) og til
@@ -60,20 +60,20 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     /// <list type="bullet">
     /// <item>Admin kan alt: sette opp hvem som helst, overbooke, flytte vakter og endre i fortiden.</item>
     /// <item>En vanlig bruker kan ta vakt for seg selv, endre egen vakt (tider, kommentar) og trekke seg,
-    /// men ikke flytte vakta til en annen bruker, ta vakt på en full ressurs eller gjøre noe på en avsluttet ressurs.</item>
-    /// <item>Opplæring (<see cref="CheckSetTraining"/>) kan settes av eieren, en trener for ressurstypen eller admin.</item>
-    /// <item>Samme bruker kan aldri stå to ganger på samme ressurs, heller ikke når admin setter opp.</item>
-    /// <item>Vaktens tider må ligge innenfor ressursens tider.</item>
+    /// men ikke flytte vakta til en annen bruker, ta vakt på en full oppgave eller gjøre noe på en avsluttet oppgave.</item>
+    /// <item>Opplæring (<see cref="CheckSetTraining"/>) kan settes av eieren, en trener for vakttypen eller admin.</item>
+    /// <item>Samme bruker kan aldri stå to ganger på samme oppgave, heller ikke når admin setter opp.</item>
+    /// <item>Vaktens tider må ligge innenfor oppgavens tider.</item>
     /// </list>
     /// </para>
-    /// Alle tider (ressursens tider, vaktens tider og <c>now</c>) er norsk lokal tid uten tidssone.
+    /// Alle tider (oppgavens tider, vaktens tider og <c>now</c>) er norsk lokal tid uten tidssone.
     /// </summary>
     public static class ShiftRules
     {
-        // --- Ressursstatus ---
+        // --- Oppgavestatus ---
 
         /// <summary>
-        /// Ressursen mangler folk: færre bemannede vakter enn <c>ShiftCount</c>.
+        /// Oppgaven mangler folk: færre bemannede vakter enn <c>ShiftCount</c>.
         /// Samme formel som viewet <c>EventStatuses</c> (Middagsasen.Planner.Database/Views/EventStatuses.sql),
         /// som gir kalendermarkørene. Endres den ene, må den andre endres også.
         /// </summary>
@@ -82,31 +82,31 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <inheritdoc cref="IsMissingStaff(ResourceStaffing)"/>
         public static bool IsMissingStaff(ResourceFacts resource) => IsMissingStaff(resource.Staffing);
 
-        /// <summary>Ressursen er full: minst <c>ShiftCount</c> bemannede vakter. Det motsatte av <see cref="IsMissingStaff(ResourceFacts)"/>.</summary>
+        /// <summary>Oppgaven er full: minst <c>ShiftCount</c> bemannede vakter. Det motsatte av <see cref="IsMissingStaff(ResourceFacts)"/>.</summary>
         public static bool IsFull(ResourceFacts resource) => !IsMissingStaff(resource);
 
-        /// <summary>Ressursen er avsluttet: slutttiden er nådd.</summary>
+        /// <summary>Oppgaven er avsluttet: slutttiden er nådd.</summary>
         public static bool IsPast(ResourceFacts resource, DateTime now) => resource.EndTime <= now;
 
-        /// <summary>Om brukeren er trener for ressursens ressurstype.</summary>
+        /// <summary>Om brukeren er trener for oppgavens vakttype.</summary>
         public static bool IsTrainer(Actor actor, ResourceFacts resource) => resource.TrainerUserIds.Contains(actor.UserId);
 
         /// <summary>
-        /// Brukeren må svare på «trenger du opplæring?» før hen kan settes opp: ressurstypen har opplæring,
-        /// og brukeren har ingen opplæringsrad (verken ønsket eller fullført) for ressurstypen.
+        /// Brukeren må svare på «trenger du opplæring?» før hen kan settes opp: vakttypen har opplæring,
+        /// og brukeren har ingen opplæringsrad (verken ønsket eller fullført) for vakttypen.
         /// </summary>
-        /// <param name="userHasTraining">Om brukeren har en opplæringsrad for ressursens ressurstype.</param>
+        /// <param name="userHasTraining">Om brukeren har en opplæringsrad for oppgavens vakttype.</param>
         public static bool MustAnswerTraining(ResourceFacts resource, bool userHasTraining)
             => resource.HasTraining && !userHasTraining;
 
         // --- Ta vakt ---
 
         /// <summary>
-        /// Ta vakt / sette opp en bruker på ressursen. Rekkefølge: tilgang, fortid, duplikat, kapasitet, tider.
+        /// Ta vakt / sette opp en bruker på oppgaven. Rekkefølge: tilgang, fortid, duplikat, kapasitet, tider.
         /// </summary>
         /// <param name="targetUserId">Brukeren som settes opp.</param>
-        /// <param name="startTime">Vaktens start, eller <c>null</c> for ressursens start.</param>
-        /// <param name="endTime">Vaktens slutt, eller <c>null</c> for ressursens slutt.</param>
+        /// <param name="startTime">Vaktens start, eller <c>null</c> for oppgavens start.</param>
+        /// <param name="endTime">Vaktens slutt, eller <c>null</c> for oppgavens slutt.</param>
         public static ShiftRuleViolation? CheckSignUp(Actor actor, ResourceFacts resource, DateTime now, int targetUserId, DateTime? startTime = null, DateTime? endTime = null)
         {
             if (!actor.IsAdminOrSelf(targetUserId)) return ShiftRuleViolation.Forbidden;
@@ -117,7 +117,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return null;
         }
 
-        /// <summary>Flagg: innlogget bruker kan ta vakt på ressursen nå (for seg selv, med ressursens tider).</summary>
+        /// <summary>Flagg: innlogget bruker kan ta vakt på oppgaven nå (for seg selv, med oppgavens tider).</summary>
         public static bool CanSignUp(Actor actor, ResourceFacts resource, DateTime now)
             => CheckSignUp(actor, resource, now, actor.UserId) is null;
 
@@ -127,7 +127,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// Endre en vakt (tider, kommentar og for admin eier). Vurderes mot den lagrede vakta.
         /// <list type="bullet">
         /// <item>Admin kan endre alt, også flytte vakta til en annen bruker og endre i fortiden.</item>
-        /// <item>Eieren kan endre tider og kommentar før ressursen er avsluttet, men ikke flytte vakta.</item>
+        /// <item>Eieren kan endre tider og kommentar før oppgaven er avsluttet, men ikke flytte vakta.</item>
         /// <item>Alle andre, også trenere, får <see cref="ShiftRuleViolation.Forbidden"/>. Trenere bruker <see cref="CheckSetTraining"/>.</item>
         /// </list>
         /// </summary>
@@ -160,7 +160,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 return ShiftRuleViolation.Duplicate;
 
             // Tidene valideres bare når de endres, slik at f.eks. en kommentar kan endres selv om
-            // ressursens tider er flyttet etter at vakta ble tatt.
+            // oppgavens tider er flyttet etter at vakta ble tatt.
             if ((startTime.HasValue || endTime.HasValue)
                 && !AreTimesValid(resource, startTime ?? currentStartTime, endTime ?? currentEndTime))
                 return ShiftRuleViolation.InvalidTimes;
@@ -175,8 +175,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         // --- Opplæring ---
 
         /// <summary>
-        /// Sette opplæringen til eieren av vakta på ressursens ressurstype. Tilgang har eieren, en trener for
-        /// ressurstypen og admin. Vanlige brukere og trenere kan ikke gjøre det på en avsluttet ressurs.
+        /// Sette opplæringen til eieren av vakta på oppgavens vakttype. Tilgang har eieren, en trener for
+        /// vakttypen og admin. Vanlige brukere og trenere kan ikke gjøre det på en avsluttet oppgave.
         /// <para>
         /// Eieren kan bevisst sette både fullført (selverklæringen «trenger ikke opplæring») og ønsker opplæring
         /// (varsler trenerne). Dette er en bevisst beslutning (issue #96) om å beholde dagens oppførsel, selv om en
@@ -193,7 +193,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         /// <summary>
         /// Flagg: innlogget bruker kan bekrefte at eieren har fått opplæring. Krever at brukeren er trener for
-        /// ressurstypen eller admin, at eieren har bedt om opplæring, og at <see cref="CheckSetTraining"/> tillater det.
+        /// vakttypen eller admin, at eieren har bedt om opplæring, og at <see cref="CheckSetTraining"/> tillater det.
         /// </summary>
         public static bool CanConfirmTraining(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
             => (actor.IsAdmin || IsTrainer(actor, resource))
@@ -202,7 +202,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
         // --- Trekke seg ---
 
-        /// <summary>Trekke seg fra / slette en vakt: admin, eller eieren før ressursen er avsluttet.</summary>
+        /// <summary>Trekke seg fra / slette en vakt: admin, eller eieren før oppgaven er avsluttet.</summary>
         public static ShiftRuleViolation? CheckWithdraw(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
         {
             if (!actor.IsAdmin)
@@ -217,19 +217,19 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public static bool CanWithdraw(Actor actor, ResourceFacts resource, DateTime now, ShiftFacts shift)
             => CheckWithdraw(actor, resource, now, shift) is null;
 
-        // --- Ledige plasser (kun admin) ---
+        // --- Ledige vakter (kun admin) ---
 
         /// <summary>
-        /// Ny <c>ShiftCount</c> når admin legger til én ledig plass: én mer enn det største av <c>ShiftCount</c> og
-        /// antall bemannede vakter, slik at ressursen alltid får nøyaktig én ledig plass mer enn den har nå (også når den er overbooket).
-        /// Vurderes mot ferske data under ressurslåsen, så samtidige klikk teller hver for seg.
+        /// Ny <c>ShiftCount</c> når admin legger til én ledig vakt: én mer enn det største av <c>ShiftCount</c> og
+        /// antall bemannede vakter, slik at oppgaven alltid får nøyaktig én ledig vakt mer enn den har nå (også når den er overbooket).
+        /// Vurderes mot ferske data under oppgavelåsen, så samtidige klikk teller hver for seg.
         /// </summary>
         public static int ShiftCountAfterAddingEmptySlot(ResourceStaffing staffing)
             => Math.Max(staffing.ShiftCount, staffing.StaffedCount) + 1;
 
         /// <summary>
-        /// Ny <c>ShiftCount</c> når admin fjerner én ledig plass, eller <c>null</c> hvis ressursen ikke har noen ledig
-        /// plass (full: minst like mange bemannede vakter som <c>ShiftCount</c>, se <see cref="IsMissingStaff(ResourceStaffing)"/>).
+        /// Ny <c>ShiftCount</c> når admin fjerner én ledig vakt, eller <c>null</c> hvis oppgaven ikke har noen ledig
+        /// vakt (full: minst like mange bemannede vakter som <c>ShiftCount</c>, se <see cref="IsMissingStaff(ResourceStaffing)"/>).
         /// </summary>
         public static int? ShiftCountAfterRemovingEmptySlot(ResourceStaffing staffing)
             => IsMissingStaff(staffing) ? staffing.ShiftCount - 1 : null;
@@ -237,8 +237,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         // --- Tider ---
 
         /// <summary>
-        /// Vaktens tider ligger innenfor ressursens tider, og start er ikke etter slutt. <c>null</c> betyr
-        /// ressursens tid og er alltid gyldig.
+        /// Vaktens tider ligger innenfor oppgavens tider, og start er ikke etter slutt. <c>null</c> betyr
+        /// oppgavens tid og er alltid gyldig.
         /// </summary>
         public static bool AreTimesValid(ResourceFacts resource, DateTime? startTime, DateTime? endTime)
         {

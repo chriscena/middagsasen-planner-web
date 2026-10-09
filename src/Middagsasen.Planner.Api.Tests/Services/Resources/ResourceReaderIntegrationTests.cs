@@ -12,7 +12,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
     [Collection("Database")]
     public class ResourceReaderIntegrationTests
     {
-        // Ressursen er 15.01.2026 09:00–15:00 norsk tid; «nå» er før den.
+        // Oppgaven er 15.01.2026 09:00–15:00 norsk tid; «nå» er før den.
         private static readonly DateTime ResourceStart = new(2026, 1, 15, 9, 0, 0);
         private static readonly DateTime ResourceEnd = new(2026, 1, 15, 15, 0, 0);
         private static readonly TimeProvider Clock = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
@@ -38,7 +38,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             EventTemplate Template);
 
         /// <summary>
-        /// En ressurstype med trener, fil (med opprettet/endret av) og opplæring, brukt av et arrangement og en mal.
+        /// En vakttype med trener, fil (med opprettet/endret av) og opplæring, brukt av et arrangement og en mal.
         /// <c>Viewer</c> står på vakta og har bedt om opplæring; <c>Other</c> har fått opplæringen bekreftet av treneren.
         /// </summary>
         private async Task<Seeded> Seed()

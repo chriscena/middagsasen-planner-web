@@ -13,17 +13,17 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     public sealed record TrainerNotificationResult(bool Success, int TrainerCount, SmsResult? SmsResult);
 
     /// <summary>
-    /// Varsler trenerne for en ressurstype på SMS. Skal kalles <b>etter</b> at endringen er lagret (commit),
+    /// Varsler trenerne for en vakttype på SMS. Skal kalles <b>etter</b> at endringen er lagret (commit),
     /// slik at en SMS aldri sendes for en endring som ble rullet tilbake.
     /// </summary>
     public interface ITrainerNotifier
     {
         /// <summary>
-        /// Sender «X ønsker opplæring på Y og er satt opp på vakt den dd.MM.yyyy» til alle trenere for ressurstypen.
+        /// Sender «X ønsker opplæring på Y og er satt opp på vakt den dd.MM.yyyy» til alle trenere for vakttypen.
         /// Kaster ikke ved SMS-feil: feilen logges og returneres i <see cref="TrainerNotificationResult"/>.
         /// </summary>
         /// <param name="userId">Brukeren som ønsker opplæring.</param>
-        /// <param name="resourceTypeId">Ressurstypen opplæringen gjelder.</param>
+        /// <param name="resourceTypeId">Vakttypen opplæringen gjelder.</param>
         /// <param name="shiftDate">Datoen vakta starter (norsk lokal tid).</param>
         Task<TrainerNotificationResult> NotifyTrainingRequested(int userId, int resourceTypeId, DateTime shiftDate);
     }
@@ -64,12 +64,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
                 if (success)
                 {
-                    Logger.LogInformation("Varslet {TrainerCount} trenere om opplæring for bruker {UserId} på ressurstype {ResourceTypeId}",
+                    Logger.LogInformation("Varslet {TrainerCount} trenere om opplæring for bruker {UserId} på vakttype {ResourceTypeId}",
                         trainers.Count, userId, resourceTypeId);
                 }
                 else
                 {
-                    Logger.LogWarning("SMS til trenere feilet for bruker {UserId} på ressurstype {ResourceTypeId}: {Info}",
+                    Logger.LogWarning("SMS til trenere feilet for bruker {UserId} på vakttype {ResourceTypeId}: {Info}",
                         userId, resourceTypeId, result.Info);
                 }
 
@@ -77,7 +77,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Kunne ikke varsle trenere om opplæring for bruker {UserId} på ressurstype {ResourceTypeId}", userId, resourceTypeId);
+                Logger.LogError(ex, "Kunne ikke varsle trenere om opplæring for bruker {UserId} på vakttype {ResourceTypeId}", userId, resourceTypeId);
                 return new TrainerNotificationResult(false, 0, null);
             }
         }
