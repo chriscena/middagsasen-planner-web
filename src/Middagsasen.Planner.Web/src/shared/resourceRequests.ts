@@ -1,7 +1,7 @@
 // Vakter fra skjemaene (vaktliste og mal) til request: hvilke som sendes,
 // validering av tidene og mapping til ResourceRequest (vaktliste) og
 // ResourceTemplateRequest (mal). Vaktlista sender i tillegg
-// `originalMinimumStaff`, så backend kan oppdage at bemanningen er endret av
+// `originalShiftCount`, så backend kan oppdage at antall vakter er endret av
 // andre siden skjemaet ble lastet (#151).
 
 import type {
@@ -17,17 +17,17 @@ export interface ResourceDraft {
   resourceType: Pick<ResourceTypeResponse, "id"> | null;
   startTime: string | null;
   endTime: string | null;
-  minimumStaff: number | string | null;
+  shiftCount: number | string | null;
   isDeleted?: boolean | undefined;
 }
 
 // Vakt i vaktlisteskjemaet (EventForm).
 export interface EventResourceDraft extends ResourceDraft {
-  // Bemanningen vakta ble lastet med fra serveren. Endres ikke av
+  // Antall vakter vaktlista ble lastet med fra serveren. Endres ikke av
   // vaktdialogene. Backend sammenligner med lagret verdi: er den lik, settes
-  // `minimumStaff`; har andre endret den imens (f.eks. ledige plasser, #142),
+  // `shiftCount`; har andre endret den imens (f.eks. ledige plasser, #142),
   // svarer backend 409 med norsk `detail`, og skjemaet blir stående åpent.
-  originalMinimumStaff?: number | null | undefined;
+  originalShiftCount?: number | null | undefined;
 }
 
 /**
@@ -68,13 +68,13 @@ function toTemplateRequest(r: ResourceDraft): ResourceTemplateRequest {
     startTime: toTimeWire(r.startTime),
     endTime: toTimeWire(r.endTime),
     // q-input type="number" kan gi string; Number() sender et tall.
-    minimumStaff: Number(r.minimumStaff),
+    shiftCount: Number(r.shiftCount),
     isDeleted: r.isDeleted ?? false,
   };
 }
 
 /**
- * Vaktene i en mal som request (uten `originalMinimumStaff`). Nye vakter som
+ * Vaktene i en mal som request (uten `originalShiftCount`). Nye vakter som
  * er slettet, utelates. Kaster RangeError for ugyldige tider, så kall
  * `findInvalidResource` først.
  */
@@ -86,7 +86,7 @@ export function toResourceTemplateRequests(
 
 /**
  * Vaktene i en vaktliste som request. Eksisterende vakter sender
- * `originalMinimumStaff` (konfliktsjekk); nye sender null (ingen sjekk).
+ * `originalShiftCount` (konfliktsjekk); nye sender null (ingen sjekk).
  * Nye vakter som er slettet, utelates. Kaster RangeError for ugyldige tider,
  * så kall `findInvalidResource` først.
  */
@@ -95,6 +95,6 @@ export function toResourceRequests(
 ): ResourceRequest[] {
   return resources.filter(isSent).map((r) => ({
     ...toTemplateRequest(r),
-    originalMinimumStaff: r.id ? (r.originalMinimumStaff ?? null) : null,
+    originalShiftCount: r.id ? (r.originalShiftCount ?? null) : null,
   }));
 }

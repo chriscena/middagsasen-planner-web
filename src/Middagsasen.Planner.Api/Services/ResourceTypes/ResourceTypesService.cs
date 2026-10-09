@@ -38,7 +38,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
             var resourceType = new ResourceType
             {
                 Name = request.Name,
-                DefaultStaff = request.DefaultStaff,
+                DefaultShiftCount = request.DefaultShiftCount,
                 NotificationMessage = request.NotificationMessage,
                 Trainers = request.Trainers?.Select(t => new ResourceTypeTrainer { UserId = t.UserId }).ToList() ?? new List<ResourceTypeTrainer>(),
             };
@@ -57,7 +57,7 @@ namespace Middagsasen.Planner.Api.Services.ResourceTypes
                 ?? throw new EntityNotFoundException();
 
             resourceType.Name = request.Name;
-            resourceType.DefaultStaff = request.DefaultStaff;
+            resourceType.DefaultShiftCount = request.DefaultShiftCount;
             resourceType.NotificationMessage = request.NotificationMessage;
 
             if (request.Trainers != null)

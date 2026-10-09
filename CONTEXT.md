@@ -23,7 +23,7 @@ En vakttype som skal dekkes i et gitt tidsrom på en vaktliste eller mal, med et
 _Unngå_: EventResource, ressurs, vakttype (om denne)
 
 **Antall vakter**:
-Hvor mange vakter en oppgave har. Det er et fast antall og ikke et minimum: når alle vaktene er bemannet, kan ingen flere ta vakt på oppgaven.
+Hvor mange vakter en oppgave har. Det er et fast antall og ikke et minimum: når alle vaktene er bemannet, kan ingen flere ta vakt på oppgaven. Heter `ShiftCount` i koden (standardverdien per vakttype heter `DefaultShiftCount`), men databasekolonnene heter fortsatt `MinimumStaff` og `DefaultStaff`.
 _Unngå_: Minimumsbemanning, MinimumStaff
 
 **Mangler bemanning**:

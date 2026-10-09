@@ -442,7 +442,7 @@ export const useEventStore = defineStore("events", {
       );
       this.markEventsChanged();
     },
-    // Kun admin. Serveren regner ut ny minimumStaff under ressurslås, så
+    // Kun admin. Serveren regner ut ny shiftCount under ressurslås, så
     // samtidige klikk ikke overskriver hverandre. Svaret er hele ressursen med
     // flagg (isMissingStaff, isFull osv.), som legges i cachen via
     // applyResource og returneres.

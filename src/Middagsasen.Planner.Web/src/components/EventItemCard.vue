@@ -923,7 +923,7 @@ function canDeleteMessage(message: MessageResponse): boolean {
     (isAdmin.value || message.createdBy.id === currentUser.value.id)
   );
 }
-// addEmptySlot/removeEmptySlot lar serveren regne ut ny minimumStaff og
+// addEmptySlot/removeEmptySlot lar serveren regne ut ny shiftCount og
 // legger svaret (ressursen med flagg) i cachen, så her håndteres bare
 // loading-sperre og feilvarsel. Feiler endringen (f.eks. 400 fordi noen
 // meldte seg på i mellomtiden), er cachen trolig utdatert; da hentes

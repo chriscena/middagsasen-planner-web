@@ -11,7 +11,9 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Controllers;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.ResourceTypes;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -26,6 +28,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
     {
         private readonly IEventsService _events = Substitute.For<IEventsService>();
         private readonly IEventTemplatesService _templates = Substitute.For<IEventTemplatesService>();
+        private readonly IResourceTypesService _resourceTypes = Substitute.For<IResourceTypesService>();
         private WebApplication _app = null!;
         private HttpClient _client = null!;
 
@@ -39,6 +42,8 @@ namespace Middagsasen.Planner.Api.Tests.Core
             builder.Services.AddProblemDetails();
             builder.Services.AddSingleton(_events);
             builder.Services.AddSingleton(_templates);
+            builder.Services.AddSingleton(_resourceTypes);
+            builder.Services.AddSingleton(Substitute.For<ICompetencyService>());
             builder.Services.AddSingleton(Substitute.For<ICurrentUserService>());
 
             _app = builder.Build();
@@ -60,6 +65,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
             _events.CreateEventFromTemplate(Arg.Any<int>(), Arg.Any<EventFromTemplateRequest>()).Returns(new EventResponse());
             _templates.CreateEventTemplate(Arg.Any<EventTemplateRequest>()).Returns(new EventTemplateResponse());
             _templates.UpdateEventTemplate(Arg.Any<int>(), Arg.Any<EventTemplateRequest>()).Returns(new EventTemplateResponse());
+            _resourceTypes.UpdateResourceType(Arg.Any<int>(), Arg.Any<ResourceTypeRequest>()).Returns(new ResourceTypeResponse());
         }
 
         public async Task DisposeAsync()
@@ -73,7 +79,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
               "name": "Kveldsrenn",
               "startTime": "2026-01-15T22:00",
               "endTime": "2026-01-16T02:00",
-              "resources": [ { "resourceTypeId": 1, "startTime": "23:00", "endTime": "01:30", "minimumStaff": 2 } ]
+              "resources": [ { "resourceTypeId": 1, "startTime": "23:00", "endTime": "01:30", "shiftCount": 2 } ]
             }
             """;
 
@@ -83,9 +89,11 @@ namespace Middagsasen.Planner.Api.Tests.Core
               "eventName": "Kveldsrenn",
               "startTime": "18:00",
               "endTime": "21:00",
-              "resourceTemplates": [ { "resourceTypeId": 1, "startTime": "18:30", "endTime": "20:30", "minimumStaff": 1 } ]
+              "resourceTemplates": [ { "resourceTypeId": 1, "startTime": "18:30", "endTime": "20:30", "shiftCount": 1 } ]
             }
             """;
+
+        private const string ValidResourceType = """{ "name": "Heis", "defaultShiftCount": 2 }""";
 
         private Task<HttpResponseMessage> Send(string method, string url, string json) =>
             _client.SendAsync(new HttpRequestMessage(new HttpMethod(method), url)
@@ -308,19 +316,97 @@ namespace Middagsasen.Planner.Api.Tests.Core
         }
 
         [Fact]
-        public async Task UpdateEvent_BindsOriginalMinimumStaff_AndReturns409OnConcurrentUpdate()
+        public async Task UpdateEvent_BindsOriginalShiftCount_AndReturns409OnConcurrentUpdate()
         {
             // #151: antall vakter er endret av noen andre siden skjemaet ble lastet.
             _events.UpdateEvent(Arg.Any<int>(), Arg.Any<EventRequest>())
                 .Throws(new ConcurrentUpdateException("Antall vakter er endret av noen andre."));
 
-            var response = await Send("PUT", "/api/events/5", With(ValidEvent, "resources[0].originalMinimumStaff", "3"));
+            var response = await Send("PUT", "/api/events/5", With(ValidEvent, "resources[0].originalShiftCount", "3"));
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
             var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
             Assert.Equal("Antall vakter er endret av noen andre.", body.GetProperty("detail").GetString());
-            await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalMinimumStaff == 3));
+            await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalShiftCount == 3));
+        }
+
+        #endregion
+
+        #region Antall vakter (#154)
+
+        [Fact]
+        public async Task UpdateResourceType_BindsDefaultShiftCount()
+        {
+            var response = await Send("PUT", "/api/resourcetypes/4", ValidResourceType);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await _resourceTypes.Received(1).UpdateResourceType(4, Arg.Is<ResourceTypeRequest>(r => r.DefaultShiftCount == 2));
+        }
+
+        public static TheoryData<string, string, string, string, string> OldShiftCountNames() => new()
+        {
+            // metode, url, gyldig JSON, sti som fjernes, gammelt feltnavn som sendes i stedet
+            { "PUT", "/api/events/5", ValidEvent, "resources[0].shiftCount", "minimumStaff" },
+            { "POST", "/api/events", ValidEvent, "resources[0].shiftCount", "minimumStaff" },
+            { "PUT", "/api/templates/2", ValidTemplate, "resourceTemplates[0].shiftCount", "minimumStaff" },
+            { "PUT", "/api/resourcetypes/4", ValidResourceType, "defaultShiftCount", "defaultStaff" },
+            { "POST", "/api/resourcetypes", ValidResourceType, "defaultShiftCount", "defaultStaff" },
+        };
+
+        [Theory]
+        [MemberData(nameof(OldShiftCountNames))]
+        public async Task MissingShiftCount_WithOldFieldName_Returns400_AndDoesNotCallService(
+            string method, string url, string validJson, string path, string oldName)
+        {
+            // En gammel klient som sender det gamle feltnavnet skal ikke stille få antall vakter satt til 0.
+            var oldPath = path[..(path.LastIndexOf('.') + 1)] + oldName;
+            var json = With(With(validJson, path, null), oldPath, "2");
+
+            var response = await Send(method, url, json);
+
+            var errors = Errors(await AssertValidationProblem(response));
+            Assert.Equal([ModelValidation.MissingValueMessage], Assert.Single(errors).Value);
+            Assert.Equal(path, errors.Keys.Single());
+            Assert.Empty(_events.ReceivedCalls());
+            Assert.Empty(_templates.ReceivedCalls());
+            Assert.Empty(_resourceTypes.ReceivedCalls());
+        }
+
+        public static TheoryData<string, string, string, string, string> InvalidShiftCounts() => new()
+        {
+            // metode, url, gyldig JSON, sti, ugyldig verdi
+            { "PUT", "/api/events/5", ValidEvent, "resources[0].shiftCount", "-1" },
+            { "POST", "/api/events", ValidEvent, "resources[0].shiftCount", "-1" },
+            { "PUT", "/api/templates/2", ValidTemplate, "resourceTemplates[0].shiftCount", "-1" },
+            { "PUT", "/api/resourcetypes/4", ValidResourceType, "defaultShiftCount", "-1" },
+            { "PUT", "/api/resourcetypes/4", ValidResourceType, "defaultShiftCount", "0" },
+        };
+
+        [Theory]
+        [MemberData(nameof(InvalidShiftCounts))]
+        public async Task OutOfRangeShiftCount_Returns400WithFieldError_AndDoesNotCallService(
+            string method, string url, string validJson, string path, string value)
+        {
+            var response = await Send(method, url, With(validJson, path, value));
+
+            var errors = Errors(await AssertValidationProblem(response));
+            Assert.Single(Assert.Single(errors, e => e.Key == path).Value);
+            Assert.Empty(_events.ReceivedCalls());
+            Assert.Empty(_templates.ReceivedCalls());
+            Assert.Empty(_resourceTypes.ReceivedCalls());
+        }
+
+        [Theory]
+        [InlineData("PUT", "/api/events/5", "resources[0].shiftCount")]
+        [InlineData("PUT", "/api/templates/2", "resourceTemplates[0].shiftCount")]
+        public async Task ZeroShiftCount_IsAccepted(string method, string url, string path)
+        {
+            var validJson = url.Contains("templates") ? ValidTemplate : ValidEvent;
+
+            var response = await Send(method, url, With(validJson, path, "0"));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
         #endregion

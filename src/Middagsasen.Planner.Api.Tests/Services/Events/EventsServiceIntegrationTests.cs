@@ -58,7 +58,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var rt = new ResourceType
             {
                 Name = name ?? UniqueName("RT"),
-                DefaultStaff = 2,
+                DefaultShiftCount = 2,
             };
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();
@@ -80,7 +80,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
                         EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     }
                 }
             };
@@ -112,7 +112,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = existingResource.ResourceTypeId,
                         StartTime = new TimeOnly(9, 0),
                         EndTime = new TimeOnly(15, 0),
-                        MinimumStaff = 1,
+                        ShiftCount = 1,
                     }
                 }
             };
@@ -123,13 +123,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Assert
             var created = Assert.Single(result.Resources);
             Assert.NotEqual(existingResource.EventResourceId, created.Id);
-            Assert.Equal(1, created.MinimumStaff);
+            Assert.Equal(1, created.ShiftCount);
 
             using var verifyContext = _fixture.CreateContext();
             var untouched = await verifyContext.EventResource.AsNoTracking()
                 .SingleAsync(r => r.EventResourceId == existingResource.EventResourceId);
             Assert.Equal(existingEvent.EventId, untouched.EventId);
-            Assert.Equal(2, untouched.MinimumStaff);
+            Assert.Equal(2, untouched.ShiftCount);
         }
 
         [Fact]
@@ -147,8 +147,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), MinimumStaff = 1 },
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), MinimumStaff = 7, IsDeleted = true },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), ShiftCount = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), ShiftCount = 7, IsDeleted = true },
                 },
             };
 
@@ -158,7 +158,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Assert
             using var verifyContext = _fixture.CreateContext();
             var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
-            Assert.Equal(1, Assert.Single(dbEvent.Resources).MinimumStaff);
+            Assert.Equal(1, Assert.Single(dbEvent.Resources).ShiftCount);
         }
 
         [Fact]
@@ -185,7 +185,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new TimeOnly(9, 0),
                         EndTime = new TimeOnly(15, 0),
-                        MinimumStaff = 3,
+                        ShiftCount = 3,
                     }
                 }
             };
@@ -207,7 +207,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.NotNull(dbEvent);
             Assert.Equal(name, dbEvent.Name);
             Assert.Single(dbEvent.Resources);
-            Assert.Equal(3, dbEvent.Resources.First().MinimumStaff);
+            Assert.Equal(3, dbEvent.Resources.First().ShiftCount);
         }
 
         [Fact]
@@ -229,7 +229,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(evt.Name, result.Name);
             Assert.Single(result.Resources);
             Assert.Equal(resource.EventResourceId, result.Resources.First().Id);
-            Assert.Equal(2, result.Resources.First().MinimumStaff);
+            Assert.Equal(2, result.Resources.First().ShiftCount);
         }
 
         [Fact]
@@ -249,7 +249,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2027, 1, 10, 16, 0, 0),
                 Resources = new List<EventResource>
                 {
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2027, 1, 10, 8, 0, 0), EndTime = new DateTime(2027, 1, 10, 16, 0, 0), MinimumStaff = 1 }
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2027, 1, 10, 8, 0, 0), EndTime = new DateTime(2027, 1, 10, 16, 0, 0), ShiftCount = 1 }
                 }
             });
             seedContext.Events.Add(new Event
@@ -259,7 +259,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2027, 2, 10, 16, 0, 0),
                 Resources = new List<EventResource>
                 {
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2027, 2, 10, 8, 0, 0), EndTime = new DateTime(2027, 2, 10, 16, 0, 0), MinimumStaff = 1 }
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2027, 2, 10, 8, 0, 0), EndTime = new DateTime(2027, 2, 10, 16, 0, 0), ShiftCount = 1 }
                 }
             });
             await seedContext.SaveChangesAsync();
@@ -300,7 +300,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = resource.ResourceTypeId,
                         StartTime = new TimeOnly(8, 0),
                         EndTime = new TimeOnly(16, 0),
-                        MinimumStaff = resource.MinimumStaff,
+                        ShiftCount = resource.ShiftCount,
                     }
                 }
             };
@@ -347,7 +347,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = existingResource.ResourceTypeId,
                         StartTime = new TimeOnly(8, 0),
                         EndTime = new TimeOnly(16, 0),
-                        MinimumStaff = existingResource.MinimumStaff,
+                        ShiftCount = existingResource.ShiftCount,
                         IsDeleted = true,
                     },
                     // Add new resource
@@ -356,7 +356,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = newRt.ResourceTypeId,
                         StartTime = new TimeOnly(10, 0),
                         EndTime = new TimeOnly(14, 0),
-                        MinimumStaff = 4,
+                        ShiftCount = 4,
                     }
                 }
             };
@@ -369,7 +369,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Single(result.Resources);
             var newResource = result.Resources.First();
             Assert.Equal(newRt.ResourceTypeId, newResource.ResourceType.Id);
-            Assert.Equal(4, newResource.MinimumStaff);
+            Assert.Equal(4, newResource.ShiftCount);
 
             // Verify old resource is gone
             using var verifyContext = _fixture.CreateContext();
@@ -419,14 +419,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         #region Bemanning ved lagring (#151)
 
         // Ressursen fra SeedEventWithResource er 15.01.2026 08:00–16:00. Testene setter selv verdien skjemaet ble
-        // lastet med (OriginalMinimumStaff), og hva «en annen admin» har endret i mellomtiden (SetMinimumStaff).
+        // lastet med (OriginalShiftCount), og hva «en annen admin» har endret i mellomtiden (SetShiftCount).
 
-        private async Task SetMinimumStaff(int resourceId, int minimumStaff)
+        private async Task SetShiftCount(int resourceId, int shiftCount)
         {
             using var context = _fixture.CreateContext();
             await context.EventResource
                 .Where(r => r.EventResourceId == resourceId)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, minimumStaff));
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.ShiftCount, shiftCount));
         }
 
         private async Task SeedShifts(PlannerDbContext context, EventResource resource, int count)
@@ -453,7 +453,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             return (evt, resource);
         }
 
-        private static EventRequest StaffingRequest(Event evt, EventResource resource, int minimumStaff, int? originalMinimumStaff, string? name = null)
+        private static EventRequest StaffingRequest(Event evt, EventResource resource, int shiftCount, int? originalShiftCount, string? name = null)
             => new()
             {
                 Name = name ?? evt.Name,
@@ -467,8 +467,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = resource.ResourceTypeId,
                         StartTime = TimeOnly.FromDateTime(resource.StartTime),
                         EndTime = TimeOnly.FromDateTime(resource.EndTime),
-                        MinimumStaff = minimumStaff,
-                        OriginalMinimumStaff = originalMinimumStaff,
+                        ShiftCount = shiftCount,
+                        OriginalShiftCount = originalShiftCount,
                     },
                 ],
             };
@@ -479,16 +479,16 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
             // Skjemaet er lastet med 3. En annen admin har siden lagt til to ledige plasser.
-            await SetMinimumStaff(resource.EventResourceId, 5);
+            await SetShiftCount(resource.EventResourceId, 5);
 
             var newName = UniqueName("Renamed");
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 3, originalMinimumStaff: 3, name: newName));
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, shiftCount: 3, originalShiftCount: 3, name: newName));
 
-            Assert.Equal(5, Assert.Single(result.Resources).MinimumStaff);
+            Assert.Equal(5, Assert.Single(result.Resources).ShiftCount);
             var (storedEvent, storedResource) = await GetStored(evt.EventId, resource.EventResourceId);
-            Assert.Equal(5, storedResource.MinimumStaff);
+            Assert.Equal(5, storedResource.ShiftCount);
             Assert.Equal(newName, storedEvent.Name);
         }
 
@@ -497,13 +497,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SetMinimumStaff(resource.EventResourceId, 3);
+            await SetShiftCount(resource.EventResourceId, 3);
 
             using var context = _fixture.CreateContext();
             await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3));
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, shiftCount: 6, originalShiftCount: 3));
 
-            Assert.Equal(6, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
+            Assert.Equal(6, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.ShiftCount);
         }
 
         [Fact]
@@ -511,15 +511,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SetMinimumStaff(resource.EventResourceId, 3);
-            var request = StaffingRequest(evt, resource, minimumStaff: 4, originalMinimumStaff: 3);
+            await SetShiftCount(resource.EventResourceId, 3);
+            var request = StaffingRequest(evt, resource, shiftCount: 4, originalShiftCount: 3);
 
             using (var context = _fixture.CreateContext())
                 await CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request);
             using (var context = _fixture.CreateContext())
                 await CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request);
 
-            Assert.Equal(4, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
+            Assert.Equal(4, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.ShiftCount);
         }
 
         [Fact]
@@ -530,10 +530,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seed);
             var storedTypeName = await seed.ResourceTypes.Where(t => t.ResourceTypeId == resource.ResourceTypeId).Select(t => t.Name).SingleAsync();
             // Skjemaet er lastet med 3 og settes til 4. En annen admin har siden lagt til to ledige plasser (5).
-            await SetMinimumStaff(resource.EventResourceId, 5);
+            await SetShiftCount(resource.EventResourceId, 5);
 
             // Skjemaet endrer også navn, start, vakttype og tider på ressursen, og legger til en ressurs.
-            var request = StaffingRequest(evt, resource, minimumStaff: 4, originalMinimumStaff: 3, name: UniqueName("Renamed"));
+            var request = StaffingRequest(evt, resource, shiftCount: 4, originalShiftCount: 3, name: UniqueName("Renamed"));
             request.StartTime = evt.StartTime.AddHours(1);
             var requested = request.Resources.Single();
             requested.ResourceTypeId = otherType.ResourceTypeId;
@@ -543,7 +543,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 ResourceTypeId = otherType.ResourceTypeId,
                 StartTime = new TimeOnly(10, 0),
                 EndTime = new TimeOnly(12, 0),
-                MinimumStaff = 1,
+                ShiftCount = 1,
             }).ToList();
 
             using var context = _fixture.CreateContext();
@@ -563,61 +563,61 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(evt.StartTime, storedEvent.StartTime);
             Assert.Equal(resource.ResourceTypeId, storedResource.ResourceTypeId);
             Assert.Equal(resource.StartTime, storedResource.StartTime);
-            Assert.Equal(5, storedResource.MinimumStaff);
+            Assert.Equal(5, storedResource.ShiftCount);
             using var verify = _fixture.CreateContext();
             Assert.Equal(1, await verify.EventResource.CountAsync(r => r.EventId == evt.EventId));
         }
 
         [Fact]
-        public async Task UpdateEvent_DecreaseBelowShiftCountWithoutCompetition_IsAllowed()
+        public async Task UpdateEvent_DecreaseBelowStaffedCountWithoutCompetition_IsAllowed()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SetMinimumStaff(resource.EventResourceId, 3);
+            await SetShiftCount(resource.EventResourceId, 3);
             await SeedShifts(seed, resource, 2);
 
             using var context = _fixture.CreateContext();
             await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 1, originalMinimumStaff: 3));
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, shiftCount: 1, originalShiftCount: 3));
 
-            Assert.Equal(1, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
+            Assert.Equal(1, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.ShiftCount);
         }
 
         [Fact]
-        public async Task UpdateEvent_WithoutOriginalMinimumStaff_SetsAbsoluteValue()
+        public async Task UpdateEvent_WithoutOriginalShiftCount_SetsAbsoluteValue()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            await SetMinimumStaff(resource.EventResourceId, 5);
+            await SetShiftCount(resource.EventResourceId, 5);
 
             using var context = _fixture.CreateContext();
             await CreateService(context, isAdmin: true)
-                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, minimumStaff: 3, originalMinimumStaff: null));
+                .UpdateEvent(evt.EventId, StaffingRequest(evt, resource, shiftCount: 3, originalShiftCount: null));
 
-            Assert.Equal(3, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.MinimumStaff);
+            Assert.Equal(3, (await GetStored(evt.EventId, resource.EventResourceId)).Resource.ShiftCount);
         }
 
         [Fact]
-        public async Task UpdateEvent_NewResource_UsesMinimumStaff_AndIgnoresOriginal()
+        public async Task UpdateEvent_NewResource_UsesShiftCount_AndIgnoresOriginal()
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
 
-            var request = StaffingRequest(evt, resource, minimumStaff: 2, originalMinimumStaff: 2);
+            var request = StaffingRequest(evt, resource, shiftCount: 2, originalShiftCount: 2);
             request.Resources = request.Resources.Append(new ResourceRequest
             {
                 ResourceTypeId = resource.ResourceTypeId,
                 StartTime = new TimeOnly(10, 0),
                 EndTime = new TimeOnly(12, 0),
-                MinimumStaff = 4,
-                OriginalMinimumStaff = 1,
+                ShiftCount = 4,
+                OriginalShiftCount = 1,
             }).ToList();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, isAdmin: true).UpdateEvent(evt.EventId, request);
 
             var created = Assert.Single(result.Resources, r => r.Id != resource.EventResourceId);
-            Assert.Equal(4, created.MinimumStaff);
+            Assert.Equal(4, created.ShiftCount);
         }
 
         #endregion
@@ -821,8 +821,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2000, 1, 1, 6, 0, 0),
                 ResourceTemplates = new List<ResourceTemplate>
                 {
-                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 21, 30, 0), EndTime = new DateTime(2000, 1, 1, 6, 30, 0), MinimumStaff = 1 },
-                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 1, 0, 0), EndTime = new DateTime(2000, 1, 1, 3, 0, 0), MinimumStaff = 2 },
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 21, 30, 0), EndTime = new DateTime(2000, 1, 1, 6, 30, 0), ShiftCount = 1 },
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2000, 1, 1, 1, 0, 0), EndTime = new DateTime(2000, 1, 1, 3, 0, 0), ShiftCount = 2 },
                 }
             };
             seedContext.EventTemplates.Add(template);
@@ -843,11 +843,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(new DateTime(2026, 12, 31, 22, 0, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2027, 1, 1, 6, 0, 0), dbEvent.EndTime);
 
-            var night = dbEvent.Resources.Single(r => r.MinimumStaff == 1);
+            var night = dbEvent.Resources.Single(r => r.ShiftCount == 1);
             Assert.Equal(new DateTime(2026, 12, 31, 21, 30, 0), night.StartTime);
             Assert.Equal(new DateTime(2027, 1, 1, 6, 30, 0), night.EndTime);
 
-            var afterMidnight = dbEvent.Resources.Single(r => r.MinimumStaff == 2);
+            var afterMidnight = dbEvent.Resources.Single(r => r.ShiftCount == 2);
             Assert.Equal(new DateTime(2027, 1, 1, 1, 0, 0), afterMidnight.StartTime);
             Assert.Equal(new DateTime(2027, 1, 1, 3, 0, 0), afterMidnight.EndTime);
         }
@@ -869,7 +869,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(1, 0), EndTime = new TimeOnly(3, 0), MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(1, 0), EndTime = new TimeOnly(3, 0), ShiftCount = 1 },
                 }
             };
 
@@ -905,7 +905,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 16, 6, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(23, 45), EndTime = new TimeOnly(2, 0), MinimumStaff = 2 },
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(23, 45), EndTime = new TimeOnly(2, 0), ShiftCount = 2 },
                 }
             };
 
@@ -964,7 +964,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 16, 2, 0, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 0), EndTime = new TimeOnly(1, 30), MinimumStaff = 1 },
+                    new ResourceRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 0), EndTime = new TimeOnly(1, 30), ShiftCount = 1 },
                 },
             };
 
@@ -996,7 +996,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 17, 17, 45, 0),
                 Resources = new List<ResourceRequest>
                 {
-                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 30), MinimumStaff = 2 },
+                    new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(12, 30), ShiftCount = 2 },
                 },
             };
 
@@ -1047,7 +1047,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             EndTime = eventEnd,
             Resources =
             [
-                new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = start, EndTime = end, MinimumStaff = resource.MinimumStaff },
+                new ResourceRequest { Id = resource.EventResourceId, ResourceTypeId = resource.ResourceTypeId, StartTime = start, EndTime = end, ShiftCount = resource.ShiftCount },
             ],
         };
 

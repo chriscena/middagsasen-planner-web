@@ -55,14 +55,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
         private async Task<ResourceType> SeedResourceType(
             PlannerDbContext context,
             string? name = null,
-            int defaultStaff = 2,
+            int defaultShiftCount = 2,
             bool inactive = false,
             List<int>? trainerUserIds = null)
         {
             var rt = new ResourceType
             {
                 Name = name ?? UniqueName("RT"),
-                DefaultStaff = defaultStaff,
+                DefaultShiftCount = defaultShiftCount,
                 Inactive = inactive,
             };
 
@@ -92,7 +92,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var request = new ResourceTypeRequest
             {
                 Name = name,
-                DefaultStaff = 3,
+                DefaultShiftCount = 3,
                 NotificationMessage = "Test notification",
             };
 
@@ -102,7 +102,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             // Assert
             Assert.NotNull(result);
             Assert.Equal(name, result.Name);
-            Assert.Equal(3, result.DefaultStaff);
+            Assert.Equal(3, result.DefaultShiftCount);
 
             // Verify in DB with fresh context
             using var verifyContext = _fixture.CreateContext();
@@ -111,7 +111,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
                 .SingleOrDefaultAsync(r => r.ResourceTypeId == result.Id);
             Assert.NotNull(dbEntity);
             Assert.Equal(name, dbEntity.Name);
-            Assert.Equal(3, dbEntity.DefaultStaff);
+            Assert.Equal(3, dbEntity.DefaultShiftCount);
             Assert.Equal("Test notification", dbEntity.NotificationMessage);
             Assert.False(dbEntity.Inactive);
         }
@@ -144,7 +144,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             // Arrange
             var name = UniqueName("GetById");
             using var seedContext = _fixture.CreateContext();
-            var seeded = await SeedResourceType(seedContext, name: name, defaultStaff: 5);
+            var seeded = await SeedResourceType(seedContext, name: name, defaultShiftCount: 5);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -156,7 +156,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             Assert.NotNull(result);
             Assert.Equal(seeded.ResourceTypeId, result.Id);
             Assert.Equal(name, result.Name);
-            Assert.Equal(5, result.DefaultStaff);
+            Assert.Equal(5, result.DefaultShiftCount);
         }
 
         [Fact]
@@ -165,7 +165,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             // Arrange
             var originalName = UniqueName("Original");
             using var seedContext = _fixture.CreateContext();
-            var seeded = await SeedResourceType(seedContext, name: originalName, defaultStaff: 2);
+            var seeded = await SeedResourceType(seedContext, name: originalName, defaultShiftCount: 2);
 
             var updatedName = UniqueName("Updated");
             using var context = _fixture.CreateContext();
@@ -174,7 +174,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var request = new ResourceTypeRequest
             {
                 Name = updatedName,
-                DefaultStaff = 7,
+                DefaultShiftCount = 7,
                 NotificationMessage = "Updated notification",
             };
 
@@ -184,7 +184,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             // Assert
             Assert.NotNull(result);
             Assert.Equal(updatedName, result.Name);
-            Assert.Equal(7, result.DefaultStaff);
+            Assert.Equal(7, result.DefaultShiftCount);
 
             // Verify in DB
             using var verifyContext = _fixture.CreateContext();
@@ -192,7 +192,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
                 .AsNoTracking()
                 .SingleAsync(r => r.ResourceTypeId == seeded.ResourceTypeId);
             Assert.Equal(updatedName, dbEntity.Name);
-            Assert.Equal(7, dbEntity.DefaultStaff);
+            Assert.Equal(7, dbEntity.DefaultShiftCount);
             Assert.Equal("Updated notification", dbEntity.NotificationMessage);
         }
 
@@ -217,7 +217,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var request = new ResourceTypeRequest
             {
                 Name = seeded.Name,
-                DefaultStaff = seeded.DefaultStaff,
+                DefaultShiftCount = seeded.DefaultShiftCount,
                 Trainers = new List<ResourceTypeTrainerRequest>
                 {
                     new ResourceTypeTrainerRequest { Id = existingTrainer.ResourceTypeTrainerId, UserId = user1.UserId, IsDeleted = true },
@@ -291,7 +291,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateResourceType(999999, new ResourceTypeRequest { Name = "X" }));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateResourceType(999999, new ResourceTypeRequest { Name = "X", DefaultShiftCount = 1 }));
         }
 
         [Fact]

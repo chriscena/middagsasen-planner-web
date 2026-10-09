@@ -23,7 +23,7 @@ export interface EditableResourceType {
   id: number | null;
   name: string | null;
   // q-input type="number" kan gi string når brukeren skriver.
-  defaultStaff: number | string;
+  defaultShiftCount: number | string;
   notificationMessage?: null | string;
   trainers: EditableTrainer[];
   files?: FileInfoResponse[];
@@ -40,7 +40,7 @@ export function toEditableResourceType(
   return {
     id: resourceType.id,
     name: resourceType.name,
-    defaultStaff: resourceType.defaultStaff,
+    defaultShiftCount: resourceType.defaultShiftCount,
     notificationMessage: resourceType.notificationMessage ?? null,
     trainers: resourceType.trainers.map((t) => ({
       ...t,
@@ -76,7 +76,7 @@ export function toResourceTypeRequest(
 ): ResourceTypeRequest {
   return {
     name: resource.name as string,
-    defaultStaff: Number(resource.defaultStaff),
+    defaultShiftCount: Number(resource.defaultShiftCount),
     notificationMessage: resource.notificationMessage ?? null,
     trainers: resource.trainers.map((t) => ({
       id: t.id,

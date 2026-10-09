@@ -5802,8 +5802,8 @@
         "required": [
           "startTime",
           "endTime",
+          "shiftCount",
           "resourceTypeId",
-          "minimumStaff",
           "isDeleted"
         ],
         "type": "object",
@@ -5827,11 +5827,13 @@
             "type": "string",
             "format": "time"
           },
-          "minimumStaff": {
+          "shiftCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
-          "originalMinimumStaff": {
+          "originalShiftCount": {
             "type": [
               "null",
               "integer"
@@ -5849,7 +5851,7 @@
           "resourceType",
           "startTime",
           "endTime",
-          "minimumStaff",
+          "shiftCount",
           "shifts",
           "eventId",
           "messages",
@@ -5875,7 +5877,7 @@
           "endTime": {
             "type": "string"
           },
-          "minimumStaff": {
+          "shiftCount": {
             "type": "integer",
             "format": "int32"
           },
@@ -5922,8 +5924,8 @@
         "required": [
           "startTime",
           "endTime",
+          "shiftCount",
           "resourceTypeId",
-          "minimumStaff",
           "isDeleted"
         ],
         "type": "object",
@@ -5947,7 +5949,9 @@
             "type": "string",
             "format": "time"
           },
-          "minimumStaff": {
+          "shiftCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
@@ -5962,7 +5966,7 @@
           "resourceType",
           "startTime",
           "endTime",
-          "minimumStaff"
+          "shiftCount"
         ],
         "type": "object",
         "properties": {
@@ -5979,7 +5983,7 @@
           "endTime": {
             "type": "string"
           },
-          "minimumStaff": {
+          "shiftCount": {
             "type": "integer",
             "format": "int32"
           }
@@ -6025,15 +6029,17 @@
       },
       "ResourceTypeRequest": {
         "required": [
-          "name",
-          "defaultStaff"
+          "defaultShiftCount",
+          "name"
         ],
         "type": "object",
         "properties": {
           "name": {
             "type": "string"
           },
-          "defaultStaff": {
+          "defaultShiftCount": {
+            "maximum": 2147483647,
+            "minimum": 1,
             "type": "integer",
             "format": "int32"
           },
@@ -6058,7 +6064,7 @@
         "required": [
           "id",
           "name",
-          "defaultStaff",
+          "defaultShiftCount",
           "trainers",
           "hasTraining",
           "files"
@@ -6072,7 +6078,7 @@
           "name": {
             "type": "string"
           },
-          "defaultStaff": {
+          "defaultShiftCount": {
             "type": "integer",
             "format": "int32"
           },

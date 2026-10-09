@@ -65,9 +65,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             return user;
         }
 
-        private static async Task<EventResource> SeedResource(PlannerDbContext context, int minimumStaff = 2, params int[] trainerUserIds)
+        private static async Task<EventResource> SeedResource(PlannerDbContext context, int shiftCount = 2, params int[] trainerUserIds)
         {
-            var resourceType = new ResourceType { Name = UniqueName("Heis"), DefaultStaff = minimumStaff };
+            var resourceType = new ResourceType { Name = UniqueName("Heis"), DefaultShiftCount = shiftCount };
             foreach (var trainerId in trainerUserIds)
                 resourceType.Trainers.Add(new ResourceTypeTrainer { UserId = trainerId });
             context.ResourceTypes.Add(resourceType);
@@ -84,7 +84,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                         ResourceType = resourceType,
                         StartTime = ResourceStart,
                         EndTime = ResourceEnd,
-                        MinimumStaff = minimumStaff,
+                        ShiftCount = shiftCount,
                     },
                 ],
             };
@@ -133,7 +133,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var user = await SeedUser(seed);
-            var resource = await SeedResource(seed, minimumStaff: 2);
+            var resource = await SeedResource(seed, shiftCount: 2);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { Comment = "Hei" });
@@ -423,7 +423,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var first = await SeedUser(seed);
             var user = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 1);
+            var resource = await SeedResource(seed, shiftCount: 1);
             await SeedShift(seed, resource, first.UserId);
 
             using (var context = _fixture.CreateContext())
@@ -449,7 +449,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var seed = _fixture.CreateContext();
             var a = await SeedUser(seed);
             var b = await SeedUser(seed);
-            var resource = await SeedResource(seed, minimumStaff: 1);
+            var resource = await SeedResource(seed, shiftCount: 1);
 
             using var contextA = _fixture.CreateContext();
             using var contextB = _fixture.CreateContext();
@@ -483,7 +483,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var user = await SeedUser(seed, isAdmin: isAdmin);
-            var resource = await SeedResource(seed, minimumStaff: 5);
+            var resource = await SeedResource(seed, shiftCount: 5);
             await SeedShift(seed, resource, user.UserId);
 
             using var context = _fixture.CreateContext();
@@ -599,7 +599,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                 ResourceTypeId = existing.ResourceTypeId,
                 StartTime = ResourceStart,
                 EndTime = ResourceEnd,
-                MinimumStaff = existing.MinimumStaff,
+                ShiftCount = existing.ShiftCount,
             };
             context.EventResource.Add(resource);
             await context.SaveChangesAsync();
@@ -767,7 +767,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var owner = await SeedUser(seed);
             var other = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 5);
+            var resource = await SeedResource(seed, shiftCount: 5);
             var shift = await SeedShift(seed, resource, owner.UserId);
             await SeedShift(seed, resource, other.UserId);
 
@@ -1321,10 +1321,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         #region Ledige plasser
 
-        private async Task<int> GetMinimumStaff(int resourceId)
+        private async Task<int> GetShiftCount(int resourceId)
         {
             using var verify = _fixture.CreateContext();
-            return await verify.EventResource.AsNoTracking().Where(r => r.EventResourceId == resourceId).Select(r => r.MinimumStaff).SingleAsync();
+            return await verify.EventResource.AsNoTracking().Where(r => r.EventResourceId == resourceId).Select(r => r.ShiftCount).SingleAsync();
         }
 
         [Fact]
@@ -1334,15 +1334,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var first = await SeedUser(seed);
             var user = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 1);
+            var resource = await SeedResource(seed, shiftCount: 1);
             await SeedShift(seed, resource, first.UserId);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
 
-            Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(2, await GetShiftCount(resource.EventResourceId));
             Assert.Equal(resource.EventResourceId, result.Id);
-            Assert.Equal(2, result.MinimumStaff);
+            Assert.Equal(2, result.ShiftCount);
             Assert.False(result.IsFull);
             Assert.True(result.IsMissingStaff);
             Assert.True(result.CanSignUp);
@@ -1361,13 +1361,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
 
-            Assert.Equal(4, result.MinimumStaff);
-            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(4, result.ShiftCount);
+            Assert.Equal(4, await GetShiftCount(resource.EventResourceId));
         }
 
         [Fact]
@@ -1378,7 +1378,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var b = await SeedUser(seed);
             var c = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 1);
+            var resource = await SeedResource(seed, shiftCount: 1);
             await SeedShift(seed, resource, a.UserId);
             await SeedShift(seed, resource, b.UserId);
             await SeedShift(seed, resource, c.UserId);
@@ -1387,9 +1387,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
 
             // Tre vakter og én ny ledig plass.
-            Assert.Equal(4, result.MinimumStaff);
+            Assert.Equal(4, result.ShiftCount);
             Assert.True(result.IsMissingStaff);
-            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(4, await GetShiftCount(resource.EventResourceId));
         }
 
         /// <summary>
@@ -1458,7 +1458,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         /// <summary>Vaktlisteskjemaet for vaktlista til <paramref name="resource"/>, med én ressurs.</summary>
-        private static EventRequest EventFormRequest(Event evt, EventResource resource, int minimumStaff, int? originalMinimumStaff, TimeOnly? resourceStart = null)
+        private static EventRequest EventFormRequest(Event evt, EventResource resource, int shiftCount, int? originalShiftCount, TimeOnly? resourceStart = null)
             => new()
             {
                 Name = evt.Name,
@@ -1472,8 +1472,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                         ResourceTypeId = resource.ResourceTypeId,
                         StartTime = resourceStart ?? TimeOnly.FromDateTime(ResourceStart),
                         EndTime = TimeOnly.FromDateTime(ResourceEnd),
-                        MinimumStaff = minimumStaff,
-                        OriginalMinimumStaff = originalMinimumStaff,
+                        ShiftCount = shiftCount,
+                        OriginalShiftCount = originalShiftCount,
                     },
                 ],
             };
@@ -1489,19 +1489,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
             var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeSaveInterceptor(inside),
                 contextA => CreateEventsService(contextA, admin.UserId)
-                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3)),
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, shiftCount: 6, originalShiftCount: 3)),
                 contextB => CreateService(contextB, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId));
 
             Assert.Null(first);
             Assert.Null(second);
             Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
-            Assert.Equal(7, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(7, await GetShiftCount(resource.EventResourceId));
         }
 
         /// <summary>
@@ -1514,19 +1514,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
             var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeWriteAfterReadInterceptor(inside),
                 contextA => CreateService(contextA, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId),
                 contextB => CreateEventsService(contextB, admin.UserId)
-                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 6, originalMinimumStaff: 3)));
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, shiftCount: 6, originalShiftCount: 3)));
 
             Assert.Null(first);
             Assert.IsType<ConcurrentUpdateException>(second);
             Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
-            Assert.Equal(4, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(4, await GetShiftCount(resource.EventResourceId));
         }
 
         /// <summary>
@@ -1539,13 +1539,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var user = await SeedUser(seed);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
             var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeSaveInterceptor(inside),
                 contextA => CreateEventsService(contextA, admin.UserId)
-                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, minimumStaff: 3, originalMinimumStaff: 3, resourceStart: new TimeOnly(10, 0))),
+                    .UpdateEvent(evt.EventId, EventFormRequest(evt, resource, shiftCount: 3, originalShiftCount: 3, resourceStart: new TimeOnly(10, 0))),
                 contextB => CreateService(contextB, user.UserId)
                     .SignUp(resource.EventResourceId, new SignUpRequest { StartTime = ResourceStart, EndTime = ResourceEnd }));
 
@@ -1561,12 +1561,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 admin.UserId, service => service.AddEmptySlot(resource.EventResourceId));
 
-            Assert.Equal(5, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(5, await GetShiftCount(resource.EventResourceId));
             Assert.Null(first);
             Assert.Null(second);
             Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
@@ -1577,12 +1577,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 3);
+            var resource = await SeedResource(seed, shiftCount: 3);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 admin.UserId, service => service.RemoveEmptySlot(resource.EventResourceId));
 
-            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(1, await GetShiftCount(resource.EventResourceId));
             Assert.Null(first);
             Assert.Null(second);
             Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
@@ -1594,7 +1594,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var seed = _fixture.CreateContext();
             var user = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 2);
+            var resource = await SeedResource(seed, shiftCount: 2);
             await SeedShift(seed, resource, user.UserId);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
@@ -1604,46 +1604,46 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var ex = Assert.IsType<DomainValidationException>(second);
             Assert.Equal(ShiftService.NoEmptySlotMessage, ex.Message);
             Assert.False(secondFinishedInsideFirst);
-            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(1, await GetShiftCount(resource.EventResourceId));
         }
 
         [Fact]
-        public async Task RemoveEmptySlot_Admin_DecreasesToShiftCount_ReturnsFullResource()
+        public async Task RemoveEmptySlot_Admin_DecreasesToStaffedCount_ReturnsFullResource()
         {
             using var seed = _fixture.CreateContext();
             var first = await SeedUser(seed);
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: 2);
+            var resource = await SeedResource(seed, shiftCount: 2);
             await SeedShift(seed, resource, first.UserId);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).RemoveEmptySlot(resource.EventResourceId);
 
-            Assert.Equal(1, result.MinimumStaff);
-            Assert.Equal(1, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(1, result.ShiftCount);
+            Assert.Equal(1, await GetShiftCount(resource.EventResourceId));
             Assert.True(result.IsFull);
             Assert.False(result.IsMissingStaff);
             Assert.True(result.CanSignUp); // admin kan overbooke
         }
 
         [Theory]
-        // Kolonner: minimum bemanning, antall vakter
+        // Kolonner: antall vakter, bemannede vakter
         [InlineData(1, 1)]
         [InlineData(1, 2)]
         [InlineData(0, 0)]
-        public async Task RemoveEmptySlot_ThrowsDomainValidation_WhenNoEmptySlot(int minimumStaff, int shiftCount)
+        public async Task RemoveEmptySlot_ThrowsDomainValidation_WhenNoEmptySlot(int shiftCount, int staffedCount)
         {
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
-            var resource = await SeedResource(seed, minimumStaff: minimumStaff);
-            for (var i = 0; i < shiftCount; i++)
+            var resource = await SeedResource(seed, shiftCount: shiftCount);
+            for (var i = 0; i < staffedCount; i++)
                 await SeedShift(seed, resource, (await SeedUser(seed)).UserId);
 
             using var context = _fixture.CreateContext();
             var ex = await Assert.ThrowsAsync<DomainValidationException>(
                 () => CreateService(context, admin.UserId, isAdmin: true).RemoveEmptySlot(resource.EventResourceId));
             Assert.Equal(ShiftService.NoEmptySlotMessage, ex.Message);
-            Assert.Equal(minimumStaff, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(shiftCount, await GetShiftCount(resource.EventResourceId));
         }
 
         [Fact]
@@ -1651,13 +1651,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         {
             using var seed = _fixture.CreateContext();
             var user = await SeedUser(seed);
-            var resource = await SeedResource(seed, minimumStaff: 2);
+            var resource = await SeedResource(seed, shiftCount: 2);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, user.UserId);
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.AddEmptySlot(resource.EventResourceId));
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => service.RemoveEmptySlot(resource.EventResourceId));
-            Assert.Equal(2, await GetMinimumStaff(resource.EventResourceId));
+            Assert.Equal(2, await GetShiftCount(resource.EventResourceId));
         }
 
         [Fact]

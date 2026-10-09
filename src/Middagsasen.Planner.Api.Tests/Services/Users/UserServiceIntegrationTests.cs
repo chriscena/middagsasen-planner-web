@@ -48,7 +48,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         /// </summary>
         private static async Task<Event> SeedEvent(PlannerDbContext context, int daysFromToday)
         {
-            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 2 };
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 2 };
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();
 
@@ -61,8 +61,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
                 EndTime = end,
                 Resources = new List<EventResource>
                 {
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = start, EndTime = end, MinimumStaff = 1 },
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = start, EndTime = end, MinimumStaff = 1 },
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = start, EndTime = end, ShiftCount = 1 },
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = start, EndTime = end, ShiftCount = 1 },
                 },
             };
             context.Events.Add(evt);
@@ -278,7 +278,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         {
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
-            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 1 };
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 1 };
             seedContext.ResourceTypes.Add(rt);
             await seedContext.SaveChangesAsync();
             seedContext.ResourceTypeTrainings.Add(new ResourceTypeTraining

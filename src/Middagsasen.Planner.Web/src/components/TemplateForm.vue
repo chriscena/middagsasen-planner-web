@@ -174,7 +174,7 @@ onMounted(async () => {
         resourceType: r.resourceType,
         startTime: formatTime(r.startTime),
         endTime: formatTime(r.endTime),
-        minimumStaff: r.minimumStaff,
+        shiftCount: r.shiftCount,
         isDeleted: false,
       };
     }

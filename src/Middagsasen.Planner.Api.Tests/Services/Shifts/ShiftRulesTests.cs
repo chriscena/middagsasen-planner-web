@@ -24,12 +24,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         private static ShiftFacts OwnerShift(bool needsTraining = false) => new(1, OwnerId, needsTraining);
 
-        private static ResourceFacts Resource(int minimumStaff = 2, bool hasTrainers = true, params ShiftFacts[] shifts) => new(
+        private static ResourceFacts Resource(int shiftCount = 2, bool hasTrainers = true, params ShiftFacts[] shifts) => new(
             ResourceId: 100,
             ResourceTypeId: ResourceTypeId,
             StartTime: Start,
             EndTime: End,
-            MinimumStaff: minimumStaff,
+            ShiftCount: shiftCount,
             HasTraining: hasTrainers,
             TrainerUserIds: hasTrainers ? new HashSet<int> { TrainerId } : new HashSet<int>(),
             Shifts: shifts);
@@ -53,41 +53,41 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         [InlineData(2, 2, false, true)]
         [InlineData(2, 3, false, true)]
         [InlineData(0, 0, false, true)]
-        public void IsMissingStaff_And_IsFull(int minimumStaff, int shiftCount, bool missingStaff, bool full)
+        public void IsMissingStaff_And_IsFull(int shiftCount, int staffedCount, bool missingStaff, bool full)
         {
-            var shifts = Enumerable.Range(1, shiftCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
-            var resource = Resource(minimumStaff, true, shifts);
+            var shifts = Enumerable.Range(1, staffedCount).Select(i => new ShiftFacts(i, 1000 + i, false)).ToArray();
+            var resource = Resource(shiftCount, true, shifts);
 
             Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(resource));
             Assert.Equal(full, ShiftRules.IsFull(resource));
-            Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(new ResourceStaffing(minimumStaff, shiftCount)));
+            Assert.Equal(missingStaff, ShiftRules.IsMissingStaff(new ResourceStaffing(shiftCount, staffedCount)));
         }
 
         // --- Ledige plasser ---
 
         [Theory]
-        // Kolonner: minimum bemanning, antall vakter, forventet ny minimum bemanning
+        // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter
         [InlineData(3, 0, 4)]
         [InlineData(3, 2, 4)]
         [InlineData(3, 3, 4)]
         [InlineData(1, 3, 4)] // overbooket: én ledig plass utover vaktene
         [InlineData(0, 0, 1)]
-        public void MinimumStaffAfterAddingEmptySlot(int minimumStaff, int shiftCount, int expected)
+        public void ShiftCountAfterAddingEmptySlot(int shiftCount, int staffedCount, int expected)
         {
-            Assert.Equal(expected, ShiftRules.MinimumStaffAfterAddingEmptySlot(new ResourceStaffing(minimumStaff, shiftCount)));
+            Assert.Equal(expected, ShiftRules.ShiftCountAfterAddingEmptySlot(new ResourceStaffing(shiftCount, staffedCount)));
         }
 
         [Theory]
-        // Kolonner: minimum bemanning, antall vakter, forventet ny minimum bemanning (null = ingen ledig plass)
+        // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter (null = ingen ledig plass)
         [InlineData(3, 0, 2)]
         [InlineData(3, 2, 2)]
         [InlineData(1, 0, 0)]
         [InlineData(3, 3, null)]
         [InlineData(1, 3, null)]
         [InlineData(0, 0, null)]
-        public void MinimumStaffAfterRemovingEmptySlot(int minimumStaff, int shiftCount, int? expected)
+        public void ShiftCountAfterRemovingEmptySlot(int shiftCount, int staffedCount, int? expected)
         {
-            Assert.Equal(expected, ShiftRules.MinimumStaffAfterRemovingEmptySlot(new ResourceStaffing(minimumStaff, shiftCount)));
+            Assert.Equal(expected, ShiftRules.ShiftCountAfterRemovingEmptySlot(new ResourceStaffing(shiftCount, staffedCount)));
         }
 
         [Fact]

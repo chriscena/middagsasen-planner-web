@@ -34,8 +34,8 @@
         <q-item-section>
           <q-item-label>{{ resourceType.name }} </q-item-label
           ><q-item-label caption
-            >{{ resourceType.defaultStaff }}
-            {{ resourceType.defaultStaff === 1 ? "vakt" : "vakter" }}
+            >{{ resourceType.defaultShiftCount }}
+            {{ resourceType.defaultShiftCount === 1 ? "vakt" : "vakter" }}
           </q-item-label>
         </q-item-section>
       </q-item> </q-list
@@ -81,8 +81,8 @@
           ></q-input>
           <q-input
             outlined
-            label="Antall"
-            v-model="selectedResource!.defaultStaff"
+            label="Standard antall vakter"
+            v-model="selectedResource!.defaultShiftCount"
             suffix="stk"
             @focus="(event) => (event.target as HTMLInputElement).select()"
           ></q-input>
@@ -484,7 +484,7 @@ function emptyResource(): EditableResourceType {
   return {
     id: null,
     name: null,
-    defaultStaff: 1,
+    defaultShiftCount: 1,
     notificationMessage: null,
     trainers: [],
     files: [],

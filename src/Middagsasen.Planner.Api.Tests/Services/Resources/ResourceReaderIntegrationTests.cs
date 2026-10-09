@@ -61,7 +61,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             context.Users.AddRange(trainer, creator, updater, viewer, other);
             await context.SaveChangesAsync();
 
-            var resourceType = new ResourceType { Name = UniqueName("Heis"), DefaultStaff = 2, NotificationMessage = "Husk jakke" };
+            var resourceType = new ResourceType { Name = UniqueName("Heis"), DefaultShiftCount = 2, NotificationMessage = "Husk jakke" };
             resourceType.Trainers.Add(new ResourceTypeTrainer { UserId = trainer.UserId });
             context.ResourceTypes.Add(resourceType);
             await context.SaveChangesAsync();
@@ -96,7 +96,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
                 ResourceTypeId = resourceType.ResourceTypeId,
                 StartTime = ResourceStart,
                 EndTime = ResourceEnd,
-                MinimumStaff = 2,
+                ShiftCount = 2,
             };
             var evt = new Event { Name = UniqueName("Event"), StartTime = ResourceStart, EndTime = ResourceEnd, Resources = [resource] };
             context.Events.Add(evt);
@@ -109,7 +109,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
                 EndTime = ResourceEnd,
                 ResourceTemplates =
                 [
-                    new ResourceTemplate { ResourceTypeId = resourceType.ResourceTypeId, StartTime = ResourceStart, EndTime = ResourceEnd, MinimumStaff = 2 },
+                    new ResourceTemplate { ResourceTypeId = resourceType.ResourceTypeId, StartTime = ResourceStart, EndTime = ResourceEnd, ShiftCount = 2 },
                 ],
             };
             context.EventTemplates.Add(template);

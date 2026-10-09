@@ -11,7 +11,7 @@ function resourceType(): ResourceTypeResponse {
   return {
     id: 3,
     name: "Heis",
-    defaultStaff: 2,
+    defaultShiftCount: 2,
     hasTraining: true,
     notificationMessage: null,
     trainers: [{ id: 7, userId: 70, fullName: "Kari", phoneNo: "123" }],
@@ -62,11 +62,11 @@ describe("newEditableTrainer", () => {
 describe("toResourceTypeRequest", () => {
   it("maps only request fields", () => {
     const form = toEditableResourceType(resourceType());
-    form.defaultStaff = "4";
+    form.defaultShiftCount = "4";
     form.trainers.push(newEditableTrainer({ id: 2, phoneNo: "2" }));
     expect(toResourceTypeRequest(form)).toEqual({
       name: "Heis",
-      defaultStaff: 4,
+      defaultShiftCount: 4,
       notificationMessage: null,
       trainers: [
         { id: 7, userId: 70, isDeleted: false },

@@ -271,7 +271,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
                     ResourceType = ResourceMapping.MapResourceType(resource.ResourceType),
                     StartTime = resource.StartTime.ToSimpleIsoString(),
                     EndTime = resource.EndTime.ToSimpleIsoString(),
-                    MinimumStaff = resource.MinimumStaff,
+                    ShiftCount = resource.ShiftCount,
                     Shifts = resource.Shifts
                         .OrderBy(s => s.EventResourceUserId)
                         .Select(s => MapShift(s, facts, facts.Shifts.Single(f => f.ShiftId == s.EventResourceUserId)))

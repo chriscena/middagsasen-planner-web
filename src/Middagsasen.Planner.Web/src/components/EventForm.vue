@@ -250,9 +250,9 @@ onMounted(async () => {
           resourceType: r.resourceType,
           startTime: formatTime(r.startTime),
           endTime: formatTime(r.endTime),
-          minimumStaff: r.minimumStaff,
+          shiftCount: r.shiftCount,
           // Verdien skjemaet ble lastet med (se EventResourceDraft).
-          originalMinimumStaff: r.minimumStaff,
+          originalShiftCount: r.shiftCount,
           isDeleted: false,
         };
       });
@@ -310,7 +310,7 @@ const canSave = computed(() => {
 
 async function saveEvent() {
   // Ingen ny lagring mens lasting/lagring/sletting pågår (dobbeltklikk eller
-  // Enter i et felt); en ny lagring med samme originalMinimumStaff ville gitt
+  // Enter i et felt); en ny lagring med samme originalShiftCount ville gitt
   // 409 når den første er lagret.
   if (locked.value) return;
   // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
