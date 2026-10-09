@@ -57,7 +57,8 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
         private IQueryable<EventResource> Resources => WithResourceIncludes(DbContext.EventResource, null);
 
-        private IQueryable<Event> Events => WithResourceIncludes(DbContext.Events, nameof(Event.Resources));
+        private IQueryable<Event> Events => WithResourceIncludes(DbContext.Events, nameof(Event.Resources))
+            .Include(e => e.CompetencyRequirements).ThenInclude(c => c.Competency);
 
         private IQueryable<EventResourceMessage> Messages => DbContext.Messages
             .Include(m => m.CreatedByUser)
@@ -194,7 +195,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <summary>Nå i norsk lokal tid, som ressursenes tider lagres i.</summary>
             private DateTime Now { get; }
 
-            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med.</summary>
+            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med for kompetansekravene per ressurs.</summary>
             private DateTime UtcNow { get; }
 
             private HashSet<int> TrainingResourceTypeIds { get; }
@@ -207,7 +208,58 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 StartTime = evnt.StartTime.ToSimpleIsoString(),
                 EndTime = evnt.EndTime.ToSimpleIsoString(),
                 Resources = evnt.Resources.Select(Map).OrderBy(r => r.ResourceType.Id).ThenBy(r => r.StartTime).ToList(),
+                CompetencyRequirements = CompetencyRequirementSet.MapActive(evnt.CompetencyRequirements),
+                CompetencyWarnings = GetFacilityCompetencyWarnings(evnt),
             };
+
+            /// <summary>
+            /// Brudd på anleggskravene i åpningstiden. Krav til inaktive (slettede) kompetanser hoppes over. Alle bemannede
+            /// vakter teller, uansett vakttype, når brukeren har en gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>)
+            /// <b>da vaktlisten starter</b>, ikke nå som for kompetansekravene per ressurs: en kompetanse som utløper før
+            /// vaktlisten starter, teller ikke, og en vaktliste i fortiden får ikke nye advarsler fordi en kompetanse har
+            /// utløpt senere. Godkjenning vurderes som den er nå.
+            /// </summary>
+            private static List<FacilityCompetencyWarningResponse> GetFacilityCompetencyWarnings(Event evnt)
+            {
+                var warnings = new List<FacilityCompetencyWarningResponse>();
+
+                // Vaktlistens tider er norsk lokal tid; utløpsdatoene er UTC.
+                var validAtUtc = evnt.StartTime.NorwegianLocalTimeToUtc();
+
+                foreach (var requirement in CompetencyRequirementSet.Active(evnt.CompetencyRequirements))
+                {
+                    var periods = evnt.Resources
+                        .SelectMany(resource => resource.Shifts
+                            .Where(s => s.User?.Competencies.Any(uc =>
+                                uc.CompetencyId == requirement.CompetencyId && CompetencyRules.IsValid(uc, validAtUtc)) == true)
+                            .Select(s =>
+                            {
+                                var (start, end) = FacilityRequirementRules.EffectivePeriod(
+                                    s.StartTime, s.EndTime, resource.StartTime, resource.EndTime);
+                                return new FacilityRequirementRules.StaffedPeriod(s.UserId, start, end);
+                            }));
+
+                    var breaches = FacilityRequirementRules.FindBreaches(
+                        evnt.StartTime, evnt.EndTime, requirement.MinimumRequired, periods);
+
+                    warnings.AddRange(breaches.Select(b => new FacilityCompetencyWarningResponse
+                    {
+                        CompetencyId = requirement.CompetencyId,
+                        CompetencyName = requirement.Competency.Name,
+                        MinimumRequired = requirement.MinimumRequired,
+                        CurrentCount = b.Count,
+                        StartTime = b.Start.ToSimpleIsoString(),
+                        EndTime = b.End.ToSimpleIsoString(),
+                    }));
+                }
+
+                // Starttiden har fast format (yyyy-MM-ddTHH:mm), så ordinal sortering er kronologisk.
+                return warnings
+                    .OrderBy(w => w.CompetencyName)
+                    .ThenBy(w => w.CompetencyId)
+                    .ThenBy(w => w.StartTime, StringComparer.Ordinal)
+                    .ToList();
+            }
 
             public ResourceResponse Map(EventResource resource)
             {

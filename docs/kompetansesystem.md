@@ -17,13 +17,38 @@
 - Eksempel for "Skiheis" med 4 vakter: Heisfører MinimumRequired=2, Snøskuter MinimumRequired=1
 - Advarsel vises på ressursen hvis antall påmeldte med godkjent, ikke-utløpt kompetanse < MinimumRequired
 
+## Anleggskrav (#155)
+
+- Minst N av de som er på vakt i anlegget skal ha en kompetanse på hvert tidspunkt i åpningstiden (vaktlistens
+  `[StartTime, EndTime)`), uansett vakttype. Eksempel: minst én snøskuterfører.
+- Settes per vaktliste (`EventCompetencyRequirements`) og mal (`EventTemplateCompetencyRequirements`). Kopieres fra mal til
+  vaktliste ved opprettelse fra mal, og fra vaktliste til mal ved «lag mal fra vaktliste».
+- API: `competencyRequirements` på `EventRequest`/`EventTemplateRequest` erstatter hele settet; `null` = uendret, tom liste =
+  fjern alle. Validering (400): ingen tomme elementer (`null`), antall >= 1, ingen duplikat kompetanse, kompetansen må
+  finnes og være aktiv.
+- Kopiering mal ↔ vaktliste: `CompetencyRequirementSet.CopyToEvent`/`CopyToTemplate`.
+- Beregning: `FacilityRequirementRules.FindBreaches` (ren). Alle bemannede vakter der brukeren har gyldig kompetanse
+  (`CompetencyRules.IsValid`) teller; vaktens tider, ellers oppgavens; klippet til åpningstiden; distinkte brukere per
+  tidsrom. `EventResponse.competencyWarnings` har én advarsel (med `competencyId`) per sammenhengende tidsrom med samme
+  antall under kravet.
+- Gyldighet vurderes **da vaktlisten starter** (vaktlistens `StartTime`, norsk lokal tid, konvertert til UTC med
+  `NorwegianLocalTimeToUtc`), ikke nå: en kompetanse som utløper før vaktlisten starter, teller ikke, og gamle vaktlister
+  får ikke nye advarsler fordi en kompetanse har utløpt senere. Godkjenning vurderes som den er nå. (Vaktkravene per
+  ressurs vurderes fortsatt mot nå.)
+- Slettede (inaktive) kompetanser: kravene blir stående i databasen, men vises ikke (verken i `competencyRequirements` på
+  vaktliste/mal eller i `competencyWarnings`), kan ikke settes (400) og kopieres ikke mellom mal og vaktliste. Siden
+  klienten sender hele listen den fikk, fjernes de ved neste lagring av vaktlisten/malen; `null` lar dem stå urørt.
+- Bare advarsel — blokkerer ikke påmelding.
+
 ## Datamodell
 
 ```
 Competencies (masterliste: Name, Description, HasExpiry, Inactive)
 ├── CompetencyApprovers (CompetencyId, UserId — hvem kan godkjenne)
 ├── UserCompetencies (UserId, CompetencyId, Approved, ApprovedDate, ApprovedBy, ExpiryDate, Created)
-└── ResourceTypeCompetencies (ResourceTypeId, CompetencyId, MinimumRequired)
+├── ResourceTypeCompetencies (ResourceTypeId, CompetencyId, MinimumRequired) — vaktkrav
+├── EventCompetencyRequirements (EventId, CompetencyId, MinimumRequired) — anleggskrav på vaktliste
+└── EventTemplateCompetencyRequirements (EventTemplateId, CompetencyId, MinimumRequired) — anleggskrav på mal
 ```
 
 ## Arkitektur

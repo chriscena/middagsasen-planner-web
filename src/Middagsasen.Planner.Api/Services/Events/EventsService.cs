@@ -92,6 +92,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public async Task<EventResponse> CreateEvent(EventRequest request)
         {
             var (eventStart, eventEnd) = EventTimes(request);
+            await CompetencyRequirementSet.Validate(DbContext, request.CompetencyRequirements);
             var newEvent = new Event
             {
                 Name = request.Name,
@@ -101,6 +102,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 // Slettede ressurser (IsDeleted) finnes ikke fra før og skal ikke opprettes.
                 Resources = request.Resources.Where(r => !r.IsDeleted).Select(r => Map(r, eventStart, eventEnd)).ToList(),
             };
+            CompetencyRequirementSet.Apply(newEvent.CompetencyRequirements, request.CompetencyRequirements);
 
             DbContext.Events.Add(newEvent);
             await DbContext.SaveChangesAsync();
@@ -124,7 +126,12 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// ressurslåsen, så en samtidig påmelding vurderes enten mot de gamle eller de nye tidene, ikke en blanding.
         /// Vaktlista og ressursene lastes først etter låsen, slik at de sporede entitetene har fersk <c>MinimumStaff</c>.
         /// </para>
+        /// <para>
+        /// Anleggskravene erstattes av <see cref="EventRequest.CompetencyRequirements"/> i samme transaksjon, og beholdes
+        /// uendret når feltet er <c>null</c>.
+        /// </para>
         /// </summary>
+        /// <exception cref="DomainValidationException">Anleggskravene er ugyldige.</exception>
         /// <exception cref="ConcurrentUpdateException">Antall vakter er endret av noen andre siden skjemaet ble lastet.</exception>
         public async Task<EventResponse> UpdateEvent(int eventId, EventRequest request)
         {
@@ -138,8 +145,12 @@ namespace Middagsasen.Planner.Api.Services.Events
 
                 var existingEvent = await DbContext.Events
                     .Include(e => e.Resources)
+                    .Include(e => e.CompetencyRequirements)
                     .SingleOrDefaultAsync(e => e.EventId == eventId)
                     ?? throw new EntityNotFoundException(EventNotFoundMessage);
+
+                await CompetencyRequirementSet.Validate(DbContext, request.CompetencyRequirements);
+                CompetencyRequirementSet.Apply(existingEvent.CompetencyRequirements, request.CompetencyRequirements);
 
                 existingEvent.Name = request.Name;
                 existingEvent.Description = request.Description;
@@ -244,6 +255,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
             var template = await DbContext.EventTemplates
                 .Include(e => e.ResourceTemplates)
+                .Include(e => e.CompetencyRequirements).ThenInclude(r => r.Competency)
                 .AsNoTracking()
                 .SingleOrDefaultAsync(e => e.EventTemplateId == templateId)
                 ?? throw new EntityNotFoundException();
@@ -267,6 +279,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                         MinimumStaff = r.MinimumStaff,
                     };
                 }).ToList(),
+                CompetencyRequirements = CompetencyRequirementSet.CopyToEvent(template.CompetencyRequirements),
             };
 
             DbContext.Events.Add(newEvent);

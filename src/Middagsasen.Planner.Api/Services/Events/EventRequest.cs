@@ -14,5 +14,11 @@ namespace Middagsasen.Planner.Api.Services.Events
         [JsonConverter(typeof(LocalDateTimeConverter))]
         public required DateTime EndTime { get; set; }
         public IEnumerable<ResourceRequest> Resources { get; set; } = null!;
+        /// <summary>
+        /// Anleggskravene. Ved lagring erstattes hele settet (endret antall oppdateres, nye legges til, manglende fjernes).
+        /// <c>null</c> betyr at kravene ikke endres ved oppdatering (og ingen krav ved opprettelse), slik at klienter som ikke
+        /// sender feltet, ikke fjerner dem. Tom liste fjerner alle.
+        /// </summary>
+        public IEnumerable<CompetencyRequirementRequest>? CompetencyRequirements { get; set; }
     }
 }

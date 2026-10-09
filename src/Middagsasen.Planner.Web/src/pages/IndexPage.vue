@@ -93,6 +93,30 @@
                 ></span>
               </div>
             </q-card-section>
+            <!-- Brudd på anleggskrav (beregnet av backend). Bare en advarsel,
+                 og synlig for alle, så folk ser hvor det trengs folk. -->
+            <q-card-section
+              v-if="event.competencyWarnings.length"
+              class="q-py-xs q-px-md bg-amber-1 text-caption"
+              role="status"
+            >
+              <div class="text-weight-medium text-amber-10">
+                Anleggskrav ikke oppfylt
+              </div>
+              <div
+                v-for="warning in event.competencyWarnings"
+                :key="`${warning.competencyId}-${warning.startTime}`"
+                class="row items-center no-wrap"
+              >
+                <q-icon
+                  name="group_off"
+                  color="amber-8"
+                  size="xs"
+                  class="q-mr-xs"
+                ></q-icon>
+                <span>{{ formatFacilityWarning(warning) }}</span>
+              </div>
+            </q-card-section>
           </q-card>
 
           <EventItemCard
@@ -256,6 +280,7 @@ import {
   toDayKey,
   today,
 } from "@/shared/time";
+import { formatFacilityWarning } from "@/shared/competencyRequirements";
 import { notifyApiError } from "@/shared/notifyApiError";
 
 // Payload fra q-calendar-agenda sitt change-event. QCalendar 5 typer ikke

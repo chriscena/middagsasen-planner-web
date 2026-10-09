@@ -41,6 +41,8 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<CompetencyApprover> CompetencyApprovers { get; set; } = null!;
         public virtual DbSet<UserCompetency> UserCompetencies { get; set; } = null!;
         public virtual DbSet<ResourceTypeCompetency> ResourceTypeCompetencies { get; set; } = null!;
+        public virtual DbSet<EventCompetencyRequirement> EventCompetencyRequirements { get; set; } = null!;
+        public virtual DbSet<EventTemplateCompetencyRequirement> EventTemplateCompetencyRequirements { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -389,6 +391,50 @@ namespace Middagsasen.Planner.Api.Data
                 entity.HasIndex(e => new { e.ResourceTypeId, e.CompetencyId })
                     .IsUnique()
                     .HasDatabaseName("UQ_ResourceTypeCompetencies_ResourceTypeId_CompetencyId");
+            });
+
+            modelBuilder.Entity<EventCompetencyRequirement>(entity =>
+            {
+                entity.ToTable("EventCompetencyRequirements");
+                entity.HasKey(e => e.EventCompetencyRequirementId);
+
+                entity.HasOne(e => e.Event)
+                    .WithMany(c => c.CompetencyRequirements)
+                    .HasForeignKey(d => d.EventId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventCompetencyRequirements_Events");
+
+                entity.HasOne(e => e.Competency)
+                    .WithMany()
+                    .HasForeignKey(d => d.CompetencyId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventCompetencyRequirements_Competencies");
+
+                entity.HasIndex(e => new { e.EventId, e.CompetencyId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_EventCompetencyRequirements_EventId_CompetencyId");
+            });
+
+            modelBuilder.Entity<EventTemplateCompetencyRequirement>(entity =>
+            {
+                entity.ToTable("EventTemplateCompetencyRequirements");
+                entity.HasKey(e => e.EventTemplateCompetencyRequirementId);
+
+                entity.HasOne(e => e.EventTemplate)
+                    .WithMany(c => c.CompetencyRequirements)
+                    .HasForeignKey(d => d.EventTemplateId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventTemplateCompetencyRequirements_EventTemplates");
+
+                entity.HasOne(e => e.Competency)
+                    .WithMany()
+                    .HasForeignKey(d => d.CompetencyId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_EventTemplateCompetencyRequirements_Competencies");
+
+                entity.HasIndex(e => new { e.EventTemplateId, e.CompetencyId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_EventTemplateCompetencyRequirements_EventTemplateId_CompetencyId");
             });
 
             modelBuilder.Entity<WorkHour>(entity =>

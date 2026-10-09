@@ -9,5 +9,6 @@
         public DateTime EndTime { get; set; }
 
         public ICollection<EventResource> Resources { get; set; } = new HashSet<EventResource>();
+        public ICollection<EventCompetencyRequirement> CompetencyRequirements { get; set; } = new HashSet<EventCompetencyRequirement>();
     }
 }

@@ -115,6 +115,7 @@ function newTemplate() {
     startTime: "2023-12-01T10:00",
     endTime: "2023-12-01T17:00",
     resourceTemplates: [],
+    competencyRequirements: [],
   };
   showingEditDialog.value = true;
 }

@@ -5090,6 +5090,44 @@
           }
         }
       },
+      "CompetencyRequirementRequest": {
+        "required": [
+          "competencyId",
+          "minimumRequired"
+        ],
+        "type": "object",
+        "properties": {
+          "competencyId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minimumRequired": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CompetencyRequirementResponse": {
+        "required": [
+          "competencyId",
+          "competencyName",
+          "minimumRequired"
+        ],
+        "type": "object",
+        "properties": {
+          "competencyId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "competencyName": {
+            "type": "string"
+          },
+          "minimumRequired": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
       "CompetencyResourceTypeResponse": {
         "required": [
           "resourceTypeId",
@@ -5247,6 +5285,15 @@
             "items": {
               "$ref": "#/components/schemas/ResourceRequest"
             }
+          },
+          "competencyRequirements": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CompetencyRequirementRequest"
+            }
           }
         }
       },
@@ -5256,7 +5303,9 @@
           "name",
           "startTime",
           "endTime",
-          "resources"
+          "resources",
+          "competencyRequirements",
+          "competencyWarnings"
         ],
         "type": "object",
         "properties": {
@@ -5283,6 +5332,18 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/ResourceResponse"
+            }
+          },
+          "competencyRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompetencyRequirementResponse"
+            }
+          },
+          "competencyWarnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FacilityCompetencyWarningResponse"
             }
           }
         }
@@ -5331,6 +5392,15 @@
             "items": {
               "$ref": "#/components/schemas/ResourceTemplateRequest"
             }
+          },
+          "competencyRequirements": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CompetencyRequirementRequest"
+            }
           }
         }
       },
@@ -5340,7 +5410,8 @@
           "name",
           "eventName",
           "startTime",
-          "endTime"
+          "endTime",
+          "competencyRequirements"
         ],
         "type": "object",
         "properties": {
@@ -5368,6 +5439,46 @@
             "items": {
               "$ref": "#/components/schemas/ResourceTemplateResponse"
             }
+          },
+          "competencyRequirements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompetencyRequirementResponse"
+            }
+          }
+        }
+      },
+      "FacilityCompetencyWarningResponse": {
+        "required": [
+          "competencyId",
+          "competencyName",
+          "minimumRequired",
+          "currentCount",
+          "startTime",
+          "endTime"
+        ],
+        "type": "object",
+        "properties": {
+          "competencyId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "competencyName": {
+            "type": "string"
+          },
+          "minimumRequired": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "currentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
           }
         }
       },
