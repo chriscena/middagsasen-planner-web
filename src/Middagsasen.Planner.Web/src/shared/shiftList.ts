@@ -1,10 +1,10 @@
-// Vaktlista for en ressurs: tatte vakter, fylt opp med ledige plasser til
+// Vaktene i en oppgave: bemannede vakter, fylt opp med ledige vakter til
 // shiftCount. Hver rad har en stabil, unik nøkkel til `:key` i `v-for`
-// (ledige plasser har id 0 og kan ikke bruke id-en). Nøkkelen ligger ved
+// (ledige vakter har id 0 og kan ikke bruke id-en). Nøkkelen ligger ved
 // siden av vakta, så den aldri kopieres inn i objekter som sendes til API-et.
 import type { ShiftResponse } from "@/types";
 
-// Ledig plass i vaktlista (fylles opp til shiftCount).
+// Ledig vakt i oppgaven (fylles opp til shiftCount).
 export interface VacantShift {
   id: number;
   user: null;

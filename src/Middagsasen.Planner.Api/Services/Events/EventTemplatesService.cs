@@ -55,7 +55,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 EventName = request.EventName,
                 StartTime = ToTemplateTime(request.StartTime),
                 EndTime = ToTemplateTime(request.EndTime),
-                // Slettede ressursmaler (IsDeleted) finnes ikke fra før og skal ikke opprettes.
+                // Slettede oppgaver i malen (IsDeleted) finnes ikke fra før og skal ikke opprettes.
                 ResourceTemplates = request.ResourceTemplates.Where(r => !r.IsDeleted).Select(Map).ToList(),
             };
             CompetencyRequirementSet.Apply(newEvent.CompetencyRequirements, request.CompetencyRequirements);
@@ -112,7 +112,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             var existingTemplate = await EventTemplates.SingleOrDefaultAsync(e => e.EventTemplateId == id)
                 ?? throw new EntityNotFoundException();
 
-            // Svaret bygges før slettingen, så det inneholder den slettede malen med ressursmalene.
+            // Svaret bygges før slettingen, så det inneholder den slettede malen med oppgavene.
             var response = (await Map([existingTemplate])).Single();
 
             DbContext.EventTemplates.Remove(existingTemplate);
@@ -154,7 +154,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>
-        /// Mapper malene. Ressurstypene hentes fra lesemodulen for ressurser (også inaktive), så de er like som ellers i API-et.
+        /// Mapper malene. Vakttypene hentes fra lesemodulen for oppgaver (også inaktive), så de er like som ellers i API-et.
         /// </summary>
         private async Task<List<EventTemplateResponse>> Map(IReadOnlyCollection<EventTemplate> templates)
         {
@@ -186,7 +186,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         private static DateTime ToTemplateTime(TimeOnly time) => TemplateReferenceDate.ToDateTime(time);
 
-        /// <summary>Ny ressursmal. Fremmednøkkelen til malen settes av EF via navigasjonen ved lagring.</summary>
+        /// <summary>Ny oppgave i malen. Fremmednøkkelen til malen settes av EF via navigasjonen ved lagring.</summary>
         private static ResourceTemplate Map(ResourceTemplateRequest resource) => new()
         {
             ResourceTypeId = resource.ResourceTypeId,

@@ -171,6 +171,7 @@ import {
 import { notifyApiError } from "@/shared/notifyApiError";
 import {
   findInvalidResource,
+  invalidResourceMessage,
   toResourceRequests,
   visibleResources,
 } from "@/shared/resourceRequests";
@@ -301,7 +302,7 @@ const canSave = computed(() => {
     isValidStartDate.value &&
     isValidStartTime.value &&
     isValidEndTime.value &&
-    // Minst én vakt; slettede vakter teller ikke.
+    // Minst én oppgave; slettede oppgaver teller ikke.
     visibleResources(resources.value).length &&
     // Samme regler som backend (minst 1, ikke samme kompetanse to ganger).
     areValidCompetencyRequirements(competencyRequirements.value)
@@ -316,14 +317,12 @@ async function saveEvent() {
   // Lagre-knappen er deaktivert uten canSave, men skjemaet kan sendes med
   // Enter; ugyldig dato eller tid ville gitt RangeError i toLocalWire.
   if (!canSave.value) return;
-  // Ugyldige vakttider (f.eks. «1») ville gitt RangeError i toTimeWire.
-  // Slettede vakter sjekkes ikke (se findInvalidResource).
+  // Ugyldige tider på oppgavene (f.eks. «1») ville gitt RangeError i toTimeWire.
+  // Slettede oppgaver sjekkes ikke (se findInvalidResource).
   const invalid = findInvalidResource(resources.value);
   if (invalid) {
     $q.notify({
-      message: `Vakta «${
-        invalid.resourceType?.name ?? ""
-      }» har ugyldig start- eller sluttid.`,
+      message: invalidResourceMessage(invalid),
     });
     return;
   }

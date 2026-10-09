@@ -22,10 +22,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             await using var transaction = await DbContext.Database.BeginTransactionAsync();
 
-            // En samtidig endring på samme ressurs (også lagring av vaktlisteskjemaet, se EventsService.UpdateEvent)
+            // En samtidig endring på samme oppgave (også lagring av vaktlisteskjemaet, se EventsService.UpdateEvent)
             // venter her til denne er ferdig, og leser deretter vaktene på nytt. Se RowLocks for teknikken.
             if (!await DbContext.LockResource(resourceId))
-                throw new EntityNotFoundException("Fant ikke vaktressursen.");
+                throw new EntityNotFoundException(ShiftService.ResourceNotFoundMessage);
 
             var result = await work();
             await transaction.CommitAsync();

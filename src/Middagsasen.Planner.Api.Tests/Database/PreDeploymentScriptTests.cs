@@ -355,7 +355,7 @@ namespace Middagsasen.Planner.Api.Tests.Database
                     (1, 10), -- 1: beholdes
                     (1, 10), -- 2: duplikat av 1
                     (1, 20), -- 3: annen bruker, beholdes
-                    (2, 10), -- 4: annen ressurs, beholdes
+                    (2, 10), -- 4: annen oppgave, beholdes
                     (1, 10); -- 5: duplikat av 1
                 insert into WorkHours (UserId, ShiftId) values (10, 2), (10, 5), (20, 3), (10, null);
                 """);

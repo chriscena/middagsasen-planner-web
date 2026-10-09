@@ -190,7 +190,7 @@ const eventName = ref<string | null>(null);
 const isValidStartTime = computed(() => isValidTime(startTime.value));
 const isValidEndTime = computed(() => isValidTime(endTime.value));
 // Ugyldige tider (f.eks. «1») ville gitt RangeError i toTimeWire. Slettede
-// vakter sjekkes ikke (se findInvalidResource).
+// oppgaver sjekkes ikke (se findInvalidResource).
 const hasValidResourceTimes = computed(
   () => !findInvalidResource(resources.value)
 );
@@ -207,7 +207,7 @@ const canSave = computed(() => {
     eventName.value &&
     isValidStartTime.value &&
     isValidEndTime.value &&
-    // Slettede vakter teller ikke.
+    // Slettede oppgaver teller ikke.
     visibleResources(resources.value).length &&
     hasValidResourceTimes.value &&
     // Samme regler som backend (minst 1, ikke samme kompetanse to ganger).

@@ -7,7 +7,7 @@ namespace Middagsasen.Planner.Api.Tests.Infrastructure
     /// Kjører <paramref name="beforeWrite"/> én gang, rett før første skrivekommando (non-query, f.eks.
     /// <c>ExecuteUpdate</c>) som kommer etter en lesing. Altså mellom «les» og «skriv» i en les-endre-skriv-operasjon,
     /// også når den skrives med <c>ExecuteUpdate</c> uten <c>SaveChanges</c> (som <see cref="BeforeSaveInterceptor"/> ikke ser).
-    /// Skrivekommandoer før første lesing (som ressurslåsen, en UPDATE) hoppes over.
+    /// Skrivekommandoer før første lesing (som oppgavelåsen, en UPDATE) hoppes over.
     /// </summary>
     public sealed class BeforeWriteAfterReadInterceptor(Func<Task> beforeWrite) : DbCommandInterceptor
     {

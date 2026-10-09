@@ -15,7 +15,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public string? EndTime { get; set; }
         public string? Comment { get; set; }
 
-        /// <summary>Eieren har bedt om opplæring på ressursens ressurstype og ikke fått den bekreftet ennå.</summary>
+        /// <summary>Eieren har bedt om opplæring på oppgavens vakttype og ikke fått den bekreftet ennå.</summary>
         public bool NeedsTraining { get; set; }
 
         /// <summary>Vakta tilhører innlogget bruker.</summary>
@@ -28,7 +28,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public bool CanWithdraw { get; set; }
 
         /// <summary>
-        /// Innlogget bruker (trener for ressurstypen eller admin) kan bekrefte at eieren har fått opplæring
+        /// Innlogget bruker (trener for vakttypen eller admin) kan bekrefte at eieren har fått opplæring
         /// (<c>PUT api/shifts/{id}/training</c> med <c>trainingCompleted: true</c>).
         /// </summary>
         public bool CanConfirmTraining { get; set; }

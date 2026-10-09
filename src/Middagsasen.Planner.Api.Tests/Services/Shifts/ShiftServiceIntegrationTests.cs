@@ -21,7 +21,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
     [Collection("Database")]
     public class ShiftServiceIntegrationTests
     {
-        // Ressursene i testene er 15.01.2026 09:00–15:00 norsk tid (UTC+1).
+        // Oppgavene i testene er 15.01.2026 09:00–15:00 norsk tid (UTC+1).
         private static readonly DateTime ResourceStart = new(2026, 1, 15, 9, 0, 0);
         private static readonly DateTime ResourceEnd = new(2026, 1, 15, 15, 0, 0);
         private static readonly DateTimeOffset BeforeResource = new(2026, 1, 1, 12, 0, 0, TimeSpan.Zero);
@@ -554,7 +554,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(user.UserId, shift.User.Id);
             Assert.False(shift.IsMine);
             Assert.True(shift.CanEdit);
-            // Admin har selv ikke svart på opplæring for ressurstypen.
+            // Admin har selv ikke svart på opplæring for vakttypen.
             Assert.True(result.Resource.MustAnswerTraining);
         }
 
@@ -1019,7 +1019,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var resource = await SeedResource(seed, 5, trainer.UserId);
             var shift = await SeedShift(seed, resource, owner.UserId);
 
-            // Simulerer at den nye eieren settes opp på ressursen samtidig (etter duplikatsjekken): den unike indeksen
+            // Simulerer at den nye eieren settes opp på oppgaven samtidig (etter duplikatsjekken): den unike indeksen
             // stopper lagringen etter at opplæringssvaret er tolket og raden lagt til.
             PlannerDbContext context = null!;
             var interceptor = new BeforeSaveInterceptor(() => context.Database.ExecuteSqlInterpolatedAsync(
@@ -1319,7 +1319,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         #endregion
 
-        #region Ledige plasser
+        #region Ledige vakter
 
         private async Task<int> GetShiftCount(int resourceId)
         {
@@ -1386,7 +1386,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).AddEmptySlot(resource.EventResourceId);
 
-            // Tre vakter og én ny ledig plass.
+            // Tre vakter og én ny ledig vakt.
             Assert.Equal(4, result.ShiftCount);
             Assert.True(result.IsMissingStaff);
             Assert.Equal(4, await GetShiftCount(resource.EventResourceId));
@@ -1394,7 +1394,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         /// <summary>
         /// Kjører <paramref name="action"/> to ganger, A og B, med hver sin kontekst, styrt slik at B starter mens A er inne
-        /// i ressurslåsen og har lest bemanningen, men ikke skrevet ny verdi (<see cref="BeforeWriteAfterReadInterceptor"/>).
+        /// i oppgavelåsen og har lest bemanningen, men ikke skrevet ny verdi (<see cref="BeforeWriteAfterReadInterceptor"/>).
         /// A fortsetter først når B enten står og venter på en lås (låsen virker) eller er ferdig (ingen lås: B leste den
         /// samme gamle verdien og skrev før A, slik at A overskriver B).
         /// </summary>
@@ -1457,7 +1457,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             return new EventsService(context, new ResourceReader(context, new FakeTimeProvider(BeforeResource)), currentUser);
         }
 
-        /// <summary>Vaktlisteskjemaet for vaktlista til <paramref name="resource"/>, med én ressurs.</summary>
+        /// <summary>Vaktlisteskjemaet for vaktlista til <paramref name="resource"/>, med én oppgave.</summary>
         private static EventRequest EventFormRequest(Event evt, EventResource resource, int shiftCount, int? originalShiftCount, TimeOnly? resourceStart = null)
             => new()
             {
@@ -1479,9 +1479,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             };
 
         /// <summary>
-        /// #151: admin A lagrer vaktlisteskjemaet (3 → 6) mens admin B klikker «Legg til ledig plass». B startes mens A er inne
+        /// #151: admin A lagrer vaktlisteskjemaet (3 → 6) mens admin B klikker «Legg til ledig vakt». B startes mens A er inne
         /// i transaksjonen og har lest bemanningen, men ikke lagret (<see cref="BeforeSaveInterceptor"/>). B venter på
-        /// ressurslåsen og legger plassen til på A sin verdi, så begge endringene teller. Uten låsen ville B skrevet 4 inne i A,
+        /// oppgavelåsen og legger den ledige vakta til på A sin verdi, så begge endringene teller. Uten låsen ville B skrevet 4 inne i A,
         /// og A overskrevet med 6.
         /// </summary>
         [Fact]
@@ -1500,14 +1500,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             Assert.Null(first);
             Assert.Null(second);
-            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.False(secondFinishedInsideFirst); // B ventet på oppgavelåsen
             Assert.Equal(7, await GetShiftCount(resource.EventResourceId));
         }
 
         /// <summary>
-        /// #151, motsatt rekkefølge: admin A klikker «Legg til ledig plass» (3 → 4), og admin B lagrer skjemaet (lastet med 3,
-        /// satt til 6) mens A er inne i ressurslåsen. B venter på låsen, ser deretter at verdien er endret av noen andre og
-        /// får konflikt i stedet for å overskrive A sin plass i stillhet.
+        /// #151, motsatt rekkefølge: admin A klikker «Legg til ledig vakt» (3 → 4), og admin B lagrer skjemaet (lastet med 3,
+        /// satt til 6) mens A er inne i oppgavelåsen. B venter på låsen, ser deretter at verdien er endret av noen andre og
+        /// får konflikt i stedet for å overskrive A sin ledige vakt i stillhet.
         /// </summary>
         [Fact]
         public async Task AddEmptySlot_ThenUpdateEvent_Concurrent_UpdateEventGetsConflict()
@@ -1525,13 +1525,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             Assert.Null(first);
             Assert.IsType<ConcurrentUpdateException>(second);
-            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.False(secondFinishedInsideFirst); // B ventet på oppgavelåsen
             Assert.Equal(4, await GetShiftCount(resource.EventResourceId));
         }
 
         /// <summary>
-        /// Admin A flytter starten på ressursen (09:00 → 10:00) mens en bruker tar vakt fra 09:00. Endringen i tider skjer under
-        /// ressurslåsen, så påmeldingen venter og vurderes mot de nye tidene. Uten låsen ville den blitt godkjent mot de gamle.
+        /// Admin A flytter starten på oppgaven (09:00 → 10:00) mens en bruker tar vakt fra 09:00. Endringen i tider skjer under
+        /// oppgavelåsen, så påmeldingen venter og vurderes mot de nye tidene. Uten låsen ville den blitt godkjent mot de gamle.
         /// </summary>
         [Fact]
         public async Task UpdateEvent_ChangingTimes_BlocksConcurrentSignUp_WhichIsCheckedAgainstNewTimes()
@@ -1552,7 +1552,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Null(first);
             var ex = Assert.IsType<DomainValidationException>(second);
             Assert.Equal(ShiftService.InvalidTimesMessage, ex.Message);
-            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.False(secondFinishedInsideFirst); // B ventet på oppgavelåsen
             Assert.Empty(await GetShifts(resource.EventResourceId));
         }
 
@@ -1569,7 +1569,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(5, await GetShiftCount(resource.EventResourceId));
             Assert.Null(first);
             Assert.Null(second);
-            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.False(secondFinishedInsideFirst); // B ventet på oppgavelåsen
         }
 
         [Fact]
@@ -1585,7 +1585,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(1, await GetShiftCount(resource.EventResourceId));
             Assert.Null(first);
             Assert.Null(second);
-            Assert.False(secondFinishedInsideFirst); // B ventet på ressurslåsen
+            Assert.False(secondFinishedInsideFirst); // B ventet på oppgavelåsen
         }
 
         [Fact]

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   findInvalidResource,
+  invalidResourceMessage,
   toResourceRequests,
   toResourceTemplateRequests,
   visibleResources,
@@ -22,7 +23,7 @@ function draft(
 }
 
 describe("visibleResources", () => {
-  it("gir bare vakter som ikke er slettet", () => {
+  it("gir bare oppgaver som ikke er slettet", () => {
     const kept = draft({ id: 2 });
     const unset = draft({ id: 3, isDeleted: undefined });
     expect(visibleResources([draft({ isDeleted: true }), kept, unset])).toEqual(
@@ -30,28 +31,50 @@ describe("visibleResources", () => {
     );
   });
 
-  it("gir tom liste når alle vakter er slettet", () => {
+  it("gir tom liste når alle oppgaver er slettet", () => {
     expect(visibleResources([draft({ isDeleted: true })])).toEqual([]);
   });
 });
 
 describe("findInvalidResource", () => {
-  it("finner første synlige vakt med ugyldig tid", () => {
+  it("finner første synlige oppgave med ugyldig tid", () => {
     const invalid = draft({ id: 2, endTime: "1" });
     expect(
       findInvalidResource([draft(), invalid, draft({ startTime: null })])
     ).toBe(invalid);
   });
 
-  it("gir undefined når alle synlige vakter er gyldige", () => {
+  it("gir undefined når alle synlige oppgaver er gyldige", () => {
     expect(findInvalidResource([draft(), draft({ id: 2 })])).toBeUndefined();
     expect(findInvalidResource([])).toBeUndefined();
   });
 
-  it("ignorerer slettede vakter", () => {
+  it("ignorerer slettede oppgaver", () => {
     expect(
       findInvalidResource([draft({ startTime: "1", isDeleted: true })])
     ).toBeUndefined();
+  });
+});
+
+describe("invalidResourceMessage", () => {
+  it("navngir vakttypen og tar med tidene", () => {
+    expect(
+      invalidResourceMessage({
+        resourceType: { name: "Storheis" },
+        startTime: "18:00",
+        endTime: "1",
+      })
+    ).toBe("Oppgaven «Storheis» (18:00–1) har ugyldig start- eller sluttid.");
+  });
+
+  it("håndterer manglende vakttype og tomme tider", () => {
+    expect(
+      invalidResourceMessage({
+        resourceType: null,
+        startTime: " ",
+        endTime: null,
+      })
+    ).toBe("En oppgave (?–?) har ugyldig start- eller sluttid.");
   });
 });
 
@@ -78,7 +101,7 @@ describe("toResourceRequests", () => {
     ]);
   });
 
-  it("sender nye vakter med id null og originalShiftCount null", () => {
+  it("sender nye oppgaver med id null og originalShiftCount null", () => {
     const [request] = toResourceRequests([
       draft({ id: undefined, originalShiftCount: 4 }),
     ]);
@@ -86,12 +109,12 @@ describe("toResourceRequests", () => {
     expect(request?.originalShiftCount).toBe(null);
   });
 
-  it("sender originalShiftCount null for eksisterende vakt uten original", () => {
+  it("sender originalShiftCount null for eksisterende oppgave uten original", () => {
     const [request] = toResourceRequests([draft({ id: 5 })]);
     expect(request?.originalShiftCount).toBe(null);
   });
 
-  it("sender slettede vakter med id, men ikke nye slettede vakter", () => {
+  it("sender slettede oppgaver med id, men ikke nye slettede oppgaver", () => {
     const requests = toResourceRequests([
       draft({ id: 1, isDeleted: true }),
       draft({ id: undefined, isDeleted: true }),
@@ -131,7 +154,7 @@ describe("toResourceTemplateRequests", () => {
     expect(request).not.toHaveProperty("originalShiftCount");
   });
 
-  it("utelater nye slettede vakter", () => {
+  it("utelater nye slettede oppgaver", () => {
     const requests = toResourceTemplateRequests([
       draft({ id: 1, isDeleted: true }),
       draft({ id: undefined, isDeleted: true }),

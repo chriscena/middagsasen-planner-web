@@ -9,10 +9,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <exception cref="InvalidOperationException">Brukeren finnes ikke.</exception>
         Task<User> GetUser(int userId);
 
-        /// <exception cref="InvalidOperationException">Ressurstypen finnes ikke.</exception>
+        /// <exception cref="InvalidOperationException">Vakttypen finnes ikke.</exception>
         Task<ResourceType> GetResourceType(int resourceTypeId);
 
-        /// <summary>Trenerne (brukerne) for ressurstypen.</summary>
+        /// <summary>Trenerne (brukerne) for vakttypen.</summary>
         Task<IReadOnlyList<User>> GetTrainers(int resourceTypeId);
     }
 

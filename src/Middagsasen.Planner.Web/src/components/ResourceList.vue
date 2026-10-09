@@ -3,7 +3,7 @@
     <q-list separator>
       <q-item v-if="!visibleResources.length">
         <q-item-section>
-          <q-item-label>Ingen vakter</q-item-label></q-item-section
+          <q-item-label>Ingen oppgaver</q-item-label></q-item-section
         >
       </q-item>
       <q-item v-for="resource in visibleResources" :key="resource.clientKey">
@@ -28,7 +28,7 @@
         no-caps
         dense
         flat
-        label="Legg til vakt"
+        label="Legg til oppgave"
         color="primary"
         icon="add"
         @click="addResource"
@@ -119,8 +119,8 @@ function saveResource(model: ResourceFormModel) {
   showingEdit.value = false;
 }
 
-// Markerer vakta i lista som slettet uten endringene fra dialogen, så den
-// sendes med tidene den hadde. Nye vakter (uten id) sendes ikke (se
+// Markerer oppgaven i lista som slettet uten endringene fra dialogen, så den
+// sendes med tidene den hadde. Nye oppgaver (uten id) sendes ikke (se
 // toResourceRequests).
 function deleteResource() {
   if (selectedResource.value) selectedResource.value.isDeleted = true;

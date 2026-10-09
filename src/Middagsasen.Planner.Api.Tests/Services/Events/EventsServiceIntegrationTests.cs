@@ -14,7 +14,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
     {
         private readonly DatabaseFixture _fixture;
 
-        // Fast «nå» før testdataene (januar 2026), så ressursene ikke er avsluttet.
+        // Fast «nå» før testdataene (januar 2026), så oppgavene ikke er avsluttet.
         private static readonly TimeProvider Clock = new FakeTimeProvider(new DateTimeOffset(2026, 1, 1, 12, 0, 0, TimeSpan.Zero));
 
         public EventsServiceIntegrationTests(DatabaseFixture fixture)
@@ -94,7 +94,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public async Task CreateEvent_ResourceWithId_CreatesNewResource_AndLeavesExistingUntouched()
         {
-            // Arrange: klienten sender med id-en til en eksisterende ressurs (f.eks. ved kopiering).
+            // Arrange: klienten sender med id-en til en eksisterende oppgave (f.eks. ved kopiering).
             using var seedContext = _fixture.CreateContext();
             var (existingEvent, existingResource) = await SeedEventWithResource(seedContext);
 
@@ -392,7 +392,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Act
             var result = await service.DeleteEvent(evt.EventId);
 
-            // Assert: svaret er det slettede arrangementet med ressursene.
+            // Assert: svaret er det slettede arrangementet med oppgavene.
             Assert.Equal(evt.EventId, result.Id);
             Assert.Equal(resource.EventResourceId, Assert.Single(result.Resources).Id);
 
@@ -418,7 +418,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #region Bemanning ved lagring (#151)
 
-        // Ressursen fra SeedEventWithResource er 15.01.2026 08:00–16:00. Testene setter selv verdien skjemaet ble
+        // Oppgaven fra SeedEventWithResource er 15.01.2026 08:00–16:00. Testene setter selv verdien skjemaet ble
         // lastet med (OriginalShiftCount), og hva «en annen admin» har endret i mellomtiden (SetShiftCount).
 
         private async Task SetShiftCount(int resourceId, int shiftCount)
@@ -478,7 +478,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         {
             using var seed = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seed);
-            // Skjemaet er lastet med 3. En annen admin har siden lagt til to ledige plasser.
+            // Skjemaet er lastet med 3. En annen admin har siden lagt til to ledige vakter.
             await SetShiftCount(resource.EventResourceId, 5);
 
             var newName = UniqueName("Renamed");
@@ -529,10 +529,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var otherType = await SeedResourceType(seed, UniqueName("Barneheis"));
             var (evt, resource) = await SeedEventWithResource(seed);
             var storedTypeName = await seed.ResourceTypes.Where(t => t.ResourceTypeId == resource.ResourceTypeId).Select(t => t.Name).SingleAsync();
-            // Skjemaet er lastet med 3 og settes til 4. En annen admin har siden lagt til to ledige plasser (5).
+            // Skjemaet er lastet med 3 og settes til 4. En annen admin har siden lagt til to ledige vakter (5).
             await SetShiftCount(resource.EventResourceId, 5);
 
-            // Skjemaet endrer også navn, start, vakttype og tider på ressursen, og legger til en ressurs.
+            // Skjemaet endrer også navn, start, vakttype og tider på oppgaven, og legger til en oppgave.
             var request = StaffingRequest(evt, resource, shiftCount: 4, originalShiftCount: 3, name: UniqueName("Renamed"));
             request.StartTime = evt.StartTime.AddHours(1);
             var requested = request.Resources.Single();
@@ -557,7 +557,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Contains($"{storedTypeName} 08:00–16:00", ex.Message);
             Assert.Contains("nå 5", ex.Message);
 
-            // Ingenting er lagret: verken navn, tider, vakttype, bemanning eller den nye ressursen.
+            // Ingenting er lagret: verken navn, tider, vakttype, bemanning eller den nye oppgaven.
             var (storedEvent, storedResource) = await GetStored(evt.EventId, resource.EventResourceId);
             Assert.Equal(evt.Name, storedEvent.Name);
             Assert.Equal(evt.StartTime, storedEvent.StartTime);
@@ -805,7 +805,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #endregion
 
-        #region Ressurstider over midnatt
+        #region Oppgavetider over midnatt
 
         [Fact]
         public async Task CreateEventFromTemplate_PlacesResourcesNearestEvent_OverMidnight()
@@ -1015,11 +1015,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         #endregion
 
-        #region Vakter følger ressursens tider (#173)
+        #region Vakter følger oppgavens tider (#173)
 
         private async Task<List<EventResourceUser>> SeedShifts(PlannerDbContext context, int eventResourceId, params (DateTime? Start, DateTime? End)[] times)
         {
-            // Én bruker per vakt: en bruker kan bare ha én vakt per ressurs.
+            // Én bruker per vakt: en bruker kan bare ha én vakt per oppgave.
             var shifts = new List<EventResourceUser>();
             foreach (var (start, end) in times)
             {
@@ -1054,7 +1054,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public async Task UpdateEvent_MovedToOtherDate_MovesShifts()
         {
-            // Arrange: ressurs 15. jan 08–16 med hel vakt, delvakt og vakt uten egne tider
+            // Arrange: oppgave 15. jan 08–16 med hel vakt, delvakt og vakt uten egne tider
             using var seedContext = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seedContext);
             var shifts = await SeedShifts(seedContext, resource.EventResourceId,
@@ -1077,7 +1077,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public async Task UpdateEvent_ExtendedResource_ShiftsWithAnchoredEndFollow()
         {
-            // Arrange: ressurs 08–16 med hel vakt og delvakt 08–12
+            // Arrange: oppgave 08–16 med hel vakt og delvakt 08–12
             using var seedContext = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seedContext);
             var shifts = await SeedShifts(seedContext, resource.EventResourceId,
@@ -1098,7 +1098,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
         [Fact]
         public async Task UpdateEvent_UnchangedResourceTimes_LeavesShiftsUntouched()
         {
-            // Arrange: admin-satt vakt utenfor ressursen fra før
+            // Arrange: admin-satt vakt utenfor oppgaven fra før
             using var seedContext = _fixture.CreateContext();
             var (evt, resource) = await SeedEventWithResource(seedContext);
             var shifts = await SeedShifts(seedContext, resource.EventResourceId,
@@ -1196,7 +1196,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.False(r.IsFull);
             Assert.False(r.IsPast);
             Assert.False(r.CanSignUp); // allerede påmeldt
-            Assert.False(r.MustAnswerTraining); // ressurstypen har ikke opplæring
+            Assert.False(r.MustAnswerTraining); // vakttypen har ikke opplæring
             Assert.Empty(r.CompetencyWarnings);
             var s = Assert.Single(r.Shifts);
             Assert.Equal(shift.EventResourceUserId, s.Id);

@@ -56,11 +56,11 @@ Tilgangsregler samles i rene, statiske policy-klasser per domene, f.eks. `WorkHo
 - **Controllere har ingen tilgangslogikk** utover `[Authorize]` / `[Authorize(Role = Roles.Administrator)]`. `AuthorizeAttribute` kaster `NotAuthenticatedException` (401) og `ForbiddenAccessException` (403), slik at `ExceptionHandlingMiddleware` skriver svaret som ProblemDetails. 401/403 dokumenteres automatisk i OpenAPI av `AuthorizeProblemResponsesConvention`, og alle ProblemDetails-svar dokumenteres som `application/problem+json` av `ProblemDetailsContentTypeConvention`. `UnauthorizedAccessException` (som også kastes av I/O-feil) gir 500 og logges.
 - **Hver policy har rene enhetstester** (uten database) med tillatt og avvist for hver regel, og hver service har integrasjonstester for avviste forespørsler.
 
-## Lesemodul for ressurser
+## Lesemodul for oppgaver
 
-`Services/Resources/IResourceReader` er det eneste stedet som vet hvordan arrangementer, ressurser, ressurstyper, opplæring, meldinger og filer lastes (includes) og mappes til DTO-er, inkludert fulle navn, flaggene fra `ShiftRules` og kompetansevarslene. `EventsService`, `ShiftService`, `EventTemplatesService` og `ResourceTypesService` leser svarene sine via modulen, så en `ResourceTypeResponse` er lik uansett om den kommer fra et arrangement, en mal eller `api/resourcetypes`. Skrivesiden laster bare det den selv trenger (f.eks. `IShiftRepository.GetResource` for reglene) og leser svaret fra modulen etter lagring. Fullt navn lages med `Core/NameExtensions.FullName`.
+`Services/Resources/IResourceReader` er det eneste stedet som vet hvordan arrangementer, oppgaver, vakttyper, opplæring, meldinger og filer lastes (includes) og mappes til DTO-er, inkludert fulle navn, flaggene fra `ShiftRules` og kompetansevarslene. `EventsService`, `ShiftService`, `EventTemplatesService` og `ResourceTypesService` leser svarene sine via modulen, så en `ResourceTypeResponse` er lik uansett om den kommer fra et arrangement, en mal eller `api/resourcetypes`. Skrivesiden laster bare det den selv trenger (f.eks. `IShiftRepository.GetResource` for reglene) og leser svaret fra modulen etter lagring. Fullt navn lages med `Core/NameExtensions.FullName`.
 
-Modulen eier mappingen av ressurser og ressurstyper, ikke av maler: skallet til malene (`EventTemplateResponse`/`ResourceTemplateResponse`) mappes i `EventTemplatesService`, som henter ressurstypene via `IResourceReader.GetResourceTypes(ids)`.
+Modulen eier mappingen av oppgaver og vakttyper, ikke av maler: skallet til malene (`EventTemplateResponse`/`ResourceTemplateResponse`) mappes i `EventTemplatesService`, som henter vakttypene via `IResourceReader.GetResourceTypes(ids)`.
 
 `ResourceReader` er et bevisst unntak fra repository-mønsteret. Den er en ren lesemodell (spørringer og mapping, uten forretningsregler for skriving) og går derfor rett mot `PlannerDbContext`. Skrivesiden bruker fortsatt repository (`IShiftRepository` osv.).
 
@@ -68,7 +68,7 @@ Modulen eier mappingen av ressurser og ressurstyper, ikke av maler: skallet til 
 
 Formatet følger tidsmodellen til verdien:
 
-- **Lokal norsk tid uten sone** (arrangement, ressurs, mal, ressursmal og vakt): lagres uten sone og sendes som `yyyy-MM-ddTHH:mm` via `ToSimpleIsoString()`, f.eks. `"2026-01-15T09:00"`.
+- **Lokal norsk tid uten sone** (arrangement, oppgave, mal, oppgave i mal og vakt): lagres uten sone og sendes som `yyyy-MM-ddTHH:mm` via `ToSimpleIsoString()`, f.eks. `"2026-01-15T09:00"`.
 - **UTC-tidspunkt** (filenes `Created`/`Updated`, meldingenes `Created`, opplæringens `Confirmed`): lagres som UTC og sendes med sone via `AsUtc().ToIsoString()`, f.eks. `"2026-01-15T08:00:00Z"`.
 
 Feltene er dokumentert med XML-doc på DTO-ene. Nye tidsfelt skal følge samme regel.

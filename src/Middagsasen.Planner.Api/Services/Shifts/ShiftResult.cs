@@ -7,14 +7,14 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     public class ShiftResult
     {
         /// <summary>
-        /// Hele ressursen etter endringen, med vakter og flagg for innlogget bruker, mappet likt som i
-        /// <c>GET api/events</c>. Klienten kan erstatte ressursen i cachen med denne.
+        /// Hele oppgaven etter endringen, med vakter og flagg for innlogget bruker, mappet likt som i
+        /// <c>GET api/events</c>. Klienten kan erstatte oppgaven i cachen med denne.
         /// </summary>
         public ResourceResponse Resource { get; internal set; } = null!;
 
         /// <summary>
-        /// Opplæringen (eieren av vakta på ressursens ressurstype) hvis den ble opprettet eller endret, ellers <c>null</c>.
-        /// Gjelder alle ressurser av samme ressurstype, så klienten kan oppdatere <c>mustAnswerTraining</c>/<c>needsTraining</c> der.
+        /// Opplæringen (eieren av vakta på oppgavens vakttype) hvis den ble opprettet eller endret, ellers <c>null</c>.
+        /// Gjelder alle oppgaver av samme vakttype, så klienten kan oppdatere <c>mustAnswerTraining</c>/<c>needsTraining</c> der.
         /// </summary>
         public TrainingResponse? ChangedTraining { get; internal set; }
 

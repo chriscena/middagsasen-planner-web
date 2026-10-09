@@ -4,55 +4,55 @@ using Middagsasen.Planner.Api.Services.ResourceTypes;
 namespace Middagsasen.Planner.Api.Services.Resources
 {
     /// <summary>
-    /// Lesemodulen for arrangementer, ressurser, ressurstyper, opplæring, meldinger og filer. Eier hvilke tabeller som
+    /// Lesemodulen for arrangementer, oppgaver, vakttyper, opplæring, meldinger og filer. Eier hvilke tabeller som
     /// lastes og all mapping til DTO-ene, inkludert fulle navn, flaggene fra <see cref="Shifts.ShiftRules"/> og
     /// kompetansevarslene. Kallerne trenger derfor ikke kjenne til includes eller mappe disse DTO-ene selv.
     /// <para>
-    /// Samme <see cref="ResourceTypeResponse"/> gis uansett om ressurstypen leses via arrangement, mal eller ressurstype.
-    /// Modulen eier mappingen av ressurser og ressurstyper, ikke av maler: skallet til malene
+    /// Samme <see cref="ResourceTypeResponse"/> gis uansett om vakttypen leses via arrangement, mal eller vakttype.
+    /// Modulen eier mappingen av oppgaver og vakttyper, ikke av maler: skallet til malene
     /// (<see cref="EventTemplateResponse"/>/<see cref="ResourceTemplateResponse"/>) mappes i <see cref="EventTemplatesService"/>,
-    /// som henter ressurstypene via <see cref="GetResourceTypes(IEnumerable{int})"/>.
+    /// som henter vakttypene via <see cref="GetResourceTypes(IEnumerable{int})"/>.
     /// </para>
     /// <para>
     /// Implementasjonen er et bevisst unntak fra repository-mønsteret: en ren lesemodell (spørringer og mapping, uten
     /// forretningsregler for skriving) som går rett mot <c>PlannerDbContext</c>. Skrivesiden bruker fortsatt repository.
     /// </para>
     /// <para>
-    /// Datoformat: lokal norsk tid uten sone (arrangement, ressurs, vakt) som <c>yyyy-MM-ddTHH:mm</c>;
+    /// Datoformat: lokal norsk tid uten sone (arrangement, oppgave, vakt) som <c>yyyy-MM-ddTHH:mm</c>;
     /// UTC-tidspunkter (filer, meldinger, opplæringens bekreftelse) som <c>yyyy-MM-ddTHH:mm:ssZ</c>.
     /// </para>
     /// </summary>
     public interface IResourceReader
     {
         /// <summary>
-        /// Arrangementene med ressurser og flagg for <paramref name="actor"/>. <paramref name="start"/> og
+        /// Arrangementene med oppgaver og flagg for <paramref name="actor"/>. <paramref name="start"/> og
         /// <paramref name="end"/> avgrenser på arrangementets start (<c>start &lt;= StartTime &lt; end</c>), og hver av dem
         /// kan utelates.
         /// </summary>
         Task<IReadOnlyList<EventResponse>> GetEvents(Actor actor, DateTime? start = null, DateTime? end = null);
 
-        /// <summary>Arrangementet med ressurser og flagg for <paramref name="actor"/>, eller <c>null</c>.</summary>
+        /// <summary>Arrangementet med oppgaver og flagg for <paramref name="actor"/>, eller <c>null</c>.</summary>
         Task<EventResponse?> GetEvent(Actor actor, int eventId);
 
-        /// <summary>Ressursen med vakter, meldinger og flagg for <paramref name="actor"/>, eller <c>null</c>.</summary>
+        /// <summary>Oppgaven med vakter, meldinger og flagg for <paramref name="actor"/>, eller <c>null</c>.</summary>
         Task<ResourceResponse?> GetResource(Actor actor, int resourceId);
 
-        /// <summary>Alle aktive ressurstyper.</summary>
+        /// <summary>Alle aktive vakttyper.</summary>
         Task<IReadOnlyList<ResourceTypeResponse>> GetResourceTypes();
 
         /// <summary>
-        /// Ressurstypene med de gitte id-ene, også inaktive (maler og arrangementer kan peke på dem). Id-er som ikke finnes,
+        /// Vakttypene med de gitte id-ene, også inaktive (maler og arrangementer kan peke på dem). Id-er som ikke finnes,
         /// er ikke med i svaret.
         /// </summary>
         Task<IReadOnlyDictionary<int, ResourceTypeResponse>> GetResourceTypes(IEnumerable<int> ids);
 
-        /// <summary>Ressurstypen (også inaktiv), eller <c>null</c>.</summary>
+        /// <summary>Vakttypen (også inaktiv), eller <c>null</c>.</summary>
         Task<ResourceTypeResponse?> GetResourceType(int id);
 
-        /// <summary>Opplæringen med ressurstype og hvem som bekreftet den, eller <c>null</c>.</summary>
+        /// <summary>Opplæringen med vakttype og hvem som bekreftet den, eller <c>null</c>.</summary>
         Task<TrainingResponse?> GetTraining(int trainingId);
 
-        /// <summary>Meldingene på ressursen, eldste først.</summary>
+        /// <summary>Meldingene på oppgaven, eldste først.</summary>
         Task<IReadOnlyList<MessageResponse>> GetMessages(int resourceId);
 
         /// <summary>Meldingen, eller <c>null</c>.</summary>

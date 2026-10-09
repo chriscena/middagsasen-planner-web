@@ -60,7 +60,7 @@
         /// <summary>
         /// Returnerer et <b>tidspunkt</b> (f.eks. «nå» fra <see cref="TimeProvider"/>) som norsk lokal tid
         /// (<see cref="SeasonTimeZone"/>) med <see cref="DateTimeKind.Unspecified"/>. Brukes til å sammenligne
-        /// med tider som lagres som norsk lokal tid uten tidssone, f.eks. start og slutt på events og ressurser.
+        /// med tider som lagres som norsk lokal tid uten tidssone, f.eks. start og slutt på events og oppgaver.
         /// </summary>
         public static DateTime ToNorwegianLocalTime(this DateTimeOffset instant)
         {

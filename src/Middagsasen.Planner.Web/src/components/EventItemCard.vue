@@ -171,13 +171,13 @@
           @click="withdrawShift"
         ></q-btn>
       </q-card-section>
-      <!-- Vakter tatt før svaret ble påkrevd ved påmelding kan mangle
+      <!-- Vakter som ble bemannet før svaret ble påkrevd ved påmelding kan mangle
            opplæringsrad. Svaret sendes med i samme kall som kommentaren
            (Lagre). -->
       <q-card-section
         class="text-center"
         v-if="selectedResource!.mustAnswerTraining"
-        >Vi har ikke registrert at du har fått opplæring til denne type vakter,
+        >Vi har ikke registrert at du har fått opplæring på denne vakttypen,
         trenger du det?</q-card-section
       >
       <q-card-section
@@ -331,7 +331,7 @@
   <q-dialog v-model="showingTrainingDialog" persistent>
     <q-card class="text-center">
       <q-card-section
-        >Vi har ikke registrert at du har fått opplæring til denne type vakter,
+        >Vi har ikke registrert at du har fått opplæring på denne vakttypen,
         trenger du det?</q-card-section
       >
       <q-card-section class="q-gutter-md"
@@ -436,7 +436,7 @@
       <q-card-section>
         <q-card flat class="bg-yellow-2">
           <q-card-section class="q-py-sm text-subtitle2">
-            Beskjed til vakta</q-card-section
+            Beskjed til oppgaven</q-card-section
           >
           <q-separator></q-separator>
           <q-list separator>
@@ -544,7 +544,7 @@ type DayTimestamp = Pick<Timestamp, "date">;
 // (admin), som har userStore.users (UserResponse) som options.
 type ShiftUser = ShiftUserResponse | UserResponse;
 
-// Kopi av vakta (eller den ledige plassen, id 0) som redigeres i dialogene.
+// Kopi av vakta (eller den ledige vakta, id 0) som redigeres i dialogene.
 interface EditableShift {
   id: number;
   user: ShiftUser | null;
@@ -589,9 +589,9 @@ const trainingComplete = ref<boolean | null>(null);
 // overskriver en opplæring som er endret siden kalenderen ble lastet (f.eks.
 // bekreftet av en trener).
 const initialTrainingComplete = ref<boolean | null>(null);
-// Brukeren som eier vakta da admin-dialogen ble åpnet (null = ledig plass).
+// Brukeren som eier vakta da admin-dialogen ble åpnet (null = ledig vakt).
 const originalUserId = ref<number | null>(null);
-// Valgt bruker har en opplæringsrad på ressurstypen (satt i loadTraining).
+// Valgt bruker har en opplæringsrad på vakttypen (satt i loadTraining).
 const selectedUserHasTraining = ref(false);
 const showingAdminEdit = ref(false);
 const showingConfirmTraining = ref(false);
@@ -608,7 +608,7 @@ const isFutureDay = computed(() => isFuture(props.timestamp.date));
 const event = computed(() => props.modelValue);
 // Komponenten vises kun for innloggede brukere (IndexPage krever innlogging).
 const currentUser = computed(() => authStore.user!);
-// Admin setter en bruker på vakta som ikke eide den fra før: en ledig plass
+// Admin setter en bruker på vakta som ikke eide den fra før: en ledig vakt
 // (id 0) tas, eller vakta flyttes til en annen bruker.
 const isNewUser = computed(
   () =>
@@ -617,7 +617,7 @@ const isNewUser = computed(
       selectedShift.value.user.id !== originalUserId.value)
 );
 // Backend krever svaret på opplæring når en ny bruker uten opplæringsrad
-// settes på vakta (ressurstypen har opplæring). Dialogen sperrer da Lagre til
+// settes på vakta (vakttypen har opplæring). Dialogen sperrer da Lagre til
 // Ja/Nei er valgt, så svaret er med når backend krever det. Gamle vakter der
 // eieren mangler opplæringsrad kan fortsatt lagres uten svar.
 const mustChooseTraining = computed(
@@ -646,7 +646,7 @@ function isVacant(shift: ShiftListItem): boolean {
   return (shift?.user?.id ?? 0) === 0;
 }
 
-// Type guard: en tatt vakt er en ShiftResponse med bruker. `?? 0` i stedet
+// Type guard: en bemannet vakt er en ShiftResponse med bruker. `?? 0` i stedet
 // for `?? false`: `undefined > 0` og `0 > 0` gir begge false.
 function isTaken(shift: ShiftListItem): shift is ShiftResponse {
   return (shift?.user?.id ?? 0) > 0;
@@ -660,7 +660,7 @@ function notifyWarnings(warnings: string[]): void {
   }
 }
 
-// Leser opplæringen til brukeren på ressursens ressurstype inn i dialogene
+// Leser opplæringen til brukeren på oppgavens vakttype inn i dialogene
 // (for visning, og som utgangspunkt for svaret som sendes med vakta).
 function loadTraining(
   user: ShiftUser | null,
@@ -679,7 +679,7 @@ function loadTraining(
   selectedUserHasTraining.value = !!training;
 }
 
-// Svaret på opplæring til spread i saveShift: sendes bare når ressurstypen
+// Svaret på opplæring til spread i saveShift: sendes bare når vakttypen
 // har opplæring, svaret er satt og det er endret fra utgangsverdien (også en
 // ny bruker uten rad, der utgangsverdien er null). Ellers utelates det, og
 // backend lar opplæringsraden være.
@@ -700,7 +700,7 @@ function closeDialogs(): void {
   showingConfirmTraining.value = false;
 }
 
-// «Ta vakt» på en ledig plass. Har ressurstypen opplæring og brukeren ikke
+// «Ta vakt» på en ledig vakt. Har vakttypen opplæring og brukeren ikke
 // svart før (mustAnswerTraining), spørres det først; svaret sendes med i
 // samme påmelding.
 async function takeShift(resource: ResourceResponse): Promise<void> {
@@ -763,7 +763,7 @@ function edit(shift: ShiftResponse, resource: ResourceResponse): void {
 
 // Eiers redigeringsdialog: kommentaren og evt. svaret på opplæring lagres i
 // ett kall. Svaret sendes bare når det er endret (changedTraining); backend
-// oppretter raden for vakter tatt uten opplæringsrad.
+// oppretter raden for vakter bemannet uten opplæringsrad.
 async function saveOwnShift(): Promise<void> {
   const shift = selectedShift.value!;
   const resource = selectedResource.value!;
@@ -785,7 +785,7 @@ async function saveOwnShift(): Promise<void> {
   }
 }
 
-// Admin-dialogen: ledig plass (id 0) tas for valgt bruker, ellers endres
+// Admin-dialogen: ledig vakt (id 0) tas for valgt bruker, ellers endres
 // vakta (evt. med ny bruker). Bruker, kommentar og svaret på opplæring lagres
 // i ett kall; backend oppretter eller oppdaterer opplæringsraden ved behov.
 async function saveAdminShift(): Promise<void> {
@@ -827,7 +827,7 @@ async function withdrawShift(): Promise<void> {
   }
 }
 
-// Trener for ressurstypen: bekrefte at eieren av vakta har fått opplæring.
+// Trener for vakttypen: bekrefte at eieren av vakta har fått opplæring.
 function confirmTraining(
   resource: ResourceResponse,
   shift: ShiftResponse
@@ -882,7 +882,7 @@ function showResourceInfo(resource: ResourceResponse): void {
   showingResourceInfo.value = true;
 }
 
-// Kalles fra ressursinfo-dialogen, der selectedResource er satt.
+// Kalles fra oppgaveinfo-dialogen, der selectedResource er satt.
 async function saveMessage(): Promise<void> {
   // Hver beskjed er en egen rad i API-et (sletting er et eget endepunkt), så en
   // tom beskjed har ingen mening og sendes ikke. Lagre er deaktivert da.
@@ -902,7 +902,7 @@ async function saveMessage(): Promise<void> {
   }
 }
 
-// Kalles fra ressursinfo-dialogen, der selectedResource er satt.
+// Kalles fra oppgaveinfo-dialogen, der selectedResource er satt.
 async function deleteMessage(message: MessageResponse): Promise<void> {
   try {
     deletingMessage.value = true;
@@ -924,7 +924,7 @@ function canDeleteMessage(message: MessageResponse): boolean {
   );
 }
 // addEmptySlot/removeEmptySlot lar serveren regne ut ny shiftCount og
-// legger svaret (ressursen med flagg) i cachen, så her håndteres bare
+// legger svaret (oppgaven med flagg) i cachen, så her håndteres bare
 // loading-sperre og feilvarsel. Feiler endringen (f.eks. 400 fordi noen
 // meldte seg på i mellomtiden), er cachen trolig utdatert; da hentes
 // arrangementet på nytt så tallene og knappene stemmer med serveren. Unntak:
@@ -964,17 +964,17 @@ async function addEmptyShift(resource: ResourceResponse): Promise<void> {
   await changeEmptySlots(
     resource,
     () => eventStore.addEmptySlot(resource.id),
-    "Oh no! Noe tryna da vi skulle legge til en ledig plass! 🙈"
+    "Oh no! Noe tryna da vi skulle legge til en ledig vakt! 🙈"
   );
 }
 async function deleteEmptyShift(resource: ResourceResponse): Promise<void> {
-  // Ingen ledige plasser å fjerne (UI-hint; serveren er fasit).
+  // Ingen ledige vakter å fjerne (UI-hint; serveren er fasit).
   if (loading.value || !resource.isMissingStaff) return;
 
   await changeEmptySlots(
     resource,
     () => eventStore.removeEmptySlot(resource.id),
-    "Oh no! Noe tryna da vi skulle fjerne en ledig plass! 🙈"
+    "Oh no! Noe tryna da vi skulle fjerne en ledig vakt! 🙈"
   );
 }
 </script>
