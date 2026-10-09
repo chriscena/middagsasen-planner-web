@@ -70,7 +70,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         [InlineData(3, 0, 4)]
         [InlineData(3, 2, 4)]
         [InlineData(3, 3, 4)]
-        [InlineData(1, 3, 4)] // overbooket: én ledig vakt utover vaktene
+        [InlineData(1, 3, 4)] // overbooket: én ledig vakt utover de bemannede vaktene
         [InlineData(0, 0, 1)]
         public void ShiftCountAfterAddingEmptySlot(int shiftCount, int staffedCount, int expected)
         {

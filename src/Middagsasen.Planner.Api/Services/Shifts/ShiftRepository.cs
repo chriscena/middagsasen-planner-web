@@ -25,7 +25,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             // En samtidig endring på samme oppgave (også lagring av vaktlisteskjemaet, se EventsService.UpdateEvent)
             // venter her til denne er ferdig, og leser deretter vaktene på nytt. Se RowLocks for teknikken.
             if (!await DbContext.LockResource(resourceId))
-                throw new EntityNotFoundException("Fant ikke oppgaven.");
+                throw new EntityNotFoundException(ShiftService.ResourceNotFoundMessage);
 
             var result = await work();
             await transaction.CommitAsync();

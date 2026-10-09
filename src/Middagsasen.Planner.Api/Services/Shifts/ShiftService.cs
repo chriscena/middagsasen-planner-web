@@ -11,7 +11,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal const string ResourceNotFoundMessage = "Fant ikke oppgaven.";
         internal const string ShiftNotFoundMessage = "Fant ikke vakta.";
         internal const string UserNotFoundMessage = "Fant ikke brukeren.";
-        internal const string PastMessage = "Oppgaven er avsluttet og kan ikke endres.";
+        internal const string PastMessage = "Oppgaven er avsluttet.";
         internal const string FullMessage = "Det er ingen ledige vakter på denne oppgaven.";
         internal const string DuplicateMessage = "Brukeren står allerede på denne oppgaven.";
         internal const string InvalidTimesMessage = "Tidene må ligge innenfor oppgavens tider, og start kan ikke være etter slutt.";

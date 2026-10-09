@@ -18,7 +18,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public int EventId { get; internal set; }
         public IEnumerable<MessageResponse> Messages { get; set; } = new List<MessageResponse>();
 
-        /// <summary>Kompetansekrav som ikke er oppfylt av vaktene. Bare en advarsel; blokkerer ikke påmelding. Tom liste når alt er oppfylt.</summary>
+        /// <summary>Vaktkrav som ikke er oppfylt av vaktene. Bare en advarsel; blokkerer ikke påmelding. Tom liste når alt er oppfylt.</summary>
         public IEnumerable<CompetencyWarningResponse> CompetencyWarnings { get; internal set; } = new List<CompetencyWarningResponse>();
 
         /// <summary>Færre bemannede vakter enn <see cref="ShiftCount"/> (samme formel som kalenderens EventStatuses).</summary>

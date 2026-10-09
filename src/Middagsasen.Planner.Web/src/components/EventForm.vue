@@ -171,6 +171,7 @@ import {
 import { notifyApiError } from "@/shared/notifyApiError";
 import {
   findInvalidResource,
+  invalidResourceMessage,
   toResourceRequests,
   visibleResources,
 } from "@/shared/resourceRequests";
@@ -321,9 +322,7 @@ async function saveEvent() {
   const invalid = findInvalidResource(resources.value);
   if (invalid) {
     $q.notify({
-      message: `Oppgaven «${
-        invalid.resourceType?.name ?? ""
-      }» har ugyldig start- eller sluttid.`,
+      message: invalidResourceMessage(invalid),
     });
     return;
   }

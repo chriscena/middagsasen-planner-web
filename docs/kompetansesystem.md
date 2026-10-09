@@ -11,11 +11,11 @@
 - **Selvregistrering:** Brukere kan registrere at de har en kompetanse (Approved=false), må godkjennes
 - **Fokus:** Testbar, ren arkitektur — repository-mønster, interface-basert DI
 
-## Kompetansekrav (MinimumRequired på ResourceTypeCompetencies)
+## Vaktkrav (MinimumRequired på ResourceTypeCompetencies)
 
 - `MinimumRequired` (int, default 1) — antall påmeldte som minimum må ha kompetansen
 - Eksempel for "Skiheis" med 4 vakter: Heisfører MinimumRequired=2, Snøskuter MinimumRequired=1
-- Advarsel vises på ressursen hvis antall påmeldte med godkjent, ikke-utløpt kompetanse < MinimumRequired
+- Advarsel vises på oppgaven hvis antall påmeldte med godkjent, ikke-utløpt kompetanse < MinimumRequired
 
 ## Anleggskrav (#155)
 
@@ -34,7 +34,7 @@
 - Gyldighet vurderes **da vaktlisten starter** (vaktlistens `StartTime`, norsk lokal tid, konvertert til UTC med
   `NorwegianLocalTimeToUtc`), ikke nå: en kompetanse som utløper før vaktlisten starter, teller ikke, og gamle vaktlister
   får ikke nye advarsler fordi en kompetanse har utløpt senere. Godkjenning vurderes som den er nå. (Vaktkravene per
-  ressurs vurderes fortsatt mot nå.)
+  oppgave vurderes fortsatt mot nå.)
 - Slettede (inaktive) kompetanser: kravene blir stående i databasen, men vises ikke (verken i `competencyRequirements` på
   vaktliste/mal eller i `competencyWarnings`), kan ikke settes (400) og kopieres ikke mellom mal og vaktliste. Siden
   klienten sender hele listen den fikk, fjernes de ved neste lagring av vaktlisten/malen; `null` lar dem stå urørt.

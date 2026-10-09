@@ -8,7 +8,7 @@ namespace Middagsasen.Planner.Api.Controllers
     /// <summary>
     /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele oppgaven etter endringen
     /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er oppgaven, ikke en ny vakt.
-    /// Ledige vakter (antall vakter) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer oppgaven.
+    /// Ledige vakter legges til og fjernes også her (det endrer antall vakter), siden de påvirker kapasitetsreglene, og returnerer oppgaven.
     /// </summary>
     [ApiController, Authorize]
     public class ShiftsController : ControllerBase

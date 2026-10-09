@@ -54,6 +54,24 @@ export function findInvalidResource<T extends ResourceDraft>(
   );
 }
 
+/**
+ * Melding når en oppgave har ugyldig start- eller sluttid (se
+ * findInvalidResource). Tar med klokkeslettene slik de står i skjemaet, så
+ * oppgaven kan skilles fra andre med samme vakttype; tomt felt vises som «?».
+ * Uten valgt vakttype: «En oppgave (…) …».
+ */
+export function invalidResourceMessage(resource: {
+  resourceType: { name?: string | null } | null;
+  startTime: string | null;
+  endTime: string | null;
+}): string {
+  const start = resource.startTime?.trim() || "?";
+  const end = resource.endTime?.trim() || "?";
+  const name = resource.resourceType?.name?.trim();
+  const subject = name ? `Oppgaven «${name}»` : "En oppgave";
+  return `${subject} (${start}–${end}) har ugyldig start- eller sluttid.`;
+}
+
 // Nye oppgaver (uten id) som er slettet, finnes ikke på serveren og sendes ikke.
 function isSent(r: ResourceDraft): boolean {
   return !(r.isDeleted && !r.id);

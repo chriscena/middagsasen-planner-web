@@ -21,8 +21,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<EventResource?> GetResource(int resourceId);
 
         /// <summary>
-        /// Leser bare bemanningen på oppgaven (<c>ShiftCount</c> og antall vakter) med én spørring. For endringer som
-        /// ikke trenger hele grafen fra <see cref="GetResource"/>. Kalles inne i <see cref="InResourceLock{T}"/>, som gir
+        /// Leser bare antall vakter og antall bemannede vakter på oppgaven (<c>ShiftCount</c> og <c>StaffedCount</c>)
+        /// med én spørring. For endringer som ikke trenger hele grafen fra <see cref="GetResource"/>. Kalles inne i <see cref="InResourceLock{T}"/>, som gir
         /// ferske data og allerede har kastet <see cref="EntityNotFoundException"/> hvis oppgaven ikke finnes.
         /// </summary>
         /// <exception cref="InvalidOperationException">Oppgaven finnes ikke (kalt utenfor oppgavelåsen).</exception>

@@ -177,7 +177,7 @@
       <q-card-section
         class="text-center"
         v-if="selectedResource!.mustAnswerTraining"
-        >Vi har ikke registrert at du har fått opplæring til denne type vakter,
+        >Vi har ikke registrert at du har fått opplæring på denne vakttypen,
         trenger du det?</q-card-section
       >
       <q-card-section
@@ -331,7 +331,7 @@
   <q-dialog v-model="showingTrainingDialog" persistent>
     <q-card class="text-center">
       <q-card-section
-        >Vi har ikke registrert at du har fått opplæring til denne type vakter,
+        >Vi har ikke registrert at du har fått opplæring på denne vakttypen,
         trenger du det?</q-card-section
       >
       <q-card-section class="q-gutter-md"
@@ -436,7 +436,7 @@
       <q-card-section>
         <q-card flat class="bg-yellow-2">
           <q-card-section class="q-py-sm text-subtitle2">
-            Beskjed til vakta</q-card-section
+            Beskjed til oppgaven</q-card-section
           >
           <q-separator></q-separator>
           <q-list separator>

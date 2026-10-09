@@ -129,7 +129,7 @@ export function formatWeekNumber(value: DateInput): string {
 
 /**
  * Kort dato med ukedag og måned på norsk, f.eks. "lør 3. okt." (beskjeder
- * på vakter).
+ * på oppgaver).
  */
 export function formatShortDate(value: DateInput): string {
   return formatOrEmpty(value, SHORT_DATE_FORMAT, { locale: nb });
@@ -298,7 +298,7 @@ export function toLocalWire(date: Date): string {
 }
 
 /**
- * Klokkeslett fra skjemaet som "HH:mm" med to sifre (vakter og maler), f.eks.
+ * Klokkeslett fra skjemaet som "HH:mm" med to sifre (oppgaver og maler), f.eks.
  * "9:05" → "09:05". Tolkes med samme parser som `isValidTime`, så alt den
  * godtar gir gyldig wire-format. Kaster RangeError for ugyldig klokkeslett.
  */

@@ -195,7 +195,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <summary>Nå i norsk lokal tid, som oppgavenes tider lagres i.</summary>
             private DateTime Now { get; }
 
-            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med for kompetansekravene per oppgave.</summary>
+            /// <summary>Nå i UTC, som kompetansenes utløpsdato sammenlignes med for vaktkravene.</summary>
             private DateTime UtcNow { get; }
 
             private HashSet<int> TrainingResourceTypeIds { get; }
@@ -215,7 +215,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <summary>
             /// Brudd på anleggskravene i åpningstiden. Krav til inaktive (slettede) kompetanser hoppes over. Alle bemannede
             /// vakter teller, uansett vakttype, når brukeren har en gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>)
-            /// <b>da vaktlisten starter</b>, ikke nå som for kompetansekravene per oppgave: en kompetanse som utløper før
+            /// <b>da vaktlisten starter</b>, ikke nå som for vaktkravene: en kompetanse som utløper før
             /// vaktlisten starter, teller ikke, og en vaktliste i fortiden får ikke nye advarsler fordi en kompetanse har
             /// utløpt senere. Godkjenning vurderes som den er nå.
             /// </summary>
@@ -305,7 +305,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             };
 
             /// <summary>
-            /// Kompetansekrav for vakttypen som ikke er oppfylt av vaktene. En vakt teller når brukeren har en
+            /// Vaktkrav for vakttypen som ikke er oppfylt av vaktene. En vakt teller når brukeren har en
             /// gyldig kompetanse (<see cref="CompetencyRules.IsValid"/>).
             /// </summary>
             private List<CompetencyWarningResponse> GetCompetencyWarnings(EventResource resource)

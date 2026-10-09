@@ -272,7 +272,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         private async Task EnsureEventResourceExists(int eventResourceId)
         {
             if (!await DbContext.EventResource.AnyAsync(er => er.EventResourceId == eventResourceId))
-                throw new EntityNotFoundException("Fant ikke oppgaven.");
+                throw new EntityNotFoundException(ShiftService.ResourceNotFoundMessage);
         }
 
         public async Task<EventResponse> CreateEventFromTemplate(int templateId, EventFromTemplateRequest request)
