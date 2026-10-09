@@ -8,7 +8,7 @@
         public required TimeOnly StartTime { get; set; }
         /// <summary>Klokkeslett, som <see cref="StartTime"/>. Før start betyr neste døgn.</summary>
         public required TimeOnly EndTime { get; set; }
-        public int MinimumStaff { get; set; }
+        public int ShiftCount { get; set; }
         public bool IsDeleted { get; set; }
     }
 }

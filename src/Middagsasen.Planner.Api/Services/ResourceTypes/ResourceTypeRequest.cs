@@ -3,7 +3,7 @@
     public class ResourceTypeRequest
     {
         public string Name { get; set; } = null!;
-        public int DefaultStaff { get; set; }
+        public int DefaultShiftCount { get; set; }
         public string? NotificationMessage { get; set; }
         public IEnumerable<ResourceTypeTrainerRequest>? Trainers { get; set; }
     }

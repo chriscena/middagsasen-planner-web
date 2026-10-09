@@ -16,7 +16,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             resource.ResourceTypeId,
             resource.StartTime,
             resource.EndTime,
-            resource.MinimumStaff,
+            resource.ShiftCount,
             HasTraining: resource.ResourceType.Trainers.Count > 0,
             TrainerUserIds: resource.ResourceType.Trainers.Select(t => t.UserId).ToHashSet(),
             Shifts: resource.Shifts.Select(s => From(s, resource.ResourceTypeId)).ToList());

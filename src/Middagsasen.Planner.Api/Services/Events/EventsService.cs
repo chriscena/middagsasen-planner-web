@@ -114,9 +114,9 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// Lagrer vaktlisteskjemaet. Alt lagres i én transaksjon: ved konflikt på antall vakter lagres ingenting,
         /// heller ikke navn og tider.
         /// <para>
-        /// Antall vakter (#151) på eksisterende ressurser med <see cref="ResourceRequest.OriginalMinimumStaff"/> avgjøres mot
-        /// verdien som er lagret nå («sammenlign og sett», se <see cref="ApplyMinimumStaff"/>), slik at ledige plasser andre har
-        /// lagt til eller fjernet i mellomtiden, ikke overskrives i stillhet. Uten <see cref="ResourceRequest.OriginalMinimumStaff"/>
+        /// Antall vakter (#151) på eksisterende ressurser med <see cref="ResourceRequest.OriginalShiftCount"/> avgjøres mot
+        /// verdien som er lagret nå («sammenlign og sett», se <see cref="ApplyShiftCount"/>), slik at ledige plasser andre har
+        /// lagt til eller fjernet i mellomtiden, ikke overskrives i stillhet. Uten <see cref="ResourceRequest.OriginalShiftCount"/>
         /// settes verdien absolutt, som før.
         /// </para>
         /// <para>
@@ -124,7 +124,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// av samme vaktliste, og det er samme ressurslås som påmelding og «Legg til/Fjern ledig plass» bruker
         /// (<see cref="IShiftRepository.InResourceLock{T}"/>). Dermed skjer også endringer i tider og vakttype under
         /// ressurslåsen, så en samtidig påmelding vurderes enten mot de gamle eller de nye tidene, ikke en blanding.
-        /// Vaktlista og ressursene lastes først etter låsen, slik at de sporede entitetene har fersk <c>MinimumStaff</c>.
+        /// Vaktlista og ressursene lastes først etter låsen, slik at de sporede entitetene har fersk <c>ShiftCount</c>.
         /// </para>
         /// <para>
         /// Anleggskravene erstattes av <see cref="EventRequest.CompetencyRequirements"/> i samme transaksjon, og beholdes
@@ -181,7 +181,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                         var resourceToUpdate = existingEvent.Resources.FirstOrDefault(r => r.EventResourceId == resource.Id);
                         if (resourceToUpdate == null) continue;
                         // Før vakttype og tider endres, så en konfliktmelding viser de lagrede verdiene.
-                        await ApplyMinimumStaff(resource, resourceToUpdate);
+                        await ApplyShiftCount(resource, resourceToUpdate);
                         resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
                         var (oldStart, oldEnd) = (resourceToUpdate.StartTime, resourceToUpdate.EndTime);
                         (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
@@ -198,7 +198,7 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         /// <summary>
         /// Setter antall vakter på en eksisterende ressurs. <paramref name="stored"/> er lest under ressurslåsen, så verdien er fersk.
-        /// Med <see cref="ResourceRequest.OriginalMinimumStaff"/> («sammenlign og sett»):
+        /// Med <see cref="ResourceRequest.OriginalShiftCount"/> («sammenlign og sett»):
         /// <list type="bullet">
         /// <item>Uendret i skjemaet (lik original): ingenting skrives, så andres endringer beholdes.</item>
         /// <item>Lagret verdi er allerede lik skjemaets (f.eks. ved ny lagring av samme skjema): ingenting skrives, ingen feil.</item>
@@ -208,28 +208,28 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// </list>
         /// Uten original settes skjemaets verdi absolutt.
         /// </summary>
-        private async Task ApplyMinimumStaff(ResourceRequest request, EventResource stored)
+        private async Task ApplyShiftCount(ResourceRequest request, EventResource stored)
         {
-            if (request.OriginalMinimumStaff is not { } original)
+            if (request.OriginalShiftCount is not { } original)
             {
-                stored.MinimumStaff = request.MinimumStaff;
+                stored.ShiftCount = request.ShiftCount;
                 return;
             }
 
-            if (request.MinimumStaff == original || stored.MinimumStaff == request.MinimumStaff)
+            if (request.ShiftCount == original || stored.ShiftCount == request.ShiftCount)
                 return;
 
-            if (stored.MinimumStaff != original)
+            if (stored.ShiftCount != original)
             {
                 var resourceTypeName = await DbContext.ResourceTypes
                     .Where(t => t.ResourceTypeId == stored.ResourceTypeId)
                     .Select(t => t.Name)
                     .SingleAsync();
                 throw new ConcurrentUpdateException(
-                    StaffingChangedMessage(resourceTypeName, stored.StartTime, stored.EndTime, stored.MinimumStaff));
+                    StaffingChangedMessage(resourceTypeName, stored.StartTime, stored.EndTime, stored.ShiftCount));
             }
 
-            stored.MinimumStaff = request.MinimumStaff;
+            stored.ShiftCount = request.ShiftCount;
         }
 
         /// <summary>
@@ -250,8 +250,8 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>Konfliktmelding med de lagrede verdiene til ressursen.</summary>
-        internal static string StaffingChangedMessage(string resourceTypeName, DateTime start, DateTime end, int currentMinimumStaff)
-            => $"Antall vakter på {resourceTypeName} {start:HH\\:mm}–{end:HH\\:mm} er endret av noen andre (nå {currentMinimumStaff}). "
+        internal static string StaffingChangedMessage(string resourceTypeName, DateTime start, DateTime end, int currentShiftCount)
+            => $"Antall vakter på {resourceTypeName} {start:HH\\:mm}–{end:HH\\:mm} er endret av noen andre (nå {currentShiftCount}). "
                 + "Last vaktlista på nytt og prøv igjen.";
 
         public async Task<EventResponse> DeleteEvent(int id)
@@ -302,7 +302,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                         ResourceTypeId = r.ResourceTypeId,
                         StartTime = resourceStartTime,
                         EndTime = resourceEndTime,
-                        MinimumStaff = r.MinimumStaff,
+                        ShiftCount = r.ShiftCount,
                     };
                 }).ToList(),
                 CompetencyRequirements = CompetencyRequirementSet.CopyToEvent(template.CompetencyRequirements),
@@ -332,7 +332,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 ResourceTypeId = request.ResourceTypeId,
                 StartTime = start,
                 EndTime = end,
-                MinimumStaff = request.MinimumStaff,
+                ShiftCount = request.ShiftCount,
             };
         }
 

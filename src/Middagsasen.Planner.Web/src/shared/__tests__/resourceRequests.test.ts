@@ -15,7 +15,7 @@ function draft(
     resourceType: { id: 7 },
     startTime: "09:30",
     endTime: "17:00",
-    minimumStaff: 2,
+    shiftCount: 2,
     isDeleted: false,
     ...overrides,
   };
@@ -61,8 +61,8 @@ describe("toResourceRequests", () => {
       toResourceRequests([
         draft({
           startTime: "9:05",
-          minimumStaff: "3",
-          originalMinimumStaff: 2,
+          shiftCount: "3",
+          originalShiftCount: 2,
         }),
       ])
     ).toEqual([
@@ -71,24 +71,24 @@ describe("toResourceRequests", () => {
         resourceTypeId: 7,
         startTime: "09:05",
         endTime: "17:00",
-        minimumStaff: 3,
-        originalMinimumStaff: 2,
+        shiftCount: 3,
+        originalShiftCount: 2,
         isDeleted: false,
       },
     ]);
   });
 
-  it("sender nye vakter med id null og originalMinimumStaff null", () => {
+  it("sender nye vakter med id null og originalShiftCount null", () => {
     const [request] = toResourceRequests([
-      draft({ id: undefined, originalMinimumStaff: 4 }),
+      draft({ id: undefined, originalShiftCount: 4 }),
     ]);
     expect(request?.id).toBe(null);
-    expect(request?.originalMinimumStaff).toBe(null);
+    expect(request?.originalShiftCount).toBe(null);
   });
 
-  it("sender originalMinimumStaff null for eksisterende vakt uten original", () => {
+  it("sender originalShiftCount null for eksisterende vakt uten original", () => {
     const [request] = toResourceRequests([draft({ id: 5 })]);
-    expect(request?.originalMinimumStaff).toBe(null);
+    expect(request?.originalShiftCount).toBe(null);
   });
 
   it("sender slettede vakter med id, men ikke nye slettede vakter", () => {
@@ -112,10 +112,10 @@ describe("toResourceRequests", () => {
 });
 
 describe("toResourceTemplateRequests", () => {
-  it("mapper uten originalMinimumStaff", () => {
+  it("mapper uten originalShiftCount", () => {
     expect(
       toResourceTemplateRequests([
-        draft({ startTime: "9:05", originalMinimumStaff: 2 }),
+        draft({ startTime: "9:05", originalShiftCount: 2 }),
       ])
     ).toEqual([
       {
@@ -123,12 +123,12 @@ describe("toResourceTemplateRequests", () => {
         resourceTypeId: 7,
         startTime: "09:05",
         endTime: "17:00",
-        minimumStaff: 2,
+        shiftCount: 2,
         isDeleted: false,
       },
     ]);
     const [request] = toResourceTemplateRequests([draft()]);
-    expect(request).not.toHaveProperty("originalMinimumStaff");
+    expect(request).not.toHaveProperty("originalShiftCount");
   });
 
   it("utelater nye slettede vakter", () => {

@@ -32,8 +32,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<ShiftResult> Withdraw(int shiftId);
 
         /// <summary>
-        /// Legger til én ledig plass på ressursen (kun admin): <c>MinimumStaff</c> settes til
-        /// <see cref="ShiftRules.MinimumStaffAfterAddingEmptySlot"/>, regnet ut under ressurslåsen.
+        /// Legger til én ledig plass på ressursen (kun admin): <c>ShiftCount</c> settes til
+        /// <see cref="ShiftRules.ShiftCountAfterAddingEmptySlot"/>, regnet ut under ressurslåsen.
         /// Returnerer ressursen etter endringen med flagg for innlogget bruker.
         /// </summary>
         /// <exception cref="EntityNotFoundException">Ressursen finnes ikke.</exception>
@@ -41,8 +41,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         Task<ResourceResponse> AddEmptySlot(int resourceId);
 
         /// <summary>
-        /// Fjerner én ledig plass fra ressursen (kun admin): <c>MinimumStaff</c> reduseres med én, regnet ut under
-        /// ressurslåsen (<see cref="ShiftRules.MinimumStaffAfterRemovingEmptySlot"/>).
+        /// Fjerner én ledig plass fra ressursen (kun admin): <c>ShiftCount</c> reduseres med én, regnet ut under
+        /// ressurslåsen (<see cref="ShiftRules.ShiftCountAfterRemovingEmptySlot"/>).
         /// Returnerer ressursen etter endringen med flagg for innlogget bruker.
         /// </summary>
         /// <exception cref="EntityNotFoundException">Ressursen finnes ikke.</exception>

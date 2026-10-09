@@ -4176,9 +4176,9 @@ export interface components {
             /** Format: time */
             endTime: string;
             /** Format: int32 */
-            minimumStaff: number;
+            shiftCount: number;
             /** Format: int32 */
-            originalMinimumStaff?: null | number;
+            originalShiftCount?: null | number;
             isDeleted: boolean;
         };
         ResourceResponse: {
@@ -4188,7 +4188,7 @@ export interface components {
             startTime: string;
             endTime: string;
             /** Format: int32 */
-            minimumStaff: number;
+            shiftCount: number;
             shifts: components["schemas"]["ShiftResponse"][];
             /** Format: int32 */
             eventId: number;
@@ -4210,7 +4210,7 @@ export interface components {
             /** Format: time */
             endTime: string;
             /** Format: int32 */
-            minimumStaff: number;
+            shiftCount: number;
             isDeleted: boolean;
         };
         ResourceTemplateResponse: {
@@ -4220,7 +4220,7 @@ export interface components {
             startTime: string;
             endTime: string;
             /** Format: int32 */
-            minimumStaff: number;
+            shiftCount: number;
         };
         ResourceTypeCompetencyRequest: {
             /** Format: int32 */
@@ -4238,7 +4238,7 @@ export interface components {
         ResourceTypeRequest: {
             name: string;
             /** Format: int32 */
-            defaultStaff: number;
+            defaultShiftCount: number;
             notificationMessage?: null | string;
             trainers?: null | components["schemas"]["ResourceTypeTrainerRequest"][];
         };
@@ -4247,7 +4247,7 @@ export interface components {
             id: number;
             name: string;
             /** Format: int32 */
-            defaultStaff: number;
+            defaultShiftCount: number;
             trainers: components["schemas"]["ResourceTypeTrainerResponse"][];
             hasTraining: boolean;
             files: components["schemas"]["FileInfoResponse"][];

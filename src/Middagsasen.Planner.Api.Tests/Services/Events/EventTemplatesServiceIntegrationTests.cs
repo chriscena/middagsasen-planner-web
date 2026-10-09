@@ -29,7 +29,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var rt = new ResourceType
             {
                 Name = name ?? UniqueName("RT"),
-                DefaultStaff = 2,
+                DefaultShiftCount = 2,
             };
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();
@@ -50,7 +50,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = resourceTypeId,
                         StartTime = new DateTime(2026, 1, 15, 9, 0, 0),
                         EndTime = new DateTime(2026, 1, 15, 15, 0, 0),
-                        MinimumStaff = 3,
+                        ShiftCount = 3,
                     }
                 }
             };
@@ -86,7 +86,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new TimeOnly(9, 0),
                         EndTime = new TimeOnly(15, 0),
-                        MinimumStaff = 3,
+                        ShiftCount = 3,
                     }
                 }
             };
@@ -109,7 +109,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(templateName, dbTemplate.Name);
             Assert.Equal(eventName, dbTemplate.EventName);
             Assert.Single(dbTemplate.ResourceTemplates);
-            Assert.Equal(3, dbTemplate.ResourceTemplates.First().MinimumStaff);
+            Assert.Equal(3, dbTemplate.ResourceTemplates.First().ShiftCount);
         }
 
         [Fact]
@@ -129,7 +129,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 ResourceTemplates = new List<ResourceTemplate>
                 {
-                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 1, 15, 8, 0, 0), EndTime = new DateTime(2026, 1, 15, 16, 0, 0), MinimumStaff = 1 }
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 1, 15, 8, 0, 0), EndTime = new DateTime(2026, 1, 15, 16, 0, 0), ShiftCount = 1 }
                 }
             });
             seedContext.EventTemplates.Add(new EventTemplate
@@ -140,7 +140,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 2, 15, 16, 0, 0),
                 ResourceTemplates = new List<ResourceTemplate>
                 {
-                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 2, 15, 8, 0, 0), EndTime = new DateTime(2026, 2, 15, 16, 0, 0), MinimumStaff = 1 }
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 2, 15, 8, 0, 0), EndTime = new DateTime(2026, 2, 15, 16, 0, 0), ShiftCount = 1 }
                 }
             });
             await seedContext.SaveChangesAsync();
@@ -178,7 +178,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new DateTime(2026, 3, 10, 10, 0, 0),
                         EndTime = new DateTime(2026, 3, 10, 18, 0, 0),
-                        MinimumStaff = 4,
+                        ShiftCount = 4,
                     }
                 }
             };
@@ -201,7 +201,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Single(result.ResourceTemplates);
             var resourceTemplate = result.ResourceTemplates.First();
             Assert.Equal(rt.ResourceTypeId, resourceTemplate.ResourceType.Id);
-            Assert.Equal(4, resourceTemplate.MinimumStaff);
+            Assert.Equal(4, resourceTemplate.ShiftCount);
         }
 
         [Fact]
@@ -235,7 +235,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
                         EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     }
                 }
             };
@@ -263,7 +263,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new TimeOnly(10, 0),
                         EndTime = new TimeOnly(18, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     }
                 }
             };
@@ -309,7 +309,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt1.ResourceTypeId,
                         StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
                         EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     }
                 }
             };
@@ -335,7 +335,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt1.ResourceTypeId,
                         StartTime = new TimeOnly(8, 0),
                         EndTime = new TimeOnly(16, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     },
                     // Add new
                     new ResourceTemplateRequest
@@ -343,7 +343,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt2.ResourceTypeId,
                         StartTime = new TimeOnly(10, 0),
                         EndTime = new TimeOnly(14, 0),
-                        MinimumStaff = 5,
+                        ShiftCount = 5,
                     }
                 }
             };
@@ -385,7 +385,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new DateTime(2026, 1, 15, 8, 0, 0),
                         EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                     }
                 }
             };
@@ -410,7 +410,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                         ResourceTypeId = rt.ResourceTypeId,
                         StartTime = new TimeOnly(8, 0),
                         EndTime = new TimeOnly(16, 0),
-                        MinimumStaff = 2,
+                        ShiftCount = 2,
                         IsDeleted = true,
                     }
                 }
@@ -468,8 +468,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new TimeOnly(16, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
-                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), MinimumStaff = 1 },
-                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), MinimumStaff = 7, IsDeleted = true },
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(15, 0), ShiftCount = 1 },
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(14, 0), ShiftCount = 7, IsDeleted = true },
                 },
             };
 
@@ -480,7 +480,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
                 .SingleAsync(t => t.EventTemplateId == result.Id);
-            Assert.Equal(1, Assert.Single(dbTemplate.ResourceTemplates).MinimumStaff);
+            Assert.Equal(1, Assert.Single(dbTemplate.ResourceTemplates).ShiftCount);
         }
 
         [Fact]
@@ -500,7 +500,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new TimeOnly(2, 0),
                 ResourceTemplates = new List<ResourceTemplateRequest>
                 {
-                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 15), EndTime = new TimeOnly(1, 30), MinimumStaff = 1 },
+                    new ResourceTemplateRequest { ResourceTypeId = rt.ResourceTypeId, StartTime = new TimeOnly(23, 15), EndTime = new TimeOnly(1, 30), ShiftCount = 1 },
                 },
             };
 
@@ -598,7 +598,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Single(result.ResourceTemplates);
             var resTemplate = result.ResourceTemplates.First();
             Assert.Equal(rt.ResourceTypeId, resTemplate.ResourceType.Id);
-            Assert.Equal(3, resTemplate.MinimumStaff);
+            Assert.Equal(3, resTemplate.ShiftCount);
             Assert.Equal("2000-01-01T09:00", resTemplate.StartTime);
             Assert.Equal("2000-01-01T15:00", resTemplate.EndTime);
 
@@ -627,8 +627,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 3, 21, 6, 0, 0),
                 Resources = new List<EventResource>
                 {
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 20, 23, 0, 0), EndTime = new DateTime(2026, 3, 21, 1, 30, 0), MinimumStaff = 1 },
-                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 21, 2, 0, 0), EndTime = new DateTime(2026, 3, 21, 5, 0, 0), MinimumStaff = 2 },
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 20, 23, 0, 0), EndTime = new DateTime(2026, 3, 21, 1, 30, 0), ShiftCount = 1 },
+                    new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 3, 21, 2, 0, 0), EndTime = new DateTime(2026, 3, 21, 5, 0, 0), ShiftCount = 2 },
                 }
             };
             seedContext.Events.Add(evt);
@@ -645,7 +645,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 .SingleAsync(t => t.EventTemplateId == template.Id);
             Assert.Equal(new DateTime(2000, 1, 1, 22, 0, 0), dbTemplate.StartTime);
             Assert.Equal(new DateTime(2000, 1, 1, 6, 0, 0), dbTemplate.EndTime);
-            var resources = dbTemplate.ResourceTemplates.OrderBy(r => r.MinimumStaff).ToList();
+            var resources = dbTemplate.ResourceTemplates.OrderBy(r => r.ShiftCount).ToList();
             Assert.Equal(new DateTime(2000, 1, 1, 23, 0, 0), resources[0].StartTime);
             Assert.Equal(new DateTime(2000, 1, 1, 1, 30, 0), resources[0].EndTime);
             Assert.Equal(new DateTime(2000, 1, 1, 2, 0, 0), resources[1].StartTime);
@@ -660,7 +660,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbEvent = await eventVerifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == created.Id);
             Assert.Equal(new DateTime(2026, 4, 10, 22, 0, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2026, 4, 11, 6, 0, 0), dbEvent.EndTime);
-            var eventResources = dbEvent.Resources.OrderBy(r => r.MinimumStaff).ToList();
+            var eventResources = dbEvent.Resources.OrderBy(r => r.ShiftCount).ToList();
             Assert.Equal(new DateTime(2026, 4, 10, 23, 0, 0), eventResources[0].StartTime);
             Assert.Equal(new DateTime(2026, 4, 11, 1, 30, 0), eventResources[0].EndTime);
             Assert.Equal(new DateTime(2026, 4, 11, 2, 0, 0), eventResources[1].StartTime);
@@ -696,7 +696,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             seedContext.Users.Add(trainer);
             await seedContext.SaveChangesAsync();
 
-            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 2 };
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 2 };
             rt.Trainers.Add(new ResourceTypeTrainer { UserId = trainer.UserId });
             rt.Files.Add(new ResourceTypeFile
             {
@@ -717,7 +717,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 ResourceTemplates =
                 [
-                    new ResourceTemplate { ResourceType = rt, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), MinimumStaff = 2 },
+                    new ResourceTemplate { ResourceType = rt, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), ShiftCount = 2 },
                 ],
             };
             seedContext.EventTemplates.Add(template);
@@ -758,7 +758,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
                 ResourceTemplates =
                 [
-                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), MinimumStaff = 2 },
+                    new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 1, 15, 9, 0, 0), EndTime = new DateTime(2026, 1, 15, 15, 0, 0), ShiftCount = 2 },
                 ],
             };
             seedContext.EventTemplates.Add(template);

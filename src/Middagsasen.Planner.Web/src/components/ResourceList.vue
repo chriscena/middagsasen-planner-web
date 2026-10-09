@@ -10,7 +10,7 @@
         <q-item-section>
           <q-item-label
             >{{ resource.resourceType?.name }}
-            <q-badge> {{ resource.minimumStaff }}</q-badge></q-item-label
+            <q-badge> {{ resource.shiftCount }}</q-badge></q-item-label
           ></q-item-section
         >
         <q-item-section side>
@@ -86,7 +86,7 @@ function addResource() {
     // Ugyldig start/slutt på vaktlista (f.eks. «1») gir tomt felt.
     startTime: offsetTime(props.startTime, -30),
     endTime: offsetTime(props.endTime, 30),
-    minimumStaff: 1,
+    shiftCount: 1,
     isNew: true,
   };
   showingEdit.value = true;
@@ -105,7 +105,7 @@ function saveResource(model: ResourceFormModel) {
       resourceType: model.resourceType,
       startTime: model.startTime,
       endTime: model.endTime,
-      minimumStaff: model.minimumStaff,
+      shiftCount: model.shiftCount,
       isDeleted: false,
     });
     emit("update:model-value", resources);
@@ -114,7 +114,7 @@ function saveResource(model: ResourceFormModel) {
     selectedResource.value.resourceType = model.resourceType;
     selectedResource.value.startTime = model.startTime;
     selectedResource.value.endTime = model.endTime;
-    selectedResource.value.minimumStaff = model.minimumStaff;
+    selectedResource.value.shiftCount = model.shiftCount;
   }
   showingEdit.value = false;
 }

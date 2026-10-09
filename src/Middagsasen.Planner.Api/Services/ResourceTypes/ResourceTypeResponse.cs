@@ -4,7 +4,7 @@
     {
         public int Id { get; internal set; }
         public string Name { get; internal set; } = null!;
-        public int DefaultStaff { get; internal set; }
+        public int DefaultShiftCount { get; internal set; }
         public IEnumerable<ResourceTypeTrainerResponse> Trainers { get; set; } = null!;
         public bool HasTraining { get; internal set; }
         public IEnumerable<FileInfoResponse> Files { get; internal set; } = null!;

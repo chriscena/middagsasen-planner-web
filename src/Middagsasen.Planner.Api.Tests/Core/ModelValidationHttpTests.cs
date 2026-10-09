@@ -73,7 +73,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
               "name": "Kveldsrenn",
               "startTime": "2026-01-15T22:00",
               "endTime": "2026-01-16T02:00",
-              "resources": [ { "resourceTypeId": 1, "startTime": "23:00", "endTime": "01:30", "minimumStaff": 2 } ]
+              "resources": [ { "resourceTypeId": 1, "startTime": "23:00", "endTime": "01:30", "shiftCount": 2 } ]
             }
             """;
 
@@ -83,7 +83,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
               "eventName": "Kveldsrenn",
               "startTime": "18:00",
               "endTime": "21:00",
-              "resourceTemplates": [ { "resourceTypeId": 1, "startTime": "18:30", "endTime": "20:30", "minimumStaff": 1 } ]
+              "resourceTemplates": [ { "resourceTypeId": 1, "startTime": "18:30", "endTime": "20:30", "shiftCount": 1 } ]
             }
             """;
 
@@ -308,19 +308,19 @@ namespace Middagsasen.Planner.Api.Tests.Core
         }
 
         [Fact]
-        public async Task UpdateEvent_BindsOriginalMinimumStaff_AndReturns409OnConcurrentUpdate()
+        public async Task UpdateEvent_BindsOriginalShiftCount_AndReturns409OnConcurrentUpdate()
         {
             // #151: antall vakter er endret av noen andre siden skjemaet ble lastet.
             _events.UpdateEvent(Arg.Any<int>(), Arg.Any<EventRequest>())
                 .Throws(new ConcurrentUpdateException("Antall vakter er endret av noen andre."));
 
-            var response = await Send("PUT", "/api/events/5", With(ValidEvent, "resources[0].originalMinimumStaff", "3"));
+            var response = await Send("PUT", "/api/events/5", With(ValidEvent, "resources[0].originalShiftCount", "3"));
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
             var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
             Assert.Equal("Antall vakter er endret av noen andre.", body.GetProperty("detail").GetString());
-            await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalMinimumStaff == 3));
+            await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalShiftCount == 3));
         }
 
         #endregion

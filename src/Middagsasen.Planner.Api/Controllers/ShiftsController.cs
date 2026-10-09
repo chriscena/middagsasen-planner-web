@@ -8,7 +8,7 @@ namespace Middagsasen.Planner.Api.Controllers
     /// <summary>
     /// Vaktpåmelding. Alle endepunktene returnerer <see cref="ShiftResult"/> med hele ressursen etter endringen
     /// (med flagg for innlogget bruker), og 200 OK, også ved påmelding: svaret er ressursen, ikke en ny vakt.
-    /// Ledige plasser (minimum bemanning) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer ressursen.
+    /// Ledige plasser (antall vakter) legges til og fjernes også her, siden de påvirker kapasitetsreglene, og returnerer ressursen.
     /// </summary>
     [ApiController, Authorize]
     public class ShiftsController : ControllerBase
@@ -71,7 +71,7 @@ namespace Middagsasen.Planner.Api.Controllers
         }
 
         /// <summary>
-        /// Legg til én ledig plass på ressursen (kun admin). Ny minimum bemanning regnes ut på serveren, så samtidige
+        /// Legg til én ledig plass på ressursen (kun admin). Nytt antall vakter regnes ut på serveren, så samtidige
         /// klikk teller hver for seg. Returnerer ressursen med oppdaterte flagg.
         /// </summary>
         [HttpPost("api/resources/{eventResourceId}/emptySlots")]

@@ -80,6 +80,7 @@ namespace Middagsasen.Planner.Api.Data
             {
                 entity.HasKey(e => e.ResourceTypeId);
                 entity.Property(e => e.Name).HasMaxLength(400);
+                entity.Property(e => e.DefaultShiftCount).HasColumnName("DefaultStaff");
             });
 
             modelBuilder.Entity<Event>(entity =>
@@ -96,6 +97,7 @@ namespace Middagsasen.Planner.Api.Data
                 entity.HasKey(e => e.EventResourceId);
                 entity.Property(e => e.StartTime).HasColumnType("datetime");
                 entity.Property(e => e.EndTime).HasColumnType("datetime");
+                entity.Property(e => e.ShiftCount).HasColumnName("MinimumStaff");
 
                 entity.HasOne(e => e.Event)
                     .WithMany(c => c.Resources)
@@ -170,6 +172,7 @@ namespace Middagsasen.Planner.Api.Data
                 entity.HasKey(e => e.ResourceTemplateId);
                 entity.Property(e => e.StartTime).HasColumnType("datetime");
                 entity.Property(e => e.EndTime).HasColumnType("datetime");
+                entity.Property(e => e.ShiftCount).HasColumnName("MinimumStaff");
 
                 entity.HasOne(e => e.EventTemplate)
                     .WithMany(c => c.ResourceTemplates)
@@ -195,6 +198,7 @@ namespace Middagsasen.Planner.Api.Data
                 entity.ToView("EventStatuses");
                 entity.HasNoKey();
                 entity.Property(e => e.StartTime).HasColumnType("datetime");
+                entity.Property(e => e.ShiftCount).HasColumnName("MinimumStaff");
             });
 
             modelBuilder.Entity<ResourceTypeTrainer>(entity =>

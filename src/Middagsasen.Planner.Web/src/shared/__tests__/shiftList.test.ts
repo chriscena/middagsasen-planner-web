@@ -16,10 +16,10 @@ function shift(id: number): ShiftResponse {
 }
 
 describe("createShiftList", () => {
-  it("fills up with vacant slots to minimumStaff", () => {
+  it("fills up with vacant slots to shiftCount", () => {
     const list = createShiftList({
       id: 7,
-      minimumStaff: 3,
+      shiftCount: 3,
       shifts: [shift(5)],
     });
     expect(list.map((e) => e.key)).toEqual([
@@ -31,14 +31,14 @@ describe("createShiftList", () => {
   });
 
   it("gives unique keys for all rows", () => {
-    const list = createShiftList({ id: 2, minimumStaff: 4, shifts: [] });
+    const list = createShiftList({ id: 2, shiftCount: 4, shifts: [] });
     expect(new Set(list.map((e) => e.key)).size).toBe(4);
   });
 
   it("does not add vacant slots when staffed", () => {
     const list = createShiftList({
       id: 1,
-      minimumStaff: 1,
+      shiftCount: 1,
       shifts: [shift(1), shift(2)],
     });
     expect(list.map((e) => e.key)).toEqual(["shift-1", "shift-2"]);
@@ -46,7 +46,7 @@ describe("createShiftList", () => {
 
   it("keeps the shift object unchanged (no key on it)", () => {
     const s = shift(3);
-    const list = createShiftList({ id: 1, minimumStaff: 0, shifts: [s] });
+    const list = createShiftList({ id: 1, shiftCount: 0, shifts: [s] });
     expect(list[0]?.shift).toBe(s);
   });
 });

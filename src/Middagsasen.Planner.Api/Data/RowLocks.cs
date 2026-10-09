@@ -40,6 +40,6 @@ namespace Middagsasen.Planner.Api.Data
             => LockResourceRows(dbContext.EventResource.Where(r => r.EventId == eventId));
 
         private static Task<int> LockResourceRows(IQueryable<EventResource> resources)
-            => resources.ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, r => r.MinimumStaff));
+            => resources.ExecuteUpdateAsync(s => s.SetProperty(r => r.ShiftCount, r => r.ShiftCount));
     }
 }

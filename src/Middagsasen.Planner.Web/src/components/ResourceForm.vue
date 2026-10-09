@@ -28,11 +28,11 @@
         @focus="
           (event) => (event.target as HTMLInputElement | null)?.select?.()
         "
-        label="Minste bemanning"
+        label="Antall vakter"
         suffix="stk"
         step="1"
         type="number"
-        v-model="minimumStaff"
+        v-model="shiftCount"
       ></q-input>
 
       <q-input
@@ -111,11 +111,11 @@ export interface ResourceFormModel {
   eventId?: number | undefined;
   resourceType: ResourceTypeResponse | null;
   // q-input type="number" sender verdien som string når brukeren skriver.
-  minimumStaff: number | string | null;
-  // Bare vaktlister: bemanningen vakta ble lastet med fra serveren (se
+  shiftCount: number | string | null;
+  // Bare vaktlister: antall vakter vaktlista ble lastet med fra serveren (se
   // EventResourceDraft). Dialogen sender den ikke, så ResourceList beholder
   // originalverdien når vakta redigeres.
-  originalMinimumStaff?: number | null | undefined;
+  originalShiftCount?: number | null | undefined;
   startTime: string | null;
   endTime: string | null;
   isDeleted?: boolean | undefined;
@@ -136,19 +136,19 @@ const props = defineProps<{
 }>();
 
 const resourceType = ref<ResourceTypeResponse | null>(null);
-const minimumStaff = ref<number | string | null>(1);
+const shiftCount = ref<number | string | null>(1);
 const startTime = ref<string | null>(null);
 const endTime = ref<string | null>(null);
 onMounted(() => {
   resourceType.value = props.modelValue.resourceType;
-  minimumStaff.value = props.modelValue.minimumStaff;
+  shiftCount.value = props.modelValue.shiftCount;
   startTime.value = props.modelValue.startTime;
   endTime.value = props.modelValue.endTime;
 });
 
 function resourceTypeChanged(newValue: ResourceTypeResponse | null) {
-  if (newValue && newValue.defaultStaff) {
-    minimumStaff.value = newValue.defaultStaff;
+  if (newValue && newValue.defaultShiftCount) {
+    shiftCount.value = newValue.defaultShiftCount;
   }
 }
 
@@ -158,7 +158,7 @@ const canAdd = computed(() => {
     startTime.value &&
     endTime.value &&
     // Number() gir samme sammenligning som JS-ens implisitte konvertering.
-    Number(minimumStaff.value) > 0
+    Number(shiftCount.value) > 0
   );
 });
 
@@ -173,7 +173,7 @@ function mapToModel(): ResourceFormModel {
     id: props.modelValue.id,
     clientKey: props.modelValue.clientKey,
     resourceType: resourceType.value,
-    minimumStaff: minimumStaff.value,
+    shiftCount: shiftCount.value,
     startTime: startTime.value,
     endTime: endTime.value,
     isDeleted: props.modelValue.isDeleted,

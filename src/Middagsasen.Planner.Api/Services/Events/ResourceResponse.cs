@@ -13,7 +13,7 @@ namespace Middagsasen.Planner.Api.Services.Events
         public string StartTime { get; set; } = null!;
         /// <summary>Ressursens slutt, norsk lokal tid uten sone (<c>yyyy-MM-ddTHH:mm</c>).</summary>
         public string EndTime { get; set; } = null!;
-        public int MinimumStaff { get; set; }
+        public int ShiftCount { get; set; }
         public IEnumerable<ShiftResponse> Shifts { get; set; } = new List<ShiftResponse>();
         public int EventId { get; internal set; }
         public IEnumerable<MessageResponse> Messages { get; set; } = new List<MessageResponse>();
@@ -21,10 +21,10 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// <summary>Kompetansekrav som ikke er oppfylt av vaktene. Bare en advarsel; blokkerer ikke påmelding. Tom liste når alt er oppfylt.</summary>
         public IEnumerable<CompetencyWarningResponse> CompetencyWarnings { get; internal set; } = new List<CompetencyWarningResponse>();
 
-        /// <summary>Færre vakter enn <see cref="MinimumStaff"/> (samme formel som kalenderens EventStatuses).</summary>
+        /// <summary>Færre bemannede vakter enn <see cref="ShiftCount"/> (samme formel som kalenderens EventStatuses).</summary>
         public bool IsMissingStaff { get; internal set; }
 
-        /// <summary>Minst <see cref="MinimumStaff"/> vakter. Vanlige brukere kan da ikke ta vakt; admin kan overbooke.</summary>
+        /// <summary>Minst <see cref="ShiftCount"/> bemannede vakter. Vanlige brukere kan da ikke ta vakt; admin kan overbooke.</summary>
         public bool IsFull { get; internal set; }
 
         /// <summary>Ressursen er avsluttet (slutttiden er passert, norsk tid). Bare admin kan endre vakter.</summary>

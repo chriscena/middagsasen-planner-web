@@ -202,19 +202,19 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         }
 
         public Task<ResourceResponse> AddEmptySlot(int resourceId)
-            => ChangeEmptySlots(resourceId, ShiftRules.MinimumStaffAfterAddingEmptySlot);
+            => ChangeEmptySlots(resourceId, ShiftRules.ShiftCountAfterAddingEmptySlot);
 
         public Task<ResourceResponse> RemoveEmptySlot(int resourceId)
-            => ChangeEmptySlots(resourceId, staffing => ShiftRules.MinimumStaffAfterRemovingEmptySlot(staffing)
+            => ChangeEmptySlots(resourceId, staffing => ShiftRules.ShiftCountAfterRemovingEmptySlot(staffing)
                 ?? throw new DomainValidationException(NoEmptySlotMessage));
 
         /// <summary>
-        /// Endrer <c>MinimumStaff</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under ressurslåsen
+        /// Endrer <c>ShiftCount</c> relativt (kun admin). Ny verdi regnes ut fra bemanningen lest under ressurslåsen
         /// (<see cref="IShiftRepository.GetStaffing"/>), ikke fra klientens cache, så to samtidige klikk gir to endringer (#142).
-        /// Låsen trengs også fordi MinimumStaff inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig
+        /// Låsen trengs også fordi ShiftCount inngår i kapasitetsregelen (<see cref="ShiftRules.IsFull"/>): en samtidig
         /// påmelding ser enten den gamle eller den nye verdien.
         /// </summary>
-        private async Task<ResourceResponse> ChangeEmptySlots(int resourceId, Func<ResourceStaffing, int> newMinimumStaff)
+        private async Task<ResourceResponse> ChangeEmptySlots(int resourceId, Func<ResourceStaffing, int> newShiftCount)
         {
             if (!CurrentUser.IsAdmin)
                 throw new ForbiddenAccessException();
@@ -222,7 +222,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             await Repository.InResourceLock(resourceId, async () =>
             {
                 var staffing = await Repository.GetStaffing(resourceId);
-                await Repository.SetMinimumStaff(resourceId, newMinimumStaff(staffing));
+                await Repository.SetShiftCount(resourceId, newShiftCount(staffing));
                 return true;
             });
 

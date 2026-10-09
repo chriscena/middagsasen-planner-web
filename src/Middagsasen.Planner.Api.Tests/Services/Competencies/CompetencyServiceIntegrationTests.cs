@@ -49,12 +49,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             return user;
         }
 
-        private async Task<ResourceType> SeedResourceType(PlannerDbContext context, string? name = null, int defaultStaff = 2)
+        private async Task<ResourceType> SeedResourceType(PlannerDbContext context, string? name = null, int defaultShiftCount = 2)
         {
             var rt = new ResourceType
             {
                 Name = name ?? UniqueName("RT"),
-                DefaultStaff = defaultStaff,
+                DefaultShiftCount = defaultShiftCount,
             };
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();

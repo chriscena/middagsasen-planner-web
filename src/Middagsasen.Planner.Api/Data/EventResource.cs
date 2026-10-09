@@ -7,7 +7,7 @@
         public int ResourceTypeId { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime EndTime { get; set; }
-        public int MinimumStaff { get; set; }
+        public int ShiftCount { get; set; }
 
         public Event Event { get; set; } = null!;
         public ResourceType ResourceType { get; set; } = null!;

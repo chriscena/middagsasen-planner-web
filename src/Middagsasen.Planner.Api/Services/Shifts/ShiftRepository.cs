@@ -49,7 +49,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             return await DbContext.EventResource
                 .Where(r => r.EventResourceId == resourceId)
-                .Select(r => new ResourceStaffing(r.MinimumStaff, r.Shifts.Count()))
+                .Select(r => new ResourceStaffing(r.ShiftCount, r.Shifts.Count()))
                 .SingleAsync();
         }
 
@@ -77,11 +77,11 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 .SingleOrDefaultAsync(t => t.UserId == userId && t.ResourceTypeId == resourceTypeId);
         }
 
-        public async Task SetMinimumStaff(int resourceId, int minimumStaff)
+        public async Task SetShiftCount(int resourceId, int shiftCount)
         {
             await DbContext.EventResource
                 .Where(r => r.EventResourceId == resourceId)
-                .ExecuteUpdateAsync(s => s.SetProperty(r => r.MinimumStaff, minimumStaff));
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.ShiftCount, shiftCount));
         }
 
         public void AddShift(EventResourceUser shift) => DbContext.Shifts.Add(shift);

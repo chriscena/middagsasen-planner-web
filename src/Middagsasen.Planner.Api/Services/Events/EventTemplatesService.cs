@@ -99,7 +99,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
                     resourceToUpdate.StartTime = ToTemplateTime(resource.StartTime);
                     resourceToUpdate.EndTime = ToTemplateTime(resource.EndTime);
-                    resourceToUpdate.MinimumStaff = resource.MinimumStaff;
+                    resourceToUpdate.ShiftCount = resource.ShiftCount;
                 }
             }
             await DbContext.SaveChangesAsync();
@@ -142,7 +142,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                     ResourceTypeId = r.ResourceTypeId,
                     StartTime = ToTemplateTime(TimeOnly.FromDateTime(r.StartTime)),
                     EndTime = ToTemplateTime(TimeOnly.FromDateTime(r.EndTime)),
-                    MinimumStaff = r.MinimumStaff,
+                    ShiftCount = r.ShiftCount,
                 }).ToList(),
                 CompetencyRequirements = CompetencyRequirementSet.CopyToTemplate(existingEvent.CompetencyRequirements),
             };
@@ -181,7 +181,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             ResourceType = resourceType,
             StartTime = template.StartTime.ToSimpleIsoString(),
             EndTime = template.EndTime.ToSimpleIsoString(),
-            MinimumStaff = template.MinimumStaff,
+            ShiftCount = template.ShiftCount,
         };
 
         private static DateTime ToTemplateTime(TimeOnly time) => TemplateReferenceDate.ToDateTime(time);
@@ -192,7 +192,7 @@ namespace Middagsasen.Planner.Api.Services.Events
             ResourceTypeId = resource.ResourceTypeId,
             StartTime = ToTemplateTime(resource.StartTime),
             EndTime = ToTemplateTime(resource.EndTime),
-            MinimumStaff = resource.MinimumStaff,
+            ShiftCount = resource.ShiftCount,
         };
     }
 }

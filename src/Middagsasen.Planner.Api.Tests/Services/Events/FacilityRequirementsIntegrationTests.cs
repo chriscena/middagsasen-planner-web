@@ -50,7 +50,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
         private static async Task<ResourceType> SeedResourceType(PlannerDbContext context)
         {
-            var rt = new ResourceType { Name = UniqueName("RT"), DefaultStaff = 1 };
+            var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 1 };
             context.ResourceTypes.Add(rt);
             await context.SaveChangesAsync();
             return rt;
@@ -551,8 +551,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var driverUser = await driver(context, competency);
             var liftUser = await SeedUser(context);
 
-            var kioskResource = new EventResource { ResourceTypeId = kiosk.ResourceTypeId, StartTime = At(17), EndTime = At(21), MinimumStaff = 1 };
-            var liftResource = new EventResource { ResourceTypeId = lift.ResourceTypeId, StartTime = At(18), EndTime = At(21), MinimumStaff = 1 };
+            var kioskResource = new EventResource { ResourceTypeId = kiosk.ResourceTypeId, StartTime = At(17), EndTime = At(21), ShiftCount = 1 };
+            var liftResource = new EventResource { ResourceTypeId = lift.ResourceTypeId, StartTime = At(18), EndTime = At(21), ShiftCount = 1 };
             var evt = new Event
             {
                 Name = UniqueName("Vaktliste"),
@@ -603,8 +603,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var rt = await SeedResourceType(context);
             var first = await SeedUser(context, competency);
             var second = await SeedUser(context, competency);
-            var early = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(17), EndTime = At(19), MinimumStaff = 1 };
-            var late = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(18), EndTime = At(21), MinimumStaff = 1 };
+            var early = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(17), EndTime = At(19), ShiftCount = 1 };
+            var late = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(18), EndTime = At(21), ShiftCount = 1 };
             var evt = new Event
             {
                 Name = UniqueName("Vaktliste"),
@@ -637,7 +637,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 var competency = await SeedCompetency(context);
                 var rt = await SeedResourceType(context);
                 var driver = await SeedUser(context, competency);
-                var kiosk = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(17), EndTime = At(19), MinimumStaff = 1 };
+                var kiosk = new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = At(17), EndTime = At(19), ShiftCount = 1 };
                 var evt = new Event
                 {
                     Name = UniqueName("Vaktliste"),
@@ -659,7 +659,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 var request = EventRequest(null);
                 request.Resources =
                 [
-                    new ResourceRequest { Id = resourceId, ResourceTypeId = resourceTypeId, StartTime = new TimeOnly(17, 0), EndTime = new TimeOnly(21, 0), MinimumStaff = 1 },
+                    new ResourceRequest { Id = resourceId, ResourceTypeId = resourceTypeId, StartTime = new TimeOnly(17, 0), EndTime = new TimeOnly(21, 0), ShiftCount = 1 },
                 ];
                 await CreateEventsService(context).UpdateEvent(eventId, request);
             }

@@ -16,7 +16,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
         {
             Id = resourceType.ResourceTypeId,
             Name = resourceType.Name,
-            DefaultStaff = resourceType.DefaultStaff,
+            DefaultShiftCount = resourceType.DefaultShiftCount,
             NotificationMessage = resourceType.NotificationMessage,
             HasTraining = resourceType.Trainers.Count > 0,
             Trainers = resourceType.Trainers.OrderBy(t => t.ResourceTypeTrainerId).Select(MapTrainer).ToList(),
