@@ -291,7 +291,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var service = CreateService(context);
 
             // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateResourceType(999999, new ResourceTypeRequest { Name = "X" }));
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.UpdateResourceType(999999, new ResourceTypeRequest { Name = "X", DefaultShiftCount = 1 }));
         }
 
         [Fact]

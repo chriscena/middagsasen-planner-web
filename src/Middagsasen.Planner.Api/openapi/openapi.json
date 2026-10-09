@@ -5802,8 +5802,8 @@
         "required": [
           "startTime",
           "endTime",
-          "resourceTypeId",
           "shiftCount",
+          "resourceTypeId",
           "isDeleted"
         ],
         "type": "object",
@@ -5828,6 +5828,8 @@
             "format": "time"
           },
           "shiftCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
@@ -5922,8 +5924,8 @@
         "required": [
           "startTime",
           "endTime",
-          "resourceTypeId",
           "shiftCount",
+          "resourceTypeId",
           "isDeleted"
         ],
         "type": "object",
@@ -5948,6 +5950,8 @@
             "format": "time"
           },
           "shiftCount": {
+            "maximum": 2147483647,
+            "minimum": 0,
             "type": "integer",
             "format": "int32"
           },
@@ -6025,8 +6029,8 @@
       },
       "ResourceTypeRequest": {
         "required": [
-          "name",
-          "defaultShiftCount"
+          "defaultShiftCount",
+          "name"
         ],
         "type": "object",
         "properties": {
@@ -6034,6 +6038,8 @@
             "type": "string"
           },
           "defaultShiftCount": {
+            "maximum": 2147483647,
+            "minimum": 1,
             "type": "integer",
             "format": "int32"
           },

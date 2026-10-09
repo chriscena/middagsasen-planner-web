@@ -1,4 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Services.Events
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Middagsasen.Planner.Api.Services.Events
 {
     public class ResourceRequest
     {
@@ -8,7 +10,8 @@
         public required TimeOnly StartTime { get; set; }
         /// <summary>Klokkeslett, som <see cref="StartTime"/>. Før start betyr neste døgn.</summary>
         public required TimeOnly EndTime { get; set; }
-        public int ShiftCount { get; set; }
+        [Range(0, int.MaxValue)]
+        public required int ShiftCount { get; set; }
         /// <summary>
         /// <see cref="ShiftCount"/> slik den var da skjemaet ble lastet. Gjelder bare eksisterende ressurser (med <see cref="Id"/>)
         /// ved oppdatering av vaktlista, og sammenlignes med verdien som er lagret nå (#151):
