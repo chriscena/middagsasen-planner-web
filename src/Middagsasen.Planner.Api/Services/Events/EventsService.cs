@@ -149,7 +149,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                 await DbContext.LockEventResources(eventId);
 
                 var existingEvent = await DbContext.Events
-                    .Include(e => e.Resources).ThenInclude(r => r.Shifts)
+                    .Include(e => e.Resources)
                     .Include(e => e.CompetencyRequirements)
                     .SingleOrDefaultAsync(e => e.EventId == eventId)
                     ?? throw new EntityNotFoundException(EventNotFoundMessage);
@@ -159,6 +159,8 @@ namespace Middagsasen.Planner.Api.Services.Events
 
                 existingEvent.Name = request.Name;
                 existingEvent.Description = request.Description;
+                // Døgnforskyvningen vaktene følger, fra vaktlistas startdato (ikke ressursens).
+                var dayShift = eventStart.Date - existingEvent.StartTime.Date;
                 existingEvent.StartTime = eventStart;
                 existingEvent.EndTime = eventEnd;
 
@@ -183,7 +185,7 @@ namespace Middagsasen.Planner.Api.Services.Events
                         resourceToUpdate.ResourceTypeId = resource.ResourceTypeId;
                         var (oldStart, oldEnd) = (resourceToUpdate.StartTime, resourceToUpdate.EndTime);
                         (resourceToUpdate.StartTime, resourceToUpdate.EndTime) = PlaceResource(resource, eventStart, eventEnd);
-                        FollowResource(resourceToUpdate, oldStart, oldEnd);
+                        await FollowResource(resourceToUpdate, oldStart, oldEnd, dayShift);
                     }
                 }
 
@@ -232,16 +234,18 @@ namespace Middagsasen.Planner.Api.Services.Events
 
         /// <summary>
         /// Justerer vaktene på <paramref name="resource"/> etter at tidene er endret fra (<paramref name="oldStart"/>,
-        /// <paramref name="oldEnd"/>). Uendrede tider rører ingen vakter.
+        /// <paramref name="oldEnd"/>), med vaktlistas døgnforskyvning <paramref name="dayShift"/>. Uendrede tider rører ingen
+        /// vakter, og da lastes de heller ikke. Ellers lastes vaktene for akkurat denne ressursen, under ressurslåsen.
         /// </summary>
-        private static void FollowResource(EventResource resource, DateTime oldStart, DateTime oldEnd)
+        private async Task FollowResource(EventResource resource, DateTime oldStart, DateTime oldEnd, TimeSpan dayShift)
         {
             if (resource.StartTime == oldStart && resource.EndTime == oldEnd) return;
 
+            await DbContext.Entry(resource).Collection(r => r.Shifts).LoadAsync();
             foreach (var shift in resource.Shifts)
             {
                 (shift.StartTime, shift.EndTime) = ResourceTimes.FollowResource(
-                    oldStart, oldEnd, resource.StartTime, resource.EndTime, shift.StartTime, shift.EndTime);
+                    oldStart, oldEnd, resource.StartTime, resource.EndTime, dayShift, shift.StartTime, shift.EndTime);
             }
         }
 

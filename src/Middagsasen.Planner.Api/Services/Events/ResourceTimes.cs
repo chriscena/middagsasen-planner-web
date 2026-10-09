@@ -49,29 +49,35 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// til (<paramref name="newStart"/>, <paramref name="newEnd"/>) (#173):
         /// <list type="number">
         /// <item>Kant-forankring: vaktstart lik ressursens gamle start blir ny start, vaktslutt lik gammel slutt blir ny slutt.</item>
-        /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes like mange døgn som ressursens start
-        /// (<c>newStart.Date - oldStart.Date</c>).</item>
+        /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes <paramref name="dayShift"/>: like mange døgn som
+        /// vaktlistas startdato er flyttet (<c>nyVaktlisteStart.Date - gammelVaktlisteStart.Date</c>). Ressursens egen start
+        /// kan bytte døgn uten at vaktlista flyttes (f.eks. 23:00 → 00:00 i en vaktliste over midnatt), så den brukes ikke.</item>
         /// <item>Klipping til ressursen: start = max(start, newStart), slutt = min(slutt, newEnd).</item>
-        /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den ressursens fulle nye tider.</item>
+        /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den ressursens fulle nye tider. Unntak: en vakt
+        /// som hadde null lengde fra før (start = slutt), og som fortsatt ligger innenfor ressursen, beholdes som nullengde.</item>
         /// </list>
         /// Et <c>null</c>-felt følger allerede ressursen og forblir <c>null</c>; i beregningen tolkes det som ressursens kant.
         /// Er ressursens tider uendret, returneres vaktens tider urørt.
         /// </summary>
         public static (DateTime? Start, DateTime? End) FollowResource(
-            DateTime oldStart, DateTime oldEnd, DateTime newStart, DateTime newEnd, DateTime? shiftStart, DateTime? shiftEnd)
+            DateTime oldStart, DateTime oldEnd, DateTime newStart, DateTime newEnd, TimeSpan dayShift,
+            DateTime? shiftStart, DateTime? shiftEnd)
         {
             if (oldStart == newStart && oldEnd == newEnd)
                 return (shiftStart, shiftEnd);
 
-            var dayDelta = newStart.Date - oldStart.Date;
+            var oldShiftStart = shiftStart ?? oldStart;
+            var oldShiftEnd = shiftEnd ?? oldEnd;
+            var wasZeroLength = oldShiftStart == oldShiftEnd;
 
-            var start = shiftStart is not { } s || s == oldStart ? newStart : s + dayDelta;
-            var end = shiftEnd is not { } e || e == oldEnd ? newEnd : e + dayDelta;
+            var start = oldShiftStart == oldStart ? newStart : oldShiftStart + dayShift;
+            var end = oldShiftEnd == oldEnd ? newEnd : oldShiftEnd + dayShift;
 
             if (start < newStart) start = newStart;
             if (end > newEnd) end = newEnd;
 
-            if (start >= end)
+            // Klippet ned til null lengde (f.eks. 10–14 når ressursen blir 14–17) gir fulle tider; var vakten nullengde fra før, beholdes den.
+            if (start > end || (start == end && !wasZeroLength))
                 (start, end) = (newStart, newEnd);
 
             return (shiftStart.HasValue ? start : null, shiftEnd.HasValue ? end : null);
