@@ -159,8 +159,8 @@ namespace Middagsasen.Planner.Api.Services.Events
 
                 existingEvent.Name = request.Name;
                 existingEvent.Description = request.Description;
-                // Døgnforskyvningen vaktene følger, fra vaktlistas startdato (ikke ressursens).
-                var dayShift = eventStart.Date - existingEvent.StartTime.Date;
+                // Døgnforskyvningen vaktene følger, fra vaktlistas flytting (ikke ressursens).
+                var dayShift = ResourceTimes.DayShift(existingEvent.StartTime, eventStart);
                 existingEvent.StartTime = eventStart;
                 existingEvent.EndTime = eventEnd;
 

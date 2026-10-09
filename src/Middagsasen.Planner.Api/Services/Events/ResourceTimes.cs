@@ -45,13 +45,21 @@ namespace Middagsasen.Planner.Api.Services.Events
         }
 
         /// <summary>
+        /// Hvor mange hele døgn vaktlista er flyttet: tidsforskyvningen fra <paramref name="oldEventStart"/> til
+        /// <paramref name="newEventStart"/> rundet til nærmeste hele døgn. En endret starttid som krysser midnatt
+        /// (f.eks. 1. feb 00:30 → 31. jan 23:30) gir derfor 0, ikke -1. Nøyaktig ±12 timer rundes bort fra null (±1 døgn).
+        /// </summary>
+        public static TimeSpan DayShift(DateTime oldEventStart, DateTime newEventStart) =>
+            TimeSpan.FromDays(Math.Round((newEventStart - oldEventStart).TotalDays, MidpointRounding.AwayFromZero));
+
+        /// <summary>
         /// Justerer tidene på en bemannet vakt når ressursen flyttes fra (<paramref name="oldStart"/>, <paramref name="oldEnd"/>)
         /// til (<paramref name="newStart"/>, <paramref name="newEnd"/>) (#173):
         /// <list type="number">
         /// <item>Kant-forankring: vaktstart lik ressursens gamle start blir ny start, vaktslutt lik gammel slutt blir ny slutt.</item>
-        /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes <paramref name="dayShift"/>: like mange døgn som
-        /// vaktlistas startdato er flyttet (<c>nyVaktlisteStart.Date - gammelVaktlisteStart.Date</c>). Ressursens egen start
-        /// kan bytte døgn uten at vaktlista flyttes (f.eks. 23:00 → 00:00 i en vaktliste over midnatt), så den brukes ikke.</item>
+        /// <item>Øvrige endepunkter beholder klokkeslettet, men flyttes <paramref name="dayShift"/>: like mange hele døgn som
+        /// vaktlista er flyttet (se <see cref="DayShift"/>). Ressursens egen start kan bytte døgn uten at vaktlista flyttes
+        /// (f.eks. 23:00 → 00:00 i en vaktliste over midnatt), så den brukes ikke.</item>
         /// <item>Klipping til ressursen: start = max(start, newStart), slutt = min(slutt, newEnd).</item>
         /// <item>Havner vakten helt utenfor (start &gt;= slutt etter klippingen), får den ressursens fulle nye tider. Unntak: en vakt
         /// som hadde null lengde fra før (start = slutt), og som fortsatt ligger innenfor ressursen, beholdes som nullengde.</item>

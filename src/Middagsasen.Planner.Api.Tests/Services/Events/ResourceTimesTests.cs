@@ -206,5 +206,53 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(D(expectedStart), start);
             Assert.Equal(D(expectedEnd), end);
         }
+
+        [Theory]
+        // Vaktlista flyttet 2 døgn, samme klokkeslett
+        [InlineData("2026-02-01 18:00", "2026-02-03 18:00", 2)]
+        // Flyttet 2 døgn og samtidig ny starttid
+        [InlineData("2026-02-01 10:00", "2026-02-03 12:00", 2)]
+        // Starttid endret over midnatt bakover: ikke flyttet
+        [InlineData("2026-02-01 00:30", "2026-01-31 23:30", 0)]
+        // Starttid endret over midnatt forover: ikke flyttet
+        [InlineData("2026-02-01 23:00", "2026-02-02 00:30", 0)]
+        // Uendret
+        [InlineData("2026-02-01 10:00", "2026-02-01 10:00", 0)]
+        // Nøyaktig ±12 timer rundes bort fra null: ±1 døgn
+        [InlineData("2026-02-01 06:00", "2026-02-01 18:00", 1)]
+        [InlineData("2026-02-01 18:00", "2026-02-01 06:00", -1)]
+        // Litt under 12 timer: 0
+        [InlineData("2026-02-01 06:00", "2026-02-01 17:59", 0)]
+        public void DayShift_RoundsEventMoveToNearestWholeDay(string oldEventStart, string newEventStart, int expectedDays)
+        {
+            Assert.Equal(TimeSpan.FromDays(expectedDays), ResourceTimes.DayShift(D(oldEventStart), D(newEventStart)));
+        }
+
+        [Fact]
+        public void FollowResource_EventStartCrossesMidnightBackwards_ResourceUnchanged_LeavesShiftUntouched()
+        {
+            // Vaktliste 1. feb 00:30–06:00 → 31. jan 23:30–06:00; ressurs 01:00–05:00 uendret; delvakt 02:00–03:00
+            var dayShift = ResourceTimes.DayShift(D("2026-02-01 00:30"), D("2026-01-31 23:30"));
+            var (start, end) = ResourceTimes.FollowResource(
+                D("2026-02-01 01:00"), D("2026-02-01 05:00"), D("2026-02-01 01:00"), D("2026-02-01 05:00"), dayShift,
+                D("2026-02-01 02:00"), D("2026-02-01 03:00"));
+
+            Assert.Equal(TimeSpan.Zero, dayShift);
+            Assert.Equal(D("2026-02-01 02:00"), start);
+            Assert.Equal(D("2026-02-01 03:00"), end);
+        }
+
+        [Fact]
+        public void FollowResource_EventStartCrossesMidnightBackwards_ResourceChanged_ShiftKeepsDay()
+        {
+            // Samme vaktliste, men ressursen endres 01:00–05:00 → 01:00–06:00: delvakten 02:00–03:00 skal fortsatt ligge 1. feb
+            var dayShift = ResourceTimes.DayShift(D("2026-02-01 00:30"), D("2026-01-31 23:30"));
+            var (start, end) = ResourceTimes.FollowResource(
+                D("2026-02-01 01:00"), D("2026-02-01 05:00"), D("2026-02-01 01:00"), D("2026-02-01 06:00"), dayShift,
+                D("2026-02-01 02:00"), D("2026-02-01 03:00"));
+
+            Assert.Equal(D("2026-02-01 02:00"), start);
+            Assert.Equal(D("2026-02-01 03:00"), end);
+        }
     }
 }
