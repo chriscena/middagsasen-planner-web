@@ -65,6 +65,8 @@ namespace Middagsasen.Planner.Api.Data
                 entity.Property(e => e.Created).HasColumnType("datetime");
                 // Samme standardverdi som DF_Users_ShiftReminders i databaseprosjektet.
                 entity.Property(e => e.ShiftReminders).HasDefaultValue(false);
+                // Samme standardverdi som DF_Users_StaffingAlerts i databaseprosjektet.
+                entity.Property(e => e.StaffingAlerts).HasDefaultValue(false);
             });
 
             modelBuilder.Entity<UserSession>(entity =>

@@ -44,19 +44,26 @@ namespace Middagsasen.Planner.Api.Services.Reminders
 
         /// <summary>
         /// Meldingsteksten, f.eks. «Hei Kari! Kjapp påminnelse om vakt i morgen, tirsdag 14.10: 18–22 storheis, 10–14 kiosk.»
-        /// Vaktene sorteres på starttid. Hele timer skrives uten minutter (<c>18–22</c>), ellers med (<c>18:30–22</c>).
-        /// Vaktlistens navn tas med i parentes bare når det ikke er <see cref="DefaultEventName"/>.
+        /// Vaktene sorteres på starttid og skrives med <see cref="FormatShift"/>; dagen med <see cref="FormatDay"/>.
         /// Uten fornavn blir hilsenen «Hei!».
         /// </summary>
         public static string BuildMessage(string? firstName, DateOnly shiftDate, IReadOnlyList<ReminderShift> shifts)
         {
             var greeting = string.IsNullOrWhiteSpace(firstName) ? "Hei!" : $"Hei {firstName.Trim()}!";
-            var dayName = shiftDate.ToString("dddd", Norwegian).ToLower(Norwegian);
             var items = shifts.OrderBy(s => s.Start).Select(FormatShift);
-            return $"{greeting} Kjapp påminnelse om vakt i morgen, {dayName} {shiftDate:dd.MM}: {string.Join(", ", items)}.";
+            return $"{greeting} Kjapp påminnelse om vakt i morgen, {FormatDay(shiftDate)}: {string.Join(", ", items)}.";
         }
 
-        private static string FormatShift(ReminderShift shift)
+        /// <summary>Dagen med norsk dagnavn i små bokstaver og dato som dag.måned, f.eks. «tirsdag 14.10».</summary>
+        public static string FormatDay(DateOnly date)
+            => $"{date.ToString("dddd", Norwegian).ToLower(Norwegian)} {date:dd.MM}";
+
+        /// <summary>
+        /// Én vakt i en SMS, f.eks. «18–22 storheis (Diskokveld)». Hele timer skrives uten minutter (<c>18–22</c>),
+        /// ellers med (<c>18:30–22</c>). Vaktlistens navn tas med i parentes bare når det ikke er <see cref="DefaultEventName"/>.
+        /// Brukes også av bemanningsvarselet, så de to meldingene omtaler vakter likt.
+        /// </summary>
+        public static string FormatShift(ReminderShift shift)
         {
             var text = new StringBuilder()
                 .Append(FormatTime(shift.Start)).Append('–').Append(FormatTime(shift.End))

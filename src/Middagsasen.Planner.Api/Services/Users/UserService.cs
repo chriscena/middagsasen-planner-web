@@ -52,7 +52,7 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// <item>Fornavn og etternavn oppdateres når de er oppgitt (ellers beholdes de gamle).</item>
         /// <item><c>IsAdmin</c> og <c>IsHidden</c> settes fra requesten som for en ny bruker (standard <c>false</c>).</item>
         /// <item>Passordet settes når det er oppgitt.</item>
-        /// <item><c>ShiftReminders</c> settes til <c>false</c> (som for en ny bruker); brukeren slår det på selv igjen.</item>
+        /// <item><c>ShiftReminders</c> og <c>StaffingAlerts</c> settes til <c>false</c> (som for en ny bruker); brukeren slår dem på selv igjen.</item>
         /// </list>
         /// <see cref="Delete"/> setter bare <c>Inactive</c> (og logger ut), så opplæringer, vakter og annen historikk følger med tilbake.
         /// Er nummeret i bruk av en aktiv bruker, avvises det med <see cref="DomainValidationException"/>. Det gjelder
@@ -78,6 +78,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 user.IsAdmin = request.IsAdmin ?? false;
                 user.IsHidden = request.IsHidden ?? false;
                 user.ShiftReminders = false;
+                user.StaffingAlerts = false;
                 SetPassword(user, request.Password);
             }
             else if (user != null)
@@ -129,17 +130,24 @@ namespace Middagsasen.Planner.Api.Services.Users
 
         /// <summary>
         /// Oppdaterer innlogget bruker. Brukernavn (telefonnummer) og admin kan ikke endres her.
+        /// Bemanningsvarsel (<see cref="UpdateMeRequest.StaffingAlerts"/>) kan bare admin slå på eller av.
         /// </summary>
+        /// <exception cref="ForbiddenAccessException">En bruker som ikke er admin sender <c>StaffingAlerts</c>.</exception>
         public async Task<UserResponse> UpdateMe(int userId, UpdateMeRequest request)
         {
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == userId)
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {userId}");
+
+            if (request.StaffingAlerts.HasValue && !user.IsAdmin)
+                throw new ForbiddenAccessException();
 
             ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
             if (request.ShiftReminders.HasValue)
                 user.ShiftReminders = request.ShiftReminders.Value;
+            if (request.StaffingAlerts.HasValue)
+                user.StaffingAlerts = request.StaffingAlerts.Value;
 
             await DbContext.SaveChangesAsync();
 
@@ -262,6 +270,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
                 ShiftReminders = user.ShiftReminders,
+                StaffingAlerts = user.StaffingAlerts,
                 Trainings = user.Trainings.Select(Map).ToList(),
             };
 

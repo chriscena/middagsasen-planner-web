@@ -8,6 +8,7 @@ using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.Shifts;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.StaffingAlerts;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
@@ -16,8 +17,8 @@ using NSubstitute.ExceptionExtensions;
 namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 {
     /// <summary>
-    /// Integrasjonstester mot <see cref="IShiftService"/> med ekte repository, ekte <see cref="TrainerNotifier"/>
-    /// og falsk <see cref="ISmsSender"/>.
+    /// Integrasjonstester mot <see cref="IShiftService"/> med ekte repository, ekte <see cref="TrainerNotifier"/>,
+    /// ekte <see cref="StaffingAlertNotifier"/> og falsk <see cref="ISmsSender"/>.
     /// </summary>
     [Collection("Database")]
     public class ShiftServiceIntegrationTests
@@ -44,18 +45,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var currentUser = Substitute.For<ICurrentUserService>();
             currentUser.UserId.Returns(userId);
             currentUser.IsAdmin.Returns(isAdmin);
-            var notifier = new TrainerNotifier(new TrainerRepository(context), _smsSender, NullLogger<TrainerNotifier>.Instance);
             var clock = new FakeTimeProvider(now ?? BeforeResource);
-            return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, clock);
+            var notifier = new TrainerNotifier(new TrainerRepository(context), _smsSender, NullLogger<TrainerNotifier>.Instance);
+            var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), _smsSender, clock, NullLogger<StaffingAlertNotifier>.Instance);
+            return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, staffingAlertNotifier, clock);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
         /// <summary>
-        /// Lagrede brukernavn er normaliserte telefonnumre, og trenerne varsles på SMS til nummeret.
+        /// Lagrede brukernavn er normaliserte telefonnumre, og trenerne og admin varsles på SMS til nummeret.
         /// <paramref name="userName"/> overstyrer det, f.eks. for en eldre bruker med brukernavn «admin».
         /// </summary>
-        private static async Task<User> SeedUser(PlannerDbContext context, string firstName = "Test", bool isAdmin = false, string? userName = null)
+        private static async Task<User> SeedUser(PlannerDbContext context, string firstName = "Test", bool isAdmin = false, string? userName = null, bool staffingAlerts = false, bool inactive = false)
         {
             var user = new User
             {
@@ -64,6 +66,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                 LastName = "Bruker",
                 Created = DateTime.UtcNow,
                 IsAdmin = isAdmin,
+                StaffingAlerts = staffingAlerts,
+                Inactive = inactive,
             };
             context.Users.Add(user);
             await context.SaveChangesAsync();
@@ -1339,6 +1343,218 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<EntityNotFoundException>(() => CreateService(context, user.UserId).Withdraw(999999));
+        }
+
+        #endregion
+
+        #region Withdraw – bemanningsvarsel
+
+        // Oppgavene er 15.01.2026 (torsdag). 14.01.2026 11:00 UTC = 12:00 norsk tid: dagen før, så varselet er aktuelt.
+        private static readonly DateTimeOffset DayBeforeResource = new(2026, 1, 14, 11, 0, 0, TimeSpan.Zero);
+        // 12.01.2026: tre dager før, altså utenfor NoticeDays.
+        private static readonly DateTimeOffset ThreeDaysBeforeResource = new(2026, 1, 12, 11, 0, 0, TimeSpan.Zero);
+
+        /// <summary>
+        /// Alle SMS-ene som er sendt gjennom den falske SMS-tjenesten. Databasen deles mellom testene, så admin med
+        /// varselet på fra andre tester får også SMS; testene sjekker derfor mottakerne de selv har seedet, ikke totalen.
+        /// </summary>
+        private List<SmsMessage> SentMessages()
+            => _smsSender.ReceivedCalls().SelectMany(c => (IEnumerable<SmsMessage>)c.GetArguments()[0]!).ToList();
+
+        /// <summary>SMS-en til brukeren, eller feil hvis hen ikke fikk nøyaktig én.</summary>
+        private SmsMessage MessageTo(User user)
+            => Assert.Single(SentMessages(), m => m.ReceiverPhoneNo == user.UserName.ToSmsPhoneNo());
+
+        private void AssertNoMessageTo(User user)
+            => Assert.DoesNotContain(SentMessages(), m => m.ReceiverPhoneNo == user.UserName.ToSmsPhoneNo());
+
+        /// <summary>Forventet bemanningsvarsel for oppgaven 15.01.2026 09–15, med vaktlistenavnet i parentes (det er ikke «Åpningstid»).</summary>
+        private async Task<string> ExpectedAlert(string adminFirstName, string userFullName, EventResource resource, int openShifts)
+        {
+            using var verify = _fixture.CreateContext();
+            var eventName = await verify.Events.Where(e => e.EventId == resource.EventId).Select(e => e.Name).SingleAsync();
+            var open = openShifts == 1 ? "1 ledig vakt" : $"{openShifts} ledige vakter";
+            return $"Hei {adminFirstName}! {userFullName} har trukket seg fra vakt torsdag 15.01: 09–15 {resource.ResourceType.Name} ({eventName}). Oppgaven har nå {open}.";
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SendsStaffingAlert_OnlyToActiveAdminsWithAlertsOn()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            var anne = await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var bjorn = await SeedUser(seed, "Bjørn", isAdmin: true, staffingAlerts: true);
+            var adminWithoutAlerts = await SeedUser(seed, "UtenVarsel", isAdmin: true);
+            var inactiveAdmin = await SeedUser(seed, "Inaktiv", isAdmin: true, staffingAlerts: true, inactive: true);
+            var nonAdmin = await SeedUser(seed, "IkkeAdmin", staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Empty(result.Warnings);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
+            Assert.Equal(await ExpectedAlert("Anne", "Ola Bruker", resource, openShifts: 2), MessageTo(anne).Body);
+            Assert.Equal(await ExpectedAlert("Bjørn", "Ola Bruker", resource, openShifts: 2), MessageTo(bjorn).Body);
+            AssertNoMessageTo(adminWithoutAlerts);
+            AssertNoMessageTo(inactiveAdmin);
+            AssertNoMessageTo(nonAdmin);
+            AssertNoMessageTo(owner);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SendsStaffingAlert_AfterCommit()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            // Sjekker fra en annen tilkobling at vakta er borte når SMS-en sendes.
+            var committedWhenSmsSent = false;
+            _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).Returns(_ =>
+            {
+                using var other = _fixture.CreateContext();
+                committedWhenSmsSent = !other.Shifts.Any(s => s.EventResourceUserId == shift.EventResourceUserId);
+                return new SmsResult { Success = true };
+            });
+
+            using var context = _fixture.CreateContext();
+            await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.True(committedWhenSmsSent);
+        }
+
+        [Fact]
+        public async Task Withdraw_AdminOwner_NotifiesOtherAdmins_NotSelf()
+        {
+            using var seed = _fixture.CreateContext();
+            var adminOwner = await SeedUser(seed, "Kari", isAdmin: true, staffingAlerts: true);
+            var other = await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 1);
+            var shift = await SeedShift(seed, resource, adminOwner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, adminOwner.UserId, isAdmin: true, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(result.Warnings);
+            Assert.Equal(await ExpectedAlert("Anne", "Kari Bruker", resource, openShifts: 1), MessageTo(other).Body);
+            AssertNoMessageTo(adminOwner);
+        }
+
+        [Fact]
+        public async Task Withdraw_Admin_RemovesOtherUser_SendsNoStaffingAlert()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Empty(result.Warnings);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SendsNoStaffingAlert_ThreeDaysBeforeShift()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: ThreeDaysBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Empty(result.Warnings);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SendsNoStaffingAlert_WhenTaskIsStillFull()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            var first = await SeedUser(seed);
+            var second = await SeedUser(seed);
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            // Overbooket: 3 bemannede av ShiftCount 2, så oppgaven er fortsatt full etter fjerningen.
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+            await SeedShift(seed, resource, first.UserId);
+            await SeedShift(seed, resource, second.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Equal(2, (await GetShifts(resource.EventResourceId)).Count);
+            Assert.Empty(result.Warnings);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_KeepsRemoval_AndReturnsWarning_WhenStaffingAlertSmsFails()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+            _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).Returns(new SmsResult { Success = false, Info = "500" });
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Equal([ShiftService.StaffingAlertFailedWarning], result.Warnings);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_KeepsRemoval_AndReturnsWarning_WhenStaffingAlertSmsSenderThrows()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+            _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).ThrowsAsync(new HttpRequestException("nede"));
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Equal([ShiftService.StaffingAlertFailedWarning], result.Warnings);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SkipsAdminWithoutValidPhoneNo_AndNotifiesTheRest()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            var anne = await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var legacyAdmin = await SeedUser(seed, "Admin", isAdmin: true, staffingAlerts: true, userName: TestPhoneNumbers.UniqueInvalid());
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: DayBeforeResource).Withdraw(shift.EventResourceUserId);
+
+            // Admin uten gyldig telefonnummer hoppes over, den andre varsles, og fjerningen regnes som vellykket.
+            Assert.Empty(result.Warnings);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
+            Assert.Equal(await ExpectedAlert("Anne", "Ola Bruker", resource, openShifts: 2), MessageTo(anne).Body);
+            // Brukernavnet kan ikke bli et telefonnummer, så hen kan ikke ha fått SMS.
+            Assert.Null(legacyAdmin.UserName.ToNormalizedUserName());
         }
 
         #endregion

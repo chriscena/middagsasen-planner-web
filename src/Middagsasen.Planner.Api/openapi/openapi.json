@@ -3548,6 +3548,16 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not Found",
             "content": {
@@ -6498,6 +6508,12 @@
               "null",
               "boolean"
             ]
+          },
+          "staffingAlerts": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -6678,6 +6694,7 @@
           "isAdmin",
           "isHidden",
           "shiftReminders",
+          "staffingAlerts",
           "trainings"
         ],
         "type": "object",
@@ -6714,6 +6731,9 @@
             "type": "boolean"
           },
           "shiftReminders": {
+            "type": "boolean"
+          },
+          "staffingAlerts": {
             "type": "boolean"
           },
           "trainings": {

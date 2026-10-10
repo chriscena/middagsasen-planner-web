@@ -28,7 +28,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>Setter opplæringen til eieren av vakta på oppgavens vakttype (eier, trener eller admin).</summary>
         Task<ShiftResult> SetTraining(int shiftId, SetTrainingRequest request);
 
-        /// <summary>Trekker eieren fra vakta (sletter den).</summary>
+        /// <summary>
+        /// Trekker eieren fra vakta (sletter den). Trekker eieren seg selv, kan admin få bemanningsvarsel på SMS
+        /// etter commit (se <see cref="StaffingAlerts.StaffingAlertRules"/>); feiler SMS-en, kommer det som en advarsel i svaret.
+        /// </summary>
         Task<ShiftResult> Withdraw(int shiftId);
 
         /// <summary>
