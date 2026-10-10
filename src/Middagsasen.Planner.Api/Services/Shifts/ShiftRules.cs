@@ -82,6 +82,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <inheritdoc cref="IsMissingStaff(ResourceStaffing)"/>
         public static bool IsMissingStaff(ResourceFacts resource) => IsMissingStaff(resource.Staffing);
 
+        /// <summary>
+        /// Antall ledige vakter: <c>ShiftCount</c> minus bemannede vakter, aldri under 0 (en overbooket oppgave har
+        /// ingen ledige). Er over 0 nøyaktig når <see cref="IsMissingStaff(ResourceStaffing)"/> er sann.
+        /// </summary>
+        public static int OpenShifts(ResourceStaffing staffing) => Math.Max(0, staffing.ShiftCount - staffing.StaffedCount);
+
         /// <summary>Oppgaven er full: minst <c>ShiftCount</c> bemannede vakter. Det motsatte av <see cref="IsMissingStaff(ResourceFacts)"/>.</summary>
         public static bool IsFull(ResourceFacts resource) => !IsMissingStaff(resource);
 

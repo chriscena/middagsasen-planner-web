@@ -146,8 +146,7 @@
           <q-item-section>
             <q-item-label>SMS-varsel når noen trekker seg</q-item-label>
             <q-item-label caption
-              >Når en vakt blir ledig to dager eller mindre før
-              start</q-item-label
+              >Når en vakt blir ledig kort tid før start</q-item-label
             >
           </q-item-section>
           <q-item-section side>
@@ -504,8 +503,8 @@ function updateShiftReminders(shiftReminders: boolean): Promise<void> {
   );
 }
 
-// Bemanningsvarsel: SMS til admin når noen trekker seg fra en vakt som
-// starter om to dager eller mindre. Bryteren vises kun for admin.
+// Bemanningsvarsel: SMS til admin når noen trekker seg fra en vakt kort tid
+// før start; grensen settes i backend. Bryteren vises kun for admin.
 function updateStaffingAlerts(staffingAlerts: boolean): Promise<void> {
   return saveMySetting(
     { staffingAlerts },

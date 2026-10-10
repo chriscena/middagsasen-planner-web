@@ -19,7 +19,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 {
     /// <summary>
     /// Integrasjonstester mot <see cref="IShiftService"/> med ekte repository, ekte <see cref="TrainerNotifier"/>,
-    /// ekte <see cref="StaffingAlertNotifier"/> og falsk <see cref="ISmsSender"/>.
+    /// ekte <see cref="StaffingAlertNotifier"/>, ekte <see cref="SmsFanOut"/> og falsk <see cref="ISmsSender"/>.
     /// </summary>
     [Collection("Database")]
     public class ShiftServiceIntegrationTests
@@ -47,8 +47,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             currentUser.UserId.Returns(userId);
             currentUser.IsAdmin.Returns(isAdmin);
             var clock = new FakeTimeProvider(now ?? BeforeResource);
-            var notifier = new TrainerNotifier(new TrainerRepository(context), _smsSender, NullLogger<TrainerNotifier>.Instance);
-            var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), _smsSender,
+            var smsFanOut = new SmsFanOut(_smsSender, NullLogger<SmsFanOut>.Instance);
+            var notifier = new TrainerNotifier(new TrainerRepository(context), smsFanOut, NullLogger<TrainerNotifier>.Instance);
+            var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), smsFanOut,
                 Options.Create(staffingAlertOptions ?? new StaffingAlertOptions()), clock, NullLogger<StaffingAlertNotifier>.Instance);
             return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, staffingAlertNotifier, clock);
         }

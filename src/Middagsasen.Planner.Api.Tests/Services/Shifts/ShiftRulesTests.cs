@@ -66,6 +66,22 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         // --- Ledige vakter ---
 
         [Theory]
+        // Kolonner: antall vakter, bemannede vakter, forventet antall ledige vakter
+        [InlineData(2, 0, 2)]
+        [InlineData(2, 1, 1)]
+        [InlineData(2, 2, 0)]
+        [InlineData(2, 3, 0)] // overbooket: aldri negativt
+        [InlineData(0, 0, 0)]
+        public void OpenShifts(int shiftCount, int staffedCount, int expected)
+        {
+            var staffing = new ResourceStaffing(shiftCount, staffedCount);
+
+            Assert.Equal(expected, ShiftRules.OpenShifts(staffing));
+            // Oppgaven mangler folk nøyaktig når det er ledige vakter.
+            Assert.Equal(ShiftRules.IsMissingStaff(staffing), ShiftRules.OpenShifts(staffing) > 0);
+        }
+
+        [Theory]
         // Kolonner: antall vakter, bemannede vakter, forventet nytt antall vakter
         [InlineData(3, 0, 4)]
         [InlineData(3, 2, 4)]

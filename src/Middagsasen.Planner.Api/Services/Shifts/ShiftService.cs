@@ -2,6 +2,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.StaffingAlerts;
 
@@ -211,8 +212,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 Repository.RemoveShift(shift);
 
                 await Repository.SaveChangesAsync();
-                // Vakten kan ha egne tider; ellers gjelder oppgavens (samme regel som ShiftReminderRules.EffectivePeriod).
-                return (shiftFacts.UserId == actor.UserId, shift.StartTime ?? resource.StartTime, shift.EndTime ?? resource.EndTime);
+                var (start, end) = ShiftReminderRules.EffectivePeriod(shift.StartTime, shift.EndTime, resource.StartTime, resource.EndTime);
+                return (shiftFacts.UserId == actor.UserId, start, end);
             });
 
             var warnings = ownerWithdrew

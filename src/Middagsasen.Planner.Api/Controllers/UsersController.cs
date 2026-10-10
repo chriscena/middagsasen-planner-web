@@ -27,7 +27,7 @@ namespace Middagsasen.Planner.Api.Controllers
         [HttpPut("api/me")]
         [ProducesResponseType(typeof(UserResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-        // 403 når en bruker som ikke er admin prøver å endre bemanningsvarsel (StaffingAlerts).
+        // 403 når en bruker som ikke er admin prøver å slå på bemanningsvarsel (StaffingAlerts = true).
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<UserResponse> UpdateMe([FromBody]UpdateMeRequest request)

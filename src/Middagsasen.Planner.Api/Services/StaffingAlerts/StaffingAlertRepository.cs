@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Shifts;
+using Middagsasen.Planner.Api.Services.SmsSender;
 
 namespace Middagsasen.Planner.Api.Services.StaffingAlerts
 {
@@ -12,9 +15,13 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
 
         public PlannerDbContext DbContext { get; }
 
-        public async Task<User> GetUser(int userId)
+        public async Task<PersonName> GetName(int userId)
         {
-            return await DbContext.Users.AsNoTracking().SingleAsync(u => u.UserId == userId);
+            return await DbContext.Users
+                .AsNoTracking()
+                .Where(u => u.UserId == userId)
+                .Select(u => new PersonName(u.FirstName, u.LastName))
+                .SingleAsync();
         }
 
         public async Task<TaskStaffing?> GetTask(int resourceId)
@@ -27,16 +34,17 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
                     r.Event.Name,
                     r.StartTime,
                     r.EndTime,
-                    r.ShiftCount,
-                    r.Shifts.Count()))
+                    // Bemannede vakter telles som i IShiftRepository.GetStaffing (ShiftRepository): alle vakter på oppgaven.
+                    new ResourceStaffing(r.ShiftCount, r.Shifts.Count())))
                 .SingleOrDefaultAsync();
         }
 
-        public async Task<IReadOnlyList<User>> GetRecipients(int excludeUserId)
+        public async Task<IReadOnlyList<SmsRecipient>> GetRecipients(int excludeUserId)
         {
             return await DbContext.Users
                 .AsNoTracking()
                 .Where(u => u.IsAdmin && u.StaffingAlerts && !u.Inactive && u.UserId != excludeUserId)
+                .Select(u => new SmsRecipient(u.UserId, u.UserName, u.FirstName))
                 .ToListAsync();
         }
     }

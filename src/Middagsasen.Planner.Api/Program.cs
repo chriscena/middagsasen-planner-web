@@ -119,6 +119,7 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IResourceReader, ResourceReader>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
+builder.Services.AddScoped<ISmsFanOut, SmsFanOut>();
 builder.Services.AddScoped<ITrainerRepository, TrainerRepository>();
 builder.Services.AddScoped<ITrainerNotifier, TrainerNotifier>();
 builder.Services.AddScoped<IStaffingAlertRepository, StaffingAlertRepository>();

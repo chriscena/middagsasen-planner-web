@@ -130,15 +130,16 @@ namespace Middagsasen.Planner.Api.Services.Users
 
         /// <summary>
         /// Oppdaterer innlogget bruker. Brukernavn (telefonnummer) og admin kan ikke endres her.
-        /// Bemanningsvarsel (<see cref="UpdateMeRequest.StaffingAlerts"/>) kan bare admin slå på eller av.
+        /// Bemanningsvarsel (<see cref="UpdateMeRequest.StaffingAlerts"/>) kan bare admin slå på, men alle kan slå det
+        /// av, så en admin som er degradert kan skru det av, og en klient som sender hele innstillingsobjektet avvises ikke.
         /// </summary>
-        /// <exception cref="ForbiddenAccessException">En bruker som ikke er admin sender <c>StaffingAlerts</c>.</exception>
+        /// <exception cref="ForbiddenAccessException">En bruker som ikke er admin sender <c>StaffingAlerts = true</c>.</exception>
         public async Task<UserResponse> UpdateMe(int userId, UpdateMeRequest request)
         {
             var user = await DbContext.Users.SingleOrDefaultAsync(u => u.UserId == userId)
                 ?? throw new EntityNotFoundException($"Fant ikke bruker med ID {userId}");
 
-            if (request.StaffingAlerts.HasValue && !user.IsAdmin)
+            if (request.StaffingAlerts == true && !user.IsAdmin)
                 throw new ForbiddenAccessException();
 
             ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);

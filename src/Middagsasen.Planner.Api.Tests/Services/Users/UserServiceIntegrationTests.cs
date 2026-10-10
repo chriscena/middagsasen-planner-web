@@ -284,22 +284,42 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             Assert.True(verifyContext.Users.Single(u => u.UserId == admin.UserId).StaffingAlerts);
         }
 
-        [Theory]
-        [InlineData(true)]
-        [InlineData(false)]
-        public async Task UpdateMe_NonAdmin_ThrowsForbidden_WhenSettingStaffingAlerts_AndChangesNothing(bool staffingAlerts)
+        [Fact]
+        public async Task UpdateMe_NonAdmin_ThrowsForbidden_WhenTurningStaffingAlertsOn_AndChangesNothing()
         {
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<ForbiddenAccessException>(
-                () => CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Endret", StaffingAlerts = staffingAlerts }));
+                () => CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Endret", StaffingAlerts = true }));
 
             using var verifyContext = _fixture.CreateContext();
             var stored = verifyContext.Users.Single(u => u.UserId == user.UserId);
             Assert.False(stored.StaffingAlerts);
             Assert.Equal("Opprinnelig", stored.FirstName);
+        }
+
+        [Fact]
+        public async Task UpdateMe_NonAdmin_TurnsStaffingAlertsOff()
+        {
+            // En admin som hadde varselet på og er degradert skal kunne slå det av selv.
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            user.StaffingAlerts = true;
+            await seedContext.SaveChangesAsync();
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Endret", StaffingAlerts = false });
+                Assert.False(result.StaffingAlerts);
+                Assert.Equal("Endret", result.FirstName);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            var stored = verifyContext.Users.Single(u => u.UserId == user.UserId);
+            Assert.False(stored.StaffingAlerts);
+            Assert.Equal("Endret", stored.FirstName);
         }
 
         [Fact]

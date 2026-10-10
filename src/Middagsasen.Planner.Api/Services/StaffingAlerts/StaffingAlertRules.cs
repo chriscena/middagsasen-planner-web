@@ -16,24 +16,29 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
         /// <list type="bullet">
         /// <item>oppgaven mangler bemanning etter fjerningen (<see cref="ShiftRules.IsMissingStaff(ResourceStaffing)"/>);
         /// var den overbooket og fortsatt full, sendes ingenting,</item>
-        /// <item>oppgaven er ikke avsluttet (<paramref name="resourceEnd"/> er etter <paramref name="nowLocal"/>),</item>
+        /// <item>vakta er ikke over (<paramref name="shiftEnd"/> er etter <paramref name="nowLocal"/>): en vakt med egne
+        /// tider kan være over mens oppgaven pågår, og da er det ingenting å dekke,</item>
+        /// <item>oppgaven er ikke avsluttet (<paramref name="resourceEnd"/> er etter <paramref name="nowLocal"/>).
+        /// Vaktas slutt er normalt innenfor oppgavens (<see cref="ShiftRules.AreTimesValid"/>), men oppgavens tider kan
+        /// flyttes etter at vakta ble tatt, så begge sjekkes,</item>
         /// <item>vaktas effektive start er høyst <paramref name="noticeDays"/> kalenderdager fram i tid. I dag og i morgen
-        /// teller også, og det gjør en vakt som allerede har startet så lenge oppgaven ikke er avsluttet.</item>
+        /// teller også, og det gjør en vakt som allerede har startet så lenge den ikke er over.</item>
         /// </list>
         /// </summary>
         /// <param name="nowLocal">Nå, norsk lokal tid.</param>
         /// <param name="shiftStart">Vaktas effektive start (vaktens egne tider, ellers oppgavens; se <see cref="ShiftReminderRules.EffectivePeriod"/>).</param>
+        /// <param name="shiftEnd">Vaktas effektive slutt (som <paramref name="shiftStart"/>).</param>
         /// <param name="resourceEnd">Oppgavens slutt.</param>
         /// <param name="staffing">Bemanningen på oppgaven etter fjerningen.</param>
         /// <param name="noticeDays">
         /// Hvor mange kalenderdager fram i tid vakta høyst kan starte (<see cref="StaffingAlertOptions.NoticeDays"/>):
         /// 0 er bare i dag, 1 i dag og i morgen, 2 til og med i overmorgen.
         /// </param>
-        public static bool IsDue(DateTime nowLocal, DateTime shiftStart, DateTime resourceEnd, ResourceStaffing staffing, int noticeDays)
+        public static bool IsDue(DateTime nowLocal, DateTime shiftStart, DateTime shiftEnd, DateTime resourceEnd, ResourceStaffing staffing, int noticeDays)
         {
             if (!ShiftRules.IsMissingStaff(staffing))
                 return false;
-            if (resourceEnd <= nowLocal)
+            if (shiftEnd <= nowLocal || resourceEnd <= nowLocal)
                 return false;
 
             var daysUntilStart = DateOnly.FromDateTime(shiftStart).DayNumber - DateOnly.FromDateTime(nowLocal).DayNumber;
@@ -48,7 +53,7 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
         /// <param name="adminFirstName">Fornavnet til mottakeren, kan mangle.</param>
         /// <param name="userFullName">Fullt navn på den som trakk seg.</param>
         /// <param name="shift">Vakta som ble fjernet, med effektive tider.</param>
-        /// <param name="openShifts">Antall ledige vakter på oppgaven etter fjerningen (<c>ShiftCount - StaffedCount</c>).</param>
+        /// <param name="openShifts">Antall ledige vakter på oppgaven etter fjerningen (<see cref="ShiftRules.OpenShifts"/>).</param>
         public static string BuildMessage(string? adminFirstName, string userFullName, ReminderShift shift, int openShifts)
         {
             var greeting = string.IsNullOrWhiteSpace(adminFirstName) ? "Hei!" : $"Hei {adminFirstName.Trim()}!";
