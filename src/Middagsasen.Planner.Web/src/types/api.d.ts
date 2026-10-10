@@ -4354,6 +4354,7 @@ export interface components {
             lastName?: null | string;
             password?: null | string;
             isHidden?: null | boolean;
+            shiftReminders?: null | boolean;
         };
         UpdateWorkHourRequest: {
             /** Format: date-time */
@@ -4409,6 +4410,7 @@ export interface components {
             fullName?: null | string;
             isAdmin: boolean;
             isHidden: boolean;
+            shiftReminders: boolean;
             trainings: components["schemas"]["UserTrainingResponse"][];
         };
         UserShiftResponse: {

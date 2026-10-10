@@ -68,10 +68,14 @@ namespace Middagsasen.Planner.Api.Services.SmsSender
                         Info = m.info,
                     }).ToList();
 
+                    // Info settes bare ved feil, så kalleren kan logge hvorfor hele kallet feilet (per melding ligger det i Messages).
                     return new SmsResult
                     {
                         Success = result?.error == 0,
                         Messages = messageResult ?? new List<SmsMessageResult>(),
+                        Info = result == null ? "Tomt svar fra SMS-tjenesten"
+                            : result.error != 0 ? $"Eurobate error {result.error} ({result.STATUS})"
+                            : null,
                     };
                 }
 

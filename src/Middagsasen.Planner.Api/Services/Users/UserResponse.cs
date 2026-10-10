@@ -11,6 +11,8 @@ namespace Middagsasen.Planner.Api.Services.Users
         public string? FullName { get; internal set; }
         public bool IsAdmin { get; internal set; }
         public bool IsHidden { get; internal set; }
+        /// <summary>Brukeren har slått på SMS-påminnelse dagen før vakt.</summary>
+        public bool ShiftReminders { get; internal set; }
         public IEnumerable<UserTrainingResponse> Trainings { get; internal set; } = [];
     }
 }

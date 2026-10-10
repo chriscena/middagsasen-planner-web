@@ -52,6 +52,7 @@ namespace Middagsasen.Planner.Api.Services.Users
         /// <item>Fornavn og etternavn oppdateres når de er oppgitt (ellers beholdes de gamle).</item>
         /// <item><c>IsAdmin</c> og <c>IsHidden</c> settes fra requesten som for en ny bruker (standard <c>false</c>).</item>
         /// <item>Passordet settes når det er oppgitt.</item>
+        /// <item><c>ShiftReminders</c> settes til <c>false</c> (som for en ny bruker); brukeren slår det på selv igjen.</item>
         /// </list>
         /// <see cref="Delete"/> setter bare <c>Inactive</c> (og logger ut), så opplæringer, vakter og annen historikk følger med tilbake.
         /// Er nummeret i bruk av en aktiv bruker, avvises det med <see cref="DomainValidationException"/>. Det gjelder
@@ -76,6 +77,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                     user.LastName = request.LastName;
                 user.IsAdmin = request.IsAdmin ?? false;
                 user.IsHidden = request.IsHidden ?? false;
+                user.ShiftReminders = false;
                 SetPassword(user, request.Password);
             }
             else if (user != null)
@@ -136,6 +138,8 @@ namespace Middagsasen.Planner.Api.Services.Users
             ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
+            if (request.ShiftReminders.HasValue)
+                user.ShiftReminders = request.ShiftReminders.Value;
 
             await DbContext.SaveChangesAsync();
 
@@ -257,6 +261,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 FullName = user.FullName(),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
+                ShiftReminders = user.ShiftReminders,
                 Trainings = user.Trainings.Select(Map).ToList(),
             };
 

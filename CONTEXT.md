@@ -52,6 +52,10 @@ _Unngå_: Ledig plass, tom plass
 En vakt som en bruker har tatt.
 _Unngå_: Tatt plass
 
+**Vaktpåminnelse**:
+En SMS dagen før som lister vaktene en bruker har neste dag. Sendes bare til brukere som selv har slått den på, og høyst én per bruker per dag.
+_Unngå_: Varsel, notifikasjon, reminder
+
 ### Kvalifikasjoner
 
 **Kompetanse**:

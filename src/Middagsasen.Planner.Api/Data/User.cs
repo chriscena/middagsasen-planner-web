@@ -16,8 +16,11 @@
         public bool IsAdmin { get; set; }
         public DateTime Created { get; set; } = DateTime.UtcNow;
         public bool Inactive { get; set; }
+        /// <summary>Brukeren har slått på vaktpåminnelse (SMS dagen før vakt). Av som standard.</summary>
+        public bool ShiftReminders { get; set; }
 
         public virtual ICollection<UserSession> Sessions { get; set; } = new HashSet<UserSession>();
+        public virtual ICollection<ShiftReminder> SentShiftReminders { get; set; } = new HashSet<ShiftReminder>();
         public virtual ICollection<EventResourceUser> Shifts { get; set; } = new HashSet<EventResourceUser>();
         public virtual ICollection<EventResourceMessage> CreatedMessages { get; set; } = new HashSet<EventResourceMessage>();
         public virtual ICollection<ResourceTypeTrainer> ResourceTypeTrainers { get; set; } = new HashSet<ResourceTypeTrainer>();

@@ -13,6 +13,7 @@
     IsAdmin bit not null CONSTRAINT DF_Users_IsAdmin DEFAULT 0,
     Created datetime not null CONSTRAINT DF_Users_Created default GETUTCDATE(),
     Inactive bit not null CONSTRAINT DF_Users_Inactive DEFAULT 0,
+    ShiftReminders bit not null CONSTRAINT DF_Users_ShiftReminders DEFAULT 0,
 )
 GO
 

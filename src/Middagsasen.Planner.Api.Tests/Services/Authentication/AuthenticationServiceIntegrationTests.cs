@@ -47,8 +47,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
 
         private User StoredUser(string phoneNo) => Assert.Single(UsersWithUserName(phoneNo));
 
-        private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
-
         /// <summary>Formater brukere skriver nummeret inn i. Hver «x» erstattes med neste siffer i nummeret.</summary>
         public static TheoryData<string> PhoneNoFormats => new()
         {
@@ -98,7 +96,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [MemberData(nameof(PhoneNoFormats))]
         public async Task GenerateOtpForUser_ExistingUser_DoesNotCreateNewUser(string format)
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var existing = await SeedUser(phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -115,7 +113,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_InactiveUser_DoesNotCreateNewUser()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var inactive = await SeedUser(phoneNo, inactive: true);
 
             using var context = _fixture.CreateContext();
@@ -129,7 +127,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_NewPhoneNo_CreatesOneUserWithNormalizedUserName()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).GenerateOtpForUser(
@@ -144,7 +142,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_SendsOtp_WhenAdminCreatesUserConcurrently()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             User? createdByAdmin = null;
 
             // En administrator oppretter brukeren mellom oppslaget og lagringen. Da er det ikke sendt noen kode.
@@ -164,7 +162,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_ReturnsTooManyRequests_WhenOtherOtpRequestCreatesUserConcurrently()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var otpCreated = DateTime.UtcNow;
 
             // En parallell OTP-forespørsel oppretter brukeren og sender kode mellom oppslaget og lagringen.
@@ -195,7 +193,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         {
             // Et utenlandsk nummer som slutter på de samme 8 sifrene må ikke treffe den norske brukeren,
             // ellers ville koden til brukeren 92345678 blitt sendt til +46 92345678.
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo);
             var foreignPhoneNo = string.Format(format, phoneNo);
 
@@ -214,7 +212,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_SendsSmsToNumberDerivedFromNormalizedUserName()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).GenerateOtpForUser(new OtpRequest { UserName = $"0047 {phoneNo}" });
@@ -227,7 +225,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Database_RejectsTwoUsersWithSameUserName()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, inactive: true);
 
             using var context = _fixture.CreateContext();
@@ -240,7 +238,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [MemberData(nameof(PhoneNoFormats))]
         public async Task Authenticate_FindsUser_RegardlessOfInputFormat(string format)
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig");
 
             using var context = _fixture.CreateContext();
@@ -254,7 +252,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_Fails_ForInactiveUser()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, inactive: true, password: "hemmelig");
 
             using var context = _fixture.CreateContext();
@@ -266,7 +264,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_ReturnsTooManyRequests_WithinThrottleWindow()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
 
             using var context = _fixture.CreateContext();
@@ -282,7 +280,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_SendsNewOtp_WhenThrottleWindowHasPassed()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
 
             using var context = _fixture.CreateContext();
@@ -298,7 +296,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_NewUser_UsesTimeProviderAndFourDigitCode()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, new FakeTimeProvider(Now)).GenerateOtpForUser(new OtpRequest { UserName = phoneNo });
@@ -313,7 +311,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_AcceptsOtp_JustBeforeExpiry()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
 
             using var context = _fixture.CreateContext();
@@ -329,7 +327,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_RejectsOtp_AfterExpiry()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
 
             using var context = _fixture.CreateContext();
@@ -344,7 +342,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_ReturnsTokenForCreatedSession()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig");
 
             using var context = _fixture.CreateContext();
@@ -359,7 +357,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_SetsSessionCreated_FromTimeProvider()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig");
 
             var result = await Authenticate(phoneNo, "hemmelig", new FakeTimeProvider(Now));
@@ -372,7 +370,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GetUserBySessionId_ReturnsActor_ForActiveUser()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUser(phoneNo, password: "hemmelig");
             var result = await Authenticate(phoneNo, "hemmelig");
             var sessionId = CreateSessionTokens(TimeProvider.System).ReadSessionId(result.Token!)!.Value;
@@ -386,7 +384,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GetUserBySessionId_ReturnsNull_ForInactiveUser_EvenWhenSessionExists()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUser(phoneNo, password: "hemmelig");
             var result = await Authenticate(phoneNo, "hemmelig");
             var sessionId = CreateSessionTokens(TimeProvider.System).ReadSessionId(result.Token!)!.Value;
@@ -405,7 +403,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_WrongOtp_IncrementsAndStoresFailedAttempts()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
             var time = new FakeTimeProvider(Now);
 
@@ -421,7 +419,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_InvalidatesOtp_AfterMaxFailedAttempts()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
             var time = new FakeTimeProvider(Now);
 
@@ -442,7 +440,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_AcceptsOtp_AfterFewerFailedAttemptsThanMax_AndResetsCounter()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
             var time = new FakeTimeProvider(Now);
 
@@ -462,7 +460,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         public async Task Authenticate_RejectsOtp_WhenStoredAttemptsHaveReachedMax()
         {
             // F.eks. hvis MaxOtpAttempts er senket etter at forsøkene ble gjort.
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime, failedOtpAttempts: DefaultOptions.MaxOtpAttempts);
 
             var result = await Authenticate(phoneNo, "1234", new FakeTimeProvider(Now));
@@ -473,7 +471,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task GenerateOtpForUser_ResetsFailedOtpAttempts()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime, failedOtpAttempts: DefaultOptions.MaxOtpAttempts - 1);
 
             using var context = _fixture.CreateContext();
@@ -487,7 +485,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_NewOtp_CanBeUsed_AfterOldOtpWasInvalidated()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
             var time = new FakeTimeProvider(Now);
             for (var i = 0; i < DefaultOptions.MaxOtpAttempts; i++)
@@ -504,7 +502,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_WrongPassword_WithoutActiveOtp_DoesNotCountAttempts()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig");
 
             var result = await Authenticate(phoneNo, "feil");
@@ -516,7 +514,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_WrongPassword_WithExpiredOtp_DoesNotCountAttempts()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, otpCreated: Now.UtcDateTime);
 
             await Authenticate(phoneNo, "0000", new FakeTimeProvider(Now + DefaultOptions.OtpLifetime));
@@ -529,7 +527,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         [Fact]
         public async Task Authenticate_CorrectPassword_Succeeds_WithActiveOtp_AndResetsOtp()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig", otpCreated: Now.UtcDateTime, failedOtpAttempts: 2);
 
             var result = await Authenticate(phoneNo, "hemmelig", new FakeTimeProvider(Now));
@@ -545,7 +543,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
         public async Task Authenticate_CorrectPassword_Succeeds_AfterOtpWasInvalidated()
         {
             // Feilforsøk mot koden (også feil passord mens koden er aktiv) sperrer ikke passordinnlogging.
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUser(phoneNo, password: "hemmelig", otpCreated: Now.UtcDateTime);
             var time = new FakeTimeProvider(Now);
             for (var i = 0; i < DefaultOptions.MaxOtpAttempts; i++)

@@ -171,8 +171,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.Update(int.MaxValue, new UserRequest { FirstName = "X" }));
         }
 
-        private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
-
         private PlannerDbContext CreateContextWithBeforeSave(Func<Task> beforeSave)
             => _fixture.CreateContext(new BeforeSaveInterceptor(beforeSave));
 
@@ -210,7 +208,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task UpdateMe_SetsIsHidden_AndLeavesItUnchangedWhenNull()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
 
             using (var context = _fixture.CreateContext())
             {
@@ -230,10 +228,41 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         [Fact]
+        public async Task UpdateMe_SetsShiftReminders_AndLeavesItUnchangedWhenNull()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+
+            using (var context = _fixture.CreateContext())
+            {
+                // Av som standard.
+                Assert.False((await CreateService(context).GetUserById(user.UserId)).ShiftReminders);
+
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { ShiftReminders = true });
+                Assert.True(result.ShiftReminders);
+                Assert.False(result.IsHidden);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Fortsatt på", IsHidden = true });
+                Assert.True(result.ShiftReminders);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                Assert.True((await CreateService(context).GetUserById(user.UserId)).ShiftReminders);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == user.UserId).ShiftReminders);
+        }
+
+        [Fact]
         public async Task UpdateMe_UpdatesName_AndKeepsUserName()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -261,7 +290,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task UpdateMe_KeepsExistingAdmin()
         {
             using var seedContext = _fixture.CreateContext();
-            var admin = await SeedUserWithPhone(seedContext, UniquePhoneNo(), isAdmin: true);
+            var admin = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique(), isAdmin: true);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -277,7 +306,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task UpdateMe_ReturnsTrainings()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
             var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 1 };
             seedContext.ResourceTypes.Add(rt);
             await seedContext.SaveChangesAsync();
@@ -302,8 +331,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_ThrowsDomainValidation_WhenPhoneNoBelongsToAnotherUser()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
-            var otherPhoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            var otherPhoneNo = TestPhoneNumbers.Unique();
             await SeedUserWithPhone(seedContext, otherPhoneNo);
 
             using var context = _fixture.CreateContext();
@@ -318,8 +347,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_ChangesPhoneNo_AndStoresItNormalized()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
-            var newPhoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            var newPhoneNo = TestPhoneNumbers.Unique();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+47 {newPhoneNo}" });
@@ -333,7 +362,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_AllowsKeepingOwnPhoneNo()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -349,7 +378,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_AllowsSamePhoneNoInOtherFormat()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -363,8 +392,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_ThrowsDomainValidation_WhenPhoneNoIsTakenConcurrently()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
-            var newPhoneNo = UniquePhoneNo();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            var newPhoneNo = TestPhoneNumbers.Unique();
 
             // En parallell forespørsel tar nummeret mellom sjekken og lagringen.
             using var context = CreateContextWithBeforeSave(() => SeedUserInOtherContext(newPhoneNo));
@@ -392,7 +421,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Create_ThrowsDomainValidation_WhenPhoneNoIsInUse()
         {
             using var seedContext = _fixture.CreateContext();
-            var existing = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var existing = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -406,7 +435,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Create_ReactivatesInactiveUser_WithSamePhoneNo()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var deleted = await SeedUserWithPhone(seedContext, phoneNo);
             deleted.Inactive = true;
             await seedContext.SaveChangesAsync();
@@ -441,7 +470,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         [Fact]
         public async Task Create_ThrowsDomainValidation_WhenPhoneNoIsTakenConcurrently()
         {
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             // En parallell forespørsel oppretter brukeren mellom sjekken og lagringen.
             using var context = CreateContextWithBeforeSave(() => SeedUserInOtherContext(phoneNo));
@@ -458,7 +487,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         {
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             var result = await service.Create(new UserRequest { FirstName = "Ny", PhoneNo = $"+47 {phoneNo[..3]} {phoneNo[3..]}" });
 
@@ -483,7 +512,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Create_ThrowsDomainValidation_ForForeignPhoneNo_EvenWhenNorwegianUserWithSameDigitsExists(string format)
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             await SeedUserWithPhone(seedContext, phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -496,7 +525,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Update_ThrowsDomainValidation_ForForeignPhoneNo()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
 
             using var context = _fixture.CreateContext();
@@ -513,7 +542,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         {
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUserWithPhone(seedContext, $"admin_{Guid.NewGuid():N}");
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).Update(user.UserId, new UserRequest { PhoneNo = $"+47 {phoneNo}" });
@@ -544,8 +573,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Delete_DeactivatesUser_AndDeletesOnlyThatUsersSessions()
         {
             using var seedContext = _fixture.CreateContext();
-            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
-            var other = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            var other = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
             await SeedSession(seedContext, user);
             await SeedSession(seedContext, user);
             var otherSession = await SeedSession(seedContext, other);
@@ -563,7 +592,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         public async Task Create_ReactivatesUser_AfterDelete()
         {
             using var seedContext = _fixture.CreateContext();
-            var phoneNo = UniquePhoneNo();
+            var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
             await SeedSession(seedContext, user);
 
@@ -576,6 +605,28 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             Assert.Equal(user.UserId, result.Id);
             using var verifyContext = _fixture.CreateContext();
             Assert.False(verifyContext.Users.Single(u => u.UserId == user.UserId).Inactive);
+        }
+
+        [Fact]
+        public async Task Create_ReactivatesUser_AfterDelete_WithShiftRemindersOff()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = TestPhoneNumbers.Unique();
+            var user = await SeedUserWithPhone(seedContext, phoneNo);
+            user.ShiftReminders = true;
+            await seedContext.SaveChangesAsync();
+
+            using (var deleteContext = _fixture.CreateContext())
+                await CreateService(deleteContext).Delete(user.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Create(new UserRequest { PhoneNo = phoneNo });
+
+            // Reaktivering skal ikke ta med seg påminnelsesvalget fra før slettingen; brukeren slår det på selv igjen.
+            Assert.Equal(user.UserId, result.Id);
+            Assert.False(result.ShiftReminders);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(verifyContext.Users.Single(u => u.UserId == user.UserId).ShiftReminders);
         }
     }
 }

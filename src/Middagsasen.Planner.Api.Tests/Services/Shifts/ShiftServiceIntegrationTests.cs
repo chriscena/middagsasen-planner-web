@@ -8,6 +8,7 @@ using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.Shifts;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -50,11 +51,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
-        private static async Task<User> SeedUser(PlannerDbContext context, string firstName = "Test", bool isAdmin = false)
+        /// <summary>
+        /// Lagrede brukernavn er normaliserte telefonnumre, og trenerne varsles på SMS til nummeret.
+        /// <paramref name="userName"/> overstyrer det, f.eks. for en eldre bruker med brukernavn «admin».
+        /// </summary>
+        private static async Task<User> SeedUser(PlannerDbContext context, string firstName = "Test", bool isAdmin = false, string? userName = null)
         {
             var user = new User
             {
-                UserName = UniqueName("user"),
+                UserName = userName ?? TestPhoneNumbers.Unique(),
                 FirstName = firstName,
                 LastName = "Bruker",
                 Created = DateTime.UtcNow,
@@ -215,6 +220,25 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.False(result.Resource.MustAnswerTraining);
             Assert.True(Assert.Single(result.Resource.Shifts).NeedsTraining);
             Assert.Empty(result.Warnings);
+        }
+
+        [Fact]
+        public async Task SignUp_TrainingNotCompleted_SkipsTrainerWithoutValidPhoneNo_AndNotifiesTheRest()
+        {
+            using var seed = _fixture.CreateContext();
+            var trainer = await SeedUser(seed, "Trener");
+            var admin = await SeedUser(seed, "Admin", userName: TestPhoneNumbers.UniqueInvalid());
+            var user = await SeedUser(seed, "Ola");
+            var resource = await SeedResource(seed, 2, trainer.UserId, admin.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest { TrainingCompleted = false });
+
+            // Treneren uten gyldig telefonnummer hoppes over, den andre varsles, og påmeldingen regnes som vellykket.
+            Assert.Empty(result.Warnings);
+            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
+            var message = Assert.Single(_smsSender.ReceivedCalls().SelectMany(c => (IEnumerable<SmsMessage>)c.GetArguments()[0]!));
+            Assert.Equal(trainer.UserName.ToSmsPhoneNo(), message.ReceiverPhoneNo);
         }
 
         [Fact]
