@@ -142,6 +142,21 @@
             ></q-toggle>
           </q-item-section>
         </q-item>
+        <q-item v-if="isAdmin">
+          <q-item-section>
+            <q-item-label>SMS-varsel når noen trekker seg</q-item-label>
+            <q-item-label caption
+              >Når en vakt blir ledig to dager eller mindre før
+              start</q-item-label
+            >
+          </q-item-section>
+          <q-item-section side>
+            <q-toggle
+              :model-value="user?.staffingAlerts"
+              @update:model-value="updateStaffingAlerts"
+            ></q-toggle>
+          </q-item-section>
+        </q-item>
         <q-item clickable to="/shifts">
           <q-item-section avatar><q-icon name="list"></q-icon></q-item-section>
           <q-item-section>
@@ -486,6 +501,17 @@ function updateShiftReminders(shiftReminders: boolean): Promise<void> {
     shiftReminders
       ? "Du får nå SMS-påminnelse dagen før vakt 🔔"
       : "SMS-påminnelse er slått av"
+  );
+}
+
+// Bemanningsvarsel: SMS til admin når noen trekker seg fra en vakt som
+// starter om to dager eller mindre. Bryteren vises kun for admin.
+function updateStaffingAlerts(staffingAlerts: boolean): Promise<void> {
+  return saveMySetting(
+    { staffingAlerts },
+    staffingAlerts
+      ? "Du får nå SMS når noen trekker seg fra vakt 🚨"
+      : "SMS-varsel er slått av"
   );
 }
 
