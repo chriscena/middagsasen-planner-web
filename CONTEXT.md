@@ -56,6 +56,10 @@ _Unngå_: Tatt plass
 En SMS dagen før som lister vaktene en bruker har neste dag. Sendes bare til brukere som selv har slått den på, og høyst én per bruker per dag.
 _Unngå_: Varsel, notifikasjon, reminder
 
+**Bemanningsvarsel**:
+En SMS til admin når en bruker trekker seg fra en vakt slik at oppgaven mangler bemanning, og vakta starter om to dager eller mindre. Sendes bare til admin som selv har slått det på, og aldri til den som trakk seg. Heter `StaffingAlerts` i koden.
+_Unngå_: Frafallsvarsel, varsel (uten presisering), notifikasjon
+
 ### Kvalifikasjoner
 
 **Kompetanse**:
