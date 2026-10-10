@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
@@ -40,14 +41,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             _smsSender.SendMessages(Arg.Any<IEnumerable<SmsMessage>>()).Returns(new SmsResult { Success = true });
         }
 
-        private IShiftService CreateService(PlannerDbContext context, int userId, bool isAdmin = false, DateTimeOffset? now = null)
+        private IShiftService CreateService(PlannerDbContext context, int userId, bool isAdmin = false, DateTimeOffset? now = null, StaffingAlertOptions? staffingAlertOptions = null)
         {
             var currentUser = Substitute.For<ICurrentUserService>();
             currentUser.UserId.Returns(userId);
             currentUser.IsAdmin.Returns(isAdmin);
             var clock = new FakeTimeProvider(now ?? BeforeResource);
             var notifier = new TrainerNotifier(new TrainerRepository(context), _smsSender, NullLogger<TrainerNotifier>.Instance);
-            var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), _smsSender, clock, NullLogger<StaffingAlertNotifier>.Instance);
+            var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), _smsSender,
+                Options.Create(staffingAlertOptions ?? new StaffingAlertOptions()), clock, NullLogger<StaffingAlertNotifier>.Instance);
             return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, staffingAlertNotifier, clock);
         }
 
@@ -1351,7 +1353,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         // Oppgavene er 15.01.2026 (torsdag). 14.01.2026 11:00 UTC = 12:00 norsk tid: dagen før, så varselet er aktuelt.
         private static readonly DateTimeOffset DayBeforeResource = new(2026, 1, 14, 11, 0, 0, TimeSpan.Zero);
-        // 12.01.2026: tre dager før, altså utenfor NoticeDays.
+        // 12.01.2026: tre dager før, altså utenfor standardgrensen StaffingAlerts:NoticeDays (2).
         private static readonly DateTimeOffset ThreeDaysBeforeResource = new(2026, 1, 12, 11, 0, 0, TimeSpan.Zero);
 
         /// <summary>
@@ -1478,6 +1480,24 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Empty(await GetShifts(resource.EventResourceId));
             Assert.Empty(result.Warnings);
             await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task Withdraw_Owner_SendsStaffingAlert_ThreeDaysBeforeShift_WhenNoticeDaysIsThree()
+        {
+            using var seed = _fixture.CreateContext();
+            var owner = await SeedUser(seed, "Ola");
+            var anne = await SeedUser(seed, "Anne", isAdmin: true, staffingAlerts: true);
+            var resource = await SeedResource(seed, shiftCount: 2);
+            var shift = await SeedShift(seed, resource, owner.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, owner.UserId, now: ThreeDaysBeforeResource, staffingAlertOptions: new StaffingAlertOptions { NoticeDays = 3 })
+                .Withdraw(shift.EventResourceUserId);
+
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+            Assert.Empty(result.Warnings);
+            Assert.Equal(await ExpectedAlert("Anne", "Ola Bruker", resource, openShifts: 2), MessageTo(anne).Body);
         }
 
         [Fact]

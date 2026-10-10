@@ -82,12 +82,15 @@ if (allowedOrigins.Length > 0)
 // Build-time-genereringen av OpenAPI starter også hosten, men uten hemmeligheter, så der hoppes valideringen over.
 builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddOptions<ReminderOptions>().Bind(builder.Configuration.GetSection(ReminderOptions.SectionName));
+builder.Services.AddOptions<StaffingAlertOptions>().Bind(builder.Configuration.GetSection(StaffingAlertOptions.SectionName));
 if (!BuildTimeDocumentGeneration.IsRunning)
 {
     builder.Services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
     builder.Services.AddOptions<AuthOptions>().ValidateOnStart();
     builder.Services.AddSingleton<IValidateOptions<ReminderOptions>, ReminderOptionsValidator>();
     builder.Services.AddOptions<ReminderOptions>().ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<StaffingAlertOptions>, StaffingAlertOptionsValidator>();
+    builder.Services.AddOptions<StaffingAlertOptions>().ValidateOnStart();
     builder.Services.AddOptions<InfrastructureSettings>()
         .Validate(settings => SessionTokens.IsValidSecret(settings.Secret), SessionTokens.InvalidSecretMessage)
         .ValidateOnStart();

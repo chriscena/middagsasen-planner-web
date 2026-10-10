@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.Shifts;
@@ -8,16 +9,23 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
 {
     public class StaffingAlertNotifier : IStaffingAlertNotifier
     {
-        public StaffingAlertNotifier(IStaffingAlertRepository repository, ISmsSender smsSender, TimeProvider timeProvider, ILogger<StaffingAlertNotifier> logger)
+        public StaffingAlertNotifier(
+            IStaffingAlertRepository repository,
+            ISmsSender smsSender,
+            IOptions<StaffingAlertOptions> options,
+            TimeProvider timeProvider,
+            ILogger<StaffingAlertNotifier> logger)
         {
             Repository = repository;
             SmsSender = smsSender;
+            Options = options.Value;
             TimeProvider = timeProvider;
             Logger = logger;
         }
 
         public IStaffingAlertRepository Repository { get; }
         public ISmsSender SmsSender { get; }
+        public StaffingAlertOptions Options { get; }
         public TimeProvider TimeProvider { get; }
         public ILogger<StaffingAlertNotifier> Logger { get; }
 
@@ -31,7 +39,7 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
 
                 var nowLocal = TimeProvider.GetUtcNow().ToNorwegianLocalTime();
                 var staffing = new ResourceStaffing(task.ShiftCount, task.StaffedCount);
-                if (!StaffingAlertRules.IsDue(nowLocal, shiftStart, task.EndTime, staffing))
+                if (!StaffingAlertRules.IsDue(nowLocal, shiftStart, task.EndTime, staffing, Options.NoticeDays))
                     return new StaffingAlertResult(true, 0, null);
 
                 var recipients = await Repository.GetRecipients(userId);

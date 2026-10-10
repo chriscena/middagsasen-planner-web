@@ -191,7 +191,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>
         /// Bemanningsvarsel (#43): når eieren trekker seg selv, vurderes <see cref="IStaffingAlertNotifier"/> etter commit
         /// med ferske tall, og admin med varselet på får SMS hvis oppgaven mangler bemanning og vakta starter om
-        /// <see cref="StaffingAlertRules.NoticeDays"/> dager eller mindre. Når admin fjerner en annen bruker, sendes ingenting.
+        /// <see cref="StaffingAlertOptions.NoticeDays"/> dager eller mindre. Når admin fjerner en annen bruker, sendes ingenting.
         /// SMS-feil stopper ikke fjerningen, men gir <see cref="StaffingAlertFailedWarning"/> i <see cref="ShiftResult.Warnings"/>.
         /// </summary>
         public async Task<ShiftResult> Withdraw(int shiftId)

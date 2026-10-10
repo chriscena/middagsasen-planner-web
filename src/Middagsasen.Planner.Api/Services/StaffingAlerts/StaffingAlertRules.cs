@@ -5,32 +5,31 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
 {
     /// <summary>
     /// Reglene for bemanningsvarsel (issue #43): når en bruker trekker seg fra en vakt slik at oppgaven mangler
-    /// bemanning, og vakta starter om to dager eller mindre, får admin med varselet på en SMS. Ren klasse uten I/O,
-    /// så den kan testes uten database. Alle tider er norsk lokal tid uten sone.
+    /// bemanning, og vakta starter om <see cref="StaffingAlertOptions.NoticeDays"/> dager eller mindre (standard 2), får
+    /// admin med varselet på en SMS. Ren klasse uten I/O, så den kan testes uten database. Alle tider er norsk lokal
+    /// tid uten sone.
     /// </summary>
     public static class StaffingAlertRules
     {
-        /// <summary>
-        /// Hvor mange kalenderdager fram i tid vakta høyst kan starte for at varselet sendes. I dag er 0, i morgen 1,
-        /// så med 2 varsles det for i dag, i morgen og i overmorgen.
-        /// </summary>
-        public const int NoticeDays = 2;
-
         /// <summary>
         /// Om bemanningsvarsel skal sendes etter at en vakt er fjernet. Vurderes med ferske data etter commit:
         /// <list type="bullet">
         /// <item>oppgaven mangler bemanning etter fjerningen (<see cref="ShiftRules.IsMissingStaff(ResourceStaffing)"/>);
         /// var den overbooket og fortsatt full, sendes ingenting,</item>
         /// <item>oppgaven er ikke avsluttet (<paramref name="resourceEnd"/> er etter <paramref name="nowLocal"/>),</item>
-        /// <item>vaktas effektive start er høyst <see cref="NoticeDays"/> kalenderdager fram i tid. I dag og i morgen teller
-        /// også, og det gjør en vakt som allerede har startet så lenge oppgaven ikke er avsluttet.</item>
+        /// <item>vaktas effektive start er høyst <paramref name="noticeDays"/> kalenderdager fram i tid. I dag og i morgen
+        /// teller også, og det gjør en vakt som allerede har startet så lenge oppgaven ikke er avsluttet.</item>
         /// </list>
         /// </summary>
         /// <param name="nowLocal">Nå, norsk lokal tid.</param>
         /// <param name="shiftStart">Vaktas effektive start (vaktens egne tider, ellers oppgavens; se <see cref="ShiftReminderRules.EffectivePeriod"/>).</param>
         /// <param name="resourceEnd">Oppgavens slutt.</param>
         /// <param name="staffing">Bemanningen på oppgaven etter fjerningen.</param>
-        public static bool IsDue(DateTime nowLocal, DateTime shiftStart, DateTime resourceEnd, ResourceStaffing staffing)
+        /// <param name="noticeDays">
+        /// Hvor mange kalenderdager fram i tid vakta høyst kan starte (<see cref="StaffingAlertOptions.NoticeDays"/>):
+        /// 0 er bare i dag, 1 i dag og i morgen, 2 til og med i overmorgen.
+        /// </param>
+        public static bool IsDue(DateTime nowLocal, DateTime shiftStart, DateTime resourceEnd, ResourceStaffing staffing, int noticeDays)
         {
             if (!ShiftRules.IsMissingStaff(staffing))
                 return false;
@@ -38,7 +37,7 @@ namespace Middagsasen.Planner.Api.Services.StaffingAlerts
                 return false;
 
             var daysUntilStart = DateOnly.FromDateTime(shiftStart).DayNumber - DateOnly.FromDateTime(nowLocal).DayNumber;
-            return daysUntilStart <= NoticeDays;
+            return daysUntilStart <= noticeDays;
         }
 
         /// <summary>

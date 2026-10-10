@@ -19,6 +19,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
             return (day.AddHours(18), day.AddHours(22));
         }
 
+        /// <summary>Standardgrensen (<see cref="StaffingAlertOptions.NoticeDays"/>): til og med i overmorgen.</summary>
+        private const int DefaultNoticeDays = 2;
+
         // --- IsDue: antall dager fram ---
 
         [Theory]
@@ -31,13 +34,25 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
         {
             var (start, end) = ShiftOn(daysFromNow);
 
-            Assert.Equal(expected, StaffingAlertRules.IsDue(Now, start, end, MissingStaff));
+            Assert.Equal(expected, StaffingAlertRules.IsDue(Now, start, end, MissingStaff, noticeDays: DefaultNoticeDays));
         }
 
         [Fact]
-        public void NoticeDays_IsTwo()
+        public void DefaultNoticeDays_IsTwo()
         {
-            Assert.Equal(2, StaffingAlertRules.NoticeDays);
+            Assert.Equal(DefaultNoticeDays, new StaffingAlertOptions().NoticeDays);
+        }
+
+        [Theory]
+        [InlineData(0, 0, true)]  // bare i dag
+        [InlineData(0, 1, false)] // i morgen er utenfor
+        [InlineData(5, 5, true)]  // om fem dager (grensen)
+        [InlineData(5, 6, false)] // om seks dager
+        public void IsDue_FollowsNoticeDays(int noticeDays, int daysFromNow, bool expected)
+        {
+            var (start, end) = ShiftOn(daysFromNow);
+
+            Assert.Equal(expected, StaffingAlertRules.IsDue(Now, start, end, MissingStaff, noticeDays));
         }
 
         // --- IsDue: døgngrensen er kalenderdager i norsk tid, ikke 48 timer ---
@@ -49,7 +64,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
             var start = new DateTime(2026, 10, 15, 0, 30, 0);
             var end = new DateTime(2026, 10, 15, 4, 0, 0);
 
-            Assert.True(StaffingAlertRules.IsDue(now, start, end, MissingStaff));
+            Assert.True(StaffingAlertRules.IsDue(now, start, end, MissingStaff, DefaultNoticeDays));
         }
 
         [Fact]
@@ -59,7 +74,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
             var start = new DateTime(2026, 10, 16, 0, 0, 0);
             var end = new DateTime(2026, 10, 16, 4, 0, 0);
 
-            Assert.False(StaffingAlertRules.IsDue(now, start, end, MissingStaff));
+            Assert.False(StaffingAlertRules.IsDue(now, start, end, MissingStaff, DefaultNoticeDays));
         }
 
         // --- IsDue: oppgavens status ---
@@ -71,7 +86,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
             var start = new DateTime(2026, 10, 13, 18, 0, 0);
             var end = new DateTime(2026, 10, 13, 22, 0, 0);
 
-            Assert.False(StaffingAlertRules.IsDue(now, start, end, MissingStaff));
+            Assert.False(StaffingAlertRules.IsDue(now, start, end, MissingStaff, DefaultNoticeDays));
         }
 
         [Fact]
@@ -81,7 +96,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
             var start = new DateTime(2026, 10, 13, 18, 0, 0);
             var end = new DateTime(2026, 10, 13, 22, 0, 0);
 
-            Assert.True(StaffingAlertRules.IsDue(now, start, end, MissingStaff));
+            Assert.True(StaffingAlertRules.IsDue(now, start, end, MissingStaff, DefaultNoticeDays));
         }
 
         [Theory]
@@ -92,7 +107,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.StaffingAlerts
         {
             var (start, end) = ShiftOn(1);
 
-            Assert.False(StaffingAlertRules.IsDue(Now, start, end, new ResourceStaffing(shiftCount, staffedCount)));
+            Assert.False(StaffingAlertRules.IsDue(Now, start, end, new ResourceStaffing(shiftCount, staffedCount), DefaultNoticeDays));
         }
 
         // --- BuildMessage ---
