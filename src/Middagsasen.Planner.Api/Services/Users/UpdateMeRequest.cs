@@ -17,5 +17,7 @@
         public bool? IsHidden { get; set; }
         /// <summary>SMS-påminnelse dagen før vakt. Endres kun når verdien er satt.</summary>
         public bool? ShiftReminders { get; set; }
+        /// <summary>Bemanningsvarsel (SMS til admin når noen trekker seg fra vakt). Endres kun når verdien er satt. Bare admin kan slå det på.</summary>
+        public bool? StaffingAlerts { get; set; }
     }
 }

@@ -2,7 +2,9 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.Resources;
+using Middagsasen.Planner.Api.Services.StaffingAlerts;
 
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
@@ -18,16 +20,24 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal const string NoTrainingMessage = "Denne vakttypen har ikke opplæring.";
         internal const string NoEmptySlotMessage = "Det er ingen ledige vakter å fjerne.";
         internal const string SmsFailedWarning = "Endringen er lagret, men SMS til trenerne kunne ikke sendes. Gi beskjed til en trener direkte.";
+        internal const string StaffingAlertFailedWarning = "Vakta er fjernet, men SMS-varselet til admin kunne ikke sendes. Gi beskjed til en admin direkte.";
 
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
             => $"Du må svare på om du trenger opplæring på {resourceTypeName}.";
 
-        public ShiftService(IShiftRepository repository, IResourceReader reader, ICurrentUserService currentUser, ITrainerNotifier trainerNotifier, TimeProvider timeProvider)
+        public ShiftService(
+            IShiftRepository repository,
+            IResourceReader reader,
+            ICurrentUserService currentUser,
+            ITrainerNotifier trainerNotifier,
+            IStaffingAlertNotifier staffingAlertNotifier,
+            TimeProvider timeProvider)
         {
             Repository = repository;
             Reader = reader;
             CurrentUser = currentUser;
             TrainerNotifier = trainerNotifier;
+            StaffingAlertNotifier = staffingAlertNotifier;
             TimeProvider = timeProvider;
         }
 
@@ -35,6 +45,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public IResourceReader Reader { get; }
         public ICurrentUserService CurrentUser { get; }
         public ITrainerNotifier TrainerNotifier { get; }
+        public IStaffingAlertNotifier StaffingAlertNotifier { get; }
         public TimeProvider TimeProvider { get; }
 
         /// <summary>
@@ -178,6 +189,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             return await BuildResult(resourceId, training.Training.ResourceTypeTrainingId, warnings);
         }
 
+        /// <summary>
+        /// Bemanningsvarsel (#43): når eieren trekker seg selv, vurderes <see cref="IStaffingAlertNotifier"/> etter commit
+        /// med ferske tall, og admin med varselet på får SMS hvis oppgaven mangler bemanning og vakta starter om
+        /// <see cref="StaffingAlertOptions.NoticeDays"/> dager eller mindre. Når admin fjerner en annen bruker, sendes ingenting.
+        /// SMS-feil stopper ikke fjerningen, men gir <see cref="StaffingAlertFailedWarning"/> i <see cref="ShiftResult.Warnings"/>.
+        /// </summary>
         public async Task<ShiftResult> Withdraw(int shiftId)
         {
             var actor = CurrentUser.ToActor();
@@ -185,9 +202,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 ?? throw new EntityNotFoundException(ShiftNotFoundMessage);
             var now = TimeProvider.GetUtcNow().ToNorwegianLocalTime();
 
-            await Repository.InResourceLock(resourceId, async () =>
+            var (ownerWithdrew, shiftStart, shiftEnd) = await Repository.InResourceLock(resourceId, async () =>
             {
-                var (_, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
+                var (resource, facts, shiftFacts) = await GetFacts(resourceId, shiftId);
                 Enforce(ShiftRules.CheckWithdraw(actor, facts, now, shiftFacts));
 
                 var shift = await Repository.GetShift(shiftId)
@@ -195,10 +212,15 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 Repository.RemoveShift(shift);
 
                 await Repository.SaveChangesAsync();
-                return true;
+                var (start, end) = ShiftReminderRules.EffectivePeriod(shift.StartTime, shift.EndTime, resource.StartTime, resource.EndTime);
+                return (shiftFacts.UserId == actor.UserId, start, end);
             });
 
-            return await BuildResult(resourceId, null, []);
+            var warnings = ownerWithdrew
+                ? await NotifyStaffingAlert(actor.UserId, resourceId, shiftStart, shiftEnd)
+                : [];
+
+            return await BuildResult(resourceId, null, warnings);
         }
 
         public Task<ResourceResponse> AddEmptySlot(int resourceId)
@@ -323,6 +345,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         {
             var result = await TrainerNotifier.NotifyTrainingRequested(userId, resourceTypeId, shiftDate);
             return result.Success ? [] : [SmsFailedWarning];
+        }
+
+        private async Task<IReadOnlyList<string>> NotifyStaffingAlert(int userId, int resourceId, DateTime shiftStart, DateTime shiftEnd)
+        {
+            var result = await StaffingAlertNotifier.NotifyShiftWithdrawn(userId, resourceId, shiftStart, shiftEnd);
+            return result.Success ? [] : [StaffingAlertFailedWarning];
         }
 
         private async Task<ShiftResult> BuildResult(int resourceId, int? changedTrainingId, IReadOnlyList<string> warnings)

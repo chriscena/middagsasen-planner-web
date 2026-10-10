@@ -14,6 +14,7 @@
     Created datetime not null CONSTRAINT DF_Users_Created default GETUTCDATE(),
     Inactive bit not null CONSTRAINT DF_Users_Inactive DEFAULT 0,
     ShiftReminders bit not null CONSTRAINT DF_Users_ShiftReminders DEFAULT 0,
+    StaffingAlerts bit not null CONSTRAINT DF_Users_StaffingAlerts DEFAULT 0,
 )
 GO
 

@@ -259,6 +259,70 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         [Fact]
+        public async Task UpdateMe_Admin_SetsStaffingAlerts_AndLeavesItUnchangedWhenNull()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var admin = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique(), isAdmin: true);
+
+            using (var context = _fixture.CreateContext())
+            {
+                // Av som standard.
+                Assert.False((await CreateService(context).GetUserById(admin.UserId)).StaffingAlerts);
+
+                var result = await CreateService(context).UpdateMe(admin.UserId, new UpdateMeRequest { StaffingAlerts = true });
+                Assert.True(result.StaffingAlerts);
+                Assert.False(result.ShiftReminders);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(admin.UserId, new UpdateMeRequest { FirstName = "Fortsatt på", ShiftReminders = true });
+                Assert.True(result.StaffingAlerts);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == admin.UserId).StaffingAlerts);
+        }
+
+        [Fact]
+        public async Task UpdateMe_NonAdmin_ThrowsForbidden_WhenTurningStaffingAlertsOn_AndChangesNothing()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<ForbiddenAccessException>(
+                () => CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Endret", StaffingAlerts = true }));
+
+            using var verifyContext = _fixture.CreateContext();
+            var stored = verifyContext.Users.Single(u => u.UserId == user.UserId);
+            Assert.False(stored.StaffingAlerts);
+            Assert.Equal("Opprinnelig", stored.FirstName);
+        }
+
+        [Fact]
+        public async Task UpdateMe_NonAdmin_TurnsStaffingAlertsOff()
+        {
+            // En admin som hadde varselet på og er degradert skal kunne slå det av selv.
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
+            user.StaffingAlerts = true;
+            await seedContext.SaveChangesAsync();
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Endret", StaffingAlerts = false });
+                Assert.False(result.StaffingAlerts);
+                Assert.Equal("Endret", result.FirstName);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            var stored = verifyContext.Users.Single(u => u.UserId == user.UserId);
+            Assert.False(stored.StaffingAlerts);
+            Assert.Equal("Endret", stored.FirstName);
+        }
+
+        [Fact]
         public async Task UpdateMe_UpdatesName_AndKeepsUserName()
         {
             using var seedContext = _fixture.CreateContext();
@@ -627,6 +691,29 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             Assert.False(result.ShiftReminders);
             using var verifyContext = _fixture.CreateContext();
             Assert.False(verifyContext.Users.Single(u => u.UserId == user.UserId).ShiftReminders);
+        }
+
+        [Fact]
+        public async Task Create_ReactivatesUser_AfterDelete_WithStaffingAlertsOff()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var phoneNo = TestPhoneNumbers.Unique();
+            var admin = await SeedUserWithPhone(seedContext, phoneNo, isAdmin: true);
+            admin.StaffingAlerts = true;
+            await seedContext.SaveChangesAsync();
+
+            using (var deleteContext = _fixture.CreateContext())
+                await CreateService(deleteContext).Delete(admin.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context).Create(new UserRequest { PhoneNo = phoneNo, IsAdmin = true });
+
+            // Reaktivering skal ikke ta med seg bemanningsvarselet fra før slettingen; admin slår det på selv igjen.
+            Assert.Equal(admin.UserId, result.Id);
+            Assert.True(result.IsAdmin);
+            Assert.False(result.StaffingAlerts);
+            using var verifyContext = _fixture.CreateContext();
+            Assert.False(verifyContext.Users.Single(u => u.UserId == admin.UserId).StaffingAlerts);
         }
     }
 }

@@ -13,6 +13,8 @@ namespace Middagsasen.Planner.Api.Services.Users
         public bool IsHidden { get; internal set; }
         /// <summary>Brukeren har slått på SMS-påminnelse dagen før vakt.</summary>
         public bool ShiftReminders { get; internal set; }
+        /// <summary>Brukeren har slått på bemanningsvarsel (SMS til admin når noen trekker seg fra vakt). Kun relevant for admin.</summary>
+        public bool StaffingAlerts { get; internal set; }
         public IEnumerable<UserTrainingResponse> Trainings { get; internal set; } = [];
     }
 }

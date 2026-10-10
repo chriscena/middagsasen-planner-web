@@ -18,6 +18,12 @@
         public bool Inactive { get; set; }
         /// <summary>Brukeren har slått på vaktpåminnelse (SMS dagen før vakt). Av som standard.</summary>
         public bool ShiftReminders { get; set; }
+        /// <summary>
+        /// Brukeren har slått på bemanningsvarsel (SMS når noen trekker seg fra en vakt slik at oppgaven mangler
+        /// bemanning kort tid før start). Bare relevant for admin: flagget beholdes om adminrollen mistes, men
+        /// mottakerne filtreres på <see cref="IsAdmin"/>. Av som standard.
+        /// </summary>
+        public bool StaffingAlerts { get; set; }
 
         public virtual ICollection<UserSession> Sessions { get; set; } = new HashSet<UserSession>();
         public virtual ICollection<ShiftReminder> SentShiftReminders { get; set; } = new HashSet<ShiftReminder>();

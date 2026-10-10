@@ -437,10 +437,13 @@ describe("EventStore", () => {
       store.events = [
         eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
       ];
-      mockApi.delete.mockResolvedValue({ data: result(resource(10, [])) });
+      const response = result(resource(10, []));
+      mockApi.delete.mockResolvedValue({ data: response });
 
-      await store.withdraw(1);
+      const returned = await store.withdraw(1);
 
+      // Svaret (med warnings) må nå komponenten, som viser dem til brukeren.
+      expect(returned).toBe(response);
       expect(mockApi.delete).toHaveBeenCalledWith("/api/shifts/1");
       expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
       expect(store.events[0]!.resources[0]!.shifts).toEqual([]);

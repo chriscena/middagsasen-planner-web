@@ -815,11 +815,12 @@ async function saveAdminShift(): Promise<void> {
 async function withdrawShift(): Promise<void> {
   try {
     saving.value = true;
-    await eventStore.withdraw(selectedShift.value!.id);
+    const result = await eventStore.withdraw(selectedShift.value!.id);
     closeDialogs();
     $q.notify({
       message: "Ajaj! Du har tatt bort vakta 😱",
     });
+    notifyWarnings(result.warnings);
   } catch (error) {
     notifyApiError(error, "Oh no! Noe tryna da vi skulle ta bort vakta... 🙈");
   } finally {

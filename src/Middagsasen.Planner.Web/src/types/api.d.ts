@@ -2886,6 +2886,15 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Not Found */
                 404: {
                     headers: {
@@ -4355,6 +4364,7 @@ export interface components {
             password?: null | string;
             isHidden?: null | boolean;
             shiftReminders?: null | boolean;
+            staffingAlerts?: null | boolean;
         };
         UpdateWorkHourRequest: {
             /** Format: date-time */
@@ -4411,6 +4421,7 @@ export interface components {
             isAdmin: boolean;
             isHidden: boolean;
             shiftReminders: boolean;
+            staffingAlerts: boolean;
             trainings: components["schemas"]["UserTrainingResponse"][];
         };
         UserShiftResponse: {

@@ -15,6 +15,7 @@ using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.Seasons;
 using Middagsasen.Planner.Api.Services.Shifts;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.StaffingAlerts;
 using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.Weather;
@@ -81,12 +82,15 @@ if (allowedOrigins.Length > 0)
 // Build-time-genereringen av OpenAPI starter også hosten, men uten hemmeligheter, så der hoppes valideringen over.
 builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.AddOptions<ReminderOptions>().Bind(builder.Configuration.GetSection(ReminderOptions.SectionName));
+builder.Services.AddOptions<StaffingAlertOptions>().Bind(builder.Configuration.GetSection(StaffingAlertOptions.SectionName));
 if (!BuildTimeDocumentGeneration.IsRunning)
 {
     builder.Services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
     builder.Services.AddOptions<AuthOptions>().ValidateOnStart();
     builder.Services.AddSingleton<IValidateOptions<ReminderOptions>, ReminderOptionsValidator>();
     builder.Services.AddOptions<ReminderOptions>().ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<StaffingAlertOptions>, StaffingAlertOptionsValidator>();
+    builder.Services.AddOptions<StaffingAlertOptions>().ValidateOnStart();
     builder.Services.AddOptions<InfrastructureSettings>()
         .Validate(settings => SessionTokens.IsValidSecret(settings.Secret), SessionTokens.InvalidSecretMessage)
         .ValidateOnStart();
@@ -115,8 +119,11 @@ builder.Services.AddScoped<IAuthenticationService, AuthenticationService>();
 builder.Services.AddScoped<IResourceReader, ResourceReader>();
 builder.Services.AddScoped<IEventsService, EventsService>();
 builder.Services.AddScoped<IResourceTypesService, ResourceTypesService>();
+builder.Services.AddScoped<ISmsFanOut, SmsFanOut>();
 builder.Services.AddScoped<ITrainerRepository, TrainerRepository>();
 builder.Services.AddScoped<ITrainerNotifier, TrainerNotifier>();
+builder.Services.AddScoped<IStaffingAlertRepository, StaffingAlertRepository>();
+builder.Services.AddScoped<IStaffingAlertNotifier, StaffingAlertNotifier>();
 builder.Services.AddScoped<IShiftRepository, ShiftRepository>();
 builder.Services.AddScoped<IShiftService, ShiftService>();
 builder.Services.AddScoped<IEventTemplatesService, EventTemplatesService>();

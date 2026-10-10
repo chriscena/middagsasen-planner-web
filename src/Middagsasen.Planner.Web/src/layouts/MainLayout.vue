@@ -130,15 +130,25 @@
         </q-item>
         <q-item>
           <q-item-section>
-            <q-item-label>SMS-påminnelse dagen før vakt</q-item-label>
-            <q-item-label caption
-              >Én SMS kvelden før med vaktene dine for neste dag</q-item-label
-            >
+            <q-item-label>SMS-påminnelse</q-item-label>
+            <q-item-label caption>Kvelden før du har vakt</q-item-label>
           </q-item-section>
           <q-item-section side>
             <q-toggle
               :model-value="user?.shiftReminders"
               @update:model-value="updateShiftReminders"
+            ></q-toggle>
+          </q-item-section>
+        </q-item>
+        <q-item v-if="isAdmin">
+          <q-item-section>
+            <q-item-label>SMS når noen trekker seg</q-item-label>
+            <q-item-label caption>Kort tid før vakta starter</q-item-label>
+          </q-item-section>
+          <q-item-section side>
+            <q-toggle
+              :model-value="user?.staffingAlerts"
+              @update:model-value="updateStaffingAlerts"
             ></q-toggle>
           </q-item-section>
         </q-item>
@@ -486,6 +496,17 @@ function updateShiftReminders(shiftReminders: boolean): Promise<void> {
     shiftReminders
       ? "Du får nå SMS-påminnelse dagen før vakt 🔔"
       : "SMS-påminnelse er slått av"
+  );
+}
+
+// Bemanningsvarsel: SMS til admin når noen trekker seg fra en vakt kort tid
+// før start; grensen settes i backend. Bryteren vises kun for admin.
+function updateStaffingAlerts(staffingAlerts: boolean): Promise<void> {
+  return saveMySetting(
+    { staffingAlerts },
+    staffingAlerts
+      ? "Du får nå SMS når noen trekker seg fra vakt 🚨"
+      : "SMS-varsel er slått av"
   );
 }
 
