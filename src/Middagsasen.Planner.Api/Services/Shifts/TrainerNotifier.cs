@@ -1,5 +1,6 @@
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Services.Shifts
 {
@@ -55,7 +56,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 var fullName = user.FullName();
                 var messages = trainers.Select(trainer => new SmsMessage
                 {
-                    ReceiverPhoneNo = trainer.UserName.ToNumericPhoneNo(),
+                    // Lagrede brukernavn er normalisert (8 sifre), samme hjelper som innloggingen bruker.
+                    ReceiverPhoneNo = trainer.UserName.ToSmsPhoneNo(),
                     Body = $"Hei {trainer.FirstName}! {fullName} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {shiftDate:dd'.'MM'.'yyyy}.",
                 }).ToList();
 

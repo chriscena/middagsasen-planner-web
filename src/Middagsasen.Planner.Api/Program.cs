@@ -9,6 +9,7 @@ using Middagsasen.Planner.Api.Core.OpenApi;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Authentication;
 using Middagsasen.Planner.Api.Services.Events;
+using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using Middagsasen.Planner.Api.Services.Seasons;
@@ -79,10 +80,13 @@ if (allowedOrigins.Length > 0)
 // manglende/for kort hemmelighet eller ugyldige AuthOptions, i stedet for å feile per kall.
 // Build-time-genereringen av OpenAPI starter også hosten, men uten hemmeligheter, så der hoppes valideringen over.
 builder.Services.AddOptions<AuthOptions>().Bind(builder.Configuration.GetSection(AuthOptions.SectionName));
+builder.Services.AddOptions<ReminderOptions>().Bind(builder.Configuration.GetSection(ReminderOptions.SectionName));
 if (!BuildTimeDocumentGeneration.IsRunning)
 {
     builder.Services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
     builder.Services.AddOptions<AuthOptions>().ValidateOnStart();
+    builder.Services.AddSingleton<IValidateOptions<ReminderOptions>, ReminderOptionsValidator>();
+    builder.Services.AddOptions<ReminderOptions>().ValidateOnStart();
     builder.Services.AddOptions<InfrastructureSettings>()
         .Validate(settings => SessionTokens.IsValidSecret(settings.Secret), SessionTokens.InvalidSecretMessage)
         .ValidateOnStart();
@@ -124,6 +128,8 @@ builder.Services.AddScoped<ICompetencyRepository, CompetencyRepository>();
 builder.Services.AddScoped<ICompetencyService, CompetencyService>();
 builder.Services.AddScoped<ISystemService, SystemService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
+builder.Services.AddScoped<IShiftReminderRepository, ShiftReminderRepository>();
+builder.Services.AddScoped<IShiftReminderService, ShiftReminderService>();
 builder.Services.AddSingleton(TimeProvider.System);
 
 builder.Services.AddSingleton(new WeatherSettings
@@ -132,6 +138,9 @@ builder.Services.AddSingleton(new WeatherSettings
     UbibotAccountKey = builder.Configuration["Weather:UbibotAccountKey"] ?? string.Empty,
 });
 builder.Services.AddHostedService<WeatherDataCollector>();
+// Build-time-genereringen av OpenAPI starter hosten uten database og SMS-konfigurasjon, så jobben hoppes over der.
+if (!BuildTimeDocumentGeneration.IsRunning)
+    builder.Services.AddHostedService<ShiftReminderWorker>();
 
 
 var app = builder.Build();

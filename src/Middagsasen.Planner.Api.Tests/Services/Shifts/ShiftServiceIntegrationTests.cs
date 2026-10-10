@@ -50,11 +50,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
 
+        /// <summary>Lagrede brukernavn er normaliserte telefonnumre, og trenerne varsles på SMS til nummeret.</summary>
+        private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
+
         private static async Task<User> SeedUser(PlannerDbContext context, string firstName = "Test", bool isAdmin = false)
         {
             var user = new User
             {
-                UserName = UniqueName("user"),
+                UserName = UniquePhoneNo(),
                 FirstName = firstName,
                 LastName = "Bruker",
                 Created = DateTime.UtcNow,

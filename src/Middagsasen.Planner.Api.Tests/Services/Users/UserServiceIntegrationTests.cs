@@ -230,6 +230,37 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
         }
 
         [Fact]
+        public async Task UpdateMe_SetsShiftReminders_AndLeavesItUnchangedWhenNull()
+        {
+            using var seedContext = _fixture.CreateContext();
+            var user = await SeedUserWithPhone(seedContext, UniquePhoneNo());
+
+            using (var context = _fixture.CreateContext())
+            {
+                // Av som standard.
+                Assert.False((await CreateService(context).GetUserById(user.UserId)).ShiftReminders);
+
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { ShiftReminders = true });
+                Assert.True(result.ShiftReminders);
+                Assert.False(result.IsHidden);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Fortsatt på", IsHidden = true });
+                Assert.True(result.ShiftReminders);
+            }
+
+            using (var context = _fixture.CreateContext())
+            {
+                Assert.True((await CreateService(context).GetUserById(user.UserId)).ShiftReminders);
+            }
+
+            using var verifyContext = _fixture.CreateContext();
+            Assert.True(verifyContext.Users.Single(u => u.UserId == user.UserId).ShiftReminders);
+        }
+
+        [Fact]
         public async Task UpdateMe_UpdatesName_AndKeepsUserName()
         {
             using var seedContext = _fixture.CreateContext();

@@ -136,6 +136,8 @@ namespace Middagsasen.Planner.Api.Services.Users
             ApplyCommonFields(user, request.FirstName, request.LastName, request.Password);
             if (request.IsHidden.HasValue)
                 user.IsHidden = request.IsHidden.Value;
+            if (request.ShiftReminders.HasValue)
+                user.ShiftReminders = request.ShiftReminders.Value;
 
             await DbContext.SaveChangesAsync();
 
@@ -257,6 +259,7 @@ namespace Middagsasen.Planner.Api.Services.Users
                 FullName = user.FullName(),
                 IsAdmin = user.IsAdmin,
                 IsHidden = user.IsHidden,
+                ShiftReminders = user.ShiftReminders,
                 Trainings = user.Trainings.Select(Map).ToList(),
             };
 

@@ -128,6 +128,20 @@
             ></q-toggle>
           </q-item-section>
         </q-item>
+        <q-item>
+          <q-item-section>
+            <q-item-label>SMS-påminnelse dagen før vakt</q-item-label>
+            <q-item-label caption
+              >Én SMS kl. 17 med vaktene dine for neste dag</q-item-label
+            >
+          </q-item-section>
+          <q-item-section side>
+            <q-toggle
+              :model-value="user?.shiftReminders"
+              @update:model-value="updateShiftReminders"
+            ></q-toggle>
+          </q-item-section>
+        </q-item>
         <q-item clickable to="/shifts">
           <q-item-section avatar><q-icon name="list"></q-icon></q-item-section>
           <q-item-section>
@@ -452,6 +466,26 @@ async function updateHidden(isHidden: boolean): Promise<void> {
       message: model.isHidden
         ? "Du er nå skjult fra telefonlisten 👻"
         : "Du vises nå i telefonlisten 🙋‍♂️",
+    });
+    editingUser.value = false;
+  } catch (error) {
+    notifyApiError(error, "Klarte ikke å lagre endringen");
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function updateShiftReminders(shiftReminders: boolean): Promise<void> {
+  try {
+    saving.value = true;
+    const model: UpdateMeRequest = {
+      shiftReminders: shiftReminders,
+    };
+    await userStore.saveUser(model);
+    $q.notify({
+      message: model.shiftReminders
+        ? "Du får nå SMS-påminnelse dagen før vakt 🔔"
+        : "SMS-påminnelse er slått av",
     });
     editingUser.value = false;
   } catch (error) {

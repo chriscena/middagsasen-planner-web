@@ -43,6 +43,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<ResourceTypeCompetency> ResourceTypeCompetencies { get; set; } = null!;
         public virtual DbSet<EventCompetencyRequirement> EventCompetencyRequirements { get; set; } = null!;
         public virtual DbSet<EventTemplateCompetencyRequirement> EventTemplateCompetencyRequirements { get; set; } = null!;
+        public virtual DbSet<ShiftReminder> ShiftReminders { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -62,6 +63,8 @@ namespace Middagsasen.Planner.Api.Data
                 entity.Property(e => e.FirstName).HasMaxLength(400);
                 entity.Property(e => e.LastName).HasMaxLength(400);
                 entity.Property(e => e.Created).HasColumnType("datetime");
+                // Samme standardverdi som DF_Users_ShiftReminders i databaseprosjektet.
+                entity.Property(e => e.ShiftReminders).HasDefaultValue(false);
             });
 
             modelBuilder.Entity<UserSession>(entity =>
@@ -74,6 +77,26 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_UserSessions_Users");
+            });
+
+            modelBuilder.Entity<ShiftReminder>(entity =>
+            {
+                entity.ToTable("ShiftReminders");
+                entity.HasKey(e => e.ShiftReminderId);
+                entity.Property(e => e.ShiftDate).HasColumnType("date");
+                // SentTime lagres som UTC, som Created på filer.
+                entity.Property(e => e.SentTime).HasColumnType("datetime");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.SentShiftReminders)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .HasConstraintName("FK_ShiftReminders_Users");
+
+                // Høyst én påminnelse per bruker per vaktdag; raden er både dedup og logg.
+                entity.HasIndex(e => new { e.UserId, e.ShiftDate })
+                    .IsUnique()
+                    .HasDatabaseName("IX_ShiftReminders_UserId_ShiftDate");
             });
 
             modelBuilder.Entity<ResourceType>(entity =>

@@ -6492,6 +6492,12 @@
               "null",
               "boolean"
             ]
+          },
+          "shiftReminders": {
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         }
       },
@@ -6671,6 +6677,7 @@
           "phoneNo",
           "isAdmin",
           "isHidden",
+          "shiftReminders",
           "trainings"
         ],
         "type": "object",
@@ -6704,6 +6711,9 @@
             "type": "boolean"
           },
           "isHidden": {
+            "type": "boolean"
+          },
+          "shiftReminders": {
             "type": "boolean"
           },
           "trainings": {

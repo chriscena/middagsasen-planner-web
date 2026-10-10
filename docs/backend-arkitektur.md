@@ -64,6 +64,27 @@ Modulen eier mappingen av oppgaver og vakttyper, ikke av maler: skallet til male
 
 `ResourceReader` er et bevisst unntak fra repository-mønsteret. Den er en ren lesemodell (spørringer og mapping, uten forretningsregler for skriving) og går derfor rett mot `PlannerDbContext`. Skrivesiden bruker fortsatt repository (`IShiftRepository` osv.).
 
+## Vaktpåminnelse
+
+`Services/Reminders` sender en SMS dagen før til brukere som har slått på vaktpåminnelse (`Users.ShiftReminders`, endres av brukeren selv via `PUT api/me`). Modulen følger repository-mønsteret: `IShiftReminderRepository` (utvelgelse av kandidater og lagring av loggrader) → `IShiftReminderService.SendDueReminders` (bygger og sender SMS-ene i ett kall til `ISmsSender`, skriver resultatet per bruker). Reglene (sendevindu, vaktdag, effektive vakttider, meldingstekst) ligger i den rene klassen `ShiftReminderRules` og testes uten database. Bakgrunnsjobben `ShiftReminderWorker` (`BackgroundService`) kaller servicen ved oppstart og deretter hvert `PollInterval`; servicen avgjør selv om det er noe å sende.
+
+Seksjonen `Reminders` (`ReminderOptions`) er valgfri — standardverdiene står i koden, og valideres ved oppstart (`ReminderOptionsValidator`, `ValidateOnStart`): klokkeslettene må være innenfor døgnet, `SendTime` før `RetryUntil`, og `PollInterval` positiv.
+
+```json
+"Reminders": {
+  "Enabled": true,
+  "SendTime": "17:00",
+  "RetryUntil": "22:00",
+  "PollInterval": "00:05:00"
+}
+```
+
+Klokkeslettene er norsk lokal tid. Som for `Auth` tolkes et rent tall som dager (`"17"` er 17 dager, ikke kl. 17) og avvises av valideringen.
+
+- **Én SMS per bruker per vaktdag.** Tabellen `ShiftReminders` har en unik indeks på `(UserId, ShiftDate)`, og raden er både dedup og logg. En bruker er kandidat når den er aktiv, har påminnelse på, har minst én vakt med effektiv start (vaktens tid, ellers oppgavens, som i `ShiftRules.AreTimesValid`) på morgendagen (norsk dato), og ikke har en rad med `Success = true` for dagen. Vakter tatt etter at påminnelsen er sendt, gir ingen ny SMS.
+- **Nytt forsøk fram til `RetryUntil`.** En sending som feiler, lagres med `Success = false` og feilinfo, og prøves på nytt ved hver kjøring innenfor sendevinduet. Ved suksess oppdateres samme rad. Etter `RetryUntil` gis det opp, og raden står igjen med feilinfo.
+- **Én instans.** Jobben forutsetter én instans av API-et. Kjører to likevel samtidig, avviser den unike indeksen den andre lagringen (`DbUpdateException`, logges av jobben), så ingen bruker får raden lagret to ganger — men begge instansene kan ha rukket å sende SMS-en. Skal API-et skaleres ut, må kallet flyttes til en planlagt jobb med lås (f.eks. Hangfire `RecurringJob`) mot samme modul.
+
 ## Datoformat i DTO-er
 
 Formatet følger tidsmodellen til verdien:

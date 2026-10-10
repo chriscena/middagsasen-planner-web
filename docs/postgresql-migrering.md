@@ -140,7 +140,7 @@ I stedet bruker vi et eget C#-konsollprogram (`Middagsasen.Planner.Migration`) s
 | Nivå | Tabeller |
 |------|----------|
 | 0 | Users, Competencies, Events, EventTemplates, ResourceTypes, WeatherLocations, WeatherMeasurements |
-| 1 | UserSessions, EventResources, ResourceTemplates, ResourceTypeTrainers, ResourceTypeTrainings, ResourceTypeFiles, CompetencyApprovers, ResourceTypeCompetencies, WorkHours, WeatherMeasurementValues |
+| 1 | UserSessions, ShiftReminders, EventResources, ResourceTemplates, ResourceTypeTrainers, ResourceTypeTrainings, ResourceTypeFiles, CompetencyApprovers, ResourceTypeCompetencies, WorkHours, WeatherMeasurementValues |
 | 2 | EventResourceUsers (Shifts), EventResourceMessages (Messages), UserCompetencies |
 
 Views (HallOfFame, EventStatuses) migreres **ikke** — de er beregnede views som opprettes separat.

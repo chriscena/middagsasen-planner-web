@@ -15,5 +15,7 @@
         public string? Password { get; set; }
         /// <summary>Skjul brukeren fra telefonlisten. Endres kun når verdien er satt.</summary>
         public bool? IsHidden { get; set; }
+        /// <summary>SMS-påminnelse dagen før vakt. Endres kun når verdien er satt.</summary>
+        public bool? ShiftReminders { get; set; }
     }
 }
