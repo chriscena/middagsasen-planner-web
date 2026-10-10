@@ -9,7 +9,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     /// <c>true</c> hvis alle SMS-ene ble sendt, eller det ikke var noen trenere å varsle.
     /// <c>false</c> hvis sendingen feilet helt eller delvis.
     /// </param>
-    /// <param name="TrainerCount">Antall trenere som skulle varsles.</param>
+    /// <param name="TrainerCount">Antall trenere som skulle varsles (trenere uten gyldig telefonnummer er ikke med).</param>
     /// <param name="SmsResult">Svaret fra SMS-tjenesten, eller <c>null</c> hvis ingenting ble sendt (ingen trenere eller unntak).</param>
     public sealed record TrainerNotificationResult(bool Success, int TrainerCount, SmsResult? SmsResult);
 
@@ -21,7 +21,9 @@ namespace Middagsasen.Planner.Api.Services.Shifts
     {
         /// <summary>
         /// Sender «X ønsker opplæring på Y og er satt opp på vakt den dd.MM.yyyy» til alle trenere for vakttypen.
-        /// Kaster ikke ved SMS-feil: feilen logges og returneres i <see cref="TrainerNotificationResult"/>.
+        /// Trenere hvis brukernavn ikke er et gyldig telefonnummer (f.eks. «admin») hoppes over med en advarsel i
+        /// loggen; de andre varsles likevel. Kaster ikke ved SMS-feil: feilen logges og returneres i
+        /// <see cref="TrainerNotificationResult"/>.
         /// </summary>
         /// <param name="userId">Brukeren som ønsker opplæring.</param>
         /// <param name="resourceTypeId">Vakttypen opplæringen gjelder.</param>
@@ -50,16 +52,28 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 var resourceType = await Repository.GetResourceType(resourceTypeId);
                 var trainers = await Repository.GetTrainers(resourceTypeId);
 
-                if (trainers.Count == 0)
-                    return new TrainerNotificationResult(true, 0, null);
-
                 var fullName = user.FullName();
-                var messages = trainers.Select(trainer => new SmsMessage
+                var messages = new List<SmsMessage>();
+                foreach (var trainer in trainers)
                 {
-                    // Lagrede brukernavn er normalisert (8 sifre), samme hjelper som innloggingen bruker.
-                    ReceiverPhoneNo = trainer.UserName.ToSmsPhoneNo(),
-                    Body = $"Hei {trainer.FirstName}! {fullName} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {shiftDate:dd'.'MM'.'yyyy}.",
-                }).ToList();
+                    // Lagrede brukernavn er normalt normalisert (8 sifre), men eldre brukere kan ha brukernavn som
+                    // «admin» (deploy-skriptet beholder brukernavn det ikke kan normalisere). De kan ikke få SMS.
+                    var phoneNo = trainer.UserName.ToNormalizedUserName();
+                    if (phoneNo == null)
+                    {
+                        Logger.LogWarning("Trener {TrainerUserId} har ikke et gyldig telefonnummer som brukernavn og varsles ikke om opplæring for bruker {UserId} på vakttype {ResourceTypeId}",
+                            trainer.UserId, userId, resourceTypeId);
+                        continue;
+                    }
+                    messages.Add(new SmsMessage
+                    {
+                        ReceiverPhoneNo = phoneNo.ToSmsPhoneNo(),
+                        Body = $"Hei {trainer.FirstName}! {fullName} ønsker opplæring på {resourceType.Name} og er satt opp på vakt den {shiftDate:dd'.'MM'.'yyyy}.",
+                    });
+                }
+
+                if (messages.Count == 0)
+                    return new TrainerNotificationResult(true, 0, null);
 
                 var result = await SmsSender.SendMessages(messages);
                 var success = result.Success && (result.Messages?.All(m => m.Success) ?? true);
@@ -67,7 +81,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 if (success)
                 {
                     Logger.LogInformation("Varslet {TrainerCount} trenere om opplæring for bruker {UserId} på vakttype {ResourceTypeId}",
-                        trainers.Count, userId, resourceTypeId);
+                        messages.Count, userId, resourceTypeId);
                 }
                 else
                 {
@@ -75,7 +89,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                         userId, resourceTypeId, result.Info);
                 }
 
-                return new TrainerNotificationResult(success, trainers.Count, result);
+                return new TrainerNotificationResult(success, messages.Count, result);
             }
             catch (Exception ex)
             {

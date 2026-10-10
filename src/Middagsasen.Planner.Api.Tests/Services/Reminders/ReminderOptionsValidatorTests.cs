@@ -30,6 +30,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
             { nameof(ReminderOptions.SendTime), new ReminderOptions { SendTime = new TimeSpan(17, 0, 0), RetryUntil = new TimeSpan(17, 0, 0) } },
             { nameof(ReminderOptions.PollInterval), new ReminderOptions { PollInterval = TimeSpan.Zero } },
             { nameof(ReminderOptions.PollInterval), new ReminderOptions { PollInterval = TimeSpan.FromSeconds(-5) } },
+            { nameof(ReminderOptions.PollInterval), new ReminderOptions { PollInterval = TimeSpan.FromDays(1) + TimeSpan.FromSeconds(1) } },
         };
 
         [Theory]
@@ -46,6 +47,26 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
         public void SendTimeAtMidnight_AndRetryUntilLateEvening_AreValid()
         {
             Assert.True(Validate(new ReminderOptions { SendTime = TimeSpan.Zero, RetryUntil = new TimeSpan(23, 59, 59) }).Succeeded);
+        }
+
+        [Fact]
+        public void PollIntervalOfOneDay_IsValid()
+        {
+            Assert.True(Validate(new ReminderOptions { PollInterval = TimeSpan.FromDays(1) }).Succeeded);
+        }
+
+        [Fact]
+        public void BoundFromConfiguration_PlainNumberPollIntervalIsDays_AndRejected()
+        {
+            // "60" tolkes som 60 dager. PeriodicTimer kaster for så lange perioder, og det ville stoppet appen.
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Reminders:PollInterval"] = "60",
+            }).Build();
+
+            var ex = Assert.Throws<OptionsValidationException>(() => BuildOptions(configuration).Value);
+            Assert.Contains("Reminders:PollInterval", ex.Message);
+            Assert.Contains("dager", ex.Message);
         }
 
         [Fact]

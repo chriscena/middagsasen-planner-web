@@ -5,8 +5,9 @@ namespace Middagsasen.Planner.Api.Services.Reminders
     /// <summary>
     /// Bakgrunnsjobb som kaller <see cref="IShiftReminderService.SendDueReminders"/> ved oppstart og deretter hvert
     /// <see cref="ReminderOptions.PollInterval"/>. Servicen avgjør selv om det er noe å sende, så jobben er dum.
-    /// Feil logges og stopper ikke løkka. Forutsetter én instans av API-et; den unike indeksen på
-    /// <c>ShiftReminders</c> gjør likevel en dobbelkjøring ufarlig.
+    /// Feil logges og stopper ikke løkka. Forutsetter én instans av API-et; kjører to likevel, stopper den unike
+    /// indeksen på <c>ShiftReminders</c> den andre allerede ved reservasjonen, før noen SMS sendes
+    /// (se <see cref="ShiftReminderService"/>).
     /// </summary>
     public class ShiftReminderWorker : BackgroundService
     {

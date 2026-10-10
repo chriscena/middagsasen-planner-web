@@ -11,8 +11,24 @@ namespace Middagsasen.Planner.Api.Services.Reminders
     /// utvelgelsen i <see cref="IShiftReminderRepository"/>. Alle SMS-ene i en kjøring sendes i ett kall til
     /// <see cref="ISmsSender"/>, og resultatet skrives per bruker til <c>ShiftReminders</c>.
     /// </summary>
+    /// <remarks>
+    /// <b>Reservasjon før sending (høyst én SMS).</b> Loggradene lagres i to steg: først reserveres én rad per
+    /// kandidat med <c>Success = false</c> og <see cref="SendingInfo"/>, <i>før</i> noe sendes. Feiler den lagringen
+    /// (f.eks. den unike indeksen fordi en samtidig kjøring allerede har en rad for samme bruker og dag), kastes
+    /// feilen videre og ingen SMS sendes. Deretter sendes SMS-ene, og radene oppdateres med det faktiske utfallet.
+    /// Feiler <i>den andre</i> lagringen, står radene igjen som feilet og sendes på nytt ved neste kjøring — det er
+    /// det eneste vinduet for en dobbel SMS, og det er smalt (en forbigående databasefeil akkurat etter sendingen).
+    /// Brukere uten gyldig telefonnummer som brukernavn (f.eks. «admin») får en rad med <see cref="InvalidPhoneNoInfo"/>
+    /// og ingen SMS; de andre sendes som normalt.
+    /// </remarks>
     public class ShiftReminderService : IShiftReminderService
     {
+        /// <summary>Info på loggraden mens sendingen pågår (reservasjonen). Står igjen hvis lagringen etter sending feiler.</summary>
+        public const string SendingInfo = "Sending pågår";
+
+        /// <summary>Info på loggraden til en bruker hvis brukernavn ikke er et gyldig telefonnummer.</summary>
+        public const string InvalidPhoneNoInfo = "Ugyldig telefonnummer";
+
         public ShiftReminderService(
             IShiftReminderRepository repository,
             ISmsSender smsSender,
@@ -40,26 +56,19 @@ namespace Middagsasen.Planner.Api.Services.Reminders
                 return new ReminderRunResult(false, 0, 0);
 
             var shiftDate = ShiftReminderRules.ShiftDateFor(nowLocal);
-            var candidates = await Repository.GetCandidates(shiftDate);
+            var candidates = await Repository.GetCandidates(shiftDate, cancellationToken);
             if (candidates.Count == 0)
                 return new ReminderRunResult(true, 0, 0);
-
-            var messages = candidates.Select(c => new SmsMessage
-            {
-                ReceiverPhoneNo = c.UserName.ToSmsPhoneNo(),
-                Body = ShiftReminderRules.BuildMessage(c.FirstName, shiftDate, c.Shifts),
-            }).ToList();
-
-            var outcomes = await Send(messages, shiftDate);
 
             var sentTime = TimeProvider.GetUtcNow().UtcDateTime;
             var sent = 0;
             var failed = 0;
-            foreach (var (candidate, message) in candidates.Zip(messages))
-            {
-                var (success, info) = outcomes(message.ReceiverPhoneNo);
-                if (success) sent++; else failed++;
 
+            // Steg 1: reserver én loggrad per kandidat før noe sendes. En samtidig kjøring som allerede har en rad for
+            // samme bruker og dag gir brudd på den unike indeksen her, og da sendes ingenting.
+            var pending = new List<(ShiftReminder Reminder, SmsMessage Message)>();
+            foreach (var candidate in candidates)
+            {
                 var reminder = candidate.FailedReminder;
                 if (reminder == null)
                 {
@@ -67,13 +76,40 @@ namespace Middagsasen.Planner.Api.Services.Reminders
                     Repository.Add(reminder);
                 }
                 reminder.SentTime = sentTime;
-                reminder.Success = success;
-                reminder.Info = success ? null : info;
-            }
+                reminder.Success = false;
 
-            // En samtidig kjøring som allerede har sendt for samme bruker og dag gir brudd på den unike indeksen her.
-            // Det kastes videre, så bakgrunnsjobben logger det.
-            await Repository.SaveChangesAsync();
+                var phoneNo = candidate.UserName.ToNormalizedUserName();
+                if (phoneNo == null)
+                {
+                    Logger.LogWarning("Bruker {UserId} har ikke et gyldig telefonnummer som brukernavn og får ikke vaktpåminnelse for {ShiftDate}",
+                        candidate.UserId, shiftDate);
+                    reminder.Info = InvalidPhoneNoInfo;
+                    failed++;
+                    continue;
+                }
+
+                reminder.Info = SendingInfo;
+                pending.Add((reminder, new SmsMessage
+                {
+                    ReceiverPhoneNo = phoneNo.ToSmsPhoneNo(),
+                    Body = ShiftReminderRules.BuildMessage(candidate.FirstName, shiftDate, candidate.Shifts),
+                }));
+            }
+            await Repository.SaveChangesAsync(cancellationToken);
+
+            // Steg 2: send, og skriv utfallet. Feiler denne lagringen, står radene som feilet og sendes på nytt neste gang.
+            if (pending.Count > 0)
+            {
+                var outcomes = await Send(pending.Select(p => p.Message).ToList(), shiftDate);
+                foreach (var (reminder, message) in pending)
+                {
+                    var (success, info) = outcomes(message.ReceiverPhoneNo);
+                    if (success) sent++; else failed++;
+                    reminder.Success = success;
+                    reminder.Info = success ? null : info;
+                }
+                await Repository.SaveChangesAsync(cancellationToken);
+            }
 
             if (failed == 0)
                 Logger.LogInformation("Sendte vaktpåminnelse for {ShiftDate} til {Sent} brukere", shiftDate, sent);

@@ -12,17 +12,18 @@ namespace Middagsasen.Planner.Api.Services.Reminders
 
         public PlannerDbContext DbContext { get; }
 
-        public async Task<IReadOnlyList<ReminderCandidate>> GetCandidates(DateOnly shiftDate)
+        public async Task<IReadOnlyList<ReminderCandidate>> GetCandidates(DateOnly shiftDate, CancellationToken cancellationToken)
         {
-            // Vaktens egne tider kan avvike fra oppgavens, så vi henter vakter på oppgaver dagen før til og med dagen
-            // etter, og avgjør presist i minnet med de effektive tidene.
+            // Vaktens egne tider kan avvike fra oppgavens (men ligger innenfor den), så vi henter vakter på oppgaver
+            // som overlapper dagen før til og med dagen etter — også oppgaver over flere dager — og avgjør presist i
+            // minnet med de effektive tidene.
             var from = shiftDate.AddDays(-1).ToDateTime(TimeOnly.MinValue);
             var to = shiftDate.AddDays(2).ToDateTime(TimeOnly.MinValue);
 
             var rows = await DbContext.Shifts
                 .AsNoTracking()
                 .Where(s => s.User.ShiftReminders && !s.User.Inactive)
-                .Where(s => s.Resource.StartTime >= from && s.Resource.StartTime < to)
+                .Where(s => s.Resource.StartTime < to && s.Resource.EndTime >= from)
                 .Where(s => !s.User.SentShiftReminders.Any(r => r.ShiftDate == shiftDate && r.Success))
                 .Select(s => new
                 {
@@ -36,7 +37,7 @@ namespace Middagsasen.Planner.Api.Services.Reminders
                     ResourceTypeName = s.Resource.ResourceType.Name,
                     EventName = s.Resource.Event.Name,
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             var byUser = rows
                 .Select(r => new
@@ -58,7 +59,7 @@ namespace Middagsasen.Planner.Api.Services.Reminders
             var userIds = byUser.Select(g => g.Key).ToList();
             var failed = await DbContext.ShiftReminders
                 .Where(r => r.ShiftDate == shiftDate && !r.Success && userIds.Contains(r.UserId))
-                .ToDictionaryAsync(r => r.UserId);
+                .ToDictionaryAsync(r => r.UserId, cancellationToken);
 
             return byUser
                 .Select(g => new ReminderCandidate(
@@ -72,6 +73,6 @@ namespace Middagsasen.Planner.Api.Services.Reminders
 
         public void Add(ShiftReminder reminder) => DbContext.ShiftReminders.Add(reminder);
 
-        public Task SaveChangesAsync() => DbContext.SaveChangesAsync();
+        public Task SaveChangesAsync(CancellationToken cancellationToken) => DbContext.SaveChangesAsync(cancellationToken);
     }
 }

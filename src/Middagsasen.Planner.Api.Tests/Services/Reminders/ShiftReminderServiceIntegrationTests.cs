@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.SmsSender;
+using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -50,15 +51,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
             return await CreateService(context, now, options).SendDueReminders(CancellationToken.None);
         }
 
-        private static string UniquePhoneNo() => Random.Shared.Next(40000000, 99999999).ToString();
-
-        private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
-
-        private static async Task<User> SeedUser(PlannerDbContext context, string firstName, bool shiftReminders = true, bool inactive = false)
+        /// <summary><paramref name="userName"/> overstyrer telefonnummeret, f.eks. for en eldre bruker med brukernavn «admin».</summary>
+        private static async Task<User> SeedUser(PlannerDbContext context, string firstName, bool shiftReminders = true, bool inactive = false, string? userName = null)
         {
             var user = new User
             {
-                UserName = UniquePhoneNo(),
+                UserName = userName ?? TestPhoneNumbers.Unique(),
                 FirstName = firstName,
                 LastName = "Bruker",
                 Created = DateTime.UtcNow,
@@ -71,10 +69,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
         }
 
         /// <summary>Oppgave på <paramref name="date"/> fra <paramref name="startHour"/> til <paramref name="endHour"/> (kan gå over midnatt).</summary>
-        private static async Task<EventResource> SeedResource(PlannerDbContext context, DateOnly date, int startHour, int endHour, string resourceTypeName, string eventName = "Åpningstid")
+        private static Task<EventResource> SeedResource(PlannerDbContext context, DateOnly date, int startHour, int endHour, string resourceTypeName, string eventName = "Åpningstid")
         {
             var start = date.ToDateTime(new TimeOnly(startHour, 0));
             var end = endHour > startHour ? date.ToDateTime(new TimeOnly(endHour, 0)) : date.AddDays(1).ToDateTime(new TimeOnly(endHour, 0));
+            return SeedResource(context, start, end, resourceTypeName, eventName);
+        }
+
+        private static async Task<EventResource> SeedResource(PlannerDbContext context, DateTime start, DateTime end, string resourceTypeName, string eventName = "Åpningstid")
+        {
             var evt = new Event
             {
                 Name = eventName,
@@ -115,8 +118,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
         private List<SmsMessage> SentMessages()
             => _smsSender.ReceivedCalls().SelectMany(c => (IEnumerable<SmsMessage>)c.GetArguments()[0]!).ToList();
 
-        private static long PhoneNo(User user) => long.Parse($"47{user.UserName}");
-
         [Fact]
         public async Task SendDueReminders_SendsOneSmsPerUser_WithAllShiftsTomorrow_AndLogsSuccess()
         {
@@ -138,9 +139,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
             await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
             var messages = SentMessages();
             Assert.Equal(2, messages.Count);
-            var toKari = Assert.Single(messages, m => m.ReceiverPhoneNo == PhoneNo(kari));
+            var toKari = Assert.Single(messages, m => m.ReceiverPhoneNo == kari.UserName.ToSmsPhoneNo());
             Assert.Equal("Hei Kari! Kjapp påminnelse om vakt i morgen, tirsdag 02.02: 10–14 kiosk, 18–22 storheis.", toKari.Body);
-            var toOla = Assert.Single(messages, m => m.ReceiverPhoneNo == PhoneNo(ola));
+            var toOla = Assert.Single(messages, m => m.ReceiverPhoneNo == ola.UserName.ToSmsPhoneNo());
             Assert.Equal("Hei Ola! Kjapp påminnelse om vakt i morgen, tirsdag 02.02: 18–22 storheis.", toOla.Body);
 
             foreach (var user in new[] { kari, ola })
@@ -165,7 +166,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
 
             await Run(Now(day));
 
-            var message = Assert.Single(SentMessages(), m => m.ReceiverPhoneNo == PhoneNo(user));
+            var message = Assert.Single(SentMessages(), m => m.ReceiverPhoneNo == user.UserName.ToSmsPhoneNo());
             Assert.EndsWith(": 18–22 storheis (Diskokveld).", message.Body);
         }
 
@@ -206,7 +207,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
             var result = await Run(Now(day));
 
             Assert.Equal(new ReminderRunResult(true, 1, 0), result);
-            var message = Assert.Single(SentMessages(), m => m.ReceiverPhoneNo == PhoneNo(user));
+            var message = Assert.Single(SentMessages(), m => m.ReceiverPhoneNo == user.UserName.ToSmsPhoneNo());
             Assert.EndsWith(": 09–15 skiutleie.", message.Body);
         }
 
@@ -229,7 +230,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
 
             Assert.Equal(new ReminderRunResult(true, 1, 0), result);
             var message = Assert.Single(SentMessages());
-            Assert.Equal(PhoneNo(afterMidnight), message.ReceiverPhoneNo);
+            Assert.Equal(afterMidnight.UserName.ToSmsPhoneNo(), message.ReceiverPhoneNo);
             Assert.EndsWith(": 00:30–04 storheis.", message.Body);
             Assert.Empty(await GetReminders(nextNight.UserId));
         }
@@ -299,8 +300,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
                 Success = true,
                 Messages =
                 [
-                    new SmsMessageResult { ReceiverPhoneNo = PhoneNo(ok), Success = true, Info = "Ok" },
-                    new SmsMessageResult { ReceiverPhoneNo = PhoneNo(rejected), Success = false, Info = "Ugyldig nummer" },
+                    new SmsMessageResult { ReceiverPhoneNo = ok.UserName.ToSmsPhoneNo(), Success = true, Info = "Ok" },
+                    new SmsMessageResult { ReceiverPhoneNo = rejected.UserName.ToSmsPhoneNo(), Success = false, Info = "Ugyldig nummer" },
                 ],
             });
 
@@ -369,7 +370,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
         }
 
         [Fact]
-        public async Task SendDueReminders_ConcurrentRunAlreadySent_ThrowsOnUniqueIndex_AndSendsNoSecondSms()
+        public async Task SendDueReminders_ConcurrentRunAlreadySent_ThrowsOnReservation_AndSendsNothing()
         {
             const int day = 11;
             var shiftDate = ShiftDateFor(day);
@@ -377,7 +378,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
             var user = await SeedUser(seed, "Kari");
             await SeedShift(seed, await SeedResource(seed, shiftDate, 18, 22, "storheis"), user);
 
-            // En annen instans rekker å sende og lagre mellom utvelgelsen og lagringen her: den unike indeksen avviser raden.
+            // En annen instans rekker å sende og lagre mellom utvelgelsen og reservasjonen her: den unike indeksen
+            // avviser reservasjonen, og denne kjøringen sender derfor ingenting.
             PlannerDbContext context = null!;
             var interceptor = new BeforeSaveInterceptor(() => context.Database.ExecuteSqlInterpolatedAsync(
                 $"insert into ShiftReminders (UserId, ShiftDate, SentTime, Success) values ({user.UserId}, {shiftDate}, {DateTime.UtcNow}, 1)"));
@@ -386,11 +388,55 @@ namespace Middagsasen.Planner.Api.Tests.Services.Reminders
 
             await Assert.ThrowsAsync<DbUpdateException>(() => CreateService(context, Now(day)).SendDueReminders(CancellationToken.None));
 
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
             var row = Assert.Single(await GetReminders(user.UserId));
             Assert.True(row.Success);
             // Neste kjøring finner ingen kandidat og sender ikke på nytt.
             Assert.Equal(new ReminderRunResult(true, 0, 0), await Run(Now(day, hour: 17)));
-            await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
+            await _smsSender.DidNotReceiveWithAnyArgs().SendMessages(default!);
+        }
+
+        [Fact]
+        public async Task SendDueReminders_UserWithoutValidPhoneNo_IsLoggedAsFailed_AndOthersStillGetSms()
+        {
+            const int day = 12;
+            var shiftDate = ShiftDateFor(day);
+            using var seed = _fixture.CreateContext();
+            var kari = await SeedUser(seed, "Kari");
+            var admin = await SeedUser(seed, "Admin", userName: TestPhoneNumbers.UniqueInvalid());
+            var resource = await SeedResource(seed, shiftDate, 18, 22, "storheis");
+            await SeedShift(seed, resource, kari);
+            await SeedShift(seed, resource, admin);
+
+            var result = await Run(Now(day));
+
+            Assert.Equal(new ReminderRunResult(true, 1, 1), result);
+            var message = Assert.Single(SentMessages());
+            Assert.Equal(kari.UserName.ToSmsPhoneNo(), message.ReceiverPhoneNo);
+            Assert.True(Assert.Single(await GetReminders(kari.UserId)).Success);
+            var adminRow = Assert.Single(await GetReminders(admin.UserId));
+            Assert.False(adminRow.Success);
+            Assert.Equal(ShiftReminderService.InvalidPhoneNoInfo, adminRow.Info);
+            Assert.Equal(Now(day).UtcDateTime, adminRow.SentTime);
+        }
+
+        [Fact]
+        public async Task SendDueReminders_FindsShift_OnResourceSpanningSeveralDays()
+        {
+            const int day = 13;
+            var shiftDate = ShiftDateFor(day);
+            using var seed = _fixture.CreateContext();
+            var user = await SeedUser(seed, "Kari");
+            // Oppgaven starter tre dager før vaktdagen (utenfor forfilteret på starttid) og slutter dagen etter.
+            var resource = await SeedResource(seed, shiftDate.AddDays(-3).ToDateTime(new TimeOnly(8, 0)), shiftDate.AddDays(1).ToDateTime(new TimeOnly(16, 0)), "dugnad");
+            await SeedShift(seed, resource, user, shiftDate.ToDateTime(new TimeOnly(10, 0)), shiftDate.ToDateTime(new TimeOnly(14, 0)));
+
+            var result = await Run(Now(day));
+
+            Assert.Equal(new ReminderRunResult(true, 1, 0), result);
+            var message = Assert.Single(SentMessages());
+            Assert.Equal(user.UserName.ToSmsPhoneNo(), message.ReceiverPhoneNo);
+            Assert.EndsWith(": 10–14 dugnad.", message.Body);
         }
     }
 }

@@ -132,7 +132,7 @@
           <q-item-section>
             <q-item-label>SMS-påminnelse dagen før vakt</q-item-label>
             <q-item-label caption
-              >Én SMS kl. 17 med vaktene dine for neste dag</q-item-label
+              >Én SMS kvelden før med vaktene dine for neste dag</q-item-label
             >
           </q-item-section>
           <q-item-section side>
@@ -455,19 +455,15 @@ async function saveUser(): Promise<void> {
   }
 }
 
-async function updateHidden(isHidden: boolean): Promise<void> {
+// Lagrer én enkelt innstilling (toggle) på innlogget bruker og viser bekreftelse.
+async function saveMySetting(
+  model: UpdateMeRequest,
+  message: string
+): Promise<void> {
   try {
     saving.value = true;
-    const model: UpdateMeRequest = {
-      isHidden: isHidden,
-    };
     await userStore.saveUser(model);
-    $q.notify({
-      message: model.isHidden
-        ? "Du er nå skjult fra telefonlisten 👻"
-        : "Du vises nå i telefonlisten 🙋‍♂️",
-    });
-    editingUser.value = false;
+    $q.notify({ message });
   } catch (error) {
     notifyApiError(error, "Klarte ikke å lagre endringen");
   } finally {
@@ -475,24 +471,22 @@ async function updateHidden(isHidden: boolean): Promise<void> {
   }
 }
 
-async function updateShiftReminders(shiftReminders: boolean): Promise<void> {
-  try {
-    saving.value = true;
-    const model: UpdateMeRequest = {
-      shiftReminders: shiftReminders,
-    };
-    await userStore.saveUser(model);
-    $q.notify({
-      message: model.shiftReminders
-        ? "Du får nå SMS-påminnelse dagen før vakt 🔔"
-        : "SMS-påminnelse er slått av",
-    });
-    editingUser.value = false;
-  } catch (error) {
-    notifyApiError(error, "Klarte ikke å lagre endringen");
-  } finally {
-    saving.value = false;
-  }
+function updateHidden(isHidden: boolean): Promise<void> {
+  return saveMySetting(
+    { isHidden },
+    isHidden
+      ? "Du er nå skjult fra telefonlisten 👻"
+      : "Du vises nå i telefonlisten 🙋‍♂️"
+  );
+}
+
+function updateShiftReminders(shiftReminders: boolean): Promise<void> {
+  return saveMySetting(
+    { shiftReminders },
+    shiftReminders
+      ? "Du får nå SMS-påminnelse dagen før vakt 🔔"
+      : "SMS-påminnelse er slått av"
+  );
 }
 
 async function logout(): Promise<void> {

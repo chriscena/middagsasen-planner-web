@@ -26,17 +26,24 @@ namespace Middagsasen.Planner.Api.Services.Reminders
         /// </summary>
         public TimeSpan RetryUntil { get; set; } = new(22, 0, 0);
 
-        /// <summary>Hvor ofte bakgrunnsjobben sjekker om det er noe å sende.</summary>
+        /// <summary>Hvor ofte bakgrunnsjobben sjekker om det er noe å sende. Høyst ett døgn.</summary>
         public TimeSpan PollInterval { get; set; } = TimeSpan.FromMinutes(5);
     }
 
     /// <summary>
     /// Validerer <see cref="ReminderOptions"/>: <c>SendTime</c> og <c>RetryUntil</c> må være klokkeslett (fra 00:00 til
-    /// og med 23:59:59), <c>SendTime</c> før <c>RetryUntil</c>, og <c>PollInterval</c> positiv. Registreres med
-    /// <c>ValidateOnStart</c>, så feil konfigurasjon stopper oppstarten.
+    /// og med 23:59:59), <c>SendTime</c> før <c>RetryUntil</c>, og <c>PollInterval</c> positiv og høyst ett døgn.
+    /// Registreres med <c>ValidateOnStart</c>, så feil konfigurasjon stopper oppstarten.
     /// </summary>
+    /// <remarks>
+    /// Den øvre grensen for <c>PollInterval</c> finnes fordi et rent tall i konfigurasjonen (<c>"60"</c>) tolkes som
+    /// dager, og <see cref="PeriodicTimer"/> kaster for perioder over ca. 49 dager — og et unntak i bakgrunnsjobben
+    /// stopper hele appen. Lengre enn et døgn gir uansett ingen mening for en jobb med et daglig sendevindu.
+    /// </remarks>
     public sealed class ReminderOptionsValidator : IValidateOptions<ReminderOptions>
     {
+        public static readonly TimeSpan MaxPollInterval = TimeSpan.FromDays(1);
+
         public ValidateOptionsResult Validate(string? name, ReminderOptions options)
         {
             var errors = new List<string>();
@@ -49,6 +56,8 @@ namespace Middagsasen.Planner.Api.Services.Reminders
 
             if (options.PollInterval <= TimeSpan.Zero)
                 errors.Add($"{ReminderOptions.SectionName}:{nameof(ReminderOptions.PollInterval)} må være større enn 0 (er {options.PollInterval}). Angi tidsrom som \"hh:mm:ss\", f.eks. \"00:05:00\".");
+            else if (options.PollInterval > MaxPollInterval)
+                errors.Add($"{ReminderOptions.SectionName}:{nameof(ReminderOptions.PollInterval)} må være høyst {MaxPollInterval} (er {options.PollInterval}). Angi tidsrom som \"hh:mm:ss\", f.eks. \"00:05:00\" — et rent tall tolkes som dager.");
 
             return errors.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(errors);
         }
