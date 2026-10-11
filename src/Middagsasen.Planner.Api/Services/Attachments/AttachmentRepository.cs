@@ -20,6 +20,11 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             .Include(f => f.CreatedByUser)
             .Include(f => f.UpdatedByUser);
 
+        public async Task<bool> ResourceTypeExists(int resourceTypeId)
+        {
+            return await DbContext.ResourceTypes.AnyAsync(r => r.ResourceTypeId == resourceTypeId);
+        }
+
         public async Task<ResourceTypeFile?> Get(int fileId, int resourceTypeId)
         {
             return await FilesWithNames
@@ -102,14 +107,15 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         {
             var files = await DbContext.ResourceTypeFiles
                 .AsNoTracking()
-                .Where(f => f.ResourceTypeId == resourceTypeId
-                    && f.Archived == null
-                    && f.RequiresAcknowledgement
-                    && f.IsMandatory
-                    && !f.Acknowledgements.Any(a => a.UserId == userId))
+                .Where(f => f.ResourceTypeId == resourceTypeId && f.Archived == null)
                 .ToListAsync();
-            // Samme sortering som regelen, så feilmeldingen peker på samme instruks som flaggene.
-            return AttachmentRules.BlockingInstructions(files, new HashSet<int>());
+            var acknowledgedFileIds = await DbContext.ResourceTypeFileAcknowledgements
+                .AsNoTracking()
+                .Where(a => a.UserId == userId && a.File.ResourceTypeId == resourceTypeId)
+                .Select(a => a.ResourceTypeFileId)
+                .ToListAsync();
+            // Regelen og sorteringen bor ett sted, så feilmeldingen peker på samme instruks som flaggene.
+            return AttachmentRules.BlockingInstructions(files, acknowledgedFileIds.ToHashSet());
         }
 
         public async Task<IReadOnlySet<int>> GetResourceTypesWithShiftsSince(int userId, DateTime fromUtc)
@@ -136,12 +142,19 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             return ids.ToHashSet();
         }
 
-        public async Task<IReadOnlyList<User>> GetActiveUsers()
+        public async Task<IReadOnlyList<User>> GetActiveUsers(IReadOnlySet<int>? userIds = null)
         {
-            return await DbContext.Users
+            var query = DbContext.Users
                 .AsNoTracking()
-                .Where(u => !u.Inactive)
-                .ToListAsync();
+                .Where(u => !u.Inactive);
+            if (userIds is not null)
+            {
+                if (userIds.Count == 0)
+                    return [];
+                var ids = userIds.ToList();
+                query = query.Where(u => ids.Contains(u.UserId));
+            }
+            return await query.ToListAsync();
         }
 
         /// <summary>Oppgavenes tider lagres som norsk lokal tid uten sone, så et UTC-tidspunkt må konverteres før sammenligning.</summary>

@@ -200,7 +200,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             Assert.Equal("2026-01-13T11:20:00Z", resource.Messages.Single().Created);
             Assert.Equal("2026-01-13T11:20:00Z", (await reader.GetMessage(seeded.Message.EventResourceMessageId))!.Created);
             Assert.Equal("2026-01-13T11:20:00Z", (await reader.GetMessages(seeded.Resource.EventResourceId)).Single().Created);
-            Assert.Equal("2026-01-10T08:30:00Z", (await reader.GetFile(seeded.File.ResourceTypeFileId))!.Created);
 
             var training = (await reader.GetTraining(seeded.ConfirmedTraining.ResourceTypeTrainingId))!;
             Assert.Equal("2026-01-12T10:15:00Z", training.Confirmed);
@@ -291,8 +290,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
 
             // En annen bruker har kvittert: ikke sperret, og ser ikke vakttakerens status.
             var forOther = (await reader.GetResource(new Actor(seeded.Other.UserId, IsAdmin: false), seeded.Resource.EventResourceId))!;
-            Assert.Equal(AcknowledgedAt, Assert.Single(forOther.ResourceType.Files).AcknowledgedAt);
-            Assert.Equal(DateTimeKind.Utc, Assert.Single(forOther.ResourceType.Files).AcknowledgedAt!.Value.Kind);
+            Assert.Equal("2026-01-14T12:00:00Z", Assert.Single(forOther.ResourceType.Files).AcknowledgedAt);
             Assert.False(forOther.HasUnacknowledgedMandatoryInstructions);
             Assert.False(forOther.Shifts.Single().HasUnacknowledgedMandatoryInstructions);
 
@@ -308,14 +306,13 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
         }
 
         [Fact]
-        public async Task ArchivedFiles_AreLeftOut_ButReadableById()
+        public async Task ArchivedFiles_AreLeftOut()
         {
             var seeded = await Seed();
-            var archivedAt = new DateTime(2026, 1, 14, 9, 0, 0);
             using (var archive = _fixture.CreateContext())
             {
                 var file = await archive.ResourceTypeFiles.SingleAsync(f => f.ResourceTypeFileId == seeded.File.ResourceTypeFileId);
-                file.Archived = archivedAt;
+                file.Archived = new DateTime(2026, 1, 14, 9, 0, 0);
                 file.ArchivedBy = seeded.Trainer.UserId;
                 await archive.SaveChangesAsync();
             }
@@ -326,9 +323,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
 
             Assert.Empty((await reader.GetResource(actor, seeded.Resource.EventResourceId))!.ResourceType.Files);
             Assert.Empty((await reader.GetResourceType(seeded.ResourceType.ResourceTypeId))!.Files);
-            var byId = (await reader.GetFile(seeded.File.ResourceTypeFileId))!;
-            Assert.Equal(archivedAt, byId.Archived);
-            Assert.Equal(DateTimeKind.Utc, byId.Archived!.Value.Kind);
         }
 
         [Fact]
@@ -343,7 +337,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             Assert.Null(await reader.GetResourceType(int.MaxValue));
             Assert.Null(await reader.GetTraining(int.MaxValue));
             Assert.Null(await reader.GetMessage(int.MaxValue));
-            Assert.Null(await reader.GetFile(int.MaxValue));
             Assert.Empty(await reader.GetResourceTypes([int.MaxValue]));
         }
     }

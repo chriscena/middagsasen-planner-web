@@ -118,7 +118,9 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 userIds.UnionWith(resourceList.SelectMany(r => r.Shifts).Select(s => s.UserId));
             var resourceTypeIds = resourceList.Select(r => r.ResourceTypeId).Distinct().ToList();
 
-            var acknowledgedByUser = new Dictionary<int, IReadOnlyDictionary<int, DateTime>>();
+            // Kvitteringstidspunktene trengs bare for innlogget bruker (AcknowledgedAt); for flaggene holder settet av fil-id-er.
+            var actorAcknowledgements = new Dictionary<int, DateTime>();
+            var acknowledgedIdsByUser = new Dictionary<int, IReadOnlySet<int>>();
             if (resourceTypeIds.Count > 0)
             {
                 var acknowledgements = await DbContext.ResourceTypeFileAcknowledgements
@@ -126,10 +128,12 @@ namespace Middagsasen.Planner.Api.Services.Resources
                     .Select(a => new { a.UserId, a.ResourceTypeFileId, a.Acknowledged })
                     .ToListAsync();
                 foreach (var group in acknowledgements.GroupBy(a => a.UserId))
-                    acknowledgedByUser[group.Key] = group.ToDictionary(a => a.ResourceTypeFileId, a => a.Acknowledged);
+                    acknowledgedIdsByUser[group.Key] = group.Select(a => a.ResourceTypeFileId).ToHashSet();
+                foreach (var a in acknowledgements.Where(a => a.UserId == actor.UserId))
+                    actorAcknowledgements[a.ResourceTypeFileId] = a.Acknowledged;
             }
 
-            return new Viewer(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds, acknowledgedByUser);
+            return new Viewer(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds, actorAcknowledgements, acknowledgedIdsByUser);
         }
 
         // --- Vakttyper ---
@@ -187,16 +191,6 @@ namespace Middagsasen.Planner.Api.Services.Resources
             return message is null ? null : ResourceMapping.MapMessage(message);
         }
 
-        public async Task<FileInfoResponse?> GetFile(int fileId)
-        {
-            var file = await DbContext.ResourceTypeFiles
-                .Include(f => f.CreatedByUser)
-                .Include(f => f.UpdatedByUser)
-                .AsNoTracking()
-                .SingleOrDefaultAsync(f => f.ResourceTypeFileId == fileId);
-            return file is null ? null : AttachmentMapping.MapFile(file);
-        }
-
         /// <summary>
         /// Mapper arrangementer og oppgaver med flagg for én innlogget bruker. Oppgavene må være lastet med
         /// <see cref="ResourceIncludePaths"/>.
@@ -206,18 +200,20 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <param name="actor">Innlogget bruker.</param>
             /// <param name="utcNow">Nå.</param>
             /// <param name="trainingResourceTypeIds">Vakttypene innlogget bruker har en opplæringsrad for.</param>
-            /// <param name="acknowledgedByUser">Kvitteringene (vedlegg-id → tidspunkt) per bruker, for innlogget bruker og (admin) vaktenes eiere.</param>
+            /// <param name="actorAcknowledgements">Innlogget brukers kvitteringer (vedlegg-id → tidspunkt), til <c>AcknowledgedAt</c>.</param>
+            /// <param name="acknowledgedIdsByUser">Kvitterte vedlegg-id-er per bruker, for innlogget bruker og (admin) vaktenes eiere.</param>
             public Viewer(Actor actor, DateTimeOffset utcNow, IEnumerable<int> trainingResourceTypeIds,
-                IReadOnlyDictionary<int, IReadOnlyDictionary<int, DateTime>> acknowledgedByUser)
+                IReadOnlyDictionary<int, DateTime> actorAcknowledgements, IReadOnlyDictionary<int, IReadOnlySet<int>> acknowledgedIdsByUser)
             {
                 Actor = actor;
                 Now = utcNow.ToNorwegianLocalTime();
                 UtcNow = utcNow.UtcDateTime;
                 TrainingResourceTypeIds = trainingResourceTypeIds.ToHashSet();
-                AcknowledgedByUser = acknowledgedByUser;
+                ActorAcknowledgements = actorAcknowledgements;
+                AcknowledgedIdsByUser = acknowledgedIdsByUser;
             }
 
-            private static readonly IReadOnlyDictionary<int, DateTime> NoAcknowledgements = new Dictionary<int, DateTime>();
+            private static readonly IReadOnlySet<int> NoAcknowledgements = new HashSet<int>();
 
             private Actor Actor { get; }
 
@@ -229,14 +225,13 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
             private HashSet<int> TrainingResourceTypeIds { get; }
 
-            private IReadOnlyDictionary<int, IReadOnlyDictionary<int, DateTime>> AcknowledgedByUser { get; }
+            private IReadOnlyDictionary<int, DateTime> ActorAcknowledgements { get; }
 
-            private IReadOnlyDictionary<int, DateTime> AcknowledgementsFor(int userId)
-                => AcknowledgedByUser.GetValueOrDefault(userId) ?? NoAcknowledgements;
+            private IReadOnlyDictionary<int, IReadOnlySet<int>> AcknowledgedIdsByUser { get; }
 
-            /// <summary>Brukeren mangler kvittering på en påkrevd instruks på vakttypen (<see cref="AttachmentRules.BlockingInstructions"/>).</summary>
+            /// <summary>Brukeren mangler kvittering på en påkrevd instruks på vakttypen (<see cref="AttachmentRules.HasBlockingInstruction"/>).</summary>
             private bool HasUnacknowledgedMandatoryInstructions(ResourceType resourceType, int userId)
-                => AttachmentRules.BlockingInstructions(resourceType.Files, AcknowledgementsFor(userId).Keys.ToHashSet()).Count > 0;
+                => AttachmentRules.HasBlockingInstruction(resourceType.Files, AcknowledgedIdsByUser.GetValueOrDefault(userId) ?? NoAcknowledgements);
 
             public EventResponse Map(Event evnt) => new()
             {
@@ -306,7 +301,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 {
                     Id = resource.EventResourceId,
                     EventId = resource.EventId,
-                    ResourceType = ResourceMapping.MapResourceType(resource.ResourceType, AcknowledgementsFor(Actor.UserId)),
+                    ResourceType = ResourceMapping.MapResourceType(resource.ResourceType, ActorAcknowledgements),
                     StartTime = resource.StartTime.ToSimpleIsoString(),
                     EndTime = resource.EndTime.ToSimpleIsoString(),
                     ShiftCount = resource.ShiftCount,

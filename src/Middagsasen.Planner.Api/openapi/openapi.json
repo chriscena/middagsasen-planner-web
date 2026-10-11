@@ -2088,42 +2088,22 @@
             "multipart/form-data": {
               "schema": {
                 "type": "object",
-                "allOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "file": {
-                        "$ref": "#/components/schemas/IFormFile"
-                      }
-                    }
+                "properties": {
+                  "file": {
+                    "$ref": "#/components/schemas/IFormFile"
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "description": {
-                        "type": "string"
-                      }
-                    }
+                  "description": {
+                    "maxLength": 1000,
+                    "minLength": 0,
+                    "type": "string"
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "requiresAcknowledgement": {
-                        "type": "boolean",
-                        "default": false
-                      }
-                    }
+                  "requiresAcknowledgement": {
+                    "type": "boolean"
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "isMandatory": {
-                        "type": "boolean",
-                        "default": false
-                      }
-                    }
+                  "isMandatory": {
+                    "type": "boolean"
                   }
-                ]
+                }
               }
             }
           },
@@ -2162,6 +2142,16 @@
           },
           "403": {
             "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -2597,21 +2587,41 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AcknowledgeRequest"
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AcknowledgeRequest"
+                  }
+                ]
               }
             },
             "text/json": {
               "schema": {
-                "$ref": "#/components/schemas/AcknowledgeRequest"
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AcknowledgeRequest"
+                  }
+                ]
               }
             },
             "application/*+json": {
               "schema": {
-                "$ref": "#/components/schemas/AcknowledgeRequest"
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AcknowledgeRequest"
+                  }
+                ]
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -5355,8 +5365,7 @@
             "type": [
               "null",
               "string"
-            ],
-            "format": "date-time"
+            ]
           },
           "comment": {
             "type": [
@@ -6062,15 +6071,13 @@
             "type": [
               "null",
               "string"
-            ],
-            "format": "date-time"
+            ]
           },
           "archived": {
             "type": [
               "null",
               "string"
-            ],
-            "format": "date-time"
+            ]
           }
         }
       },

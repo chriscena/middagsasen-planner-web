@@ -335,17 +335,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         // --- Påkrevde instrukser ---
 
         [Theory]
-        // Kolonner: hvem, setter opp seg selv, forventet sperrende instruks (null = ingen sperre)
-        [InlineData(Who.Owner, true, "Heisførerinstruks")]
-        [InlineData(Who.Admin, true, "Heisførerinstruks")]   // sperren gjelder egen påmelding, også for admin
-        [InlineData(Who.Admin, false, null)]                 // admin som tildeler en annen går utenom
-        [InlineData(Who.Owner, false, null)]                 // avvises uansett av CheckSignUp (Forbidden)
-        public void BlockingInstruction_OnlyForSelfSignUp(Who who, bool self, string? expected)
+        // Kolonner: hvem, setter opp seg selv, sjekken gjelder, forventet sperrende instruks (null = ingen sperre)
+        [InlineData(Who.Owner, true, true, "Heisførerinstruks")]
+        [InlineData(Who.Admin, true, true, "Heisførerinstruks")]   // sperren gjelder egen påmelding, også for admin
+        [InlineData(Who.Admin, false, false, null)]                // admin som tildeler en annen går utenom
+        [InlineData(Who.Owner, false, false, null)]                // avvises uansett av CheckSignUp (Forbidden)
+        public void BlockingInstruction_OnlyForSelfSignUp(Who who, bool self, bool applies, string? expected)
         {
             var actor = Resolve(who);
             var target = self ? actor.UserId : OtherId;
 
-            Assert.Equal(expected, ShiftRules.BlockingInstruction(actor, target, ["Sikkerhetsrutine", "Heisførerinstruks"]));
+            Assert.Equal(applies, ShiftRules.InstructionCheckApplies(actor, target));
+            // Listen kommer ferdig sortert fra AttachmentRules.BlockingInstructions; den første nevnes.
+            Assert.Equal(expected, ShiftRules.BlockingInstruction(actor, target, ["Heisførerinstruks", "Sikkerhetsrutine"]));
         }
 
         [Fact]
@@ -355,9 +357,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
         }
 
         [Fact]
-        public void BlockingInstruction_PicksFirstAlphabetically_IgnoringCase()
+        public void BlockingInstruction_TakesFirstGiven_WithoutResorting()
         {
-            Assert.Equal("brannrutine", ShiftRules.BlockingInstruction(Owner, OwnerId, ["Sikkerhetsrutine", "brannrutine", "Heisførerinstruks"]));
+            Assert.Equal("Sikkerhetsrutine", ShiftRules.BlockingInstruction(Owner, OwnerId, ["Sikkerhetsrutine", "brannrutine"]));
         }
 
         // --- Flagg og håndhevelse stemmer overens ---

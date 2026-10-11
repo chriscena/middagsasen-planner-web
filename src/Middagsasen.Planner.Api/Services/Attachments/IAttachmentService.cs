@@ -6,8 +6,9 @@ namespace Middagsasen.Planner.Api.Services.Attachments
     /// </summary>
     public interface IAttachmentService
     {
-        /// <summary>Laster opp et vedlegg på vakttypen (kun admin).</summary>
+        /// <summary>Laster opp et vedlegg på vakttypen (kun admin). Filen lagres først når vakttypen finnes og flaggene er gyldige.</summary>
         /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
+        /// <exception cref="EntityNotFoundException">Vakttypen finnes ikke.</exception>
         /// <exception cref="DomainValidationException"><c>IsMandatory</c> uten <c>RequiresAcknowledgement</c>.</exception>
         Task<FileInfoResponse> Upload(int resourceTypeId, FileUploadRequest request);
 
@@ -37,9 +38,10 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         /// Kvitterer for instruksen for innlogget bruker. Idempotent: finnes kvitteringen, returneres den eksisterende
         /// uendret (også kommentaren). Svaret har <see cref="FileInfoResponse.AcknowledgedAt"/> satt.
         /// </summary>
+        /// <param name="request">Valgfri kommentar; <c>null</c> (ingen body) gir kvittering uten kommentar.</param>
         /// <exception cref="EntityNotFoundException">Vedlegget finnes ikke på vakttypen.</exception>
         /// <exception cref="DomainValidationException">Vedlegget krever ikke kvittering, eller er arkivert.</exception>
-        Task<FileInfoResponse> Acknowledge(int resourceTypeId, int fileId, AcknowledgeRequest request);
+        Task<FileInfoResponse> Acknowledge(int resourceTypeId, int fileId, AcknowledgeRequest? request);
 
         /// <summary>
         /// Alle aktive instrukser gruppert per vakttype, med <c>appliesToMe</c> og kvitteringsstatus for brukeren.

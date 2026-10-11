@@ -7,7 +7,7 @@ namespace Middagsasen.Planner.Api.Services.Attachments
     internal static class AttachmentMapping
     {
         /// <summary>Krever <c>CreatedByUser</c> og <c>UpdatedByUser</c>.</summary>
-        /// <param name="acknowledgedAt">Når innlogget bruker kvitterte, eller <c>null</c> (ikke kvittert, eller ukjent bruker).</param>
+        /// <param name="acknowledgedAt">Når innlogget bruker kvitterte (UTC), eller <c>null</c> (ikke kvittert, eller ukjent bruker).</param>
         public static FileInfoResponse MapFile(ResourceTypeFile file, DateTime? acknowledgedAt = null) => new()
         {
             Id = file.ResourceTypeFileId,
@@ -21,8 +21,11 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             UpdatedBy = NameExtensions.FullName(file.UpdatedByUser?.FirstName, file.UpdatedByUser?.LastName),
             RequiresAcknowledgement = file.RequiresAcknowledgement,
             IsMandatory = file.IsMandatory,
-            AcknowledgedAt = acknowledgedAt.AsUtc(),
-            Archived = file.Archived.AsUtc(),
+            AcknowledgedAt = ToIsoString(acknowledgedAt),
+            Archived = ToIsoString(file.Archived),
         };
+
+        /// <summary>UTC-tidspunkt med sone (<c>yyyy-MM-ddTHH:mm:ssZ</c>), som <see cref="FileInfoResponse.Created"/>.</summary>
+        public static string? ToIsoString(DateTime? utc) => utc?.AsUtc().ToIsoString();
     }
 }

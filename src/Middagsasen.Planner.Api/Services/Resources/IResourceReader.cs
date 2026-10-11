@@ -1,4 +1,3 @@
-using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 
@@ -58,8 +57,5 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
         /// <summary>Meldingen, eller <c>null</c>.</summary>
         Task<MessageResponse?> GetMessage(int messageId);
-
-        /// <summary>Filinformasjonen (uten innhold, uten kvitteringsstatus), eller <c>null</c>. Også arkiverte vedlegg.</summary>
-        Task<FileInfoResponse?> GetFile(int fileId);
     }
 }

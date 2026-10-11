@@ -5,6 +5,9 @@ namespace Middagsasen.Planner.Api.Services.Attachments
     /// <summary>Dataadgang for vedlegg, instrukser og kvitteringer.</summary>
     public interface IAttachmentRepository
     {
+        /// <summary>Om vakttypen finnes (også inaktiv).</summary>
+        Task<bool> ResourceTypeExists(int resourceTypeId);
+
         /// <summary>Vedlegget (aktivt eller arkivert) med tracking, med navnene mappingen trenger, eller <c>null</c>.</summary>
         Task<ResourceTypeFile?> Get(int fileId, int resourceTypeId);
 
@@ -35,8 +38,8 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         Task<IReadOnlyDictionary<int, DateTime>> GetAcknowledgedFileIds(int userId);
 
         /// <summary>
-        /// Instruksene som sperrer brukeren fra egen påmelding på vakttypen: aktive, påkrevde instrukser brukeren ikke har
-        /// kvittert for, sortert på beskrivelse. SQL-utgaven av <see cref="AttachmentRules.BlockingInstructions"/>.
+        /// Instruksene som sperrer brukeren fra egen påmelding på vakttypen, sortert på beskrivelse: vakttypens aktive
+        /// vedlegg og brukerens kvitteringer hentes, og <see cref="AttachmentRules.BlockingInstructions"/> avgjør.
         /// </summary>
         Task<IReadOnlyList<ResourceTypeFile>> GetUnacknowledgedMandatory(int userId, int resourceTypeId);
 
@@ -49,7 +52,10 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         /// <summary>Brukerne (aktive) som har vakt på vakttypen med oppgavestart fra og med <paramref name="fromUtc"/>.</summary>
         Task<IReadOnlySet<int>> GetUsersWithShiftsSince(int resourceTypeId, DateTime fromUtc);
 
-        /// <summary>Aktive brukere (ikke <c>Inactive</c>), til kvitteringsrapporten.</summary>
-        Task<IReadOnlyList<User>> GetActiveUsers();
+        /// <summary>
+        /// Aktive brukere (ikke <c>Inactive</c>) til kvitteringsrapporten: alle, eller bare de i <paramref name="userIds"/>
+        /// når settet er gitt (filtreres i databasen).
+        /// </summary>
+        Task<IReadOnlyList<User>> GetActiveUsers(IReadOnlySet<int>? userIds = null);
     }
 }

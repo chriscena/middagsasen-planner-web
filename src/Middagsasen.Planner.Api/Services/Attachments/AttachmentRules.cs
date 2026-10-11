@@ -16,10 +16,20 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         /// <param name="acknowledgedFileIds">Vedleggene brukeren har kvittert for.</param>
         public static IReadOnlyList<ResourceTypeFile> BlockingInstructions(IEnumerable<ResourceTypeFile> files, IReadOnlySet<int> acknowledgedFileIds)
             => files
-                .Where(f => f.Archived == null && f.RequiresAcknowledgement && f.IsMandatory && !acknowledgedFileIds.Contains(f.ResourceTypeFileId))
+                .Where(f => IsBlocking(f, acknowledgedFileIds))
                 .OrderBy(f => f.Description, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(f => f.ResourceTypeFileId)
                 .ToList();
+
+        /// <summary>
+        /// Om noe sperrer: samme regel som <see cref="BlockingInstructions"/>, men uten å bygge og sortere listen. Brukes
+        /// til flaggene, som regnes ut per oppgave og vakt.
+        /// </summary>
+        public static bool HasBlockingInstruction(IEnumerable<ResourceTypeFile> files, IReadOnlySet<int> acknowledgedFileIds)
+            => files.Any(f => IsBlocking(f, acknowledgedFileIds));
+
+        private static bool IsBlocking(ResourceTypeFile file, IReadOnlySet<int> acknowledgedFileIds)
+            => file.Archived == null && file.RequiresAcknowledgement && file.IsMandatory && !acknowledgedFileIds.Contains(file.ResourceTypeFileId);
 
         /// <summary>
         /// Vakttypen gjelder brukeren: brukeren har vakt på den fra og med inneværende sesongstart. Brukes både for

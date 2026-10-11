@@ -43,6 +43,21 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
         }
 
         [Fact]
+        public void HasBlockingInstruction_MatchesBlockingInstructions()
+        {
+            ResourceTypeFile[][] cases =
+            [
+                [File(1, "A"), File(2, "B")],
+                [File(1, "A", isMandatory: false), File(2, "B", archived: true)],
+                [File(1, "A", requiresAcknowledgement: false, isMandatory: true)],
+                [],
+            ];
+            foreach (var files in cases)
+            foreach (var acknowledged in new[] { new HashSet<int>(), new HashSet<int> { 1 }, new HashSet<int> { 1, 2 } })
+                Assert.Equal(AttachmentRules.BlockingInstructions(files, acknowledged).Count > 0, AttachmentRules.HasBlockingInstruction(files, acknowledged));
+        }
+
+        [Fact]
         public void AppliesTo_WhenUserHasShiftOnResourceTypeThisSeason()
         {
             var thisSeason = new HashSet<int> { 1, 3 };

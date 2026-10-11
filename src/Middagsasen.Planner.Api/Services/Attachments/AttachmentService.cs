@@ -8,6 +8,7 @@ namespace Middagsasen.Planner.Api.Services.Attachments
     public class AttachmentService : IAttachmentService
     {
         internal const string FileNotFoundMessage = "Fant ikke vedlegget.";
+        internal const string ResourceTypeNotFoundMessage = "Fant ikke vakttypen.";
         internal const string MandatoryRequiresAcknowledgementMessage = "En instruks kan bare være påkrevd når den krever kvittering.";
         internal const string ArchivedMessage = "Vedlegget er arkivert.";
         internal const string NotAnInstructionMessage = "Vedlegget krever ikke kvittering.";
@@ -33,17 +34,20 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             if (!AttachmentPolicy.CanManage(actor))
                 throw new ForbiddenAccessException();
             ValidateFlags(request.RequiresAcknowledgement, request.IsMandatory);
+            // Sjekkes før bloben lagres, så en ukjent vakttype ikke etterlater en foreldreløs fil i lagringen.
+            if (!await Repository.ResourceTypeExists(resourceTypeId))
+                throw new EntityNotFoundException(ResourceTypeNotFoundMessage);
 
             var now = TimeProvider.GetUtcNow().UtcDateTime;
             var storageName = Guid.NewGuid().ToString();
-            await Storage.Save($"{GetContainerPath(now)}/{storageName}", request.FileInfo.OpenReadStream());
+            await Storage.Save($"{GetContainerPath(now)}/{storageName}", request.File.OpenReadStream());
 
             var file = await Repository.Add(new ResourceTypeFile
             {
                 StorageName = storageName,
-                FileName = request.FileInfo.FileName,
+                FileName = request.File.FileName,
                 Description = request.Description,
-                MimeType = request.FileInfo.ContentType,
+                MimeType = request.File.ContentType,
                 ResourceTypeId = resourceTypeId,
                 RequiresAcknowledgement = request.RequiresAcknowledgement,
                 IsMandatory = request.IsMandatory,
@@ -119,7 +123,7 @@ namespace Middagsasen.Planner.Api.Services.Attachments
 
         // --- Instrukser og kvitteringer ---
 
-        public async Task<FileInfoResponse> Acknowledge(int resourceTypeId, int fileId, AcknowledgeRequest request)
+        public async Task<FileInfoResponse> Acknowledge(int resourceTypeId, int fileId, AcknowledgeRequest? request)
         {
             var actor = CurrentUser.ToActor();
             var file = await Repository.Get(fileId, resourceTypeId) ?? throw new EntityNotFoundException(FileNotFoundMessage);
@@ -133,7 +137,7 @@ namespace Middagsasen.Planner.Api.Services.Attachments
                     ResourceTypeFileId = fileId,
                     UserId = actor.UserId,
                     Acknowledged = TimeProvider.GetUtcNow().UtcDateTime,
-                    Comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim(),
+                    Comment = string.IsNullOrWhiteSpace(request?.Comment) ? null : request.Comment.Trim(),
                 });
 
             return AttachmentMapping.MapFile(file, acknowledgement.Acknowledged);
@@ -176,8 +180,9 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             var acknowledgements = (await Repository.GetAcknowledgements(fileId)).ToDictionary(a => a.UserId);
             var appliesTo = await Repository.GetUsersWithShiftsSince(resourceTypeId, AttachmentRules.SeasonStartUtc(TimeProvider.GetUtcNow()));
 
-            var users = (await Repository.GetActiveUsers())
-                .Where(u => all || appliesTo.Contains(u.UserId))
+            // all=false filtreres i databasen til brukerne vakttypen gjelder for.
+            var population = await Repository.GetActiveUsers(all ? null : appliesTo);
+            var users = population
                 .Select(u =>
                 {
                     var acknowledgement = acknowledgements.GetValueOrDefault(u.UserId);
@@ -185,12 +190,12 @@ namespace Middagsasen.Planner.Api.Services.Attachments
                     {
                         UserId = u.UserId,
                         FullName = u.FullName(),
-                        AcknowledgedAt = acknowledgement?.Acknowledged.AsUtc(),
+                        AcknowledgedAt = AttachmentMapping.ToIsoString(acknowledgement?.Acknowledged),
                         Comment = acknowledgement?.Comment,
                         AppliesTo = appliesTo.Contains(u.UserId),
                     };
                 })
-                .OrderBy(u => u.AcknowledgedAt.HasValue)
+                .OrderBy(u => u.AcknowledgedAt is not null)
                 .ThenBy(u => u.FullName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(u => u.UserId)
                 .ToList();
@@ -199,7 +204,7 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             {
                 File = AttachmentMapping.MapFile(file, acknowledgements.GetValueOrDefault(actor.UserId)?.Acknowledged),
                 Total = users.Count,
-                AcknowledgedCount = users.Count(u => u.AcknowledgedAt.HasValue),
+                AcknowledgedCount = users.Count(u => u.AcknowledgedAt is not null),
                 Users = users,
             };
         }

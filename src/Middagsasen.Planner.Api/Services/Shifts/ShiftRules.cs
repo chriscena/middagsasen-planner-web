@@ -130,20 +130,24 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         // --- Instrukser ---
 
         /// <summary>
-        /// Sperre for påkrevde instrukser: ved egen påmelding (<paramref name="targetUserId"/> er innlogget bruker, også
-        /// for admin) må brukeren ha kvittert for alle påkrevde instrukser på vakttypen. Returnerer beskrivelsen av
-        /// instruksen som sperrer (den første alfabetisk ved flere), eller <c>null</c> når ingenting sperrer.
-        /// Admin som setter opp en annen bruker går utenom sperren, men ser et varsel på vakta
-        /// (<c>ShiftResponse.HasUnacknowledgedMandatoryInstructions</c>).
+        /// Om sperren for påkrevde instrukser gjelder påmeldingen: bare ved egen påmelding (<paramref name="targetUserId"/>
+        /// er innlogget bruker, også for admin). Admin som setter opp en annen bruker går utenom sperren, men ser et
+        /// varsel på vakta (<c>ShiftResponse.HasUnacknowledgedMandatoryInstructions</c>). Servicen slår bare opp
+        /// instruksene når denne er sann.
+        /// </summary>
+        public static bool InstructionCheckApplies(Actor actor, int targetUserId) => targetUserId == actor.UserId;
+
+        /// <summary>
+        /// Sperre for påkrevde instrukser: når <see cref="InstructionCheckApplies"/>, må brukeren ha kvittert for alle
+        /// påkrevde instrukser på vakttypen. Returnerer beskrivelsen av instruksen som sperrer, eller <c>null</c> når
+        /// ingenting sperrer.
         /// </summary>
         /// <param name="unacknowledgedMandatoryInstructions">
-        /// Beskrivelsene av de påkrevde instruksene målbrukeren ikke har kvittert for
-        /// (<see cref="Attachments.IAttachmentRepository.GetUnacknowledgedMandatory"/>).
+        /// Beskrivelsene av de påkrevde instruksene målbrukeren ikke har kvittert for, sortert på beskrivelse av
+        /// <see cref="Attachments.AttachmentRules.BlockingInstructions"/>; den første nevnes i feilmeldingen.
         /// </param>
         public static string? BlockingInstruction(Actor actor, int targetUserId, IEnumerable<string> unacknowledgedMandatoryInstructions)
-            => targetUserId == actor.UserId
-                ? unacknowledgedMandatoryInstructions.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).FirstOrDefault()
-                : null;
+            => InstructionCheckApplies(actor, targetUserId) ? unacknowledgedMandatoryInstructions.FirstOrDefault() : null;
 
         // --- Endre vakt ---
 

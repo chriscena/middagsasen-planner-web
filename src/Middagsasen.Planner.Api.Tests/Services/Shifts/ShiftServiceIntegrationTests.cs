@@ -2094,7 +2094,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(user.UserId, Assert.Single(await GetShifts(resource.EventResourceId)).UserId);
             Assert.False(result.Resource.HasUnacknowledgedMandatoryInstructions);
             Assert.False(Assert.Single(result.Resource.Shifts).HasUnacknowledgedMandatoryInstructions);
-            Assert.Equal(BeforeResource.UtcDateTime, Assert.Single(result.Resource.ResourceType.Files).AcknowledgedAt);
+            Assert.Equal("2026-01-01T12:00:00Z", Assert.Single(result.Resource.ResourceType.Files).AcknowledgedAt);
         }
 
         #endregion

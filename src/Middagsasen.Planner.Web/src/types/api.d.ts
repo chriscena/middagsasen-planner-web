@@ -1728,13 +1728,8 @@ export interface paths {
                 content: {
                     "multipart/form-data": {
                         file?: components["schemas"]["IFormFile"];
-                    } & {
                         description?: string;
-                    } & {
-                        /** @default false */
                         requiresAcknowledgement?: boolean;
-                    } & {
-                        /** @default false */
                         isMandatory?: boolean;
                     };
                 };
@@ -1771,6 +1766,15 @@ export interface paths {
                 };
                 /** @description Forbidden */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2084,11 +2088,11 @@ export interface paths {
                 };
                 cookie?: never;
             };
-            requestBody: {
+            requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["AcknowledgeRequest"];
-                    "text/json": components["schemas"]["AcknowledgeRequest"];
-                    "application/*+json": components["schemas"]["AcknowledgeRequest"];
+                    "application/json": null | components["schemas"]["AcknowledgeRequest"];
+                    "text/json": null | components["schemas"]["AcknowledgeRequest"];
+                    "application/*+json": null | components["schemas"]["AcknowledgeRequest"];
                 };
             };
             responses: {
@@ -4258,7 +4262,6 @@ export interface components {
             /** Format: int32 */
             userId: number;
             fullName: string;
-            /** Format: date-time */
             acknowledgedAt?: null | string;
             comment?: null | string;
             appliesTo: boolean;
@@ -4438,9 +4441,7 @@ export interface components {
             mimeType: string;
             requiresAcknowledgement: boolean;
             isMandatory: boolean;
-            /** Format: date-time */
             acknowledgedAt?: null | string;
-            /** Format: date-time */
             archived?: null | string;
         };
         FileMetadataRequest: {

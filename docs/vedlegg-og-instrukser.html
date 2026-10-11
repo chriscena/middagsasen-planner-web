@@ -372,12 +372,12 @@ SeasonStartUtc(now) => DateTimeExtensions.GetSeasonRangeUtc(now.GetSeasonStartYe
 <table>
   <thead><tr><th>DTO</th><th>Endring</th></tr></thead>
   <tbody>
-    <tr><td><code>FileInfoResponse</code></td><td>+ <code>RequiresAcknowledgement</code>, <code>IsMandatory</code> (bool). + <code>AcknowledgedAt</code> (DateTime?) for innlogget bruker, null der bruker ikke er kjent. + <code>Archived</code> (DateTime?).</td></tr>
+    <tr><td><code>FileInfoResponse</code></td><td>+ <code>RequiresAcknowledgement</code>, <code>IsMandatory</code> (bool). + <code>AcknowledgedAt</code> (ISO UTC-streng, nullable) for innlogget bruker, null der bruker ikke er kjent. + <code>Archived</code> (ISO UTC-streng, nullable). Samme format som <code>Created</code>.</td></tr>
     <tr><td><code>ResourceResponse</code></td><td>+ <code>HasUnacknowledgedMandatoryInstructions</code> (bool) for innlogget bruker. Regnes ut i <code>ResourceReader.CreateViewer</code> som <code>MustAnswerTraining</code>.</td></tr>
     <tr><td><code>ShiftResponse</code></td><td>+ <code>HasUnacknowledgedMandatoryInstructions</code> (bool) for vaktens bruker. Sendes bare når innlogget bruker er admin eller eier av vakta, ellers <code>false</code>.</td></tr>
     <tr><td><code>FileMetadataRequest</code></td><td>Ny: <code>Description</code>, <code>RequiresAcknowledgement</code>, <code>IsMandatory</code>.</td></tr>
     <tr><td><code>AcknowledgeRequest</code></td><td>Ny: <code>Comment</code> (string?, maks 1000 tegn).</td></tr>
-    <tr><td><code>AcknowledgementReportResponse</code></td><td>Ny: <code>File</code> (FileInfoResponse), <code>Total</code>, <code>AcknowledgedCount</code>, <code>Users[]</code> med <code>UserId</code>, <code>FullName</code>, <code>AcknowledgedAt?</code>, <code>Comment?</code>, <code>AppliesTo</code>. Sortert: ikke kvittert først, så etternavn.</td></tr>
+    <tr><td><code>AcknowledgementReportResponse</code></td><td>Ny: <code>File</code> (FileInfoResponse), <code>Total</code>, <code>AcknowledgedCount</code>, <code>Users[]</code> med <code>UserId</code>, <code>FullName</code>, <code>AcknowledgedAt?</code>, <code>Comment?</code>, <code>AppliesTo</code>. Sortert: ikke kvittert først, så fullt navn, slik brukere sorteres ellers i appen. Bare aktive brukere tas med.</td></tr>
     <tr><td><code>InstructionGroupResponse</code></td><td>Ny: <code>ResourceTypeId</code>, <code>ResourceTypeName</code>, <code>AppliesToMe</code>, <code>Files[]</code> (FileInfoResponse med <code>AcknowledgedAt</code>). Bare aktive filer med <code>RequiresAcknowledgement</code>. Vakttyper uten instrukser utelates.</td></tr>
   </tbody>
 </table>

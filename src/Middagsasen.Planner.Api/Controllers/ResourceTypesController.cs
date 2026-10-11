@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Attachments;
@@ -81,21 +82,10 @@ namespace Middagsasen.Planner.Api.Controllers
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-        public async Task<IActionResult> UploadFile(
-            int id,
-            IFormFile file,
-            [FromForm] string description,
-            [FromForm] bool requiresAcknowledgement = false,
-            [FromForm] bool isMandatory = false)
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadFile(int id, [FromForm] FileUploadRequest request)
         {
-            var request = new FileUploadRequest
-            {
-                FileInfo = file,
-                Description = description,
-                RequiresAcknowledgement = requiresAcknowledgement,
-                IsMandatory = isMandatory,
-            };
-
             var response = await AttachmentService.Upload(id, request);
             return Created($"{response.ResourceTypeId}/files/{response.Id}", response);
         }
@@ -163,13 +153,14 @@ namespace Middagsasen.Planner.Api.Controllers
 
         /// <summary>
         /// Kvitterer for instruksen for innlogget bruker. Idempotent: finnes kvitteringen, returneres den uendret.
+        /// Body (<c>{ comment? }</c>) er valgfri: en POST uten body kvitterer uten kommentar.
         /// 400 når vedlegget ikke krever kvittering eller er arkivert.
         /// </summary>
         [HttpPost("{resourceTypeId}/files/{id:int}/acknowledgements"), Authorize]
         [ProducesResponseType(typeof(FileInfoResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-        public async Task<FileInfoResponse> Acknowledge(int resourceTypeId, int id, [FromBody] AcknowledgeRequest request)
+        public async Task<FileInfoResponse> Acknowledge(int resourceTypeId, int id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AcknowledgeRequest? request)
         {
             return await AttachmentService.Acknowledge(resourceTypeId, id, request);
         }

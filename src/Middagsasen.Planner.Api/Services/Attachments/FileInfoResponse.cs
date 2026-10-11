@@ -23,12 +23,12 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         public bool IsMandatory { get; set; }
 
         /// <summary>
-        /// Når innlogget bruker kvitterte for instruksen (UTC), eller <c>null</c> når brukeren ikke har kvittert, eller
-        /// der vedlegget leses uten kjent bruker (f.eks. <c>GET api/resourcetypes</c>).
+        /// Når innlogget bruker kvitterte for instruksen, UTC-tidspunkt med sone (<c>yyyy-MM-ddTHH:mm:ssZ</c>), eller
+        /// <c>null</c> når brukeren ikke har kvittert, eller der vedlegget leses uten kjent bruker (f.eks. <c>GET api/resourcetypes</c>).
         /// </summary>
-        public DateTime? AcknowledgedAt { get; set; }
+        public string? AcknowledgedAt { get; set; }
 
-        /// <summary>Når vedlegget ble arkivert (UTC), eller <c>null</c> for et aktivt vedlegg.</summary>
-        public DateTime? Archived { get; set; }
+        /// <summary>Når vedlegget ble arkivert, UTC-tidspunkt med sone (<c>yyyy-MM-ddTHH:mm:ssZ</c>), eller <c>null</c> for et aktivt vedlegg.</summary>
+        public string? Archived { get; set; }
     }
 }

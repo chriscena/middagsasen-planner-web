@@ -83,7 +83,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
 
                 Enforce(ShiftRules.CheckSignUp(actor, facts, now, targetUserId, request.StartTime, request.EndTime));
 
-                var unacknowledged = await Attachments.GetUnacknowledgedMandatory(targetUserId, resource.ResourceTypeId);
+                // Oppslaget gjøres bare når sperren kan slå til (egen påmelding).
+                var unacknowledged = ShiftRules.InstructionCheckApplies(actor, targetUserId)
+                    ? await Attachments.GetUnacknowledgedMandatory(targetUserId, resource.ResourceTypeId)
+                    : [];
                 if (ShiftRules.BlockingInstruction(actor, targetUserId, unacknowledged.Select(f => f.Description)) is { } instruction)
                     throw new DomainValidationException(InstructionRequiredMessage(instruction));
 

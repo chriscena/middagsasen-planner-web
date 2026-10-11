@@ -30,6 +30,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         private readonly IEventsService _events = Substitute.For<IEventsService>();
         private readonly IEventTemplatesService _templates = Substitute.For<IEventTemplatesService>();
         private readonly IResourceTypesService _resourceTypes = Substitute.For<IResourceTypesService>();
+        private readonly IAttachmentService _attachments = Substitute.For<IAttachmentService>();
         private WebApplication _app = null!;
         private HttpClient _client = null!;
 
@@ -45,7 +46,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
             builder.Services.AddSingleton(_templates);
             builder.Services.AddSingleton(_resourceTypes);
             builder.Services.AddSingleton(Substitute.For<ICompetencyService>());
-            builder.Services.AddSingleton(Substitute.For<IAttachmentService>());
+            builder.Services.AddSingleton(_attachments);
             builder.Services.AddSingleton(Substitute.For<ICurrentUserService>());
 
             _app = builder.Build();
@@ -68,6 +69,8 @@ namespace Middagsasen.Planner.Api.Tests.Core
             _templates.CreateEventTemplate(Arg.Any<EventTemplateRequest>()).Returns(new EventTemplateResponse());
             _templates.UpdateEventTemplate(Arg.Any<int>(), Arg.Any<EventTemplateRequest>()).Returns(new EventTemplateResponse());
             _resourceTypes.UpdateResourceType(Arg.Any<int>(), Arg.Any<ResourceTypeRequest>()).Returns(new ResourceTypeResponse());
+            _attachments.Upload(Arg.Any<int>(), Arg.Any<FileUploadRequest>()).Returns(new FileInfoResponse { Id = 3, ResourceTypeId = 7 });
+            _attachments.Acknowledge(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AcknowledgeRequest?>()).Returns(new FileInfoResponse { Id = 3, ResourceTypeId = 7 });
         }
 
         public async Task DisposeAsync()
@@ -468,6 +471,80 @@ namespace Middagsasen.Planner.Api.Tests.Core
 
             var errors = Errors(await AssertValidationProblem(response));
             Assert.Single(Assert.Single(errors, e => e.Key == "message").Value);
+        }
+
+        #endregion
+
+        #region Vedlegg (multipart og valgfri body)
+
+        private static MultipartFormDataContent Multipart(params (string Name, string Value)[] fields)
+        {
+            var content = new MultipartFormDataContent
+            {
+                { new ByteArrayContent(Encoding.UTF8.GetBytes("%PDF")) { Headers = { ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf") } }, "file", "instruks.pdf" },
+            };
+            foreach (var (name, value) in fields)
+                content.Add(new StringContent(value), name);
+            return content;
+        }
+
+        [Fact]
+        public async Task UploadFile_BindsMultipartFields_ByCamelCaseName()
+        {
+            using var content = Multipart(("description", "Heisførerinstruks"), ("requiresAcknowledgement", "true"), ("isMandatory", "true"));
+
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            await _attachments.Received(1).Upload(7, Arg.Is<FileUploadRequest>(r =>
+                r.File.FileName == "instruks.pdf"
+                && r.File.ContentType == "application/pdf"
+                && r.Description == "Heisførerinstruks"
+                && r.RequiresAcknowledgement
+                && r.IsMandatory));
+        }
+
+        [Fact]
+        public async Task UploadFile_WithoutFlags_DefaultsToFalse()
+        {
+            // Dagens frontend sender bare file og description.
+            using var content = Multipart(("description", "Løypekart"));
+
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            await _attachments.Received(1).Upload(7, Arg.Is<FileUploadRequest>(r =>
+                r.Description == "Løypekart" && !r.RequiresAcknowledgement && !r.IsMandatory));
+        }
+
+        [Fact]
+        public async Task UploadFile_WithoutDescription_Returns400_AndDoesNotCallService()
+        {
+            using var content = Multipart();
+
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+
+            var errors = Errors(await AssertValidationProblem(response));
+            Assert.Contains("description", errors.Keys);
+            await _attachments.DidNotReceiveWithAnyArgs().Upload(default, default!);
+        }
+
+        [Fact]
+        public async Task Acknowledge_WithoutBody_IsAccepted_WithNullRequest()
+        {
+            var response = await _client.PostAsync("/api/resourcetypes/7/files/3/acknowledgements", null);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await _attachments.Received(1).Acknowledge(7, 3, null);
+        }
+
+        [Fact]
+        public async Task Acknowledge_WithComment_BindsBody()
+        {
+            var response = await Send("POST", "/api/resourcetypes/7/files/3/acknowledgements", """{ "comment": "Lest" }""");
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await _attachments.Received(1).Acknowledge(7, 3, Arg.Is<AcknowledgeRequest>(r => r.Comment == "Lest"));
         }
 
         #endregion

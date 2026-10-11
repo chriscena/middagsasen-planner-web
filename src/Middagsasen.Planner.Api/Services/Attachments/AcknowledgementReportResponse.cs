@@ -25,8 +25,8 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         public int UserId { get; set; }
         public string FullName { get; set; } = null!;
 
-        /// <summary>Når brukeren kvitterte (UTC), eller <c>null</c> hvis brukeren ikke har kvittert.</summary>
-        public DateTime? AcknowledgedAt { get; set; }
+        /// <summary>Når brukeren kvitterte, UTC-tidspunkt med sone (<c>yyyy-MM-ddTHH:mm:ssZ</c>), eller <c>null</c> hvis brukeren ikke har kvittert.</summary>
+        public string? AcknowledgedAt { get; set; }
         public string? Comment { get; set; }
 
         /// <summary>Vakttypen gjelder brukeren: brukeren har vakt på den fra og med inneværende sesongstart.</summary>

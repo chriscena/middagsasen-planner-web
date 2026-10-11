@@ -147,7 +147,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).Upload(resourceType.ResourceTypeId, new FileUploadRequest
             {
-                FileInfo = PdfFile(),
+                File = PdfFile(),
                 Description = "Heisførerinstruks",
                 RequiresAcknowledgement = true,
                 IsMandatory = true,
@@ -181,7 +181,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, admin.UserId, isAdmin: true).Upload(resourceType.ResourceTypeId, new FileUploadRequest
             {
-                FileInfo = PdfFile("kart.pdf"),
+                File = PdfFile("kart.pdf"),
                 Description = "Løypekart",
             });
 
@@ -198,9 +198,22 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
 
             using var context = _fixture.CreateContext();
             var ex = await Assert.ThrowsAsync<DomainValidationException>(() => CreateService(context, admin.UserId, isAdmin: true)
-                .Upload(resourceType.ResourceTypeId, new FileUploadRequest { FileInfo = PdfFile(), Description = "Feil", IsMandatory = true }));
+                .Upload(resourceType.ResourceTypeId, new FileUploadRequest { File = PdfFile(), Description = "Feil", IsMandatory = true }));
 
             Assert.Equal(AttachmentService.MandatoryRequiresAcknowledgementMessage, ex.Message);
+            await _storage.DidNotReceiveWithAnyArgs().Save(default!, default!);
+        }
+
+        [Fact]
+        public async Task Upload_ThrowsEntityNotFound_ForUnknownResourceType_BeforeSavingBlob()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, isAdmin: true);
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<EntityNotFoundException>(() => CreateService(context, admin.UserId, isAdmin: true)
+                .Upload(int.MaxValue, new FileUploadRequest { File = PdfFile(), Description = "Instruks" }));
+
             await _storage.DidNotReceiveWithAnyArgs().Save(default!, default!);
         }
 
@@ -213,7 +226,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
 
             using var context = _fixture.CreateContext();
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, user.UserId)
-                .Upload(resourceType.ResourceTypeId, new FileUploadRequest { FileInfo = PdfFile(), Description = "Instruks" }));
+                .Upload(resourceType.ResourceTypeId, new FileUploadRequest { File = PdfFile(), Description = "Instruks" }));
         }
 
         [Fact]
@@ -285,7 +298,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             var stored = await GetFile(file.ResourceTypeFileId);
             Assert.Equal(Now.UtcDateTime, stored.Archived);
             Assert.Equal(admin.UserId, stored.ArchivedBy);
-            await _storage.DidNotReceiveWithAnyArgs().Delete(default!);
             Assert.Equal("Lest", Assert.Single(await GetAcknowledgements(file.ResourceTypeFileId)).Comment);
 
             // Borte fra vakttypen, med i arkivlisten, og sperrer ikke lenger.
@@ -294,7 +306,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             Assert.Empty(resourceTypeResponse.Files);
             var archived = Assert.Single(await service.GetArchived(resourceType.ResourceTypeId));
             Assert.Equal(file.ResourceTypeFileId, archived.Id);
-            Assert.Equal(Now.UtcDateTime, archived.Archived);
+            Assert.Equal("2026-10-11T12:00:00Z", archived.Archived);
             Assert.Empty(await new AttachmentRepository(readContext).GetUnacknowledgedMandatory(admin.UserId, resourceType.ResourceTypeId));
 
             // Idempotent: arkiveringstidspunktet står.
@@ -362,8 +374,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             var first = await CreateService(context, user.UserId).Acknowledge(resourceType.ResourceTypeId, file.ResourceTypeFileId, new AcknowledgeRequest { Comment = "  Lest og forstått  " });
             var second = await CreateService(context, user.UserId, now: Now.AddHours(1)).Acknowledge(resourceType.ResourceTypeId, file.ResourceTypeFileId, new AcknowledgeRequest { Comment = "Ny kommentar" });
 
-            Assert.Equal(Now.UtcDateTime, first.AcknowledgedAt);
-            Assert.Equal(DateTimeKind.Utc, first.AcknowledgedAt!.Value.Kind);
+            Assert.Equal("2026-10-11T12:00:00Z", first.AcknowledgedAt);
             Assert.Equal(first.AcknowledgedAt, second.AcknowledgedAt);
             var stored = Assert.Single(await GetAcknowledgements(file.ResourceTypeFileId));
             Assert.Equal(user.UserId, stored.UserId);
@@ -377,12 +388,18 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             var admin = await SeedUser(seed, isAdmin: true);
             var user = await SeedUser(seed);
             var resourceType = await SeedResourceType(seed);
-            var file = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId);
+            var blank = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Tom kommentar");
+            var noBody = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Uten body");
 
             using var context = _fixture.CreateContext();
-            await CreateService(context, user.UserId).Acknowledge(resourceType.ResourceTypeId, file.ResourceTypeFileId, new AcknowledgeRequest { Comment = "   " });
+            var service = CreateService(context, user.UserId);
+            await service.Acknowledge(resourceType.ResourceTypeId, blank.ResourceTypeFileId, new AcknowledgeRequest { Comment = "   " });
+            // POST uten body gir null-request.
+            var result = await service.Acknowledge(resourceType.ResourceTypeId, noBody.ResourceTypeFileId, null);
 
-            Assert.Null(Assert.Single(await GetAcknowledgements(file.ResourceTypeFileId)).Comment);
+            Assert.Null(Assert.Single(await GetAcknowledgements(blank.ResourceTypeFileId)).Comment);
+            Assert.Null(Assert.Single(await GetAcknowledgements(noBody.ResourceTypeFileId)).Comment);
+            Assert.Equal("2026-10-11T12:00:00Z", result.AcknowledgedAt);
         }
 
         [Fact]
@@ -453,7 +470,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
                 u =>
                 {
                     Assert.Equal(onShiftAcknowledged.UserId, u.UserId);
-                    Assert.Equal(Earlier, u.AcknowledgedAt);
+                    Assert.Equal("2026-09-01T08:00:00Z", u.AcknowledgedAt);
                     Assert.Equal("Ok", u.Comment);
                     Assert.True(u.AppliesTo);
                 });
@@ -478,7 +495,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             // Databasen deles med andre tester, så vi sjekker våre brukere og tellingen relativt.
             var users = report.Users.ToList();
             Assert.Equal(users.Count, report.Total);
-            Assert.Equal(users.Count(u => u.AcknowledgedAt.HasValue), report.AcknowledgedCount);
+            Assert.Equal(users.Count(u => u.AcknowledgedAt is not null), report.AcknowledgedCount);
             Assert.DoesNotContain(users, u => u.UserId == inactive.UserId);
 
             var ola = Assert.Single(users, u => u.UserId == onShift.UserId);
@@ -491,8 +508,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             Assert.False(kari.AppliesTo);
 
             // Alle uten kvittering kommer før alle med.
-            var lastUnacknowledged = users.FindLastIndex(u => !u.AcknowledgedAt.HasValue);
-            var firstAcknowledged = users.FindIndex(u => u.AcknowledgedAt.HasValue);
+            var lastUnacknowledged = users.FindLastIndex(u => u.AcknowledgedAt is null);
+            var firstAcknowledged = users.FindIndex(u => u.AcknowledgedAt is not null);
             Assert.True(lastUnacknowledged < firstAcknowledged);
         }
 
@@ -561,7 +578,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
                         f =>
                         {
                             Assert.Equal(acknowledged.ResourceTypeFileId, f.Id);
-                            Assert.Equal(Earlier, f.AcknowledgedAt);
+                            Assert.Equal("2026-09-01T08:00:00Z", f.AcknowledgedAt);
                         });
                 },
                 g =>
