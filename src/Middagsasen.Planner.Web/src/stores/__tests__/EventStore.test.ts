@@ -11,9 +11,11 @@ import type {
   FileMetadataRequest,
   MessageResponse,
   ResourceResponse,
+  ResourceTypeRequest,
   ShiftResponse,
   ShiftResult,
   TrainingResponse,
+  UserResponse,
 } from "@/types";
 
 const mockApi = vi.hoisted(() => ({
@@ -28,7 +30,24 @@ vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
+// Instrukslisten hentes på nytt i bakgrunnen etter vakt- og
+// vedleggsendringer; testene sjekker bare at det skjer.
+const mockReloadInstructions = vi.hoisted(() => vi.fn());
+
+vi.mock("@/stores/InstructionStore", () => ({
+  reloadInstructionsInBackground: mockReloadInstructions,
+}));
+
+import { useAuthStore } from "@/stores/AuthStore";
 import { useEventStore } from "@/stores/EventStore";
+
+// AuthStore leser innlogget bruker fra localStorage når den ikke er satt i
+// staten (f.eks. etter utlogging). Testmiljøet (node) har ingen.
+vi.stubGlobal("localStorage", {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+});
 
 // Kun feltene storen bruker (id og startTime) er relevante her.
 function event(id: number, startTime: string): EventResponse {
@@ -138,6 +157,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function logInAs(userId: number): void {
+  useAuthStore().loggedInUser = { id: userId } as UserResponse;
+}
+
 describe("EventStore", () => {
   let store: ReturnType<typeof useEventStore>;
 
@@ -147,6 +170,7 @@ describe("EventStore", () => {
     // Nullstiller også mockResolvedValue o.l. fra forrige test.
     vi.resetAllMocks();
     vi.restoreAllMocks();
+    logInAs(CURRENT_USER_ID);
   });
 
   describe("applyShiftResult", () => {
@@ -294,6 +318,110 @@ describe("EventStore", () => {
       expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
         1,
       ]);
+      // Vakta er tatt for en annen bruker: admins egen instruksliste er uendret.
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter instrukslisten på nytt når innlogget bruker tar vakt selv", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter instrukslisten på nytt når admin tar vakt for seg selv med userId", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({
+        resourceId: 10,
+        shiftId: null,
+        userId: CURRENT_USER_ID,
+        comment: null,
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter instrukslisten på nytt når en vakt endres, også til en annen bruker", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, OTHER_USER_ID)])),
+      });
+
+      await store.saveShift({
+        resourceId: 10,
+        shiftId: 1,
+        userId: OTHER_USER_ID,
+        comment: null,
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter ikke instrukslisten når brukeren logger ut før vakta er lagret", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const pending = deferred<ShiftResult>();
+      mockApi.post.mockReturnValue(pending.promise);
+
+      const request = store.saveShift({
+        resourceId: 10,
+        shiftId: null,
+        comment: null,
+      });
+      useAuthStore().removeUserSession();
+      pending.resolve({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+      await request;
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter ikke instrukslisten når en annen bruker har logget inn før vakta er trukket", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      const pending = deferred<ShiftResult>();
+      mockApi.delete.mockReturnValue(pending.promise);
+
+      const request = store.withdraw(1);
+      logInAs(OTHER_USER_ID);
+      pending.resolve({ data: result(resource(10, [])) });
+      await request;
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter ikke instrukslisten uten innlogget bruker", async () => {
+      useAuthStore().removeUserSession();
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter ikke instrukslisten når vakta ikke ble lagret", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockRejectedValue(new Error("Network Error"));
+
+      await expect(
+        store.saveShift({ resourceId: 10, shiftId: null, comment: null })
+      ).rejects.toThrow("Network Error");
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
     });
 
     it("ledig vakt sender alltid comment, men utelater andre felt som ikke er satt", async () => {
@@ -453,6 +581,7 @@ describe("EventStore", () => {
       expect(mockApi.delete).toHaveBeenCalledWith("/api/shifts/1");
       expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
       expect(store.events[0]!.resources[0]!.shifts).toEqual([]);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1029,6 +1158,7 @@ describe("EventStore", () => {
       expect(formData.get("isMandatory")).toBe("true");
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
       expect(result).toEqual(fileInfo);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
 
     it("addResourceTypeFile sender false-flagg eksplisitt", async () => {
@@ -1068,6 +1198,7 @@ describe("EventStore", () => {
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
       expect(result).toEqual(updated);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
 
     it("deleteResourceTypeFile arkiverer med DELETE og henter vakttypene på nytt", async () => {
@@ -1080,6 +1211,67 @@ describe("EventStore", () => {
         `/api/resourcetypes/${TYPE_ID}/files/7`
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("instrukslisten hentes på nytt", () => {
+    it("etter deleteEvent", async () => {
+      mockApi.delete.mockResolvedValue({});
+
+      await store.deleteEvent(1);
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter updateEvent", async () => {
+      mockApi.put.mockResolvedValue({ data: eventWith(1, []) });
+
+      await store.updateEvent(1, {} as EventRequest);
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter updateResourceType", async () => {
+      mockApi.put.mockResolvedValue({});
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.updateResourceType({ id: TYPE_ID } as ResourceTypeRequest & {
+        id: number;
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter deleteResourceType", async () => {
+      mockApi.delete.mockResolvedValue({});
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.deleteResourceType({ id: TYPE_ID });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("ikke når kallet feiler", async () => {
+      mockApi.delete.mockRejectedValue(new Error("Network Error"));
+
+      await expect(store.deleteEvent(1)).rejects.toThrow("Network Error");
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("ikke etter createResourceType eller setTraining", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockEventRefresh(store);
+      mockApi.post.mockResolvedValue({ data: { id: TYPE_ID } });
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(7, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.createResourceType({} as ResourceTypeRequest);
+      await store.setTraining(7, true);
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
     });
   });
 

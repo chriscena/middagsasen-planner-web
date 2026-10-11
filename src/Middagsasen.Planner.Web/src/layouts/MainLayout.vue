@@ -377,20 +377,21 @@ const isAdmin = computed(() => user.value?.isAdmin ?? false);
 
 // Uleste instrukser til badgen på menyvalget (og på profilknappen via
 // ProfileMenuButton). Hentes ved oppstart med innlogget bruker og ved
-// innlogging; badgen er ikke kritisk, så feil bare logges. Ved utlogging
-// (både «Logg ut» og 401 går via authStore.removeUserSession) tømmes
-// store-en, siden Login-siden ligger under samme layout og store-en ellers
-// ville overlevd til neste bruker.
+// innlogging; badgen er ikke kritisk, så feil bare logges. Store-en tømmes
+// hver gang innlogget bruker endres: ved utlogging (både «Logg ut» og 401 går
+// via authStore.removeUserSession), siden Login-siden ligger under samme
+// layout og store-en ellers ville overlevd til neste bruker, og ved bytte
+// direkte fra én bruker til en annen, så den nye aldri ser den forrige sine
+// instrukser og et svar for den forrige som kommer etter byttet forkastes.
+// EventStore henter listen på nytt når vakter eller vedlegg endres.
 const unacknowledgedInstructions = computed(
   () => instructionStore.unacknowledgedCount
 );
 watch(
   () => user.value?.id,
   async (userId) => {
-    if (!userId) {
-      instructionStore.reset();
-      return;
-    }
+    instructionStore.reset();
+    if (!userId) return;
     try {
       await instructionStore.getMyInstructions();
     } catch (error) {

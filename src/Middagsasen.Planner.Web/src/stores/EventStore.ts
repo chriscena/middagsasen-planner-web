@@ -1,6 +1,8 @@
 import { defineStore } from "pinia";
 import { api } from "@/boot/axios";
 import { getErrorResponse } from "@/shared/apiError";
+import { useAuthStore } from "@/stores/AuthStore";
+import { reloadInstructionsInBackground } from "@/stores/InstructionStore";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
   AcknowledgementReportResponse,
@@ -112,6 +114,53 @@ async function fetchEvent(id: number): Promise<EventResponse> {
   return response.data;
 }
 
+// Sann når vakta lagres for en annen bruker enn den innloggede (bare admin).
+// Uten userId gjelder vakta innlogget bruker selv.
+function isForOtherUser(userId: number | null | undefined): boolean {
+  if (userId === undefined || userId === null) return false;
+  return userId !== useAuthStore().user?.id;
+}
+
+// Felles utløserpunkt for at innlogget brukers instruksliste (og badgen) kan
+// være endret. Instrukslistens appliesToMe avhenger av hvilke vakttyper
+// brukeren har vakt på denne sesongen, og gruppene av vakttypene og
+// vedleggene deres. Alle actions som kan endre noe av dette kjører sitt
+// API-kall gjennom denne:
+// - vakter: saveShift, withdraw
+// - arrangementer: updateEvent, deleteEvent (kan fjerne brukerens vakter)
+// - vakttyper: updateResourceType (navn), deleteResourceType (inaktiv)
+// - vedlegg: addResourceTypeFile, updateResourceTypeFile,
+//   deleteResourceTypeFile
+// Ikke berørt: addEvent/createEventFromTemplate og createResourceType (ingen
+// vakter eller vedlegg ennå), setTraining, beskjeder og tomme plasser.
+//
+// Valgt framfor alternativene:
+// - markEventsChanged kalles også ved rene hentinger (refreshEventResources),
+//   beskjeder og tomme plasser, men ikke ved endringer av vakttyper og
+//   vedlegg, så den ville gitt både for mange og for få hentinger.
+// - $onAction ville krevd en navneliste et annet sted enn actionene og ville
+//   først trigget etter hele actionen (inkl. etterfølgende henting).
+// Her står utløseren ved selve API-kallet i actionen, og en ny action som
+// endrer vakter, vakttyper eller vedlegg skal gjøre det samme.
+//
+// Innlogget bruker leses før kallet. Er brukeren logget ut eller byttet når
+// kallet er ferdig, hentes ingenting (listen tilhører da ikke lenger den som
+// gjorde endringen). Hentingen skjer i bakgrunnen og feil bare logges, så
+// actionen verken venter på eller feiler av den. affectsMe = false hopper
+// over hentingen (admin som tar ledig vakt for en annen bruker).
+async function instructionsMayChange<T>(
+  call: () => Promise<T>,
+  affectsMe = true
+): Promise<T> {
+  const authStore = useAuthStore();
+  const userId = authStore.user?.id;
+  const value = await call();
+  if (affectsMe && userId !== undefined && authStore.user?.id === userId) {
+    reloadInstructionsInBackground();
+  }
+  return value;
+}
+
 export const useEventStore = defineStore("events", {
   state: (): EventState => ({
     selectedEvent: null,
@@ -184,13 +233,15 @@ export const useEventStore = defineStore("events", {
       this.selectedEvent = await fetchEvent(id);
     },
     async deleteEvent(id: number): Promise<void> {
-      await api.delete(`/api/events/${id}`);
+      await instructionsMayChange(() => api.delete(`/api/events/${id}`));
       this.selectedEvent = null;
       this.events = this.events.filter((e) => e.id !== id);
       this.markEventsChanged();
     },
     async updateEvent(id: number, event: EventRequest): Promise<void> {
-      const response = await api.put<EventResponse>(`/api/events/${id}`, event);
+      const response = await instructionsMayChange(() =>
+        api.put<EventResponse>(`/api/events/${id}`, event)
+      );
       const updatedEvent = response.data;
       // findIndex i stedet for indexOf(find(...)): samme resultat (-1 når den
       // ikke finnes), men typesikkert.
@@ -217,14 +268,18 @@ export const useEventStore = defineStore("events", {
     async updateResourceType(
       resourceType: ResourceTypeRequest & { id: number }
     ): Promise<void> {
-      await api.put(`/api/resourcetypes/${resourceType.id}`, resourceType);
+      await instructionsMayChange(() =>
+        api.put(`/api/resourcetypes/${resourceType.id}`, resourceType)
+      );
       await this.getResourceTypes();
     },
 
     async deleteResourceType(
       resourceType: Pick<ResourceTypeResponse, "id">
     ): Promise<void> {
-      await api.delete(`/api/resourcetypes/${resourceType.id}`);
+      await instructionsMayChange(() =>
+        api.delete(`/api/resourcetypes/${resourceType.id}`)
+      );
       await this.getResourceTypes();
     },
     async getResourceTypes(): Promise<void> {
@@ -249,16 +304,23 @@ export const useEventStore = defineStore("events", {
         ...(userId !== undefined ? { userId } : {}),
         ...(trainingCompleted !== undefined ? { trainingCompleted } : {}),
       };
-      const response =
-        shiftId === null
-          ? await api.post<ShiftResult>(`/api/resources/${resourceId}/shifts`, {
-              ...optional,
-              comment,
-            } satisfies SignUpRequest)
-          : await api.put<ShiftResult>(`/api/shifts/${shiftId}`, {
-              ...optional,
-              comment,
-            } satisfies ChangeShiftRequest);
+      // Tar admin en ledig vakt for en annen, er ingen av admins egne vakter
+      // endret. Ved PUT kan vakta ha vært admins egen før den ble flyttet,
+      // så da hentes instrukslisten alltid.
+      const affectsMe = shiftId !== null || !isForOtherUser(userId);
+      const response = await instructionsMayChange(
+        () =>
+          shiftId === null
+            ? api.post<ShiftResult>(`/api/resources/${resourceId}/shifts`, {
+                ...optional,
+                comment,
+              } satisfies SignUpRequest)
+            : api.put<ShiftResult>(`/api/shifts/${shiftId}`, {
+                ...optional,
+                comment,
+              } satisfies ChangeShiftRequest),
+        affectsMe
+      );
       const result = response.data;
       await this.applyShiftResult(result);
       return result;
@@ -278,7 +340,11 @@ export const useEventStore = defineStore("events", {
     },
     // Trekke seg fra / slette vakta.
     async withdraw(shiftId: number): Promise<ShiftResult> {
-      const response = await api.delete<ShiftResult>(`/api/shifts/${shiftId}`);
+      // Den slettede vakta er ikke med i svaret, så vi vet ikke om den var
+      // innlogget brukers; instrukslisten hentes derfor alltid på nytt.
+      const response = await instructionsMayChange(() =>
+        api.delete<ShiftResult>(`/api/shifts/${shiftId}`)
+      );
       const result = response.data;
       await this.applyShiftResult(result);
       return result;
@@ -429,9 +495,11 @@ export const useEventStore = defineStore("events", {
         String(fileInfo.requiresAcknowledgement)
       );
       formData.append("isMandatory", String(fileInfo.isMandatory));
-      const response = await api.post<FileInfoResponse>(
-        `/api/resourcetypes/${resourcetype.id}/files`,
-        formData
+      const response = await instructionsMayChange(() =>
+        api.post<FileInfoResponse>(
+          `/api/resourcetypes/${resourcetype.id}/files`,
+          formData
+        )
       );
       await this.getResourceTypes();
       return response.data;
@@ -443,9 +511,11 @@ export const useEventStore = defineStore("events", {
       fileId: number,
       request: FileMetadataRequest
     ): Promise<FileInfoResponse> {
-      const response = await api.put<FileInfoResponse>(
-        `/api/resourcetypes/${resourceTypeId}/files/${fileId}`,
-        request
+      const response = await instructionsMayChange(() =>
+        api.put<FileInfoResponse>(
+          `/api/resourcetypes/${resourceTypeId}/files/${fileId}`,
+          request
+        )
       );
       await this.getResourceTypes();
       return response.data;
@@ -455,8 +525,10 @@ export const useEventStore = defineStore("events", {
     async deleteResourceTypeFile(
       fileInfo: Pick<FileInfoResponse, "id" | "resourceTypeId">
     ): Promise<void> {
-      await api.delete(
-        `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
+      await instructionsMayChange(() =>
+        api.delete(
+          `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
+        )
       );
       await this.getResourceTypes();
     },
