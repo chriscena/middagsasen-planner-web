@@ -11,9 +11,11 @@ import type {
   FileMetadataRequest,
   MessageResponse,
   ResourceResponse,
+  ResourceTypeRequest,
   ShiftResponse,
   ShiftResult,
   TrainingResponse,
+  UserResponse,
 } from "@/types";
 
 const mockApi = vi.hoisted(() => ({
@@ -36,7 +38,16 @@ vi.mock("@/stores/InstructionStore", () => ({
   reloadInstructionsInBackground: mockReloadInstructions,
 }));
 
+import { useAuthStore } from "@/stores/AuthStore";
 import { useEventStore } from "@/stores/EventStore";
+
+// AuthStore leser innlogget bruker fra localStorage når den ikke er satt i
+// staten (f.eks. etter utlogging). Testmiljøet (node) har ingen.
+vi.stubGlobal("localStorage", {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+});
 
 // Kun feltene storen bruker (id og startTime) er relevante her.
 function event(id: number, startTime: string): EventResponse {
@@ -146,6 +157,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function logInAs(userId: number): void {
+  useAuthStore().loggedInUser = { id: userId } as UserResponse;
+}
+
 describe("EventStore", () => {
   let store: ReturnType<typeof useEventStore>;
 
@@ -155,6 +170,7 @@ describe("EventStore", () => {
     // Nullstiller også mockResolvedValue o.l. fra forrige test.
     vi.resetAllMocks();
     vi.restoreAllMocks();
+    logInAs(CURRENT_USER_ID);
   });
 
   describe("applyShiftResult", () => {
@@ -349,6 +365,52 @@ describe("EventStore", () => {
       });
 
       expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter ikke instrukslisten når brukeren logger ut før vakta er lagret", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      const pending = deferred<ShiftResult>();
+      mockApi.post.mockReturnValue(pending.promise);
+
+      const request = store.saveShift({
+        resourceId: 10,
+        shiftId: null,
+        comment: null,
+      });
+      useAuthStore().removeUserSession();
+      pending.resolve({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+      await request;
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter ikke instrukslisten når en annen bruker har logget inn før vakta er trukket", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      const pending = deferred<ShiftResult>();
+      mockApi.delete.mockReturnValue(pending.promise);
+
+      const request = store.withdraw(1);
+      logInAs(OTHER_USER_ID);
+      pending.resolve({ data: result(resource(10, [])) });
+      await request;
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter ikke instrukslisten uten innlogget bruker", async () => {
+      useAuthStore().removeUserSession();
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
     });
 
     it("henter ikke instrukslisten når vakta ikke ble lagret", async () => {
@@ -1150,6 +1212,66 @@ describe("EventStore", () => {
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
       expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("instrukslisten hentes på nytt", () => {
+    it("etter deleteEvent", async () => {
+      mockApi.delete.mockResolvedValue({});
+
+      await store.deleteEvent(1);
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter updateEvent", async () => {
+      mockApi.put.mockResolvedValue({ data: eventWith(1, []) });
+
+      await store.updateEvent(1, {} as EventRequest);
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter updateResourceType", async () => {
+      mockApi.put.mockResolvedValue({});
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.updateResourceType({ id: TYPE_ID } as ResourceTypeRequest & {
+        id: number;
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("etter deleteResourceType", async () => {
+      mockApi.delete.mockResolvedValue({});
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.deleteResourceType({ id: TYPE_ID });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("ikke når kallet feiler", async () => {
+      mockApi.delete.mockRejectedValue(new Error("Network Error"));
+
+      await expect(store.deleteEvent(1)).rejects.toThrow("Network Error");
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("ikke etter createResourceType eller setTraining", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockEventRefresh(store);
+      mockApi.post.mockResolvedValue({ data: { id: TYPE_ID } });
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(7, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.createResourceType({} as ResourceTypeRequest);
+      await store.setTraining(7, true);
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
     });
   });
 

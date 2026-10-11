@@ -204,45 +204,65 @@ describe("InstructionStore", () => {
       expect(store.loading).toBe(false);
     });
 
-    it("følger en nyere henting også når den gamle lykkes først", async () => {
+    it("bruker et vellykket eldre svar, men lar den nyeste hentingen avgjøre utfallet", async () => {
       const older = deferred<{ data: InstructionGroupResponse[] }>();
       const newer = deferred<{ data: InstructionGroupResponse[] }>();
       mockApi.get
         .mockReturnValueOnce(older.promise)
         .mockReturnValueOnce(newer.promise);
+      const olderGroups = [group(1, true, [file(10, 1)])];
 
       let settled = false;
       const pending = store.getMyInstructions().finally(() => {
         settled = true;
       });
       const reload = store.reloadInstructions();
-      older.resolve({ data: [group(1, true, [file(10, 1)])] });
+      older.resolve({ data: olderGroups });
       await flushPromises();
+      // Dataene fra den eldre vises mens den nyeste pågår.
       expect(settled).toBe(false);
+      expect(store.groups).toEqual(olderGroups);
+      expect(store.loading).toBe(true);
 
       newer.reject(new Error("Network Error"));
 
-      // Utfallet er den nye hentingens, som bestemmer groups.
+      // Den nyeste feilet: kallerne får feilen, men dataene beholdes.
       await expect(pending).rejects.toThrow("Network Error");
       await expect(reload).rejects.toThrow("Network Error");
-      expect(store.groups).toEqual([]);
+      expect(store.groups).toEqual(olderGroups);
+      expect(store.unacknowledgedCount).toBe(1);
+      expect(store.loading).toBe(false);
     });
 
-    it("gir den nye hentingens feil også når den gamle lykkes etter den", async () => {
+    it("gir den nye hentingens feil, men bruker et eldre svar som kommer etterpå", async () => {
       const older = deferred<{ data: InstructionGroupResponse[] }>();
       const newer = deferred<{ data: InstructionGroupResponse[] }>();
       mockApi.get
         .mockReturnValueOnce(older.promise)
         .mockReturnValueOnce(newer.promise);
+      const olderGroups = [group(1, true, [file(10, 1)])];
 
       const pending = store.getMyInstructions();
       const reload = store.reloadInstructions();
       newer.reject(new Error("Network Error"));
       await expect(reload).rejects.toThrow("Network Error");
-      older.resolve({ data: [group(1, true, [file(10, 1)])] });
+      older.resolve({ data: olderGroups });
 
       await expect(pending).rejects.toThrow("Network Error");
-      expect(store.groups).toEqual([]);
+      // Ingen nyere svar er brukt, så det eldre er det beste vi har.
+      expect(store.groups).toEqual(olderGroups);
+    });
+
+    it("lar et vellykket eldre svar bli stående når en ny reload feiler", async () => {
+      const groups = [group(1, true, [file(10, 1)])];
+      mockApi.get
+        .mockResolvedValueOnce({ data: groups })
+        .mockRejectedValueOnce(new Error("Network Error"));
+
+      await store.getMyInstructions();
+      await expect(store.reloadInstructions()).rejects.toThrow("Network Error");
+
+      expect(store.groups).toEqual(groups);
     });
 
     it("getMyInstructions under en reload deler den nyeste hentingen", async () => {
