@@ -47,5 +47,21 @@ namespace Middagsasen.Planner.Api.Tests.Controllers
             // Kaster i stedet for å sette context.Result, slik at svaret blir ProblemDetails (401).
             Assert.Throws<NotAuthenticatedException>(() => GetFileAuthorizeAttribute()!.OnAuthorization(context));
         }
+
+        [Fact]
+        public void GetAcknowledgementSummaries_RequiresAdministrator_AndIsALiteralRoute()
+        {
+            var method = typeof(ResourceTypesController).GetMethod(nameof(ResourceTypesController.GetAcknowledgementSummaries))!;
+
+            var authorize = method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true).Cast<AuthorizeAttribute>().Single();
+            Assert.Equal(Roles.Administrator, authorize.Role);
+
+            // «acknowledgements» er et fast segment; files/{id} krever et heltall, så rutene kolliderer ikke.
+            var route = method.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true).Cast<HttpGetAttribute>().Single();
+            Assert.Equal("{resourceTypeId}/files/acknowledgements", route.Template);
+            var fileRoute = typeof(ResourceTypesController).GetMethod(nameof(ResourceTypesController.GetFile))!
+                .GetCustomAttributes(typeof(HttpGetAttribute), inherit: true).Cast<HttpGetAttribute>().Single();
+            Assert.Equal("{resourceTypeId}/files/{id:int}", fileRoute.Template);
+        }
     }
 }

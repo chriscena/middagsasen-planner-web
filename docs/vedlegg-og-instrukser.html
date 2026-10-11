@@ -359,6 +359,7 @@ SeasonStartUtc(now) => DateTimeExtensions.GetSeasonRangeUtc(now.GetSeasonStartYe
     <tr><td>DELETE</td><td><code>api/resourcetypes/{id}/files/{fileId}</code></td><td><span class="pill admin">admin</span></td><td>Arkiverer. Setter <code>Archived</code> og <code>ArchivedBy</code>. Finnes i dag, endrer oppførsel.</td></tr>
     <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/{fileId}</code></td><td><span class="pill all">innlogget</span></td><td>Laster ned filen. Arkiverte filer gir 404 for ikke-admin. Finnes i dag.</td></tr>
     <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/archived</code></td><td><span class="pill admin">admin</span></td><td>Arkiverte vedlegg for vakttypen, nyeste først. Ny.</td></tr>
+    <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/acknowledgements</code></td><td><span class="pill admin">admin</span></td><td>Tellere for alle aktive instrukser på vakttypen i ett kall. Samme populasjon som rapporten med <code>all=false</code>. Ny.</td></tr>
     <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/{fileId}/acknowledgements?all=false</code></td><td><span class="pill admin">admin</span></td><td>Kvitteringsrapport. <code>all=false</code> gir brukere vakttypen gjelder for, <code>all=true</code> alle brukere. Ny. Løser #40.</td></tr>
     <tr><td>POST</td><td><code>api/resourcetypes/{id}/files/{fileId}/acknowledgements</code></td><td><span class="pill all">innlogget</span></td><td>Kvitterer for innlogget bruker. Body <code>{ comment? }</code>. Idempotent. 400 hvis filen ikke krever kvittering eller er arkivert. Ny. Løser #41.</td></tr>
     <tr><td>GET</td><td><code>api/me/instructions</code></td><td><span class="pill all">innlogget</span></td><td>Alle aktive instrukser gruppert per vakttype, med <code>appliesToMe</code> og kvitteringsstatus. Ny.</td></tr>
@@ -378,6 +379,7 @@ SeasonStartUtc(now) => DateTimeExtensions.GetSeasonRangeUtc(now.GetSeasonStartYe
     <tr><td><code>FileMetadataRequest</code></td><td>Ny: <code>Description</code>, <code>RequiresAcknowledgement</code>, <code>IsMandatory</code>.</td></tr>
     <tr><td><code>AcknowledgeRequest</code></td><td>Ny: <code>Comment</code> (string?, maks 1000 tegn).</td></tr>
     <tr><td><code>AcknowledgementReportResponse</code></td><td>Ny: <code>File</code> (FileInfoResponse), <code>Total</code>, <code>AcknowledgedCount</code>, <code>Users[]</code> med <code>UserId</code>, <code>FullName</code>, <code>AcknowledgedAt?</code>, <code>Comment?</code>, <code>AppliesTo</code>. Sortert: ikke kvittert først, så fullt navn, slik brukere sorteres ellers i appen. Bare aktive brukere tas med.</td></tr>
+    <tr><td><code>AcknowledgementSummaryResponse</code></td><td>Ny: <code>FileId</code>, <code>AcknowledgedCount</code>, <code>Total</code>. Én rad per aktiv instruks. Gir tellerne på Vakttyper-siden uten å hente hele rapporten per instruks.</td></tr>
     <tr><td><code>InstructionGroupResponse</code></td><td>Ny: <code>ResourceTypeId</code>, <code>ResourceTypeName</code>, <code>AppliesToMe</code>, <code>Files[]</code> (FileInfoResponse med <code>AcknowledgedAt</code>). Bare aktive filer med <code>RequiresAcknowledgement</code>. Vakttyper uten instrukser utelates.</td></tr>
   </tbody>
 </table>
@@ -441,7 +443,7 @@ src/pages/InstructionsPage.vue          // rute /instructions</code></pre>
   <li>Opplastingsdialogen får to <code>q-toggle</code>: «Krever kvittering» og «Påkrevd for å ta vakt». Den andre er bare aktiv når den første er på.</li>
   <li>Rediger-knapp per vedlegg åpner samme dialog uten filvelger, og kaller PUT.</li>
   <li>Slett-knappen heter «Arkiver» og spør «Arkivere vedlegget? Det fjernes fra vakttypen, men kvitteringene beholdes.»</li>
-  <li>Instrukser viser «12 av 18 har kvittert». Klikk åpner <code>AcknowledgementReportDialog</code> med <code>q-table</code>: navn, kvittert tidspunkt, kommentar. Ikke kvittert øverst. Bryter «Vis alle brukere» kaller endepunktet med <code>all=true</code>. Løser #33.</li>
+  <li>Instrukser viser «12 av 18 har kvittert», hentet med ett kall til oppsummeringsendepunktet. Klikk åpner <code>AcknowledgementReportDialog</code> med <code>q-table</code>: navn, kvittert tidspunkt, kommentar. Ikke kvittert øverst. Bryter «Vis alle brukere» kaller endepunktet med <code>all=true</code>. Løser #33.</li>
   <li>Sammenslått seksjon «Arkiverte vedlegg» nederst i Filer-kortet, hentet ved åpning. Hvert arkivert vedlegg har nedlasting og rapport, men ingen gjenoppretting.</li>
 </ul>
 

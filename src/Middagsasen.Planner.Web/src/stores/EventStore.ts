@@ -4,6 +4,7 @@ import { getErrorResponse } from "@/shared/apiError";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
   AcknowledgementReportResponse,
+  AcknowledgementSummaryResponse,
   ChangeShiftRequest,
   EventFromTemplateRequest,
   EventRequest,
@@ -471,6 +472,17 @@ export const useEventStore = defineStore("events", {
       const response = await api.get<AcknowledgementReportResponse>(
         `/api/resourcetypes/${resourceTypeId}/files/${fileId}/acknowledgements`,
         { params: { all } }
+      );
+      return response.data;
+    },
+    // Kun admin. Kvittert/totalt for alle aktive instrukser på vakttypen i ett
+    // kall (én rad per instruks), med samme populasjon som rapporten med
+    // all=false. Brukes til tellerne på Vakttyper-siden. Feil kastes videre.
+    async getAcknowledgementSummaries(
+      resourceTypeId: number
+    ): Promise<AcknowledgementSummaryResponse[]> {
+      const response = await api.get<AcknowledgementSummaryResponse[]>(
+        `/api/resourcetypes/${resourceTypeId}/files/acknowledgements`
       );
       return response.data;
     },

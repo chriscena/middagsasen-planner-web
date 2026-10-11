@@ -276,6 +276,23 @@
                   <q-spinner color="primary" size="2em"></q-spinner>
                 </div>
                 <div
+                  v-else-if="archivedFailed"
+                  class="row items-center q-pa-md q-gutter-sm"
+                >
+                  <span class="text-negative"
+                    >Klarte ikke å hente arkiverte vedlegg.</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    icon="refresh"
+                    label="Prøv igjen"
+                    @click="loadArchivedFiles"
+                  ></q-btn>
+                </div>
+                <div
                   v-else-if="archivedFiles && archivedFiles.length === 0"
                   class="q-pa-md text-caption text-grey-7"
                 >
@@ -454,6 +471,7 @@ import { useEventStore } from "@/stores/EventStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useCompetencyStore } from "@/stores/CompetencyStore";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { createLatest } from "@/shared/latestRequest";
 import { notifyApiError } from "@/shared/notifyApiError";
 import { formatDate } from "@/shared/time";
 import {
@@ -791,41 +809,47 @@ interface AcknowledgementCount {
 const acknowledgementCounts = ref<Record<number, AcknowledgementCount | null>>(
   {}
 );
-let countsSeq = 0;
+const latestCounts = createLatest();
 
-// Henter tellerne for alle aktive instrukser parallelt. Tellerne tømmes
-// først, så det aldri vises tall fra før en endring.
+// Henter tellerne for alle aktive instrukser på vakttypen i ett kall.
+// Tellerne tømmes ikke her: ved bytte av vakttype gjør resetFileReports det,
+// og etter lagring/arkivering på samme vakttype står de gamle tallene til de
+// nye kommer (unngår flimmer). Et nytt vedlegg mangler i tellerne og viser
+// «Henter kvitteringer …» til svaret er der.
 async function loadAcknowledgementCounts() {
-  const seq = ++countsSeq;
-  acknowledgementCounts.value = {};
+  const token = latestCounts.start();
   const resource = selectedResource.value;
   const resourceTypeId = resource?.id;
   if (!resource || !resourceTypeId) return;
   const files = (resource.files ?? []).filter((f) => f.requiresAcknowledgement);
-  const results = await Promise.allSettled(
-    files.map((f) =>
-      eventStore.getAcknowledgementReport(resourceTypeId, f.id, false)
-    )
-  );
-  if (seq !== countsSeq) return;
-  const counts: Record<number, AcknowledgementCount | null> = {};
-  files.forEach((file, i) => {
-    const result = results[i];
-    counts[file.id] =
-      result?.status === "fulfilled"
+  if (files.length === 0) {
+    acknowledgementCounts.value = {};
+    return;
+  }
+  try {
+    const summaries =
+      await eventStore.getAcknowledgementSummaries(resourceTypeId);
+    if (!latestCounts.isCurrent(token)) return;
+    const byFileId = new Map(summaries.map((s) => [s.fileId, s]));
+    // En instruks som mangler i svaret (bør ikke skje) får null, så den
+    // viser «Vis kvitteringer» og ikke «Henter …» for alltid.
+    const counts: Record<number, AcknowledgementCount | null> = {};
+    for (const file of files) {
+      const summary = byFileId.get(file.id);
+      counts[file.id] = summary
         ? {
-            acknowledgedCount: result.value.acknowledgedCount,
-            total: result.value.total,
+            acknowledgedCount: summary.acknowledgedCount,
+            total: summary.total,
           }
         : null;
-  });
-  acknowledgementCounts.value = counts;
-  // Én melding selv om flere tellinger feiler.
-  const failure = results.find(
-    (r): r is PromiseRejectedResult => r.status === "rejected"
-  );
-  if (failure) {
-    notifyApiError(failure.reason, "Klarte ikke å hente kvitteringene.");
+    }
+    acknowledgementCounts.value = counts;
+  } catch (error) {
+    if (!latestCounts.isCurrent(token)) return;
+    acknowledgementCounts.value = Object.fromEntries(
+      files.map((f) => [f.id, null])
+    );
+    notifyApiError(error, "Klarte ikke å hente kvitteringene.");
   }
 }
 
@@ -841,23 +865,27 @@ function acknowledgementCountLabel(file: FileInfoResponse): string {
 // Arkiverte vedlegg: null = ikke hentet (eller ugyldiggjort).
 const archivedFiles = ref<FileInfoResponse[] | null>(null);
 const archivedLoading = ref(false);
+// Siste henting av arkivlisten feilet; vises med «Prøv igjen».
+const archivedFailed = ref(false);
 const showingArchived = ref(false);
-let archivedSeq = 0;
+const latestArchived = createLatest();
 
 async function loadArchivedFiles() {
   const resourceTypeId = selectedResource.value?.id;
   if (!resourceTypeId) return;
-  const seq = ++archivedSeq;
+  const token = latestArchived.start();
   archivedLoading.value = true;
+  archivedFailed.value = false;
   try {
     const files = await eventStore.getArchivedResourceTypeFiles(resourceTypeId);
-    if (seq === archivedSeq) archivedFiles.value = files;
+    if (latestArchived.isCurrent(token)) archivedFiles.value = files;
   } catch (error) {
-    if (seq === archivedSeq) {
+    if (latestArchived.isCurrent(token)) {
+      archivedFailed.value = true;
       notifyApiError(error, "Klarte ikke å hente arkiverte vedlegg.");
     }
   } finally {
-    if (seq === archivedSeq) archivedLoading.value = false;
+    if (latestArchived.isCurrent(token)) archivedLoading.value = false;
   }
 }
 
@@ -872,20 +900,22 @@ function ensureArchivedFiles() {
 // Etter arkivering er listen utdatert. Er seksjonen åpen, hentes den på
 // nytt med en gang, ellers ved neste åpning.
 function invalidateArchivedFiles() {
-  archivedSeq += 1;
+  latestArchived.cancel();
   archivedFiles.value = null;
   archivedLoading.value = false;
+  archivedFailed.value = false;
   if (showingArchived.value) void loadArchivedFiles();
 }
 
 // Ved bytte av vakttype: forkast tellere, arkivliste og svar underveis, og
 // lukk arkivseksjonen.
 function resetFileReports() {
-  countsSeq += 1;
+  latestCounts.cancel();
   acknowledgementCounts.value = {};
-  archivedSeq += 1;
+  latestArchived.cancel();
   archivedFiles.value = null;
   archivedLoading.value = false;
+  archivedFailed.value = false;
   showingArchived.value = false;
 }
 

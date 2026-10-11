@@ -100,6 +100,5 @@ dotnet test ../Middagsasen.Planner.Api.Tests/
 ## Pågående arbeid
 
 - **Kompetansesystem**: Frittstående kompetanser, godkjenningsflyt, utløpsdato og MinimumRequired per ressurstype. Backend og frontend delvis implementert.
-- **Vedlegg og instrukser**: se docs/vedlegg-og-instrukser.html. PR 1 (database og backend) er gjort; PR 2–4 (viser med kvittering, Instrukser-siden med badge, rapport og arkiv for admin) gjenstår i frontend.
 - **Backend-forbedring**: 6-stegs plan for bedre arkitektur (se docs/backend-arkitektur.md)
 - **PostgreSQL-migrering**: se docs/postgresql-migrering.md. Docker-deploy planlagt for portabilitet bort fra Azure.

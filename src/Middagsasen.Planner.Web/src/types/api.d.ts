@@ -2016,6 +2016,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ResourceTypes/{resourceTypeId}/files/acknowledgements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resourceTypeId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AcknowledgementSummaryResponse"][];
+                        "application/json": components["schemas"]["AcknowledgementSummaryResponse"][];
+                        "text/json": components["schemas"]["AcknowledgementSummaryResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ResourceTypes/{resourceTypeId}/files/{id}/acknowledgements": {
         parameters: {
             query?: never;
@@ -4265,6 +4331,14 @@ export interface components {
             acknowledgedAt?: null | string;
             comment?: null | string;
             appliesTo: boolean;
+        };
+        AcknowledgementSummaryResponse: {
+            /** Format: int32 */
+            fileId: number;
+            /** Format: int32 */
+            acknowledgedCount: number;
+            /** Format: int32 */
+            total: number;
         };
         AcknowledgeRequest: {
             comment?: null | string;

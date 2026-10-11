@@ -37,7 +37,24 @@
         ></q-toggle>
       </q-card-section>
       <q-separator></q-separator>
-      <div class="col scroll">
+      <!-- Feiltilstand når det ikke finnes noen rapport å vise (første
+           henting feilet), så en tom tabell ikke leses som «ingen berørt». -->
+      <div
+        v-if="loadFailed && !report && !loading"
+        class="column flex-center q-pa-xl q-gutter-y-md text-center"
+      >
+        <q-icon name="error_outline" size="3em" color="negative"></q-icon>
+        <div>Klarte ikke å hente kvitteringsrapporten.</div>
+        <q-btn
+          unelevated
+          color="primary"
+          no-caps
+          icon="refresh"
+          label="Prøv igjen"
+          @click="load"
+        ></q-btn>
+      </div>
+      <div v-else class="col scroll">
         <q-table
           flat
           dense
@@ -50,7 +67,7 @@
           :filter-method="filterByName"
           :pagination="{ rowsPerPage: 0 }"
           hide-pagination
-          no-data-label="Ingen brukere"
+          :no-data-label="loading ? 'Henter …' : 'Ingen brukere'"
           no-results-label="Ingen brukere med det navnet"
         >
           <template #top>
@@ -70,7 +87,7 @@
             <q-td :props="cell">
               <div>{{ cell.row.fullName }}</div>
               <div
-                v-if="showAll && !cell.row.appliesTo"
+                v-if="reportAll && !cell.row.appliesTo"
                 class="text-caption text-grey-7"
               >
                 Har ikke hatt vakten denne sesongen
@@ -99,6 +116,7 @@
 import { ref } from "vue";
 import { useQuasar, type QTableColumn } from "quasar";
 import { useEventStore } from "@/stores/EventStore";
+import { createLatest } from "@/shared/latestRequest";
 import { notifyApiError } from "@/shared/notifyApiError";
 import { formatDate, formatDateTime } from "@/shared/time";
 import type {
@@ -142,12 +160,19 @@ const columns: QTableColumn<AcknowledgementReportUserResponse>[] = [
 ];
 
 const report = ref<AcknowledgementReportResponse | null>(null);
+// Populasjonen report gjelder (all-parameteren den ble hentet med).
+const reportAll = ref(false);
 const loading = ref(false);
+// Siste henting feilet. Vises som feiltilstand når det ikke finnes noen
+// rapport; ellers beholdes den forrige rapporten.
+const loadFailed = ref(false);
+// Bryterens stilling. Settes tilbake til reportAll hvis hentingen for ny
+// stilling feiler, så bryter, overskrift og tabell alltid samsvarer.
 const showAll = ref(false);
 const filter = ref<string | null>(null);
-// Løpenummer for siste henting; svar fra eldre hentinger (f.eks. bryteren
-// slått frem og tilbake raskt) forkastes.
-let loadSeq = 0;
+// Bare siste henting teller; svar fra eldre (f.eks. bryteren slått frem og
+// tilbake raskt, eller dialogen lukket) forkastes.
+const latest = createLatest();
 
 function onBeforeShow() {
   showAll.value = false;
@@ -156,28 +181,37 @@ function onBeforeShow() {
 }
 
 async function load() {
-  const seq = ++loadSeq;
+  const token = latest.start();
+  const all = showAll.value;
   loading.value = true;
+  loadFailed.value = false;
   try {
     const data = await eventStore.getAcknowledgementReport(
       props.resourceTypeId,
       props.file.id,
-      showAll.value
+      all
     );
-    if (seq === loadSeq) report.value = data;
+    if (!latest.isCurrent(token)) return;
+    report.value = data;
+    reportAll.value = all;
   } catch (error) {
-    if (seq === loadSeq) {
-      notifyApiError(error, "Klarte ikke å hente kvitteringsrapporten.");
-    }
+    if (!latest.isCurrent(token)) return;
+    loadFailed.value = true;
+    // Vises en rapport, settes bryteren tilbake til populasjonen den gjelder.
+    // Uten rapport beholdes stillingen, så «Prøv igjen» henter den.
+    if (report.value) showAll.value = reportAll.value;
+    notifyApiError(error, "Klarte ikke å hente kvitteringsrapporten.");
   } finally {
-    if (seq === loadSeq) loading.value = false;
+    if (latest.isCurrent(token)) loading.value = false;
   }
 }
 
 function reset() {
-  loadSeq += 1;
+  latest.cancel();
   report.value = null;
+  reportAll.value = false;
   loading.value = false;
+  loadFailed.value = false;
 }
 
 // Filtrerer bare på navn (standardfilteret søker i alle kolonner).

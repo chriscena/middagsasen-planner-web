@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import type {
   AcknowledgementReportResponse,
+  AcknowledgementSummaryResponse,
   EventRequest,
   EventResponse,
   EventTemplateRequest,
@@ -1147,6 +1148,30 @@ describe("EventStore", () => {
       mockApi.get.mockRejectedValue(error);
 
       await expect(store.getAcknowledgementReport(TYPE_ID, 8)).rejects.toBe(
+        error
+      );
+    });
+
+    it("getAcknowledgementSummaries henter tellerne for vakttypen i ett kall", async () => {
+      const summaries: AcknowledgementSummaryResponse[] = [
+        { fileId: 7, acknowledgedCount: 12, total: 18 },
+        { fileId: 9, acknowledgedCount: 0, total: 18 },
+      ];
+      mockApi.get.mockResolvedValue({ data: summaries });
+
+      const result = await store.getAcknowledgementSummaries(TYPE_ID);
+
+      expect(mockApi.get).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/acknowledgements`
+      );
+      expect(result).toEqual(summaries);
+    });
+
+    it("getAcknowledgementSummaries kaster feilen videre", async () => {
+      const error = new Error("403");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.getAcknowledgementSummaries(TYPE_ID)).rejects.toBe(
         error
       );
     });
