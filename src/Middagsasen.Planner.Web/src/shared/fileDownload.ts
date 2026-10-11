@@ -61,14 +61,13 @@ export function saveBlob(blob: Blob, fileName: string): void {
 }
 
 /**
- * Henter en fil for en vakttype (med innlogging) og laster den ned med
- * riktig filnavn. Kaster videre ved feil; komponenter bruker
- * `downloadResourceTypeFileOrNotify`.
+ * Henter et vedlegg for en vakttype (med innlogging) som Blob. Deles av
+ * nedlastingen og viseren (AttachmentViewerDialog). Kaster videre ved feil,
+ * med feil-bodyen pakket ut så `notifyApiError` kan lese den.
  */
-export async function downloadResourceTypeFile(
-  file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">
-): Promise<void> {
-  let blob: Blob;
+export async function fetchResourceTypeFile(
+  file: Pick<FileInfoResponse, "id" | "resourceTypeId">
+): Promise<Blob> {
   try {
     const response = await api.get<Blob>(
       `/api/resourcetypes/${file.resourceTypeId}/files/${file.id}`,
@@ -77,11 +76,22 @@ export async function downloadResourceTypeFile(
         signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT_MS),
       }
     );
-    blob = response.data;
+    return response.data;
   } catch (error) {
     await unwrapBlobError(error);
     throw error;
   }
+}
+
+/**
+ * Henter en fil for en vakttype (med innlogging) og laster den ned med
+ * riktig filnavn. Kaster videre ved feil; komponenter bruker
+ * `downloadResourceTypeFileOrNotify`.
+ */
+export async function downloadResourceTypeFile(
+  file: Pick<FileInfoResponse, "id" | "resourceTypeId" | "fileName">
+): Promise<void> {
+  const blob = await fetchResourceTypeFile(file);
   saveBlob(blob, file.fileName);
 }
 

@@ -95,6 +95,31 @@ export default defineConfig((/* ctx */) => {
           ...viteConf.define,
           __APP_VERSION__: JSON.stringify(appVersion),
         };
+        // pdf.js (via @tato30/vue-pdf) skal bruke legacy-bygget, som har
+        // polyfills for eldre nettlesere (bl.a. Promise.withResolvers på iOS
+        // Safari < 17.4). Bare den rene importen «pdfjs-dist» pekes om (regex),
+        // så worker-importen «pdfjs-dist/legacy/build/…?url» i
+        // AttachmentPdfPages.vue ikke rammes. Quasar setter alias som objekt;
+        // det gjøres om til listeform for å kunne bruke regex, med de
+        // innebygde aliasene beholdt.
+        const builtInAliases = Object.entries(
+          viteConf.resolve?.alias ?? {}
+        ).map(([find, replacement]) => ({ find, replacement }));
+        viteConf.resolve = {
+          ...viteConf.resolve,
+          alias: [
+            ...builtInAliases,
+            {
+              find: /^pdfjs-dist$/,
+              replacement: fileURLToPath(
+                new URL(
+                  "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
+                  import.meta.url
+                )
+              ),
+            },
+          ],
+        };
       },
       // viteVuePluginOptions: {},
 

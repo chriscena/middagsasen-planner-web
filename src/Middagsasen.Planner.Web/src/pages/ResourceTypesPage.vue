@@ -189,46 +189,63 @@
             </q-card-actions>
           </q-card>
           <q-card bordered flat>
-            <q-card-section class="q-py-sm text-subtitle2">Filer</q-card-section
+            <q-card-section class="q-py-sm text-subtitle2"
+              >Vedlegg</q-card-section
             ><q-separator></q-separator>
             <q-list role="list" separator>
               <q-item v-for="file in selectedResource!.files" :key="file.id">
-                <q-item-section
-                  ><q-item-label>{{ file.description }}</q-item-label>
-                  <q-item-label caption>{{
-                    file.fileName
-                  }}</q-item-label></q-item-section
-                >
-                <q-item-section side
-                  ><q-btn
-                    flat
-                    round
-                    icon="download"
-                    title="Last ned fil"
-                    @click="downloadResourceTypeFileOrNotify(file)"
-                  ></q-btn> </q-item-section
-                ><q-item-section side>
-                  <q-btn
-                    flat
-                    round
-                    icon="delete"
-                    title="Slette fil"
-                    @click="deleteFile(file)"
-                    :loading="deletingFile"
-                  ></q-btn
-                ></q-item-section>
+                <q-item-section>
+                  <q-item-label>{{ file.description }}</q-item-label>
+                  <q-item-label caption>{{ file.fileName }}</q-item-label>
+                  <q-item-label v-if="file.requiresAcknowledgement" caption>
+                    <q-badge color="primary" label="Instruks"></q-badge>
+                    <q-badge
+                      v-if="file.isMandatory"
+                      outline
+                      color="grey-8"
+                      label="Påkrevd"
+                      class="q-ml-xs"
+                    ></q-badge>
+                  </q-item-label>
+                </q-item-section>
+                <q-item-section side>
+                  <div class="row no-wrap">
+                    <q-btn
+                      flat
+                      round
+                      icon="download"
+                      title="Last ned vedlegg"
+                      @click="downloadResourceTypeFileOrNotify(file)"
+                    ></q-btn>
+                    <q-btn
+                      flat
+                      round
+                      icon="edit"
+                      title="Endre vedlegg"
+                      @click="showEditFile(file)"
+                    ></q-btn>
+                    <q-btn
+                      flat
+                      round
+                      icon="archive"
+                      title="Arkiver vedlegg"
+                      @click="confirmArchiveFile(file)"
+                      :loading="archivingFile"
+                    ></q-btn>
+                  </div>
+                </q-item-section>
               </q-item>
             </q-list>
             <q-separator></q-separator>
             <q-card-section
               v-if="!selectedResource!.id"
               class="q-py-sm text-caption text-grey-7"
-              >Filer kan legges til når vakttypen er lagret.</q-card-section
+              >Vedlegg kan legges til når vakttypen er lagret.</q-card-section
             >
             <q-card-actions v-if="selectedResource!.id" align="right">
               <q-btn
                 icon="add"
-                label="Legg til fil"
+                label="Legg til vedlegg"
                 no-caps
                 flat
                 color="primary"
@@ -292,10 +309,17 @@
           </q-card-actions>
         </q-card>
       </q-dialog>
+      <!-- Samme dialog for nytt vedlegg og redigering av metadata. Selve
+           filen kan ikke byttes (kvitteringene gjelder innholdet); nytt
+           innhold er arkiver + legg til. -->
       <q-dialog v-model="showingAddFile">
         <q-card class="full-width">
+          <q-card-section class="text-h6">{{
+            editingFile ? "Endre vedlegg" : "Nytt vedlegg"
+          }}</q-card-section>
           <q-card-section class="row q-gutter-sm">
             <q-file
+              v-if="!editingFile"
               class="col-12"
               label="Fil"
               placeholder="Velg fil"
@@ -311,9 +335,23 @@
               class="col-12"
               label="Beskrivelse"
               outlined
+              :autofocus="!!editingFile"
               v-model="fileInfo!.description"
             >
-            </q-input
+            </q-input>
+            <q-toggle
+              class="col-12"
+              label="Krever kvittering"
+              v-model="fileInfo!.requiresAcknowledgement"
+              @update:model-value="onRequiresAcknowledgementChanged"
+            ></q-toggle>
+            <!-- Påkrevd forutsetter kvittering; nullstilles når den slås av. -->
+            <q-toggle
+              class="col-12"
+              label="Påkrevd for å ta vakt"
+              v-model="fileInfo!.isMandatory"
+              :disable="!fileInfo!.requiresAcknowledgement"
+            ></q-toggle
           ></q-card-section>
           <q-card-actions align="right">
             <q-btn
@@ -324,12 +362,12 @@
               :disable="savingFile"
             ></q-btn>
             <q-btn
-              label="Legg til"
+              :label="editingFile ? 'Lagre' : 'Legg til'"
               no-caps
               unelevated
               color="primary"
-              @click="addFile"
-              :disable="!canAddFile"
+              @click="saveFile"
+              :disable="!canSaveFile"
               :loading="savingFile"
             ></q-btn>
           </q-card-actions>
@@ -359,14 +397,19 @@ import { computed } from "vue";
 import type {
   CompetencyResponse,
   FileInfoResponse,
+  FileMetadataRequest,
   ResourceTypeCompetencyResponse,
   ResourceTypeResponse,
   UserResponse,
 } from "@/types";
 
+// Skjemaet i vedleggsdialogen. file er null i redigeringsmodus (filen kan
+// ikke byttes).
 interface FileForm {
   file: File | null;
   description: string | null;
+  requiresAcknowledgement: boolean;
+  isMandatory: boolean;
 }
 
 const emit = defineEmits<{ "toggle-right": [] }>();
@@ -553,52 +596,107 @@ async function loadCompetencyRequirements(resourceTypeId: number) {
 // selectedResource.
 const fileInfo = ref<FileForm | null>(null);
 const showingAddFile = ref(false);
+// Vedlegget som redigeres; null = nytt vedlegg.
+const editingFile = ref<FileInfoResponse | null>(null);
 function showAddFile() {
-  fileInfo.value = { file: null, description: null };
+  editingFile.value = null;
+  fileInfo.value = {
+    file: null,
+    description: null,
+    requiresAcknowledgement: false,
+    isMandatory: false,
+  };
   showingAddFile.value = true;
 }
 
-const canAddFile = computed(
-  // Evalueres kun fra fildialogen, når fileInfo er satt.
-  () => !!(fileInfo.value!.file && fileInfo.value!.description)
-);
+function showEditFile(file: FileInfoResponse) {
+  editingFile.value = file;
+  fileInfo.value = {
+    file: null,
+    description: file.description,
+    requiresAcknowledgement: file.requiresAcknowledgement,
+    isMandatory: file.isMandatory,
+  };
+  showingAddFile.value = true;
+}
+
+// Påkrevd kan bare være sant når krever kvittering er sant.
+function onRequiresAcknowledgementChanged(value: boolean) {
+  if (!value) fileInfo.value!.isMandatory = false;
+}
+
+const canSaveFile = computed(() => {
+  // Evalueres kun fra vedleggsdialogen, når fileInfo er satt.
+  const form = fileInfo.value!;
+  return !!form.description?.trim() && (!!editingFile.value || !!form.file);
+});
 
 const savingFile = ref(false);
-async function addFile() {
-  // «Legg til fil» vises kun for en lagret vakttype (id satt).
+async function saveFile() {
+  // «Legg til vedlegg» vises kun for en lagret vakttype (id satt).
   const resource = selectedResource.value!;
   if (!resource.id) return;
+  // Knappen er deaktivert til beskrivelse (og fil for nytt vedlegg) er satt.
+  const form = fileInfo.value!;
+  const metadata: FileMetadataRequest = {
+    description: form.description!.trim(),
+    requiresAcknowledgement: form.requiresAcknowledgement,
+    isMandatory: form.requiresAcknowledgement && form.isMandatory,
+  };
   try {
     savingFile.value = true;
-    const response = await eventStore.addResourceTypeFile(
-      { id: resource.id },
-      // Knappen er deaktivert til både fil og beskrivelse er satt (canAddFile).
-      fileInfo.value as { file: Blob; description: string }
-    );
-    resource.files = [...(resource.files ?? []), response];
+    if (editingFile.value) {
+      const updated = await eventStore.updateResourceTypeFile(
+        resource.id,
+        editingFile.value.id,
+        metadata
+      );
+      resource.files = (resource.files ?? []).map((f) =>
+        f.id === updated.id ? updated : f
+      );
+    } else {
+      const created = await eventStore.addResourceTypeFile(
+        { id: resource.id },
+        { ...metadata, file: form.file! }
+      );
+      resource.files = [...(resource.files ?? []), created];
+    }
     showingAddFile.value = false;
-    $q.notify({ message: "Filen er lagret." });
+    $q.notify({ message: "Vedlegget er lagret." });
   } catch (error) {
-    notifyApiError(error, "Klarte ikke å lagre filen.");
+    notifyApiError(error, "Klarte ikke å lagre vedlegget.");
   } finally {
     savingFile.value = false;
   }
 }
 
-const deletingFile = ref(false);
-async function deleteFile(fileInfo: FileInfoResponse) {
+function confirmArchiveFile(file: FileInfoResponse) {
+  $q.dialog({
+    title: "Arkivere vedlegg",
+    message:
+      "Arkivere vedlegget? Det fjernes fra vakttypen, men kvitteringene beholdes.",
+    cancel: { label: "Avbryt", flat: true, noCaps: true },
+    ok: { label: "Arkiver", noCaps: true, color: "primary", unelevated: true },
+    persistent: true,
+  }).onOk(async () => {
+    await archiveFile(file);
+  });
+}
+
+const archivingFile = ref(false);
+// DELETE arkiverer i backend; vedlegget slettes aldri fysisk.
+async function archiveFile(file: FileInfoResponse) {
   try {
-    deletingFile.value = true;
-    await eventStore.deleteResourceTypeFile(fileInfo);
-    // Kalles kun fra fillista, så selectedResource og files er satt.
+    archivingFile.value = true;
+    await eventStore.deleteResourceTypeFile(file);
+    // Kalles kun fra vedleggslista, så selectedResource og files er satt.
     const resource = selectedResource.value!;
-    resource.files = (resource.files ?? []).filter((f) => f.id !== fileInfo.id);
-    showingAddFile.value = false;
-    $q.notify({ message: "Filen er slettet." });
+    resource.files = (resource.files ?? []).filter((f) => f.id !== file.id);
+    $q.notify({ message: "Vedlegget er arkivert." });
   } catch (error) {
-    notifyApiError(error, "Klarte ikke å slette filen.");
+    notifyApiError(error, "Klarte ikke å arkivere vedlegget.");
   } finally {
-    deletingFile.value = false;
+    archivingFile.value = false;
   }
 }
 </script>

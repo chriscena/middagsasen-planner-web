@@ -22,7 +22,7 @@
             ></q-icon
             ><q-icon
               v-if="resource.resourceType.files.length"
-              color="blue-6"
+              :color="hasUnreadInstructions(resource) ? 'orange' : 'blue-6'"
               name="info"
               class="q-mr-xs"
             ></q-icon>
@@ -62,12 +62,35 @@
         </q-item-section>
         <q-item-section>
           <q-item-label overline v-if="isVacant(shift)">Ledig</q-item-label>
+          <!-- Sperren (påkrevd instruks ikke kvittert) gjelder egen
+               påmelding; backend avviser også, men knappen deaktiveres her
+               med forklaring. -->
+          <q-item-label
+            caption
+            class="text-orange-9"
+            v-if="
+              isVacant(shift) &&
+              resource.canSignUp &&
+              resource.hasUnacknowledgedMandatoryInstructions
+            "
+            >Les og kvitter for instruksen først</q-item-label
+          >
           <q-item-label v-if="isTaken(shift)"
             ><q-icon
               v-if="shift.needsTraining"
               size="sm"
               name="escalator_warning"
             ></q-icon>
+            <!-- Sendes bare til admin og eieren av vakta. -->
+            <q-icon
+              v-if="shift.hasUnacknowledgedMandatoryInstructions"
+              size="sm"
+              color="orange"
+              name="warning"
+              ><q-tooltip
+                >Har ikke kvittert for påkrevd instruks</q-tooltip
+              ></q-icon
+            >
 
             {{ shift.user.fullName }}</q-item-label
           >
@@ -108,7 +131,7 @@
             flat
             round
             icon="add"
-            :disable="adding"
+            :disable="adding || resource.hasUnacknowledgedMandatoryInstructions"
             title="Ta vakt"
             v-if="isVacant(shift) && resource.canSignUp"
             @click="takeShift(resource)"
@@ -417,21 +440,67 @@
             Nyttig info
           </q-card-section>
           <q-separator></q-separator>
+          <!-- Instrukser (krever kvittering) først, med status, så vanlige
+               vedlegg. Klikk åpner viseren; nedlasting er sekundær handling. -->
           <q-list>
             <q-item
-              v-for="file in selectedResource!.resourceType.files"
+              v-for="file in instructions"
               :key="file.id"
               clickable
-              @click="downloadResourceTypeFileOrNotify(file)"
+              @click="openAttachment(file)"
             >
-              <q-item-section
-                ><q-item-label lines="1">{{
-                  file.description
-                }}</q-item-label></q-item-section
-              >
-              <q-item-section side
-                ><q-icon name="download"></q-icon> </q-item-section
-            ></q-item> </q-list></q-card
+              <q-item-section>
+                <q-item-label lines="1">{{ file.description }}</q-item-label>
+                <q-item-label caption>
+                  <q-badge
+                    v-if="file.acknowledgedAt"
+                    color="green"
+                    label="Kvittert"
+                  ></q-badge>
+                  <q-badge v-else color="orange" label="Ulest"></q-badge>
+                  <q-badge
+                    v-if="file.isMandatory"
+                    outline
+                    color="grey-8"
+                    label="Påkrevd"
+                    class="q-ml-xs"
+                  ></q-badge>
+                </q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="download"
+                  title="Last ned"
+                  @click.stop="downloadResourceTypeFileOrNotify(file)"
+                ></q-btn>
+              </q-item-section>
+            </q-item>
+            <q-separator
+              v-if="instructions.length && attachments.length"
+            ></q-separator>
+            <q-item
+              v-for="file in attachments"
+              :key="file.id"
+              clickable
+              @click="openAttachment(file)"
+            >
+              <q-item-section>
+                <q-item-label lines="1">{{ file.description }}</q-item-label>
+              </q-item-section>
+              <q-item-section side>
+                <q-btn
+                  flat
+                  round
+                  dense
+                  icon="download"
+                  title="Last ned"
+                  @click.stop="downloadResourceTypeFileOrNotify(file)"
+                ></q-btn>
+              </q-item-section>
+            </q-item> </q-list></q-card
       ></q-card-section>
       <q-card-section>
         <q-card flat class="bg-yellow-2">
@@ -504,6 +573,14 @@
       </q-card-section>
     </q-card>
   </q-dialog>
+  <!-- Én viser for valgt vedlegg; åpnes fra «Nyttig info». -->
+  <AttachmentViewerDialog
+    v-if="selectedFile"
+    v-model="showingAttachment"
+    :file="selectedFile"
+    :resource-type-id="selectedFile.resourceTypeId"
+    @acknowledged="onAcknowledged"
+  ></AttachmentViewerDialog>
 </template>
 
 <script setup lang="ts">
@@ -518,6 +595,7 @@ import { getErrorResponse } from "@/shared/apiError";
 import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
+import AttachmentViewerDialog from "@/components/AttachmentViewerDialog.vue";
 import {
   formatShortDate,
   formatTimeRange,
@@ -526,6 +604,7 @@ import {
 } from "@/shared/time";
 import type {
   EventResponse,
+  FileInfoResponse,
   MessageRequest,
   MessageResponse,
   ResourceResponse,
@@ -598,6 +677,9 @@ const showingConfirmTraining = ref(false);
 const showingEdit = ref(false);
 const showingResourceInfo = ref(false);
 const showingTrainingDialog = ref(false);
+// Vedlegget som er åpent i viseren (fra «Nyttig info» i oppgave-dialogen).
+const selectedFile = ref<FileInfoResponse | null>(null);
+const showingAttachment = ref(false);
 
 // Computed
 const users = computed(() => userStore.users);
@@ -629,7 +711,48 @@ const mustChooseTraining = computed(
     trainingComplete.value === null
 );
 
+// Vedleggene på oppgaven i dialogen, delt i instrukser (krever kvittering)
+// og vanlige vedlegg. Evalueres kun når oppgave-dialogen er åpen.
+const instructions = computed(() =>
+  (selectedResource.value?.resourceType.files ?? []).filter(
+    (f) => f.requiresAcknowledgement
+  )
+);
+const attachments = computed(() =>
+  (selectedResource.value?.resourceType.files ?? []).filter(
+    (f) => !f.requiresAcknowledgement
+  )
+);
+
 // Methods
+// Brukeren har instrukser på vakttypen som ikke er kvittert (info-ikonet
+// blir oransje).
+function hasUnreadInstructions(resource: ResourceResponse): boolean {
+  return resource.resourceType.files.some(
+    (f) => f.requiresAcknowledgement && !f.acknowledgedAt
+  );
+}
+
+function openAttachment(file: FileInfoResponse): void {
+  selectedFile.value = file;
+  showingAttachment.value = true;
+}
+
+// Kvitteringen er registrert i viseren: vis den oppdaterte filen, og hent
+// dagen på nytt så kvitteringsstatus og sperren
+// (hasUnacknowledgedMandatoryInstructions) stemmer. Kvitteringen har lyktes
+// uansett, så feil i hentingen logges bare.
+async function onAcknowledged(file: FileInfoResponse): Promise<void> {
+  selectedFile.value = file;
+  const resource = selectedResource.value;
+  if (!resource) return;
+  try {
+    await eventStore.refreshAfterAcknowledgement(resource.eventId);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
 function resourceClasses(resource: ResourceResponse): string {
   return (
     "q-mt-sm q-mx-sm " +

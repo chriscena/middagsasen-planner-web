@@ -5,6 +5,8 @@ import type {
   EventResponse,
   EventTemplateRequest,
   FacilityCompetencyWarningResponse,
+  FileInfoResponse,
+  FileMetadataRequest,
   MessageResponse,
   ResourceResponse,
   ShiftResponse,
@@ -977,6 +979,147 @@ describe("EventStore", () => {
         "/api/templates",
         expect.objectContaining({ competencyRequirements: [] })
       );
+    });
+  });
+
+  describe("vedlegg på vakttype", () => {
+    const fileInfo: FileInfoResponse = {
+      id: 7,
+      resourceTypeId: TYPE_ID,
+      fileName: "instruks.pdf",
+      description: "Heisførerinstruks",
+      created: "2026-10-01T10:00:00Z",
+      createdBy: "Admin",
+      updated: "2026-10-01T10:00:00Z",
+      updatedBy: "Admin",
+      mimeType: "application/pdf",
+      requiresAcknowledgement: true,
+      isMandatory: true,
+    };
+
+    it("addResourceTypeFile sender fil, beskrivelse og flagg som multipart og henter vakttypene på nytt", async () => {
+      const blob = new Blob(["pdf"], { type: "application/pdf" });
+      mockApi.post.mockResolvedValue({ data: fileInfo });
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      const result = await store.addResourceTypeFile(
+        { id: TYPE_ID },
+        {
+          file: blob,
+          description: "Heisførerinstruks",
+          requiresAcknowledgement: true,
+          isMandatory: true,
+        }
+      );
+
+      expect(mockApi.post).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files`,
+        expect.any(FormData)
+      );
+      const formData = mockApi.post.mock.calls[0]?.[1] as FormData;
+      // FormData pakker Blob inn som File, så innholdet sammenlignes.
+      const sent = formData.get("file") as Blob;
+      expect(sent).toBeInstanceOf(Blob);
+      expect(sent.type).toBe("application/pdf");
+      expect(await sent.text()).toBe("pdf");
+      expect(formData.get("description")).toBe("Heisførerinstruks");
+      expect(formData.get("requiresAcknowledgement")).toBe("true");
+      expect(formData.get("isMandatory")).toBe("true");
+      expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+      expect(result).toEqual(fileInfo);
+    });
+
+    it("addResourceTypeFile sender false-flagg eksplisitt", async () => {
+      mockApi.post.mockResolvedValue({ data: fileInfo });
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.addResourceTypeFile(
+        { id: TYPE_ID },
+        {
+          file: new Blob(["x"]),
+          description: "Løypekart",
+          requiresAcknowledgement: false,
+          isMandatory: false,
+        }
+      );
+
+      const formData = mockApi.post.mock.calls[0]?.[1] as FormData;
+      expect(formData.get("requiresAcknowledgement")).toBe("false");
+      expect(formData.get("isMandatory")).toBe("false");
+    });
+
+    it("updateResourceTypeFile sender PUT med metadata og henter vakttypene på nytt", async () => {
+      const request: FileMetadataRequest = {
+        description: "Ny beskrivelse",
+        requiresAcknowledgement: true,
+        isMandatory: false,
+      };
+      const updated = { ...fileInfo, ...request };
+      mockApi.put.mockResolvedValue({ data: updated });
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      const result = await store.updateResourceTypeFile(TYPE_ID, 7, request);
+
+      expect(mockApi.put).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/7`,
+        request
+      );
+      expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+      expect(result).toEqual(updated);
+    });
+
+    it("deleteResourceTypeFile arkiverer med DELETE og henter vakttypene på nytt", async () => {
+      mockApi.delete.mockResolvedValue({});
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.deleteResourceTypeFile(fileInfo);
+
+      expect(mockApi.delete).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/7`
+      );
+      expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+    });
+  });
+
+  describe("refreshAfterAcknowledgement", () => {
+    it("henter vaktlisten på nytt (beholder objektidentitet) og deretter perioden kalenderen viser", async () => {
+      const cached = resource(10, [], {
+        hasUnacknowledgedMandatoryInstructions: true,
+      });
+      store.events = [{ ...event(1, "2026-10-05T10:00"), resources: [cached] }];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+
+      const fresh = resource(10, [], {
+        hasUnacknowledgedMandatoryInstructions: false,
+      });
+      mockApi.get.mockImplementation((url: string) =>
+        url === "/api/events/1"
+          ? Promise.resolve({
+              data: { ...event(1, "2026-10-05T10:00"), resources: [fresh] },
+            })
+          : Promise.resolve({ data: [event(1, "2026-10-05T10:00")] })
+      );
+
+      await store.refreshAfterAcknowledgement(1);
+
+      expect(cached.hasUnacknowledgedMandatoryInstructions).toBe(false);
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
+      expect(mockApi.get).toHaveBeenCalledWith(
+        expect.stringContaining("/api/events?start=2026-10-05")
+      );
+    });
+
+    it("henter bare vaktlisten når kalenderen ikke har hentet noen periode", async () => {
+      store.events = [];
+      store.eventsRange = null;
+      mockApi.get.mockResolvedValue({
+        data: { ...event(1, "2026-10-05T10:00"), resources: [] },
+      });
+
+      await store.refreshAfterAcknowledgement(1);
+
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
     });
   });
 });

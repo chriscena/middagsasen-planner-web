@@ -11,6 +11,7 @@ import type {
   EventTemplateRequest,
   EventTemplateResponse,
   FileInfoResponse,
+  FileMetadataRequest,
   MessageRequest,
   MessageResponse,
   ResourceResponse,
@@ -54,6 +55,12 @@ export interface SaveShiftRequest {
   userId?: number | null;
   comment: string | null;
   trainingCompleted?: boolean | null;
+}
+
+// Nytt vedlegg til addResourceTypeFile: filen, beskrivelsen (vises som navn)
+// og flaggene (se FileMetadataRequest).
+export interface NewResourceTypeFile extends FileMetadataRequest {
+  file: Blob;
 }
 
 // Hvor mange ganger getEventsForDates maksimalt henter når events endres
@@ -395,13 +402,22 @@ export const useEventStore = defineStore("events", {
       upsertEvent(this.events, response.data);
       this.markEventsChanged();
     },
+    // Laster opp et vedlegg på vakttypen. Flaggene gjør vedlegget til en
+    // instruks (requiresAcknowledgement) som evt. er påkrevd for å ta vakt
+    // (isMandatory, krever requiresAcknowledgement). Multipart, så boolske
+    // verdier sendes som "true"/"false".
     async addResourceTypeFile(
       resourcetype: Pick<ResourceTypeResponse, "id">,
-      fileInfo: { file: Blob; description: string }
+      fileInfo: NewResourceTypeFile
     ): Promise<FileInfoResponse> {
       const formData = new FormData();
       formData.append("file", fileInfo.file);
       formData.append("description", fileInfo.description);
+      formData.append(
+        "requiresAcknowledgement",
+        String(fileInfo.requiresAcknowledgement)
+      );
+      formData.append("isMandatory", String(fileInfo.isMandatory));
       const response = await api.post<FileInfoResponse>(
         `/api/resourcetypes/${resourcetype.id}/files`,
         formData
@@ -409,6 +425,22 @@ export const useEventStore = defineStore("events", {
       await this.getResourceTypes();
       return response.data;
     },
+    // Endrer beskrivelse og flagg på et vedlegg (ikke selve filen; nytt
+    // innhold er arkiver + last opp, siden kvitteringen gjelder innholdet).
+    async updateResourceTypeFile(
+      resourceTypeId: number,
+      fileId: number,
+      request: FileMetadataRequest
+    ): Promise<FileInfoResponse> {
+      const response = await api.put<FileInfoResponse>(
+        `/api/resourcetypes/${resourceTypeId}/files/${fileId}`,
+        request
+      );
+      await this.getResourceTypes();
+      return response.data;
+    },
+    // Arkiverer vedlegget: det fjernes fra vakttypen, men kvitteringene
+    // beholdes (backend sletter aldri filer fysisk).
     async deleteResourceTypeFile(
       fileInfo: Pick<FileInfoResponse, "id" | "resourceTypeId">
     ): Promise<void> {
@@ -416,6 +448,22 @@ export const useEventStore = defineStore("events", {
         `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
       );
       await this.getResourceTypes();
+    },
+    // Etter kvittering for en instruks: kvitteringsstatusen (acknowledgedAt i
+    // files) og sperren (hasUnacknowledgedMandatoryInstructions) endres på
+    // alle oppgaver av vakttypen. Vaktlisten hentes først på nytt med
+    // refreshEventResources, så oppgaveobjektet dialogen holder på
+    // (selectedResource) oppdateres med Object.assign, og deretter hele
+    // perioden kalenderen viser, så andre vaktlister med samme vakttype også
+    // stemmer. Feil kastes videre; kalleren avgjør om de skal varsles.
+    async refreshAfterAcknowledgement(eventId: number): Promise<void> {
+      await this.refreshEventResources(eventId);
+      if (this.eventsRange) {
+        await this.getEventsForDates(
+          this.eventsRange.start,
+          this.eventsRange.end
+        );
+      }
     },
     // Beskjedene tar imot selve oppgaveobjektet (dialogens selectedResource)
     // og oppdaterer både det og oppgaven med samme id i events.

@@ -20,8 +20,53 @@ import {
   DOWNLOAD_TIMEOUT_MS,
   downloadResourceTypeFile,
   downloadResourceTypeFileOrNotify,
+  fetchResourceTypeFile,
   REVOKE_DELAY_MS,
 } from "@/shared/fileDownload";
+
+describe("fetchResourceTypeFile", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const file = { id: 7, resourceTypeId: 3 };
+
+  it("henter filen via api som blob med lang timeout og returnerer den", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    const blob = new Blob(["innhold"], { type: "application/pdf" });
+    mockApi.get.mockResolvedValue({ data: blob });
+
+    const result = await fetchResourceTypeFile(file);
+
+    expect(result).toBe(blob);
+    expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes/3/files/7", {
+      responseType: "blob",
+      signal: expect.any(AbortSignal),
+    });
+    expect(timeout).toHaveBeenCalledWith(DOWNLOAD_TIMEOUT_MS);
+    timeout.mockRestore();
+  });
+
+  it("pakker ut ProblemDetails i blob-body før feilen kastes videre", async () => {
+    const problem = { status: 404, detail: "Vedlegget finnes ikke." };
+    const error = {
+      response: {
+        status: 404,
+        data: new Blob([JSON.stringify(problem)], {
+          type: "application/problem+json",
+        }),
+      },
+    };
+    mockApi.get.mockRejectedValue(error);
+
+    await expect(fetchResourceTypeFile(file)).rejects.toBe(error);
+
+    expect(error.response.data).toEqual(problem);
+    expect(getApiErrorMessage(error, "fallback")).toBe(
+      "Vedlegget finnes ikke."
+    );
+  });
+});
 
 interface FakeLink {
   href: string;
