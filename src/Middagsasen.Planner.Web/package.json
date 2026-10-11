@@ -30,6 +30,7 @@
     "chart.js": "^4.4.6",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^2.30.0",
+    "pdfjs-dist": "6.2.108",
     "pinia": "^3.0.4",
     "quasar": "^2.35.0",
     "vue": "^3.5.43",

@@ -747,7 +747,7 @@ async function onAcknowledged(file: FileInfoResponse): Promise<void> {
   const resource = selectedResource.value;
   if (!resource) return;
   try {
-    await eventStore.refreshAfterAcknowledgement(resource.eventId);
+    await eventStore.refreshAfterAcknowledgement(resource);
   } catch (error) {
     console.error(error);
   }

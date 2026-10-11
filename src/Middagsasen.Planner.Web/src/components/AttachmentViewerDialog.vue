@@ -41,25 +41,44 @@
         >
         <template v-else-if="blob">
           <AttachmentPdfPages
-            v-if="needsScrollToEnd"
+            v-if="kind === 'pdf'"
             :blob="blob"
             class="q-pa-sm"
-            @rendered="onContentRendered"
+            @ready="onContentReady"
             @error="onContentError"
           ></AttachmentPdfPages>
           <q-img
-            v-else-if="objectUrl"
+            v-else-if="kind === 'image' && objectUrl"
             :src="objectUrl"
             fit="contain"
             class="full-width"
             :alt="file.description"
-            @load="onContentRendered"
+            @load="onContentReady"
             @error="onContentError"
           ></q-img>
-          <!-- Sentinel under siste side: når den har vært synlig, er bunnen
-               nådd (se shared/readTracking.ts). -->
+          <!-- Andre filtyper kan ikke vises; nedlasting regnes som lest. -->
           <div
-            v-if="needsScrollToEnd && contentRendered"
+            v-else
+            class="column flex-center q-pa-xl q-gutter-y-md text-center"
+          >
+            <q-icon name="description" size="3em" color="grey-7"></q-icon>
+            <div>
+              Vedlegget kan ikke vises her. Last det ned for å lese det.
+            </div>
+            <q-btn
+              unelevated
+              color="primary"
+              no-caps
+              icon="download"
+              label="Last ned"
+              @click="download"
+            ></q-btn>
+          </div>
+          <!-- Sentinel under siste side: når den har vært synlig, er bunnen
+               nådd (se shared/readTracking.ts). Rendres når sideantallet er
+               kjent, så den ligger under siste side fra start. -->
+          <div
+            v-if="kind === 'pdf' && contentReady"
             ref="sentinel"
             class="attachment-viewer-sentinel"
           ></div>
@@ -104,7 +123,11 @@
             v-if="!hasReachedEnd"
             class="text-caption text-grey-7 text-center"
           >
-            Bla til bunnen for å kvittere
+            {{
+              kind === "other"
+                ? "Last ned vedlegget for å kvittere"
+                : "Bla til bunnen for å kvittere"
+            }}
           </div>
         </q-card-section>
       </template>
@@ -114,9 +137,10 @@
 
 <script setup lang="ts">
 // Fullskjermviser for vedlegg på en vakttype: PDF (alle sider under
-// hverandre) eller bilde, med nedlasting. For instrukser
+// hverandre), bilde, eller nedlasting for andre filtyper. For instrukser
 // (requiresAcknowledgement) har den en fotlinje for kvittering, som aktiveres
-// når bunnen av dokumentet har vært synlig (bilder regnes som lest straks).
+// når bunnen av dokumentet har vært synlig (bilder regnes som lest straks,
+// andre filtyper når nedlastingen er startet).
 import {
   computed,
   defineAsyncComponent,
@@ -134,17 +158,15 @@ import {
   saveBlob,
 } from "@/shared/fileDownload";
 import { notifyApiError } from "@/shared/notifyApiError";
-import { reachedEnd, requiresScrollToEnd } from "@/shared/readTracking";
+import { attachmentKind, reachedEnd } from "@/shared/readTracking";
 import { formatDate } from "@/shared/time";
 import type { FileInfoResponse } from "@/types";
 
-// pdf.js er stor, så PDF-sidene lastes først når en PDF faktisk åpnes.
-const AttachmentPdfPages = defineAsyncComponent(
-  () => import("@/components/AttachmentPdfPages.vue")
-);
-
 // Speiler maks lengde på AcknowledgeRequest.Comment i backend.
 const COMMENT_MAX_LENGTH = 1000;
+
+const VIEW_ERROR_MESSAGE =
+  "Klarte ikke å vise vedlegget. Last det ned i stedet.";
 
 const props = defineProps<{
   file: FileInfoResponse;
@@ -161,6 +183,17 @@ const emit = defineEmits<{
 const $q = useQuasar();
 const instructionStore = useInstructionStore();
 
+// pdf.js er stor, så PDF-sidene lastes først når en PDF faktisk åpnes. Feiler
+// lastingen av chunken (nett, ny deploy), vises feilmeldingen; nedlasting
+// virker fortsatt siden innholdet alt er hentet.
+const AttachmentPdfPages = defineAsyncComponent({
+  loader: () => import("@/components/AttachmentPdfPages.vue"),
+  onError(error, _retry, fail) {
+    onContentError(error);
+    fail();
+  },
+});
+
 const scrollArea = ref<HTMLElement | null>(null);
 const sentinel = ref<HTMLElement | null>(null);
 
@@ -169,7 +202,7 @@ const errorMessage = ref<string | null>(null);
 const blob = ref<Blob | null>(null);
 // Object-URL for bilder (q-img trenger en src); frigjøres i reset.
 const objectUrl = ref<string | null>(null);
-const contentRendered = ref(false);
+const contentReady = ref(false);
 const hasReachedEnd = ref(false);
 
 const comment = ref("");
@@ -180,55 +213,69 @@ const acknowledging = ref(false);
 const acknowledgedFile = ref<FileInfoResponse | null>(null);
 const savedComment = ref<string | null>(null);
 
-const needsScrollToEnd = computed(() =>
-  requiresScrollToEnd(props.file.mimeType)
+const kind = computed(() =>
+  attachmentKind(props.file.mimeType, props.file.fileName)
 );
 const acknowledgedAt = computed(
   () => acknowledgedFile.value?.acknowledgedAt ?? props.file.acknowledgedAt
 );
 
+// Løpenummer for hentingen. Lukkes dialogen (reset) eller åpnes den på nytt
+// mens en henting pågår, er svaret fra den gamle hentingen uaktuelt: både
+// innhold og feil forkastes. Object-URL lages først etter sjekken, så ingen
+// URL fra en forkastet henting blir liggende.
+let loadToken = 0;
+
 async function load(): Promise<void> {
   reset();
+  const token = ++loadToken;
   loading.value = true;
+  let fetched: Blob;
   try {
-    const fetched = await fetchResourceTypeFile(props.file);
-    blob.value = fetched;
-    if (!needsScrollToEnd.value) {
-      objectUrl.value = URL.createObjectURL(fetched);
-    }
+    fetched = await fetchResourceTypeFile(props.file);
   } catch (error) {
+    if (token !== loadToken) return;
     console.error(error);
     errorMessage.value = getApiErrorMessage(error, DOWNLOAD_ERROR_FALLBACK);
-  } finally {
     loading.value = false;
+    return;
   }
+  if (token !== loadToken) return;
+  blob.value = fetched;
+  if (kind.value === "image") {
+    objectUrl.value = URL.createObjectURL(fetched);
+  }
+  loading.value = false;
 }
 
 function reset(): void {
+  loadToken++;
   disconnectObserver();
   if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
   objectUrl.value = null;
   blob.value = null;
+  loading.value = false;
   errorMessage.value = null;
-  contentRendered.value = false;
+  contentReady.value = false;
   hasReachedEnd.value = false;
   comment.value = "";
   acknowledgedFile.value = null;
   savedComment.value = null;
 }
 
-function onContentRendered(): void {
-  contentRendered.value = true;
-  // Bilder (og alt som ikke må blas i) regnes som lest straks de er vist.
-  if (!needsScrollToEnd.value) hasReachedEnd.value = true;
+function onContentReady(): void {
+  contentReady.value = true;
+  // Bilder regnes som lest straks de er vist; PDF-er når sentinelen har vært
+  // synlig.
+  if (kind.value === "image") hasReachedEnd.value = true;
 }
 
 function onContentError(error: unknown): void {
   console.error(error);
-  errorMessage.value = "Klarte ikke å vise vedlegget. Last det ned i stedet.";
+  errorMessage.value = VIEW_ERROR_MESSAGE;
 }
 
-// Sentinelen rendres først når alle sidene er med (v-if), så observatøren
+// Sentinelen rendres først når sideantallet er kjent (v-if), så observatøren
 // settes opp når template-ref-en får et element.
 let observer: IntersectionObserver | null = null;
 function disconnectObserver(): void {
@@ -255,13 +302,16 @@ onBeforeUnmount(() => {
   reset();
 });
 
-// Nedlasting gjenbruker innholdet som alt er hentet; ellers hentes det på nytt.
+// Nedlasting gjenbruker innholdet som alt er hentet; ellers hentes det på
+// nytt. Filtyper som ikke kan vises, regnes som lest når nedlastingen er
+// startet.
 async function download(): Promise<void> {
   if (blob.value) {
     saveBlob(blob.value, props.file.fileName);
-    return;
+  } else {
+    await downloadResourceTypeFileOrNotify(props.file);
   }
-  await downloadResourceTypeFileOrNotify(props.file);
+  if (kind.value === "other") hasReachedEnd.value = true;
 }
 
 async function acknowledge(): Promise<void> {

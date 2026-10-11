@@ -1,6 +1,10 @@
 import { defineConfig } from "#q-app";
 import type { Plugin } from "vite";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+
+// Til å slå opp pakkefiler (pdf.js legacy-bygg) uten hardkodet node_modules-sti.
+const require = createRequire(import.meta.url);
 
 // Versjons-ID for bygget. Brukes både i bundelen (__APP_VERSION__) og i
 // version.json, slik at klienten kan oppdage at en ny versjon er deployet.
@@ -99,24 +103,23 @@ export default defineConfig((/* ctx */) => {
         // polyfills for eldre nettlesere (bl.a. Promise.withResolvers på iOS
         // Safari < 17.4). Bare den rene importen «pdfjs-dist» pekes om (regex),
         // så worker-importen «pdfjs-dist/legacy/build/…?url» i
-        // AttachmentPdfPages.vue ikke rammes. Quasar setter alias som objekt;
-        // det gjøres om til listeform for å kunne bruke regex, med de
-        // innebygde aliasene beholdt.
-        const builtInAliases = Object.entries(
-          viteConf.resolve?.alias ?? {}
-        ).map(([find, replacement]) => ({ find, replacement }));
+        // AttachmentPdfPages.vue ikke rammes. Quasar setter alias som objekt
+        // (Vite godtar også liste); det gjøres om til listeform for å kunne
+        // bruke regex, med de innebygde aliasene beholdt.
+        const existingAliases = viteConf.resolve?.alias ?? {};
+        const builtInAliases = Array.isArray(existingAliases)
+          ? existingAliases
+          : Object.entries(existingAliases).map(([find, replacement]) => ({
+              find,
+              replacement,
+            }));
         viteConf.resolve = {
           ...viteConf.resolve,
           alias: [
             ...builtInAliases,
             {
               find: /^pdfjs-dist$/,
-              replacement: fileURLToPath(
-                new URL(
-                  "./node_modules/pdfjs-dist/legacy/build/pdf.mjs",
-                  import.meta.url
-                )
-              ),
+              replacement: require.resolve("pdfjs-dist/legacy/build/pdf.mjs"),
             },
           ],
         };

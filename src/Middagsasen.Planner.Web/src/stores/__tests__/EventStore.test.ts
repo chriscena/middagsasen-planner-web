@@ -1082,7 +1082,7 @@ describe("EventStore", () => {
   });
 
   describe("refreshAfterAcknowledgement", () => {
-    it("henter vaktlisten på nytt (beholder objektidentitet) og deretter perioden kalenderen viser", async () => {
+    it("henter perioden kalenderen viser i ett kall og kopierer den ferske oppgaven inn i dialogens objekt", async () => {
       const cached = resource(10, [], {
         hasUnacknowledgedMandatoryInstructions: true,
       });
@@ -1092,34 +1092,56 @@ describe("EventStore", () => {
       const fresh = resource(10, [], {
         hasUnacknowledgedMandatoryInstructions: false,
       });
-      mockApi.get.mockImplementation((url: string) =>
-        url === "/api/events/1"
-          ? Promise.resolve({
-              data: { ...event(1, "2026-10-05T10:00"), resources: [fresh] },
-            })
-          : Promise.resolve({ data: [event(1, "2026-10-05T10:00")] })
-      );
+      mockApi.get.mockResolvedValue({
+        data: [{ ...event(1, "2026-10-05T10:00"), resources: [fresh] }],
+      });
 
-      await store.refreshAfterAcknowledgement(1);
+      await store.refreshAfterAcknowledgement(cached);
 
-      expect(cached.hasUnacknowledgedMandatoryInstructions).toBe(false);
-      expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
       expect(mockApi.get).toHaveBeenCalledWith(
         expect.stringContaining("/api/events?start=2026-10-05")
       );
+      // events er byttet ut (nye objekter), men dialogens objekt har de nye
+      // verdiene.
+      expect(cached.hasUnacknowledgedMandatoryInstructions).toBe(false);
+      expect(store.events[0]?.resources[0]).toEqual(fresh);
+      expect(store.events[0]?.resources[0]).not.toBe(cached);
     });
 
     it("henter bare vaktlisten når kalenderen ikke har hentet noen periode", async () => {
-      store.events = [];
+      const cached = resource(10, [], {
+        hasUnacknowledgedMandatoryInstructions: true,
+      });
+      store.events = [{ ...event(1, "2026-10-05T10:00"), resources: [cached] }];
       store.eventsRange = null;
       mockApi.get.mockResolvedValue({
-        data: { ...event(1, "2026-10-05T10:00"), resources: [] },
+        data: {
+          ...event(1, "2026-10-05T10:00"),
+          resources: [
+            resource(10, [], { hasUnacknowledgedMandatoryInstructions: false }),
+          ],
+        },
       });
 
-      await store.refreshAfterAcknowledgement(1);
+      await store.refreshAfterAcknowledgement(cached);
 
       expect(mockApi.get).toHaveBeenCalledTimes(1);
       expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
+      expect(cached.hasUnacknowledgedMandatoryInstructions).toBe(false);
+    });
+
+    it("lar dialogens objekt være når oppgaven ikke finnes i svaret", async () => {
+      const cached = resource(10, [], {
+        hasUnacknowledgedMandatoryInstructions: true,
+      });
+      store.events = [{ ...event(1, "2026-10-05T10:00"), resources: [cached] }];
+      store.eventsRange = { start: "2026-10-05", end: "2026-10-11" };
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.refreshAfterAcknowledgement(cached);
+
+      expect(cached.hasUnacknowledgedMandatoryInstructions).toBe(true);
     });
   });
 });

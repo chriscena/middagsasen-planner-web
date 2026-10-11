@@ -336,16 +336,25 @@ export const useEventStore = defineStore("events", {
     async applyShiftResult(result: ShiftResult): Promise<void> {
       this.applyResource(result.resource);
       try {
-        if (result.changedTraining && this.eventsRange) {
-          await this.getEventsForDates(
-            this.eventsRange.start,
-            this.eventsRange.end
-          );
+        if (result.changedTraining) {
+          await this.refreshRangeOrEvent(result.resource.eventId);
         } else {
           await this.refreshEventResources(result.resource.eventId);
         }
       } catch (error) {
         console.error(error);
+      }
+    },
+    // Henter perioden kalenderen viser på nytt når den er kjent (endringer
+    // som påvirker flere vaktlister), ellers bare den ene vaktlisten.
+    async refreshRangeOrEvent(eventId: number): Promise<void> {
+      if (this.eventsRange) {
+        await this.getEventsForDates(
+          this.eventsRange.start,
+          this.eventsRange.end
+        );
+      } else {
+        await this.refreshEventResources(eventId);
       }
     },
     async getTemplates(): Promise<void> {
@@ -451,19 +460,20 @@ export const useEventStore = defineStore("events", {
     },
     // Etter kvittering for en instruks: kvitteringsstatusen (acknowledgedAt i
     // files) og sperren (hasUnacknowledgedMandatoryInstructions) endres på
-    // alle oppgaver av vakttypen. Vaktlisten hentes først på nytt med
-    // refreshEventResources, så oppgaveobjektet dialogen holder på
-    // (selectedResource) oppdateres med Object.assign, og deretter hele
-    // perioden kalenderen viser, så andre vaktlister med samme vakttype også
-    // stemmer. Feil kastes videre; kalleren avgjør om de skal varsles.
-    async refreshAfterAcknowledgement(eventId: number): Promise<void> {
-      await this.refreshEventResources(eventId);
-      if (this.eventsRange) {
-        await this.getEventsForDates(
-          this.eventsRange.start,
-          this.eventsRange.end
-        );
-      }
+    // alle oppgaver av vakttypen, så perioden kalenderen viser hentes på nytt
+    // (ett kall; bare vaktlisten når perioden ikke er kjent). getEventsForDates
+    // erstatter events med nye objekter, så den ferske oppgaven med samme id
+    // kopieres inn i oppgaveobjektet dialogen holder på (selectedResource) med
+    // Object.assign, som i applyResource. Feil kastes videre; kalleren avgjør
+    // om de skal varsles.
+    async refreshAfterAcknowledgement(
+      resource: ResourceResponse
+    ): Promise<void> {
+      await this.refreshRangeOrEvent(resource.eventId);
+      const fresh = this.events
+        .flatMap((e) => e.resources)
+        .find((r) => r.id === resource.id);
+      if (fresh && fresh !== resource) Object.assign(resource, fresh);
     },
     // Beskjedene tar imot selve oppgaveobjektet (dialogens selectedResource)
     // og oppdaterer både det og oppgaven med samme id i events.
