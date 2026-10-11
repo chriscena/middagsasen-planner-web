@@ -28,6 +28,14 @@ vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
+// Instrukslisten hentes på nytt i bakgrunnen etter vakt- og
+// vedleggsendringer; testene sjekker bare at det skjer.
+const mockReloadInstructions = vi.hoisted(() => vi.fn());
+
+vi.mock("@/stores/InstructionStore", () => ({
+  reloadInstructionsInBackground: mockReloadInstructions,
+}));
+
 import { useEventStore } from "@/stores/EventStore";
 
 // Kun feltene storen bruker (id og startTime) er relevante her.
@@ -294,6 +302,64 @@ describe("EventStore", () => {
       expect(store.events[0]!.resources[0]!.shifts.map((s) => s.id)).toEqual([
         1,
       ]);
+      // Vakta er tatt for en annen bruker: admins egen instruksliste er uendret.
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
+    });
+
+    it("henter instrukslisten på nytt når innlogget bruker tar vakt selv", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({ resourceId: 10, shiftId: null, comment: null });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter instrukslisten på nytt når admin tar vakt for seg selv med userId", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, CURRENT_USER_ID)])),
+      });
+
+      await store.saveShift({
+        resourceId: 10,
+        shiftId: null,
+        userId: CURRENT_USER_ID,
+        comment: null,
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter instrukslisten på nytt når en vakt endres, også til en annen bruker", async () => {
+      store.events = [
+        eventWith(1, [resource(10, [shift(1, 10, CURRENT_USER_ID)])]),
+      ];
+      mockApi.put.mockResolvedValue({
+        data: result(resource(10, [shift(1, 10, OTHER_USER_ID)])),
+      });
+
+      await store.saveShift({
+        resourceId: 10,
+        shiftId: 1,
+        userId: OTHER_USER_ID,
+        comment: null,
+      });
+
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
+    });
+
+    it("henter ikke instrukslisten når vakta ikke ble lagret", async () => {
+      store.events = [eventWith(1, [resource(10, [])])];
+      mockApi.post.mockRejectedValue(new Error("Network Error"));
+
+      await expect(
+        store.saveShift({ resourceId: 10, shiftId: null, comment: null })
+      ).rejects.toThrow("Network Error");
+
+      expect(mockReloadInstructions).not.toHaveBeenCalled();
     });
 
     it("ledig vakt sender alltid comment, men utelater andre felt som ikke er satt", async () => {
@@ -453,6 +519,7 @@ describe("EventStore", () => {
       expect(mockApi.delete).toHaveBeenCalledWith("/api/shifts/1");
       expect(mockApi.get).toHaveBeenCalledWith("/api/events/1");
       expect(store.events[0]!.resources[0]!.shifts).toEqual([]);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1029,6 +1096,7 @@ describe("EventStore", () => {
       expect(formData.get("isMandatory")).toBe("true");
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
       expect(result).toEqual(fileInfo);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
 
     it("addResourceTypeFile sender false-flagg eksplisitt", async () => {
@@ -1068,6 +1136,7 @@ describe("EventStore", () => {
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
       expect(result).toEqual(updated);
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
 
     it("deleteResourceTypeFile arkiverer med DELETE og henter vakttypene på nytt", async () => {
@@ -1080,6 +1149,7 @@ describe("EventStore", () => {
         `/api/resourcetypes/${TYPE_ID}/files/7`
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+      expect(mockReloadInstructions).toHaveBeenCalledTimes(1);
     });
   });
 

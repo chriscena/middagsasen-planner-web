@@ -11,7 +11,10 @@ vi.mock("@/boot/axios", () => ({
   api: mockApi,
 }));
 
-import { useInstructionStore } from "@/stores/InstructionStore";
+import {
+  reloadInstructionsInBackground,
+  useInstructionStore,
+} from "@/stores/InstructionStore";
 
 function file(
   id: number,
@@ -40,12 +43,20 @@ function file(
 function deferred<T>(): {
   promise: Promise<T>;
   resolve: (value: T) => void;
+  reject: (reason: unknown) => void;
 } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
     resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
+}
+
+// Lar alle ventende promise-callbacks kjøre (svarene som er løst).
+function flushPromises(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 function group(
@@ -92,7 +103,6 @@ describe("InstructionStore", () => {
       await expect(store.getMyInstructions()).rejects.toThrow("Network Error");
 
       expect(store.loading).toBe(false);
-      expect(store.inFlight).toBeNull();
     });
 
     it("deler en pågående henting: parallelle kall gir én GET", async () => {
@@ -153,11 +163,11 @@ describe("InstructionStore", () => {
       const a = store.reloadInstructions();
       const b = store.reloadInstructions();
       older.resolve({ data: [] });
-      await a;
+      await flushPromises();
       expect(store.loading).toBe(true);
 
       newer.resolve({ data: [] });
-      await b;
+      await Promise.all([a, b]);
       expect(store.loading).toBe(false);
     });
 
@@ -173,6 +183,111 @@ describe("InstructionStore", () => {
       await Promise.all([a, b]);
 
       expect(mockApi.get).toHaveBeenCalledTimes(2);
+    });
+
+    it("lar en kaller av getMyInstructions lykkes når den gamle hentingen feiler, men den nye lykkes", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+      const newerGroups = [group(2, true, [file(20, 2)])];
+
+      const pending = store.getMyInstructions();
+      const reload = store.reloadInstructions();
+      older.reject(new Error("Network Error"));
+      newer.resolve({ data: newerGroups });
+
+      await expect(pending).resolves.toBeUndefined();
+      await expect(reload).resolves.toBeUndefined();
+      expect(store.groups).toEqual(newerGroups);
+      expect(store.loading).toBe(false);
+    });
+
+    it("følger en nyere henting også når den gamle lykkes først", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+
+      let settled = false;
+      const pending = store.getMyInstructions().finally(() => {
+        settled = true;
+      });
+      const reload = store.reloadInstructions();
+      older.resolve({ data: [group(1, true, [file(10, 1)])] });
+      await flushPromises();
+      expect(settled).toBe(false);
+
+      newer.reject(new Error("Network Error"));
+
+      // Utfallet er den nye hentingens, som bestemmer groups.
+      await expect(pending).rejects.toThrow("Network Error");
+      await expect(reload).rejects.toThrow("Network Error");
+      expect(store.groups).toEqual([]);
+    });
+
+    it("gir den nye hentingens feil også når den gamle lykkes etter den", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+
+      const pending = store.getMyInstructions();
+      const reload = store.reloadInstructions();
+      newer.reject(new Error("Network Error"));
+      await expect(reload).rejects.toThrow("Network Error");
+      older.resolve({ data: [group(1, true, [file(10, 1)])] });
+
+      await expect(pending).rejects.toThrow("Network Error");
+      expect(store.groups).toEqual([]);
+    });
+
+    it("getMyInstructions under en reload deler den nyeste hentingen", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+
+      const a = store.reloadInstructions();
+      const b = store.reloadInstructions();
+      const c = store.getMyInstructions();
+      older.reject(new Error("Network Error"));
+      newer.resolve({ data: [] });
+
+      await expect(Promise.all([a, b, c])).resolves.toBeDefined();
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("reloadInstructionsInBackground", () => {
+    it("starter en ny henting", async () => {
+      const groups = [group(1, true, [file(10, 1)])];
+      mockApi.get.mockResolvedValue({ data: groups });
+
+      reloadInstructionsInBackground();
+      expect(store.loading).toBe(true);
+      await store.getMyInstructions();
+
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(store.groups).toEqual(groups);
+    });
+
+    it("logger feil i stedet for å kaste dem", async () => {
+      const error = new Error("Network Error");
+      const logged = new Promise<void>((resolve) => {
+        vi.spyOn(console, "error").mockImplementation(() => resolve());
+      });
+      mockApi.get.mockRejectedValue(error);
+
+      expect(() => reloadInstructionsInBackground()).not.toThrow();
+      await logged;
+
+      expect(console.error).toHaveBeenCalledWith(error);
+      expect(store.loading).toBe(false);
     });
   });
 
@@ -193,6 +308,52 @@ describe("InstructionStore", () => {
 
       expect(store.groups).toEqual([]);
       expect(store.loading).toBe(false);
+    });
+
+    it("forkaster svaret for en kaller som venter under reset, uten feil", async () => {
+      const pending = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get.mockReturnValueOnce(pending.promise);
+      const request = store.getMyInstructions();
+
+      store.reset();
+      pending.resolve({ data: [group(1, true, [file(10, 1)])] });
+
+      await expect(request).resolves.toBeUndefined();
+      expect(store.groups).toEqual([]);
+      expect(store.unacknowledgedCount).toBe(0);
+    });
+
+    it("forkaster en feil fra en henting som er nullstilt", async () => {
+      const pending = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get.mockReturnValueOnce(pending.promise);
+      const request = store.getMyInstructions();
+
+      store.reset();
+      pending.reject(new Error("Network Error"));
+
+      await expect(request).resolves.toBeUndefined();
+      expect(store.loading).toBe(false);
+    });
+
+    it("bytte av bruker: ny henting etter reset deles ikke med den gamle, og den gamles svar forkastes", async () => {
+      const forA = deferred<{ data: InstructionGroupResponse[] }>();
+      const forB = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(forA.promise)
+        .mockReturnValueOnce(forB.promise);
+      const groupsB = [group(2, true, [file(20, 2)])];
+
+      const a = store.getMyInstructions();
+      store.reset();
+      const b = store.getMyInstructions();
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+
+      forB.resolve({ data: groupsB });
+      await b;
+      forA.resolve({ data: [group(1, true, [file(10, 1)])] });
+      await a;
+
+      expect(store.groups).toEqual(groupsB);
     });
 
     it("lar en ny henting etter reset virke som normalt", async () => {

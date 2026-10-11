@@ -137,7 +137,9 @@ const sections = computed((): Section[] => {
 });
 
 // Store-en deler en pågående henting, så ved direkte oppstart gir dette og
-// MainLayout sin henting til sammen én GET.
+// MainLayout sin henting til sammen én GET. Startes en nyere henting mens
+// vi venter (f.eks. etter en vaktendring), avgjøres utfallet av den, så en
+// uaktuell henting som feiler ikke gir feilmelding.
 async function load(): Promise<void> {
   loadFailed.value = false;
   try {

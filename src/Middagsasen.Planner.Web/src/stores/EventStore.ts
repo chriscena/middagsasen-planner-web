@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import { api } from "@/boot/axios";
 import { getErrorResponse } from "@/shared/apiError";
+import { reloadInstructionsInBackground } from "@/stores/InstructionStore";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
   AcknowledgementReportResponse,
@@ -110,6 +111,19 @@ function updateMessages(
 async function fetchEvent(id: number): Promise<EventResponse> {
   const response = await api.get<EventResponse>(`/api/events/${id}`);
   return response.data;
+}
+
+// Sann når vakta ble tatt for en annen bruker enn den innloggede: userId er
+// satt, og ingen av den brukerens vakter på oppgaven er isMine. Uten userId
+// tar innlogget bruker vakta selv.
+function isForOtherUser(
+  result: ShiftResult,
+  userId: number | null | undefined
+): boolean {
+  if (userId === undefined || userId === null) return false;
+  return !result.resource.shifts.some(
+    (shift) => shift.user.id === userId && shift.isMine
+  );
 }
 
 export const useEventStore = defineStore("events", {
@@ -260,6 +274,13 @@ export const useEventStore = defineStore("events", {
               comment,
             } satisfies ChangeShiftRequest);
       const result = response.data;
+      // Instrukslistens appliesToMe avhenger av hvilke vakttyper innlogget
+      // bruker har vakt på. Unntaket er når admin tar en ledig vakt for en
+      // annen: da er ingen av admins egne vakter endret. Ved PUT kan vakta
+      // ha vært admins egen før den ble flyttet, så da hentes alltid.
+      if (shiftId !== null || !isForOtherUser(result, userId)) {
+        reloadInstructionsInBackground();
+      }
       await this.applyShiftResult(result);
       return result;
     },
@@ -280,6 +301,9 @@ export const useEventStore = defineStore("events", {
     async withdraw(shiftId: number): Promise<ShiftResult> {
       const response = await api.delete<ShiftResult>(`/api/shifts/${shiftId}`);
       const result = response.data;
+      // Den slettede vakta er ikke med i svaret, så vi vet ikke om den var
+      // innlogget brukers; instrukslisten hentes derfor alltid på nytt.
+      reloadInstructionsInBackground();
       await this.applyShiftResult(result);
       return result;
     },
@@ -433,6 +457,8 @@ export const useEventStore = defineStore("events", {
         `/api/resourcetypes/${resourcetype.id}/files`,
         formData
       );
+      // Instrukslisten (og badgen) til admin selv kan være endret.
+      reloadInstructionsInBackground();
       await this.getResourceTypes();
       return response.data;
     },
@@ -447,6 +473,8 @@ export const useEventStore = defineStore("events", {
         `/api/resourcetypes/${resourceTypeId}/files/${fileId}`,
         request
       );
+      // Instrukslisten (og badgen) til admin selv kan være endret.
+      reloadInstructionsInBackground();
       await this.getResourceTypes();
       return response.data;
     },
@@ -458,6 +486,8 @@ export const useEventStore = defineStore("events", {
       await api.delete(
         `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
       );
+      // Instrukslisten (og badgen) til admin selv kan være endret.
+      reloadInstructionsInBackground();
       await this.getResourceTypes();
     },
     // Kun admin. Kvitteringsrapport for et vedlegg (også arkiverte). all=false
