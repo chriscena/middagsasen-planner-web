@@ -36,6 +36,18 @@ function file(
   };
 }
 
+// Promise som testen løser selv, for å styre rekkefølgen på svarene.
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 function group(
   resourceTypeId: number,
   appliesToMe: boolean,
@@ -80,6 +92,117 @@ describe("InstructionStore", () => {
       await expect(store.getMyInstructions()).rejects.toThrow("Network Error");
 
       expect(store.loading).toBe(false);
+      expect(store.inFlight).toBeNull();
+    });
+
+    it("deler en pågående henting: parallelle kall gir én GET", async () => {
+      const first = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get.mockReturnValueOnce(first.promise);
+      const groups = [group(1, true, [file(10, 1)])];
+
+      const a = store.getMyInstructions();
+      const b = store.getMyInstructions();
+      expect(store.loading).toBe(true);
+      first.resolve({ data: groups });
+      await Promise.all([a, b]);
+
+      expect(mockApi.get).toHaveBeenCalledTimes(1);
+      expect(store.groups).toEqual(groups);
+      expect(store.loading).toBe(false);
+    });
+
+    it("henter på nytt når forrige henting er ferdig", async () => {
+      mockApi.get.mockResolvedValue({ data: [] });
+
+      await store.getMyInstructions();
+      await store.getMyInstructions();
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("reloadInstructions", () => {
+    it("lar bare den siste startede hentingen sette groups", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+      const newerGroups = [group(2, true, [file(20, 2)])];
+
+      const a = store.reloadInstructions();
+      const b = store.reloadInstructions();
+      newer.resolve({ data: newerGroups });
+      await b;
+      expect(store.groups).toEqual(newerGroups);
+      expect(store.loading).toBe(false);
+
+      older.resolve({ data: [group(1, true, [file(10, 1)])] });
+      await a;
+
+      expect(store.groups).toEqual(newerGroups);
+    });
+
+    it("holder loading sann til den siste hentingen er ferdig", async () => {
+      const older = deferred<{ data: InstructionGroupResponse[] }>();
+      const newer = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(older.promise)
+        .mockReturnValueOnce(newer.promise);
+
+      const a = store.reloadInstructions();
+      const b = store.reloadInstructions();
+      older.resolve({ data: [] });
+      await a;
+      expect(store.loading).toBe(true);
+
+      newer.resolve({ data: [] });
+      await b;
+      expect(store.loading).toBe(false);
+    });
+
+    it("starter ny henting selv om en alt pågår", async () => {
+      const first = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(first.promise)
+        .mockResolvedValueOnce({ data: [] });
+
+      const a = store.getMyInstructions();
+      const b = store.reloadInstructions();
+      first.resolve({ data: [] });
+      await Promise.all([a, b]);
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("reset", () => {
+    it("tømmer listen og forkaster svar som er underveis", async () => {
+      store.groups = [group(1, true, [file(10, 1)])];
+      const pending = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get.mockReturnValueOnce(pending.promise);
+      const request = store.reloadInstructions();
+
+      store.reset();
+      expect(store.groups).toEqual([]);
+      expect(store.loading).toBe(false);
+      expect(store.unacknowledgedCount).toBe(0);
+
+      pending.resolve({ data: [group(2, true, [file(20, 2)])] });
+      await request;
+
+      expect(store.groups).toEqual([]);
+      expect(store.loading).toBe(false);
+    });
+
+    it("lar en ny henting etter reset virke som normalt", async () => {
+      store.reset();
+      const groups = [group(1, true, [file(10, 1)])];
+      mockApi.get.mockResolvedValue({ data: groups });
+
+      await store.getMyInstructions();
+
+      expect(store.groups).toEqual(groups);
     });
   });
 
@@ -170,6 +293,24 @@ describe("InstructionStore", () => {
       expect(store.groups[0]?.files[0]?.acknowledgedAt).toBe(
         "2026-10-05T12:00:00Z"
       );
+    });
+
+    it("overstyrer en henting som alt var underveis, så status ikke blir fra før kvitteringen", async () => {
+      const stale = deferred<{ data: InstructionGroupResponse[] }>();
+      mockApi.get
+        .mockReturnValueOnce(stale.promise)
+        .mockResolvedValueOnce({ data: [group(1, true, [acknowledged])] });
+      mockApi.post.mockResolvedValue({ data: acknowledged });
+
+      const pending = store.getMyInstructions();
+      await store.acknowledge(1, 10);
+      expect(store.unacknowledgedCount).toBe(0);
+
+      stale.resolve({ data: [group(1, true, [file(10, 1)])] });
+      await pending;
+
+      expect(mockApi.get).toHaveBeenCalledTimes(2);
+      expect(store.unacknowledgedCount).toBe(0);
     });
 
     it("returnerer filen selv om ny henting av listen feiler", async () => {

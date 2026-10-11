@@ -7,6 +7,7 @@
 // `null`/utelatt i requesten betyr «uendret» i backend og brukes ikke herfra.
 
 import { newClientKey } from "@/shared/clientKey";
+import { compareNb } from "@/shared/sorting";
 import { formatTimeRange } from "@/shared/time";
 import type {
   CompetencyRequirementRequest,
@@ -149,7 +150,7 @@ export function competencyOptionsFor(
       name: draft.competencyName ?? `Kompetanse ${draft.competencyId}`,
     });
   }
-  return options.sort((a, b) => a.name.localeCompare(b.name, "nb"));
+  return options.sort((a, b) => compareNb(a.name, b.name));
 }
 
 /** Brudd på et anleggskrav, f.eks. "Snøskuterfører 19:00-21:00: 0 av 1". */

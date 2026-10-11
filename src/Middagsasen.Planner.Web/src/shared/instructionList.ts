@@ -1,6 +1,8 @@
-// Rekkefølge og tellere for Instrukser-siden: vakttypene deles i «Gjelder
+// Rekkefølge, tellere og tekster for instrukser: vakttypene deles i «Gjelder
 // deg» og «Andre vakttyper», begge sortert alfabetisk; instruksene i hver
-// vakttype vises med uleste først, deretter alfabetisk på beskrivelse.
+// vakttype vises med uleste først, deretter alfabetisk på beskrivelse. Samme
+// rekkefølge brukes i «Nyttig info» på oppgaven.
+import { compareNb } from "@/shared/sorting";
 import type { FileInfoResponse, InstructionGroupResponse } from "@/types";
 
 export interface InstructionSections {
@@ -9,13 +11,11 @@ export interface InstructionSections {
   others: InstructionGroupResponse[];
 }
 
-const collator = new Intl.Collator("nb");
-
 function byName(
   a: InstructionGroupResponse,
   b: InstructionGroupResponse
 ): number {
-  return collator.compare(a.resourceTypeName, b.resourceTypeName);
+  return compareNb(a.resourceTypeName, b.resourceTypeName);
 }
 
 // Uleste først, så alfabetisk på beskrivelse. Returnerer en ny liste.
@@ -26,7 +26,7 @@ export function sortInstructionFiles(
     const unreadA = a.acknowledgedAt ? 1 : 0;
     const unreadB = b.acknowledgedAt ? 1 : 0;
     if (unreadA !== unreadB) return unreadA - unreadB;
-    return collator.compare(a.description, b.description);
+    return compareNb(a.description, b.description);
   });
 }
 
@@ -53,4 +53,16 @@ export function acknowledgementCaption(
   group: InstructionGroupResponse
 ): string {
   return `${acknowledgedCount(group)} av ${group.files.length} kvittert`;
+}
+
+// «1 ulest instruks» / «3 uleste instrukser»; tom streng når ingen er uleste.
+export function formatUnreadInstructions(count: number): string {
+  if (count <= 0) return "";
+  return count === 1 ? "1 ulest instruks" : `${count} uleste instrukser`;
+}
+
+// Tilgjengelig navn på profilknappen, med antall uleste når det finnes noen.
+export function profileMenuTitle(count: number): string {
+  const unread = formatUnreadInstructions(count);
+  return unread ? `Din brukerinfo – ${unread}` : "Din brukerinfo";
 }

@@ -4,7 +4,8 @@
     flat
     round
     icon="person"
-    title="Din brukerinfo"
+    :title="title"
+    :aria-label="title"
     @click="emit('click')"
   >
     <q-badge
@@ -23,6 +24,7 @@
 // å åpne menyen. Telleren holdes oppdatert av MainLayout og kvitteringene.
 import { computed } from "vue";
 import { useInstructionStore } from "@/stores/InstructionStore";
+import { profileMenuTitle } from "@/shared/instructionList";
 
 const emit = defineEmits<{ click: [] }>();
 
@@ -30,4 +32,6 @@ const instructionStore = useInstructionStore();
 const unacknowledgedCount = computed(
   () => instructionStore.unacknowledgedCount
 );
+// Tallet i badgen er bare visuelt; tittelen bærer det for skjermlesere.
+const title = computed(() => profileMenuTitle(unacknowledgedCount.value));
 </script>

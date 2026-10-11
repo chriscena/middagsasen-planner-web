@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   acknowledgedCount,
   acknowledgementCaption,
+  formatUnreadInstructions,
   groupInstructions,
+  profileMenuTitle,
   sortInstructionFiles,
 } from "@/shared/instructionList";
 import type { FileInfoResponse, InstructionGroupResponse } from "@/types";
@@ -105,5 +107,29 @@ describe("acknowledgementCaption", () => {
     expect(acknowledgementCaption(group(1, "Kiosk", true))).toBe(
       "0 av 0 kvittert"
     );
+  });
+});
+
+describe("formatUnreadInstructions", () => {
+  it("uses singular for one and plural otherwise", () => {
+    expect(formatUnreadInstructions(1)).toBe("1 ulest instruks");
+    expect(formatUnreadInstructions(2)).toBe("2 uleste instrukser");
+    expect(formatUnreadInstructions(12)).toBe("12 uleste instrukser");
+  });
+
+  it("is empty for zero or negative", () => {
+    expect(formatUnreadInstructions(0)).toBe("");
+    expect(formatUnreadInstructions(-1)).toBe("");
+  });
+});
+
+describe("profileMenuTitle", () => {
+  it("is the plain title without unread instructions", () => {
+    expect(profileMenuTitle(0)).toBe("Din brukerinfo");
+  });
+
+  it("appends the unread count", () => {
+    expect(profileMenuTitle(1)).toBe("Din brukerinfo – 1 ulest instruks");
+    expect(profileMenuTitle(3)).toBe("Din brukerinfo – 3 uleste instrukser");
   });
 });

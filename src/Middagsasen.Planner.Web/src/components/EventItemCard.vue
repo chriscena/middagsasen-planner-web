@@ -584,6 +584,7 @@ import { notifyApiError } from "@/shared/notifyApiError";
 import { getErrorResponse } from "@/shared/apiError";
 import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { sortInstructionFiles } from "@/shared/instructionList";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import AttachmentViewerDialog from "@/components/AttachmentViewerDialog.vue";
 import InstructionStatusBadges from "@/components/InstructionStatusBadges.vue";
@@ -702,11 +703,14 @@ const mustChooseTraining = computed(
     trainingComplete.value === null
 );
 
-// Vedleggene på oppgaven i dialogen, delt i instrukser (krever kvittering)
-// og vanlige vedlegg. Evalueres kun når oppgave-dialogen er åpen.
+// Vedleggene på oppgaven i dialogen, delt i instrukser (krever kvittering,
+// uleste først som på Instrukser-siden) og vanlige vedlegg. Evalueres kun når
+// oppgave-dialogen er åpen.
 const instructions = computed(() =>
-  (selectedResource.value?.resourceType.files ?? []).filter(
-    (f) => f.requiresAcknowledgement
+  sortInstructionFiles(
+    (selectedResource.value?.resourceType.files ?? []).filter(
+      (f) => f.requiresAcknowledgement
+    )
   )
 );
 const attachments = computed(() =>

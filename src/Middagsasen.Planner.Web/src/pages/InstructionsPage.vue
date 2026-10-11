@@ -18,6 +18,16 @@
     <div v-if="showSpinner" class="flex flex-center q-pa-xl">
       <q-spinner size="3em" color="primary"></q-spinner>
     </div>
+    <q-banner
+      v-else-if="loadFailed && groups.length === 0"
+      rounded
+      class="bg-negative text-white"
+    >
+      Klarte ikke å hente instruksene.
+      <template #action>
+        <q-btn flat no-caps label="Prøv igjen" @click="load"></q-btn>
+      </template>
+    </q-banner>
     <div v-else-if="isEmpty" class="q-mt-xl text-center text-grey-8">
       Ingen instrukser å lese.
     </div>
@@ -96,9 +106,12 @@ const emit = defineEmits<{ "toggle-right": [] }>();
 const $router = useRouter();
 const instructionStore = useInstructionStore();
 
-// Første henting er fullført (vellykket). Tom tilstand vises først da, så en
+// En henting er fullført (vellykket). Tom tilstand vises først da, så en
 // feilet henting ikke ser ut som «ingen instrukser».
 const loaded = ref(false);
+// Siste henting feilet. Uten noe å vise fra før gir det banner med «Prøv
+// igjen»; med en liste fra før (f.eks. fra MainLayout) bare et varsel.
+const loadFailed = ref(false);
 const selectedFile = ref<FileInfoResponse | null>(null);
 const showingAttachment = ref(false);
 
@@ -123,14 +136,22 @@ const sections = computed((): Section[] => {
   return all.filter((section) => section.groups.length > 0);
 });
 
-onMounted(async () => {
+// Store-en deler en pågående henting, så ved direkte oppstart gir dette og
+// MainLayout sin henting til sammen én GET.
+async function load(): Promise<void> {
+  loadFailed.value = false;
   try {
     await instructionStore.getMyInstructions();
     loaded.value = true;
   } catch (error) {
-    notifyApiError(error, "Klarte ikke å hente instruksene 🙈");
+    loadFailed.value = true;
+    if (groups.value.length > 0) {
+      notifyApiError(error, "Klarte ikke å hente instruksene.");
+    }
   }
-});
+}
+
+onMounted(load);
 
 function openAttachment(file: FileInfoResponse): void {
   selectedFile.value = file;

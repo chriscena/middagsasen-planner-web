@@ -164,6 +164,9 @@
           ></q-item-section>
           <q-item-section>
             <q-item-label>Instrukser</q-item-label>
+            <q-item-label v-if="unacknowledgedInstructions > 0" caption>{{
+              formatUnreadInstructions(unacknowledgedInstructions)
+            }}</q-item-label>
           </q-item-section>
           <q-item-section v-if="unacknowledgedInstructions > 0" side>
             <q-badge
@@ -347,6 +350,7 @@ import { required } from "@vuelidate/validators";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
 import { formatVersion } from "@/shared/appVersion";
+import { formatUnreadInstructions } from "@/shared/instructionList";
 import { notifyApiError } from "@/shared/notifyApiError";
 import { formatDate } from "@/shared/time";
 import type { UpdateMeRequest, UserCompetencyResponse } from "@/types";
@@ -373,14 +377,20 @@ const isAdmin = computed(() => user.value?.isAdmin ?? false);
 
 // Uleste instrukser til badgen på menyvalget (og på profilknappen via
 // ProfileMenuButton). Hentes ved oppstart med innlogget bruker og ved
-// innlogging; badgen er ikke kritisk, så feil bare logges.
+// innlogging; badgen er ikke kritisk, så feil bare logges. Ved utlogging
+// (både «Logg ut» og 401 går via authStore.removeUserSession) tømmes
+// store-en, siden Login-siden ligger under samme layout og store-en ellers
+// ville overlevd til neste bruker.
 const unacknowledgedInstructions = computed(
   () => instructionStore.unacknowledgedCount
 );
 watch(
   () => user.value?.id,
   async (userId) => {
-    if (!userId) return;
+    if (!userId) {
+      instructionStore.reset();
+      return;
+    }
     try {
       await instructionStore.getMyInstructions();
     } catch (error) {
