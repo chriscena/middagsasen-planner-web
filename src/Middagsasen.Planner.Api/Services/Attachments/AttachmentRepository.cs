@@ -132,14 +132,44 @@ namespace Middagsasen.Planner.Api.Services.Attachments
 
         public async Task<IReadOnlySet<int>> GetUsersWithShiftsSince(int resourceTypeId, DateTime fromUtc)
         {
+            var ids = await UsersWithShiftsSince(resourceTypeId, fromUtc).ToListAsync();
+            return ids.ToHashSet();
+        }
+
+        public async Task<IReadOnlyList<AcknowledgementSummaryResponse>> GetAcknowledgementSummaries(int resourceTypeId, DateTime fromUtc)
+        {
+            // Samme populasjon som rapporten med all=false; både antallet og tellingen per fil gjøres i databasen.
+            var population = UsersWithShiftsSince(resourceTypeId, fromUtc);
+            var total = await population.CountAsync();
+
+            var counts = await DbContext.ResourceTypeFiles
+                .AsNoTracking()
+                .Where(f => f.ResourceTypeId == resourceTypeId && f.Archived == null && f.RequiresAcknowledgement)
+                .OrderBy(f => f.ResourceTypeFileId)
+                .Select(f => new
+                {
+                    f.ResourceTypeFileId,
+                    AcknowledgedCount = f.Acknowledgements.Count(a => population.Contains(a.UserId)),
+                })
+                .ToListAsync();
+
+            return counts
+                .Select(c => new AcknowledgementSummaryResponse { FileId = c.ResourceTypeFileId, AcknowledgedCount = c.AcknowledgedCount, Total = total })
+                .ToList();
+        }
+
+        /// <summary>
+        /// Brukerne vakttypen gjelder for: aktive brukere med vakt på en oppgave av vakttypen som starter fra og med
+        /// <paramref name="fromUtc"/>. Felles for kvitteringsrapporten og kvitteringstallene, så tallene stemmer overens.
+        /// </summary>
+        private IQueryable<int> UsersWithShiftsSince(int resourceTypeId, DateTime fromUtc)
+        {
             var from = ToResourceTime(fromUtc);
-            var ids = await DbContext.Shifts
+            return DbContext.Shifts
                 .AsNoTracking()
                 .Where(s => s.Resource.ResourceTypeId == resourceTypeId && s.Resource.StartTime >= from && !s.User.Inactive)
                 .Select(s => s.UserId)
-                .Distinct()
-                .ToListAsync();
-            return ids.ToHashSet();
+                .Distinct();
         }
 
         public async Task<IReadOnlyList<User>> GetActiveUsers(IReadOnlySet<int>? userIds = null)

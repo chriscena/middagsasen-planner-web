@@ -138,6 +138,20 @@ namespace Middagsasen.Planner.Api.Controllers
         // --- Kvitteringer ---
 
         /// <summary>
+        /// Kvitteringstall («x av y har kvittert») for hver aktive instruks på vakttypen, med samme populasjon som
+        /// rapporten med <c>all=false</c>. Ruten kolliderer ikke med <c>files/{id}</c>, som krever et heltall.
+        /// </summary>
+        [HttpGet("{resourceTypeId}/files/acknowledgements")]
+        [Authorize(Role = Roles.Administrator)]
+        [ProducesResponseType(typeof(IEnumerable<AcknowledgementSummaryResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+        public async Task<IEnumerable<AcknowledgementSummaryResponse>> GetAcknowledgementSummaries(int resourceTypeId)
+        {
+            return await AttachmentService.GetAcknowledgementSummaries(resourceTypeId);
+        }
+
+        /// <summary>
         /// Kvitteringsrapport for instruksen. <c>all=false</c> gir brukerne vakttypen gjelder for (har vakt på den denne
         /// sesongen), <c>all=true</c> alle aktive brukere.
         /// </summary>

@@ -527,6 +527,93 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
                 .GetAcknowledgementReport(resourceType.ResourceTypeId, file.ResourceTypeFileId, all: false));
         }
 
+        [Fact]
+        public async Task GetAcknowledgementSummaries_MatchReportForDefaultPopulation_OnlyActiveInstructions()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, isAdmin: true);
+            var onShift = await SeedUser(seed);
+            var onShiftAcknowledged = await SeedUser(seed);
+            var lastSeason = await SeedUser(seed);
+            var noShift = await SeedUser(seed);
+            var inactive = await SeedUser(seed, inactive: true);
+            var resourceType = await SeedResourceType(seed);
+            var other = await SeedResourceType(seed);
+            var first = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Første", isMandatory: true);
+            var second = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Andre");
+            var archived = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Arkivert", archived: Earlier);
+            var plain = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId, "Løypekart", requiresAcknowledgement: false);
+            await SeedFile(seed, other.ResourceTypeId, admin.UserId, "Annen vakttype");
+
+            await SeedShift(seed, resourceType.ResourceTypeId, onShift.UserId, new DateTime(2026, 7, 1, 0, 0, 0));
+            await SeedShift(seed, resourceType.ResourceTypeId, onShiftAcknowledged.UserId, new DateTime(2026, 9, 15, 18, 0, 0));
+            // To vakter på samme bruker teller én gang.
+            await SeedShift(seed, resourceType.ResourceTypeId, onShiftAcknowledged.UserId, new DateTime(2026, 10, 1, 18, 0, 0));
+            await SeedShift(seed, resourceType.ResourceTypeId, lastSeason.UserId, new DateTime(2026, 6, 30, 23, 30, 0));
+            await SeedShift(seed, resourceType.ResourceTypeId, inactive.UserId, new DateTime(2026, 9, 15, 18, 0, 0));
+            await SeedAcknowledgement(seed, first.ResourceTypeFileId, onShiftAcknowledged.UserId);
+            // Kvitteringer fra brukere utenfor populasjonen (ingen vakt, forrige sesong, inaktiv) telles ikke.
+            await SeedAcknowledgement(seed, first.ResourceTypeFileId, noShift.UserId);
+            await SeedAcknowledgement(seed, first.ResourceTypeFileId, lastSeason.UserId);
+            await SeedAcknowledgement(seed, first.ResourceTypeFileId, inactive.UserId);
+            await SeedAcknowledgement(seed, second.ResourceTypeFileId, noShift.UserId);
+            await SeedAcknowledgement(seed, archived.ResourceTypeFileId, onShift.UserId);
+
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, admin.UserId, isAdmin: true);
+            var summaries = (await service.GetAcknowledgementSummaries(resourceType.ResourceTypeId)).ToList();
+
+            Assert.Equal([first.ResourceTypeFileId, second.ResourceTypeFileId], summaries.Select(s => s.FileId));
+            Assert.DoesNotContain(summaries, s => s.FileId == archived.ResourceTypeFileId || s.FileId == plain.ResourceTypeFileId);
+            Assert.Equal(1, summaries[0].AcknowledgedCount);
+            Assert.Equal(2, summaries[0].Total);
+            Assert.Equal(0, summaries[1].AcknowledgedCount);
+            Assert.Equal(2, summaries[1].Total);
+
+            // Samme tall som kvitteringsrapporten med all=false.
+            foreach (var summary in summaries)
+            {
+                var report = await service.GetAcknowledgementReport(resourceType.ResourceTypeId, summary.FileId, all: false);
+                Assert.Equal(report.Total, summary.Total);
+                Assert.Equal(report.AcknowledgedCount, summary.AcknowledgedCount);
+            }
+        }
+
+        [Fact]
+        public async Task GetAcknowledgementSummaries_WithoutPopulation_GivesZeroTotal()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, isAdmin: true);
+            var user = await SeedUser(seed);
+            var resourceType = await SeedResourceType(seed);
+            var file = await SeedFile(seed, resourceType.ResourceTypeId, admin.UserId);
+            await SeedAcknowledgement(seed, file.ResourceTypeFileId, user.UserId);
+
+            using var context = _fixture.CreateContext();
+            var summary = Assert.Single(await CreateService(context, admin.UserId, isAdmin: true).GetAcknowledgementSummaries(resourceType.ResourceTypeId));
+
+            Assert.Equal(file.ResourceTypeFileId, summary.FileId);
+            Assert.Equal(0, summary.Total);
+            Assert.Equal(0, summary.AcknowledgedCount);
+        }
+
+        [Fact]
+        public async Task GetAcknowledgementSummaries_Forbidden_ForNonAdmin_NotFound_ForUnknownResourceType()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, isAdmin: true);
+            var user = await SeedUser(seed);
+            var resourceType = await SeedResourceType(seed);
+
+            using var context = _fixture.CreateContext();
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => CreateService(context, user.UserId)
+                .GetAcknowledgementSummaries(resourceType.ResourceTypeId));
+            var ex = await Assert.ThrowsAsync<EntityNotFoundException>(() => CreateService(context, admin.UserId, isAdmin: true)
+                .GetAcknowledgementSummaries(int.MaxValue));
+            Assert.Equal(AttachmentService.ResourceTypeNotFoundMessage, ex.Message);
+            Assert.Empty(await CreateService(context, admin.UserId, isAdmin: true).GetAcknowledgementSummaries(resourceType.ResourceTypeId));
+        }
+
         #endregion
 
         #region Instruksliste

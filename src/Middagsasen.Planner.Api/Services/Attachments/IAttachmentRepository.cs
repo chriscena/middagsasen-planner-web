@@ -53,6 +53,12 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         Task<IReadOnlySet<int>> GetUsersWithShiftsSince(int resourceTypeId, DateTime fromUtc);
 
         /// <summary>
+        /// Kvitteringstall per aktiv (ikke arkivert) instruks på vakttypen, sortert på id. Populasjonen er den samme som
+        /// <see cref="GetUsersWithShiftsSince"/>, og kvitteringer fra brukere utenfor den telles ikke. Aggregeres i databasen.
+        /// </summary>
+        Task<IReadOnlyList<AcknowledgementSummaryResponse>> GetAcknowledgementSummaries(int resourceTypeId, DateTime fromUtc);
+
+        /// <summary>
         /// Aktive brukere (ikke <c>Inactive</c>) til kvitteringsrapporten: alle, eller bare de i <paramref name="userIds"/>
         /// når settet er gitt (filtreres i databasen).
         /// </summary>

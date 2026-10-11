@@ -56,5 +56,13 @@ namespace Middagsasen.Planner.Api.Services.Attachments
         /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
         /// <exception cref="EntityNotFoundException">Vedlegget finnes ikke på vakttypen.</exception>
         Task<AcknowledgementReportResponse> GetAcknowledgementReport(int resourceTypeId, int fileId, bool all);
+
+        /// <summary>
+        /// Kvitteringstall for hver aktive instruks på vakttypen (kun admin), med samme populasjon og telling som
+        /// <see cref="GetAcknowledgementReport"/> med <c>all=false</c>. Arkiverte vedlegg og vedlegg uten kvittering utelates.
+        /// </summary>
+        /// <exception cref="ForbiddenAccessException">Innlogget bruker er ikke admin.</exception>
+        /// <exception cref="EntityNotFoundException">Vakttypen finnes ikke.</exception>
+        Task<IEnumerable<AcknowledgementSummaryResponse>> GetAcknowledgementSummaries(int resourceTypeId);
     }
 }

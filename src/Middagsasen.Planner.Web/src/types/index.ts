@@ -8,6 +8,7 @@ type Schemas = components["schemas"];
 export type AcknowledgeRequest = Schemas["AcknowledgeRequest"];
 export type AcknowledgementReportResponse = Schemas["AcknowledgementReportResponse"];
 export type AcknowledgementReportUserResponse = Schemas["AcknowledgementReportUserResponse"];
+export type AcknowledgementSummaryResponse = Schemas["AcknowledgementSummaryResponse"];
 export { ApprovalFilter } from "./enums";
 export { ApprovalStatus } from "./enums";
 export type ApproveCompetencyRequest = Schemas["ApproveCompetencyRequest"];

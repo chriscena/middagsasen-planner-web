@@ -200,6 +200,22 @@
                       class="q-ml-xs"
                     ></q-badge>
                   </q-item-label>
+                  <!-- Teller fra kvitteringsrapporten (all=false). Klikk åpner
+                       rapporten; mens tellingen hentes vises en nøytral
+                       tekst, og feiler den kan rapporten likevel åpnes. -->
+                  <q-item-label v-if="file.requiresAcknowledgement" caption>
+                    <q-btn
+                      flat
+                      dense
+                      no-caps
+                      size="sm"
+                      padding="none"
+                      color="primary"
+                      :label="acknowledgementCountLabel(file)"
+                      title="Vis kvitteringer"
+                      @click="showReport(file)"
+                    ></q-btn>
+                  </q-item-label>
                 </q-item-section>
                 <q-item-section side>
                   <div class="row no-wrap">
@@ -245,6 +261,75 @@
                 @click="showAddFile"
               ></q-btn>
             </q-card-actions>
+            <template v-if="selectedResource!.id">
+              <q-separator></q-separator>
+              <!-- Hentes første gang seksjonen åpnes; nullstilles ved bytte
+                   av vakttype og etter arkivering. -->
+              <q-expansion-item
+                v-model="showingArchived"
+                label="Arkiverte vedlegg"
+                icon="inventory_2"
+                dense
+                @show="ensureArchivedFiles"
+              >
+                <div v-if="archivedLoading" class="flex flex-center q-pa-md">
+                  <q-spinner color="primary" size="2em"></q-spinner>
+                </div>
+                <div
+                  v-else-if="archivedFailed"
+                  class="row items-center q-pa-md q-gutter-sm"
+                >
+                  <span class="text-negative"
+                    >Klarte ikke å hente arkiverte vedlegg.</span
+                  >
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="primary"
+                    icon="refresh"
+                    label="Prøv igjen"
+                    @click="loadArchivedFiles"
+                  ></q-btn>
+                </div>
+                <div
+                  v-else-if="archivedFiles && archivedFiles.length === 0"
+                  class="q-pa-md text-caption text-grey-7"
+                >
+                  Ingen arkiverte vedlegg
+                </div>
+                <q-list v-else-if="archivedFiles" role="list" separator>
+                  <q-item v-for="file in archivedFiles" :key="file.id">
+                    <q-item-section>
+                      <q-item-label>{{ file.description }}</q-item-label>
+                      <q-item-label caption>{{ file.fileName }}</q-item-label>
+                      <q-item-label caption
+                        >Arkivert {{ formatDate(file.archived) }}</q-item-label
+                      >
+                    </q-item-section>
+                    <q-item-section side>
+                      <div class="row no-wrap">
+                        <q-btn
+                          v-if="file.requiresAcknowledgement"
+                          flat
+                          round
+                          icon="fact_check"
+                          title="Vis kvitteringer"
+                          @click="showReport(file)"
+                        ></q-btn>
+                        <q-btn
+                          flat
+                          round
+                          icon="download"
+                          title="Last ned vedlegg"
+                          @click="downloadResourceTypeFileOrNotify(file)"
+                        ></q-btn>
+                      </div>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-expansion-item>
+            </template>
           </q-card>
         </q-card-section>
         <q-card-actions align="right">
@@ -302,6 +387,12 @@
           </q-card-actions>
         </q-card>
       </q-dialog>
+      <AcknowledgementReportDialog
+        v-if="reportFile"
+        v-model="showingReport"
+        :file="reportFile"
+        :resource-type-id="reportFile.resourceTypeId"
+      ></AcknowledgementReportDialog>
       <!-- Samme dialog for nytt vedlegg og redigering av metadata. Selve
            filen kan ikke byttes (kvitteringene gjelder innholdet); nytt
            innhold er arkiver + legg til. -->
@@ -374,12 +465,15 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
+import AcknowledgementReportDialog from "@/components/AcknowledgementReportDialog.vue";
 import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useEventStore } from "@/stores/EventStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useCompetencyStore } from "@/stores/CompetencyStore";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { createLatest } from "@/shared/latestRequest";
 import { notifyApiError } from "@/shared/notifyApiError";
+import { formatDate } from "@/shared/time";
 import {
   newEditableTrainer,
   toEditableResourceType,
@@ -448,6 +542,7 @@ const visibleTrainers = computed(() =>
 const selectedResource = ref<EditableResourceType | null>(null);
 function newResourceType() {
   selectedResource.value = emptyResource();
+  resetFileReports();
   competencyRequirements.value = [];
   selectedCompetency.value = null;
   showingEdit.value = true;
@@ -460,6 +555,8 @@ async function editResourceType(resourceType: ResourceTypeResponse) {
   competencyRequirements.value = [];
   selectedCompetency.value = null;
   showingEdit.value = true;
+  resetFileReports();
+  void loadAcknowledgementCounts();
   await loadCompetencyRequirements(resourceType.id);
 }
 
@@ -656,6 +753,8 @@ async function saveFile() {
       resource.files = [...(resource.files ?? []), created];
     }
     showingAddFile.value = false;
+    // Flagget kan være endret, og et nytt vedlegg trenger teller.
+    if (selectedResource.value === resource) void loadAcknowledgementCounts();
     $q.notify({ message: "Vedlegget er lagret." });
   } catch (error) {
     notifyApiError(error, "Klarte ikke å lagre vedlegget.");
@@ -687,10 +786,144 @@ async function archiveFile(file: FileInfoResponse) {
     const resource = selectedResource.value!;
     resource.files = (resource.files ?? []).filter((f) => f.id !== file.id);
     $q.notify({ message: "Vedlegget er arkivert." });
+    void loadAcknowledgementCounts();
+    invalidateArchivedFiles();
   } catch (error) {
     notifyApiError(error, "Klarte ikke å arkivere vedlegget.");
   } finally {
     archivingFile.value = false;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Kvitteringer og arkiv (admin). Tellerne og arkivlisten gjelder vakttypen i
+// selectedResource. Hver henting får et løpenummer; svar for en vakttype som
+// ikke lenger er valgt (eller fra en eldre henting) forkastes.
+
+// Kvittert/totalt per aktiv instruks (fil-id). Mangler = hentes; null =
+// hentingen feilet.
+interface AcknowledgementCount {
+  acknowledgedCount: number;
+  total: number;
+}
+const acknowledgementCounts = ref<Record<number, AcknowledgementCount | null>>(
+  {}
+);
+const latestCounts = createLatest();
+
+// Henter tellerne for alle aktive instrukser på vakttypen i ett kall.
+// Tellerne tømmes ikke her: ved bytte av vakttype gjør resetFileReports det,
+// og etter lagring/arkivering på samme vakttype står de gamle tallene til de
+// nye kommer (unngår flimmer). Et nytt vedlegg mangler i tellerne og viser
+// «Henter kvitteringer …» til svaret er der.
+async function loadAcknowledgementCounts() {
+  const token = latestCounts.start();
+  const resource = selectedResource.value;
+  const resourceTypeId = resource?.id;
+  if (!resource || !resourceTypeId) return;
+  const files = (resource.files ?? []).filter((f) => f.requiresAcknowledgement);
+  if (files.length === 0) {
+    acknowledgementCounts.value = {};
+    return;
+  }
+  try {
+    const summaries =
+      await eventStore.getAcknowledgementSummaries(resourceTypeId);
+    if (!latestCounts.isCurrent(token)) return;
+    const byFileId = new Map(summaries.map((s) => [s.fileId, s]));
+    // En instruks som mangler i svaret (bør ikke skje) får null, så den
+    // viser «Vis kvitteringer» og ikke «Henter …» for alltid.
+    const counts: Record<number, AcknowledgementCount | null> = {};
+    for (const file of files) {
+      const summary = byFileId.get(file.id);
+      counts[file.id] = summary
+        ? {
+            acknowledgedCount: summary.acknowledgedCount,
+            total: summary.total,
+          }
+        : null;
+    }
+    acknowledgementCounts.value = counts;
+  } catch (error) {
+    if (!latestCounts.isCurrent(token)) return;
+    acknowledgementCounts.value = Object.fromEntries(
+      files.map((f) => [f.id, null])
+    );
+    notifyApiError(error, "Klarte ikke å hente kvitteringene.");
+  }
+}
+
+function acknowledgementCountLabel(file: FileInfoResponse): string {
+  if (!(file.id in acknowledgementCounts.value)) {
+    return "Henter kvitteringer …";
+  }
+  const count = acknowledgementCounts.value[file.id];
+  if (!count) return "Vis kvitteringer";
+  return `${count.acknowledgedCount} av ${count.total} har kvittert`;
+}
+
+// Arkiverte vedlegg: null = ikke hentet (eller ugyldiggjort).
+const archivedFiles = ref<FileInfoResponse[] | null>(null);
+const archivedLoading = ref(false);
+// Siste henting av arkivlisten feilet; vises med «Prøv igjen».
+const archivedFailed = ref(false);
+const showingArchived = ref(false);
+const latestArchived = createLatest();
+
+async function loadArchivedFiles() {
+  const resourceTypeId = selectedResource.value?.id;
+  if (!resourceTypeId) return;
+  const token = latestArchived.start();
+  archivedLoading.value = true;
+  archivedFailed.value = false;
+  try {
+    const files = await eventStore.getArchivedResourceTypeFiles(resourceTypeId);
+    if (latestArchived.isCurrent(token)) archivedFiles.value = files;
+  } catch (error) {
+    if (latestArchived.isCurrent(token)) {
+      archivedFailed.value = true;
+      notifyApiError(error, "Klarte ikke å hente arkiverte vedlegg.");
+    }
+  } finally {
+    if (latestArchived.isCurrent(token)) archivedLoading.value = false;
+  }
+}
+
+// Kalles når seksjonen åpnes: hent bare hvis listen ikke alt er hentet
+// (eller feilet forrige gang).
+function ensureArchivedFiles() {
+  if (archivedFiles.value === null && !archivedLoading.value) {
+    void loadArchivedFiles();
+  }
+}
+
+// Etter arkivering er listen utdatert. Er seksjonen åpen, hentes den på
+// nytt med en gang, ellers ved neste åpning.
+function invalidateArchivedFiles() {
+  latestArchived.cancel();
+  archivedFiles.value = null;
+  archivedLoading.value = false;
+  archivedFailed.value = false;
+  if (showingArchived.value) void loadArchivedFiles();
+}
+
+// Ved bytte av vakttype: forkast tellere, arkivliste og svar underveis, og
+// lukk arkivseksjonen.
+function resetFileReports() {
+  latestCounts.cancel();
+  acknowledgementCounts.value = {};
+  latestArchived.cancel();
+  archivedFiles.value = null;
+  archivedLoading.value = false;
+  archivedFailed.value = false;
+  showingArchived.value = false;
+}
+
+// Kvitteringsrapporten deler én dialog for aktive og arkiverte instrukser.
+const reportFile = ref<FileInfoResponse | null>(null);
+const showingReport = ref(false);
+function showReport(file: FileInfoResponse) {
+  reportFile.value = file;
+  showingReport.value = true;
 }
 </script>

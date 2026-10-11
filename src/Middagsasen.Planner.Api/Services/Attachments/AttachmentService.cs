@@ -209,6 +209,16 @@ namespace Middagsasen.Planner.Api.Services.Attachments
             };
         }
 
+        public async Task<IEnumerable<AcknowledgementSummaryResponse>> GetAcknowledgementSummaries(int resourceTypeId)
+        {
+            if (!AttachmentPolicy.CanViewReport(CurrentUser.ToActor()))
+                throw new ForbiddenAccessException();
+            if (!await Repository.ResourceTypeExists(resourceTypeId))
+                throw new EntityNotFoundException(ResourceTypeNotFoundMessage);
+
+            return await Repository.GetAcknowledgementSummaries(resourceTypeId, AttachmentRules.SeasonStartUtc(TimeProvider.GetUtcNow()));
+        }
+
         // --- Hjelpere ---
 
         private static void ValidateFlags(bool requiresAcknowledgement, bool isMandatory)

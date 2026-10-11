@@ -3,6 +3,8 @@ import { api } from "@/boot/axios";
 import { getErrorResponse } from "@/shared/apiError";
 import { nextDay, toDayKey } from "@/shared/time";
 import type {
+  AcknowledgementReportResponse,
+  AcknowledgementSummaryResponse,
   ChangeShiftRequest,
   EventFromTemplateRequest,
   EventRequest,
@@ -457,6 +459,42 @@ export const useEventStore = defineStore("events", {
         `/api/resourcetypes/${fileInfo.resourceTypeId}/files/${fileInfo.id}`
       );
       await this.getResourceTypes();
+    },
+    // Kun admin. Kvitteringsrapport for et vedlegg (også arkiverte). all=false
+    // gir brukerne vakttypen gjelder for (vakt av typen denne sesongen),
+    // all=true alle aktive brukere. Backend sorterer: ikke kvittert først, så
+    // navn. Ingenting caches i staten; kalleren eier svaret. Feil kastes videre.
+    async getAcknowledgementReport(
+      resourceTypeId: number,
+      fileId: number,
+      all = false
+    ): Promise<AcknowledgementReportResponse> {
+      const response = await api.get<AcknowledgementReportResponse>(
+        `/api/resourcetypes/${resourceTypeId}/files/${fileId}/acknowledgements`,
+        { params: { all } }
+      );
+      return response.data;
+    },
+    // Kun admin. Kvittert/totalt for alle aktive instrukser på vakttypen i ett
+    // kall (én rad per instruks), med samme populasjon som rapporten med
+    // all=false. Brukes til tellerne på Vakttyper-siden. Feil kastes videre.
+    async getAcknowledgementSummaries(
+      resourceTypeId: number
+    ): Promise<AcknowledgementSummaryResponse[]> {
+      const response = await api.get<AcknowledgementSummaryResponse[]>(
+        `/api/resourcetypes/${resourceTypeId}/files/acknowledgements`
+      );
+      return response.data;
+    },
+    // Kun admin. Arkiverte vedlegg på vakttypen, nyeste først. Feil kastes
+    // videre.
+    async getArchivedResourceTypeFiles(
+      resourceTypeId: number
+    ): Promise<FileInfoResponse[]> {
+      const response = await api.get<FileInfoResponse[]>(
+        `/api/resourcetypes/${resourceTypeId}/files/archived`
+      );
+      return response.data;
     },
     // Etter kvittering for en instruks: kvitteringsstatusen (acknowledgedAt i
     // files) og sperren (hasUnacknowledgedMandatoryInstructions) endres på

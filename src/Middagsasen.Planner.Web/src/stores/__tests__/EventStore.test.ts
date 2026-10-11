@@ -1,6 +1,8 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { setActivePinia, createPinia } from "pinia";
 import type {
+  AcknowledgementReportResponse,
+  AcknowledgementSummaryResponse,
   EventRequest,
   EventResponse,
   EventTemplateRequest,
@@ -1078,6 +1080,120 @@ describe("EventStore", () => {
         `/api/resourcetypes/${TYPE_ID}/files/7`
       );
       expect(mockApi.get).toHaveBeenCalledWith("/api/resourcetypes");
+    });
+  });
+
+  describe("kvitteringsrapport og arkiv", () => {
+    const archived: FileInfoResponse = {
+      id: 8,
+      resourceTypeId: TYPE_ID,
+      fileName: "gammel-instruks.pdf",
+      description: "Gammel instruks",
+      created: "2025-10-01T10:00:00Z",
+      createdBy: "Admin",
+      updated: "2025-10-01T10:00:00Z",
+      updatedBy: "Admin",
+      mimeType: "application/pdf",
+      requiresAcknowledgement: true,
+      isMandatory: false,
+      archived: "2026-09-01T10:00:00Z",
+    };
+    const report: AcknowledgementReportResponse = {
+      file: archived,
+      total: 2,
+      acknowledgedCount: 1,
+      users: [
+        {
+          userId: 3,
+          fullName: "Kari Nordmann",
+          acknowledgedAt: null,
+          comment: null,
+          appliesTo: true,
+        },
+        {
+          userId: 4,
+          fullName: "Ola Nordmann",
+          acknowledgedAt: "2026-09-15T08:30:00Z",
+          comment: "Lest",
+          appliesTo: true,
+        },
+      ],
+    };
+
+    it("getAcknowledgementReport sender all=false som standard og returnerer rapporten", async () => {
+      mockApi.get.mockResolvedValue({ data: report });
+
+      const result = await store.getAcknowledgementReport(TYPE_ID, 8);
+
+      expect(mockApi.get).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/8/acknowledgements`,
+        { params: { all: false } }
+      );
+      expect(result).toEqual(report);
+    });
+
+    it("getAcknowledgementReport sender all=true når alle brukere skal med", async () => {
+      mockApi.get.mockResolvedValue({ data: report });
+
+      await store.getAcknowledgementReport(TYPE_ID, 8, true);
+
+      expect(mockApi.get).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/8/acknowledgements`,
+        { params: { all: true } }
+      );
+    });
+
+    it("getAcknowledgementReport kaster feilen videre", async () => {
+      const error = new Error("403");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.getAcknowledgementReport(TYPE_ID, 8)).rejects.toBe(
+        error
+      );
+    });
+
+    it("getAcknowledgementSummaries henter tellerne for vakttypen i ett kall", async () => {
+      const summaries: AcknowledgementSummaryResponse[] = [
+        { fileId: 7, acknowledgedCount: 12, total: 18 },
+        { fileId: 9, acknowledgedCount: 0, total: 18 },
+      ];
+      mockApi.get.mockResolvedValue({ data: summaries });
+
+      const result = await store.getAcknowledgementSummaries(TYPE_ID);
+
+      expect(mockApi.get).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/acknowledgements`
+      );
+      expect(result).toEqual(summaries);
+    });
+
+    it("getAcknowledgementSummaries kaster feilen videre", async () => {
+      const error = new Error("403");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.getAcknowledgementSummaries(TYPE_ID)).rejects.toBe(
+        error
+      );
+    });
+
+    it("getArchivedResourceTypeFiles henter arkiverte vedlegg for vakttypen", async () => {
+      mockApi.get.mockResolvedValue({ data: [archived] });
+
+      const result = await store.getArchivedResourceTypeFiles(TYPE_ID);
+
+      expect(mockApi.get).toHaveBeenCalledWith(
+        `/api/resourcetypes/${TYPE_ID}/files/archived`
+      );
+      expect(result).toEqual([archived]);
+    });
+
+    it("getArchivedResourceTypeFiles kaster feilen videre", async () => {
+      const error = new Error("500");
+      mockApi.get.mockRejectedValue(error);
+
+      await expect(store.getArchivedResourceTypeFiles(TYPE_ID)).rejects.toBe(
+        error
+      );
     });
   });
 
