@@ -6,7 +6,6 @@ namespace Middagsasen.Planner.Api.Services.Storage
     {
         Task Save(string filename, Stream stream);
         Task<byte[]> Read(string filename);
-        Task Delete(string filename);
     }
 
     public interface IBlobStorageSettings
@@ -82,12 +81,6 @@ namespace Middagsasen.Planner.Api.Services.Storage
                 await enumerator.DisposeAsync(); // You may also want .ConfigureAwait(false) here
             }
             return result;
-        }
-
-        public async Task Delete(string fileName)
-        {
-            var client = new BlobClient(ConnectionString, Container, fileName);
-            await client.DeleteIfExistsAsync();
         }
     }
 }

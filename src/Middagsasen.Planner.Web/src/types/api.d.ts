@@ -902,6 +902,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me/instructions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["InstructionGroupResponse"][];
+                        "application/json": components["schemas"]["InstructionGroupResponse"][];
+                        "text/json": components["schemas"]["InstructionGroupResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/events": {
         parameters: {
             query?: never;
@@ -1682,8 +1728,9 @@ export interface paths {
                 content: {
                     "multipart/form-data": {
                         file?: components["schemas"]["IFormFile"];
-                    } & {
                         description?: string;
+                        requiresAcknowledgement?: boolean;
+                        isMandatory?: boolean;
                     };
                 };
             };
@@ -1699,6 +1746,15 @@ export interface paths {
                         "text/json": components["schemas"]["FileInfoResponse"];
                     };
                 };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
                 /** @description Unauthorized */
                 401: {
                     headers: {
@@ -1710,6 +1766,15 @@ export interface paths {
                 };
                 /** @description Forbidden */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1773,7 +1838,73 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resourceTypeId: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FileMetadataRequest"];
+                    "text/json": components["schemas"]["FileMetadataRequest"];
+                    "application/*+json": components["schemas"]["FileMetadataRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FileInfoResponse"];
+                        "application/json": components["schemas"]["FileInfoResponse"];
+                        "text/json": components["schemas"]["FileInfoResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
         post?: never;
         delete: {
             parameters: {
@@ -1823,6 +1954,189 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ResourceTypes/{resourceTypeId}/files/archived": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resourceTypeId: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FileInfoResponse"][];
+                        "application/json": components["schemas"]["FileInfoResponse"][];
+                        "text/json": components["schemas"]["FileInfoResponse"][];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/ResourceTypes/{resourceTypeId}/files/{id}/acknowledgements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    all?: boolean;
+                };
+                header?: never;
+                path: {
+                    resourceTypeId: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["AcknowledgementReportResponse"];
+                        "application/json": components["schemas"]["AcknowledgementReportResponse"];
+                        "text/json": components["schemas"]["AcknowledgementReportResponse"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    resourceTypeId: number;
+                    id: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["AcknowledgeRequest"];
+                    "text/json": null | components["schemas"]["AcknowledgeRequest"];
+                    "application/*+json": null | components["schemas"]["AcknowledgeRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": components["schemas"]["FileInfoResponse"];
+                        "application/json": components["schemas"]["FileInfoResponse"];
+                        "text/json": components["schemas"]["FileInfoResponse"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3936,6 +4250,25 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AcknowledgementReportResponse: {
+            file: components["schemas"]["FileInfoResponse"];
+            /** Format: int32 */
+            total: number;
+            /** Format: int32 */
+            acknowledgedCount: number;
+            users: components["schemas"]["AcknowledgementReportUserResponse"][];
+        };
+        AcknowledgementReportUserResponse: {
+            /** Format: int32 */
+            userId: number;
+            fullName: string;
+            acknowledgedAt?: null | string;
+            comment?: null | string;
+            appliesTo: boolean;
+        };
+        AcknowledgeRequest: {
+            comment?: null | string;
+        };
         /** @enum {integer} */
         ApprovalFilter: 0 | 1 | 2 | 3;
         /** @enum {integer} */
@@ -4106,6 +4439,15 @@ export interface components {
             updated: string;
             updatedBy: string;
             mimeType: string;
+            requiresAcknowledgement: boolean;
+            isMandatory: boolean;
+            acknowledgedAt?: null | string;
+            archived?: null | string;
+        };
+        FileMetadataRequest: {
+            description: string;
+            requiresAcknowledgement: boolean;
+            isMandatory: boolean;
         };
         HallOfFameResponse: {
             hallOfFamers: components["schemas"]["HallOfFamerResponse"][];
@@ -4119,6 +4461,13 @@ export interface components {
         };
         /** Format: binary */
         IFormFile: string;
+        InstructionGroupResponse: {
+            /** Format: int32 */
+            resourceTypeId: number;
+            resourceTypeName: string;
+            appliesToMe: boolean;
+            files: components["schemas"]["FileInfoResponse"][];
+        };
         LocationMeasurementResponse: {
             locationName: string;
             measurements: components["schemas"]["MeasurementResponse"][];
@@ -4208,6 +4557,7 @@ export interface components {
             isPast: boolean;
             canSignUp: boolean;
             mustAnswerTraining: boolean;
+            hasUnacknowledgedMandatoryInstructions: boolean;
         };
         ResourceTemplateRequest: {
             /** Format: int32 */
@@ -4306,6 +4656,7 @@ export interface components {
             canEdit: boolean;
             canWithdraw: boolean;
             canConfirmTraining: boolean;
+            hasUnacknowledgedMandatoryInstructions: boolean;
         };
         ShiftResult: {
             resource: components["schemas"]["ResourceResponse"];

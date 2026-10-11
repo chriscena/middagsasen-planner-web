@@ -85,3 +85,21 @@ _Unngå_: Kompetansekrav (uten presisering), MinimumRequired
 **Anleggskrav**:
 At minst et gitt antall av de som er på vakt i anlegget skal ha en bestemt kompetanse på hvert tidspunkt i åpningstiden, uansett vakttype, f.eks. minst én snøskuterfører. Kravet settes per vaktliste og mal. Et brudd gir en advarsel, men hindrer ingenting.
 _Unngå_: Kompetansekrav (uten presisering), beredskapskrav
+
+### Vedlegg
+
+**Vedlegg**:
+En fil (PDF eller bilde) som admin har lagt på en vakttype, f.eks. løypekart eller instruks. Vises under «Nyttig info» på oppgaven. Heter `ResourceTypeFile` i koden.
+_Unngå_: Fil, dokument, ResourceTypeFile (i brukervendt tekst)
+
+**Instruks**:
+Et vedlegg som krever kvittering. En instruks kan i tillegg være **påkrevd**: da må brukeren ha kvittert før de kan ta vakt på vakttypen. Heter `RequiresAcknowledgement` og `IsMandatory` i koden.
+_Unngå_: Dokument, prosedyre, rutine
+
+**Kvittering**:
+At en bruker har bekreftet å ha lest og forstått en instruks, med tidspunkt og en valgfri kommentar. Kvitteringen gjelder den konkrete filen, så en ny versjon av instruksen krever ny kvittering.
+_Unngå_: Lest, godkjent, acknowledgement, signering
+
+**Arkivert vedlegg**:
+Et vedlegg som er fjernet fra vakttypen, men beholdt for historikk og kvitteringsrapport. Vedlegg slettes aldri fysisk.
+_Unngå_: Slettet

@@ -38,5 +38,11 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// Da må <c>trainingCompleted</c> sendes med når brukeren tar vakt for seg selv.
         /// </summary>
         public bool MustAnswerTraining { get; internal set; }
+
+        /// <summary>
+        /// Vakttypen har en påkrevd instruks innlogget bruker ikke har kvittert for. Da avviser backend egen påmelding
+        /// (<c>POST api/resources/{id}/shifts</c>) til brukeren har kvittert. Admin kan fortsatt tildele andre.
+        /// </summary>
+        public bool HasUnacknowledgedMandatoryInstructions { get; internal set; }
     }
 }

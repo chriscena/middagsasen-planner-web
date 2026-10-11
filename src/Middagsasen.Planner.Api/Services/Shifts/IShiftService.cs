@@ -15,7 +15,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// </summary>
         /// <exception cref="EntityNotFoundException">Oppgaven eller brukeren finnes ikke.</exception>
         /// <exception cref="ForbiddenAccessException">Ikke-admin setter opp en annen bruker.</exception>
-        /// <exception cref="DomainValidationException">Full, avsluttet, duplikat, ugyldige tider eller manglende opplæringssvar.</exception>
+        /// <exception cref="DomainValidationException">
+        /// Full, avsluttet, duplikat, ugyldige tider, manglende opplæringssvar, eller (egen påmelding) en påkrevd
+        /// instruks som ikke er kvittert.
+        /// </exception>
         Task<ShiftResult> SignUp(int resourceId, SignUpRequest request);
 
         /// <summary>

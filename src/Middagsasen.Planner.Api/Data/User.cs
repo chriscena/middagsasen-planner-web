@@ -34,6 +34,8 @@
         public virtual ICollection<ResourceTypeTraining> ConfirmedTrainings { get; set; } = new HashSet<ResourceTypeTraining>();
         public virtual ICollection<ResourceTypeFile> CreatedResourceTypeFiles { get; set; } = new HashSet<ResourceTypeFile>();
         public virtual ICollection<ResourceTypeFile> UpdatedResourceTypeFiles { get; set; } = new HashSet<ResourceTypeFile>();
+        public virtual ICollection<ResourceTypeFile> ArchivedResourceTypeFiles { get; set; } = new HashSet<ResourceTypeFile>();
+        public virtual ICollection<ResourceTypeFileAcknowledgement> FileAcknowledgements { get; set; } = new HashSet<ResourceTypeFileAcknowledgement>();
         public virtual ICollection<UserCompetency> Competencies { get; set; } = new HashSet<UserCompetency>();
         public virtual ICollection<UserCompetency> ApprovedUserCompetencies { get; set; } = new HashSet<UserCompetency>();
         public virtual ICollection<CompetencyApprover> CompetencyApprovals { get; set; } = new HashSet<CompetencyApprover>();

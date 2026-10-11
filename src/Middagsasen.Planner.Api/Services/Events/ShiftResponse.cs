@@ -32,5 +32,11 @@ namespace Middagsasen.Planner.Api.Services.Events
         /// (<c>PUT api/shifts/{id}/training</c> med <c>trainingCompleted: true</c>).
         /// </summary>
         public bool CanConfirmTraining { get; set; }
+
+        /// <summary>
+        /// Eieren av vakta har ikke kvittert for en påkrevd instruks på oppgavens vakttype. Sendes bare når innlogget
+        /// bruker er admin eller eier av vakta; ellers alltid <c>false</c> (andres kvitteringsstatus er ikke synlig).
+        /// </summary>
+        public bool HasUnacknowledgedMandatoryInstructions { get; set; }
     }
 }

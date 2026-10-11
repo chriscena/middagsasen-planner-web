@@ -57,8 +57,5 @@ namespace Middagsasen.Planner.Api.Services.Resources
 
         /// <summary>Meldingen, eller <c>null</c>.</summary>
         Task<MessageResponse?> GetMessage(int messageId);
-
-        /// <summary>Filinformasjonen (uten innhold), eller <c>null</c>.</summary>
-        Task<FileInfoResponse?> GetFile(int fileId);
     }
 }

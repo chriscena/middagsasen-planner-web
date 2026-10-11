@@ -332,6 +332,36 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Equal(expected, ShiftRules.CheckWithdraw(Resolve(who), Resource(2, true, shift), past ? AtEnd : Before, shift));
         }
 
+        // --- Påkrevde instrukser ---
+
+        [Theory]
+        // Kolonner: hvem, setter opp seg selv, sjekken gjelder, forventet sperrende instruks (null = ingen sperre)
+        [InlineData(Who.Owner, true, true, "Heisførerinstruks")]
+        [InlineData(Who.Admin, true, true, "Heisførerinstruks")]   // sperren gjelder egen påmelding, også for admin
+        [InlineData(Who.Admin, false, false, null)]                // admin som tildeler en annen går utenom
+        [InlineData(Who.Owner, false, false, null)]                // avvises uansett av CheckSignUp (Forbidden)
+        public void BlockingInstruction_OnlyForSelfSignUp(Who who, bool self, bool applies, string? expected)
+        {
+            var actor = Resolve(who);
+            var target = self ? actor.UserId : OtherId;
+
+            Assert.Equal(applies, ShiftRules.InstructionCheckApplies(actor, target));
+            // Listen kommer ferdig sortert fra AttachmentRules.BlockingInstructions; den første nevnes.
+            Assert.Equal(expected, ShiftRules.BlockingInstruction(actor, target, ["Heisførerinstruks", "Sikkerhetsrutine"]));
+        }
+
+        [Fact]
+        public void BlockingInstruction_IsNull_WhenNothingIsUnacknowledged()
+        {
+            Assert.Null(ShiftRules.BlockingInstruction(Owner, OwnerId, []));
+        }
+
+        [Fact]
+        public void BlockingInstruction_TakesFirstGiven_WithoutResorting()
+        {
+            Assert.Equal("Sikkerhetsrutine", ShiftRules.BlockingInstruction(Owner, OwnerId, ["Sikkerhetsrutine", "brannrutine"]));
+        }
+
         // --- Flagg og håndhevelse stemmer overens ---
 
         [Fact]

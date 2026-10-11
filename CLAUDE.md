@@ -6,7 +6,7 @@ Vaktplanleggingssystem for skianlegget Middagsåsen. Domene: event/vakt-planlegg
 
 - **Frontend:** TypeScript (strict), Vue 3 + Pinia + Quasar 2 (Vite), vue-router 4, axios, vuelidate, chart.js, vue-i18n
 - **Backend:** ASP.NET Core 10 Web API, EF Core 10, JWT-autentisering (custom middleware), Argon2 passord-hashing, Serilog, innebygd OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Swagger UI
-- **Database:** MSSQL (SQL Azure), 20 tabeller + 2 views, SQL Server Database Project
+- **Database:** MSSQL (SQL Azure), 24 tabeller + 2 views, SQL Server Database Project
 - **Infrastruktur:** Azure (App Insights, Blob Storage), SMS-integrasjon
 - **Test:** xUnit + NSubstitute + Testcontainers (MSSQL) (backend), Vitest (frontend)
 
@@ -42,6 +42,7 @@ src/
 - [docs/backend-arkitektur.md](docs/backend-arkitektur.md) — arkitekturanalyse og 6-stegs forbedringsplan
 - [docs/postgresql-migrering.md](docs/postgresql-migrering.md) — plan for migrering MSSQL → PostgreSQL
 - [docs/timeforing-redigering.md](docs/timeforing-redigering.md) — admin-redigering av timeføringer, låsing og tilgangsregler
+- [docs/vedlegg-og-instrukser.html](docs/vedlegg-og-instrukser.html) — vedlegg på vakttyper, instrukser med kvittering, sperre mot å ta vakt og kvitteringsrapport (modulen `Services/Attachments`)
 
 ## Kommandoer
 
@@ -99,5 +100,6 @@ dotnet test ../Middagsasen.Planner.Api.Tests/
 ## Pågående arbeid
 
 - **Kompetansesystem**: Frittstående kompetanser, godkjenningsflyt, utløpsdato og MinimumRequired per ressurstype. Backend og frontend delvis implementert.
+- **Vedlegg og instrukser**: se docs/vedlegg-og-instrukser.html. PR 1 (database og backend) er gjort; PR 2–4 (viser med kvittering, Instrukser-siden med badge, rapport og arkiv for admin) gjenstår i frontend.
 - **Backend-forbedring**: 6-stegs plan for bedre arkitektur (se docs/backend-arkitektur.md)
 - **PostgreSQL-migrering**: se docs/postgresql-migrering.md. Docker-deploy planlagt for portabilitet bort fra Azure.

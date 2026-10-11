@@ -12,6 +12,7 @@ function shift(id: number): ShiftResponse {
     canEdit: false,
     canWithdraw: false,
     canConfirmTraining: false,
+    hasUnacknowledgedMandatoryInstructions: false,
   };
 }
 

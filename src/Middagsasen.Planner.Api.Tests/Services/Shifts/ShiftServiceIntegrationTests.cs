@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.Shifts;
@@ -51,7 +52,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var notifier = new TrainerNotifier(new TrainerRepository(context), smsFanOut, NullLogger<TrainerNotifier>.Instance);
             var staffingAlertNotifier = new StaffingAlertNotifier(new StaffingAlertRepository(context), smsFanOut,
                 Options.Create(staffingAlertOptions ?? new StaffingAlertOptions()), clock, NullLogger<StaffingAlertNotifier>.Instance);
-            return new ShiftService(new ShiftRepository(context), new ResourceReader(context, clock), currentUser, notifier, staffingAlertNotifier, clock);
+            return new ShiftService(new ShiftRepository(context), new AttachmentRepository(context), new ResourceReader(context, clock), currentUser, notifier, staffingAlertNotifier, clock);
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -1977,6 +1978,123 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             {
                 Assert.Empty(result.Resource.CompetencyWarnings);
             }
+        }
+
+        #endregion
+
+        #region Påkrevde instrukser
+
+        /// <summary>Et vedlegg på vakttypen; en påkrevd instruks som standard.</summary>
+        private static async Task<ResourceTypeFile> SeedFile(PlannerDbContext context, int resourceTypeId, int createdBy, string description,
+            bool requiresAcknowledgement = true, bool isMandatory = true, DateTime? archived = null)
+        {
+            var file = new ResourceTypeFile
+            {
+                ResourceTypeId = resourceTypeId,
+                StorageName = Guid.NewGuid().ToString(),
+                FileName = "instruks.pdf",
+                Description = description,
+                MimeType = "application/pdf",
+                Created = BeforeResource.UtcDateTime,
+                CreatedBy = createdBy,
+                Updated = BeforeResource.UtcDateTime,
+                UpdatedBy = createdBy,
+                RequiresAcknowledgement = requiresAcknowledgement,
+                IsMandatory = isMandatory,
+                Archived = archived,
+                ArchivedBy = archived is null ? null : createdBy,
+            };
+            context.ResourceTypeFiles.Add(file);
+            await context.SaveChangesAsync();
+            return file;
+        }
+
+        private static async Task SeedAcknowledgement(PlannerDbContext context, int fileId, int userId)
+        {
+            context.ResourceTypeFileAcknowledgements.Add(new ResourceTypeFileAcknowledgement
+            {
+                ResourceTypeFileId = fileId,
+                UserId = userId,
+                Acknowledged = BeforeResource.UtcDateTime,
+            });
+            await context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task SignUp_Self_IsRejected_WhenMandatoryInstructionIsNotAcknowledged()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed);
+            // Flere sperrende instrukser: meldingen nevner den første alfabetisk.
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Sikkerhetsrutine");
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Heisførerinstruks storheis");
+            // Instrukser som ikke sperrer: ikke påkrevd, arkivert.
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Anbefalt lesning", isMandatory: false);
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Arkivert instruks", archived: BeforeResource.UtcDateTime);
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest()));
+
+            Assert.Equal("Du må kvittere for instruksen «Heisførerinstruks storheis» før du kan ta vakt.", ex.Message);
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task SignUp_Self_IsRejected_AlsoForAdmin()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var resource = await SeedResource(seed);
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Heisførerinstruks");
+
+            using var context = _fixture.CreateContext();
+            var ex = await Assert.ThrowsAsync<DomainValidationException>(
+                () => CreateService(context, admin.UserId, isAdmin: true).SignUp(resource.EventResourceId, new SignUpRequest()));
+
+            Assert.Equal(ShiftService.InstructionRequiredMessage("Heisførerinstruks"), ex.Message);
+            Assert.Empty(await GetShifts(resource.EventResourceId));
+        }
+
+        [Fact]
+        public async Task SignUp_AdminAssignsOther_BypassesInstructions_AndFlagsTheShift()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed);
+            await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Heisførerinstruks");
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, admin.UserId, isAdmin: true)
+                .SignUp(resource.EventResourceId, new SignUpRequest { UserId = user.UserId });
+
+            var shift = Assert.Single(await GetShifts(resource.EventResourceId));
+            Assert.Equal(user.UserId, shift.UserId);
+            // Admin ser varselet på vakta, og har selv ikke kvittert.
+            Assert.True(Assert.Single(result.Resource.Shifts).HasUnacknowledgedMandatoryInstructions);
+            Assert.True(result.Resource.HasUnacknowledgedMandatoryInstructions);
+        }
+
+        [Fact]
+        public async Task SignUp_Self_Succeeds_AfterAcknowledging()
+        {
+            using var seed = _fixture.CreateContext();
+            var admin = await SeedUser(seed, "Admin", isAdmin: true);
+            var user = await SeedUser(seed);
+            var resource = await SeedResource(seed);
+            var file = await SeedFile(seed, resource.ResourceTypeId, admin.UserId, "Heisførerinstruks");
+            await SeedAcknowledgement(seed, file.ResourceTypeFileId, user.UserId);
+
+            using var context = _fixture.CreateContext();
+            var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest());
+
+            Assert.Equal(user.UserId, Assert.Single(await GetShifts(resource.EventResourceId)).UserId);
+            Assert.False(result.Resource.HasUnacknowledgedMandatoryInstructions);
+            Assert.False(Assert.Single(result.Resource.Shifts).HasUnacknowledgedMandatoryInstructions);
+            Assert.Equal("2026-01-01T12:00:00Z", Assert.Single(result.Resource.ResourceType.Files).AcknowledgedAt);
         }
 
         #endregion

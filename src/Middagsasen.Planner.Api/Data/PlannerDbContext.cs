@@ -32,6 +32,7 @@ namespace Middagsasen.Planner.Api.Data
         public virtual DbSet<ResourceTypeTrainer> ResourceTypeTrainers { get;set; } = null!;
         public virtual DbSet<ResourceTypeTraining> ResourceTypeTrainings { get; set; } = null!;
         public virtual DbSet<ResourceTypeFile> ResourceTypeFiles { get; set; } = null!;
+        public virtual DbSet<ResourceTypeFileAcknowledgement> ResourceTypeFileAcknowledgements { get; set; } = null!;
         public virtual DbSet<WeatherLocation> WeatherLocations { get; set; } = null!;
         public virtual DbSet<WeatherMeasurement> WeatherMeasurements { get; set; } = null!;
         public virtual DbSet<WeatherMeasurementValue> WeatherMeasurementValues { get; set; } = null!;
@@ -301,6 +302,44 @@ namespace Middagsasen.Planner.Api.Data
                     .OnDelete(DeleteBehavior.Cascade)
                     .HasConstraintName("FK_ResourceTypeFiles_Users_UpdatedBy");
 
+                // Samme standardverdier som DF_ResourceTypeFiles_RequiresAcknowledgement/IsMandatory i databaseprosjektet.
+                entity.Property(e => e.RequiresAcknowledgement).HasDefaultValue(false);
+                entity.Property(e => e.IsMandatory).HasDefaultValue(false);
+                // Archived lagres som UTC, som Created og Updated.
+                entity.Property(e => e.Archived).HasColumnType("datetime");
+
+                entity.HasOne(e => e.ArchivedByUser)
+                    .WithMany(c => c.ArchivedResourceTypeFiles)
+                    .HasForeignKey(d => d.ArchivedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_ResourceTypeFiles_Users_ArchivedBy");
+            });
+
+            modelBuilder.Entity<ResourceTypeFileAcknowledgement>(entity =>
+            {
+                entity.ToTable("ResourceTypeFileAcknowledgements");
+                entity.HasKey(e => e.ResourceTypeFileAcknowledgementId);
+                // Acknowledged lagres som UTC, som Created på filer.
+                entity.Property(e => e.Acknowledged).HasColumnType("datetime");
+                entity.Property(e => e.Comment).HasMaxLength(1000);
+
+                // Vedlegg slettes aldri (de arkiveres), og brukere deaktiveres, så ingen kaskade.
+                entity.HasOne(e => e.File)
+                    .WithMany(c => c.Acknowledgements)
+                    .HasForeignKey(d => d.ResourceTypeFileId)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_ResourceTypeFileAcknowledgements_ResourceTypeFiles");
+
+                entity.HasOne(e => e.User)
+                    .WithMany(c => c.FileAcknowledgements)
+                    .HasForeignKey(d => d.UserId)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_ResourceTypeFileAcknowledgements_Users");
+
+                // Høyst én kvittering per bruker og fil. Navnet brukes av AttachmentRepository for å kjenne igjen bruddet.
+                entity.HasIndex(e => new { e.UserId, e.ResourceTypeFileId })
+                    .IsUnique()
+                    .HasDatabaseName("UQ_ResourceTypeFileAcknowledgements_UserId_ResourceTypeFileId");
             });
 
             modelBuilder.Entity<WeatherLocation>(entity =>

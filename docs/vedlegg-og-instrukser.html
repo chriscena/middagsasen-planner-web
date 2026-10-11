@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vedlegg og instrukser</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Serif:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: ett lesespor på ca. 70 tegn, tabeller og kode kan gå bredere i egne scroll-bokser. */
+:root {
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --fg: #1c2430;
+  --muted: #5a6778;
+  --line: #d9dee6;
+  --accent: #1f4e79;
+  --accent-soft: #e4edf6;
+  --ok: #2d7a4f;
+  --warn: #b35c00;
+  --code-bg: #eef1f5;
+  --display: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, "Courier New", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141a22; --surface: #1c242e; --fg: #e6eaf0; --muted: #9aa7b8; --line: #2f3a48;
+    --accent: #8ab4e0; --accent-soft: #233548; --ok: #6fc794; --warn: #e3a04a; --code-bg: #222c38;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141a22; --surface: #1c242e; --fg: #e6eaf0; --muted: #9aa7b8; --line: #2f3a48;
+  --accent: #8ab4e0; --accent-soft: #233548; --ok: #6fc794; --warn: #e3a04a; --code-bg: #222c38;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.wrap {
+  max-width: 76ch;
+  margin: 0 auto;
+  padding-block: 2.5rem 4rem;
+  padding-inline: 16px;
+}
+header.top { display: grid; gap: .6rem; margin-bottom: 2.5rem; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: .78rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 2.3rem;
+  line-height: 1.15;
+  margin: 0;
+  text-wrap: balance;
+}
+h2 {
+  font-family: var(--display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  margin: 2.8rem 0 .8rem;
+  padding-top: .8rem;
+  border-top: 1px solid var(--line);
+  text-wrap: balance;
+}
+h3 { font-size: 1.05rem; font-weight: 600; margin: 1.8rem 0 .5rem; }
+p { margin: 0 0 1rem; }
+.lede { font-size: 1.1rem; color: var(--muted); max-width: 60ch; }
+ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+li { margin-bottom: .35rem; }
+li > ul { margin-top: .35rem; }
+strong { font-weight: 600; }
+a { color: var(--accent); }
+code {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--code-bg);
+  padding: .1em .35em;
+  border-radius: 3px;
+}
+pre {
+  font-family: var(--mono);
+  font-size: .85rem;
+  line-height: 1.5;
+  background: var(--code-bg);
+  padding: .9rem 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 0 0 1.2rem;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+.tbl { overflow-x: auto; margin: 0 0 1.4rem; border: 1px solid var(--line); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: .92rem; background: var(--surface); }
+th, td { text-align: left; vertical-align: top; padding: .55rem .7rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; background: var(--accent-soft); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+.term { display: grid; gap: .2rem; margin-bottom: 1.1rem; }
+.term dt { font-weight: 600; }
+.term dd { margin: 0; }
+.term .avoid { color: var(--muted); font-size: .92rem; }
+.decision {
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  padding: .8rem 1rem;
+  margin: 0 0 1.2rem;
+}
+.decision .label { font-family: var(--mono); font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.decision p:last-child { margin-bottom: 0; }
+.pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: .74rem;
+  padding: .1em .5em;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+.pill.admin { border-color: var(--warn); color: var(--warn); }
+.pill.all { border-color: var(--ok); color: var(--ok); }
+.steps { counter-reset: step; list-style: none; padding: 0; }
+.steps > li {
+  counter-increment: step;
+  display: grid;
+  grid-template-columns: 2.2rem 1fr;
+  gap: .6rem;
+  margin-bottom: 1.2rem;
+}
+.steps > li::before {
+  content: "PR " counter(step);
+  font-family: var(--mono);
+  font-size: .78rem;
+  color: var(--accent);
+  padding-top: .25rem;
+}
+.steps h3 { margin: 0 0 .3rem; }
+.toc { font-size: .95rem; columns: 2; column-gap: 2rem; }
+.toc li { break-inside: avoid; }
+@media (max-width: 520px) { .toc { columns: 1; } h1 { font-size: 1.9rem; } }
+.tree { font-family: var(--mono); font-size: .85rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Designdokument · Middagsåsen Planner · 11. oktober 2026</div>
+  <h1>Vedlegg og instrukser</h1>
+  <p class="lede">Visning av PDF-instrukser i appen, kvittering for lest instruks, sperre mot å ta vakt før påkrevd instruks er kvittert, og rapport til admin over hvem som har kvittert. Løser issue #32, #33, #40 og #41.</p>
+</header>
+
+<ul class="toc">
+  <li><a href="#bakgrunn">1. Bakgrunn og mål</a></li>
+  <li><a href="#begreper">2. Begreper</a></li>
+  <li><a href="#dagens">3. Dagens løsning</a></li>
+  <li><a href="#beslutninger">4. Beslutninger</a></li>
+  <li><a href="#datamodell">5. Datamodell</a></li>
+  <li><a href="#backend">6. Backend</a></li>
+  <li><a href="#frontend">7. Frontend</a></li>
+  <li><a href="#tilgang">8. Tilgangsregler</a></li>
+  <li><a href="#testing">9. Testing</a></li>
+  <li><a href="#leveranse">10. Leveranseplan</a></li>
+  <li><a href="#senere">11. Avgrensninger og senere arbeid</a></li>
+</ul>
+
+<h2 id="bakgrunn">1. Bakgrunn og mål</h2>
+<p>Admin kan i dag legge filer på en vakttype, for eksempel instruksen for heisførere på storheis. Filene kan bare lastes ned, og ingen vet hvem som faktisk har lest dem. Issuene ber om fire ting:</p>
+<ul>
+  <li><strong>#32</strong> Vise PDF i appen og kvittere for lest.</li>
+  <li><strong>#41</strong> Kvittere for lest instruks.</li>
+  <li><strong>#40</strong> Hente rapport for lest instruks (backend).</li>
+  <li><strong>#33</strong> Vise rapport for lest instruks (frontend).</li>
+</ul>
+<p>Målet er at en heisfører leser instruksen på mobilen, kvitterer med ett trykk, og at admin ser hvem som ikke har gjort det. Vakttyper der instruksen er påkrevd skal ikke kunne tas før den er kvittert.</p>
+
+<h2 id="begreper">2. Begreper</h2>
+<p>Disse fire begrepene legges inn i ordlisten i <code>CONTEXT.md</code> under en ny overskrift «Vedlegg».</p>
+<dl class="term">
+  <dt>Vedlegg</dt>
+  <dd>En fil (PDF eller bilde) som admin har lagt på en vakttype, f.eks. løypekart eller instruks. Vises under «Nyttig info» på oppgaven. Heter <code>ResourceTypeFile</code> i koden.</dd>
+  <dd class="avoid"><em>Unngå</em>: fil, dokument, ResourceTypeFile (i brukervendt tekst)</dd>
+</dl>
+<dl class="term">
+  <dt>Instruks</dt>
+  <dd>Et vedlegg som krever kvittering. En instruks kan i tillegg være <strong>påkrevd</strong>: da må brukeren ha kvittert før de kan ta vakt på vakttypen. Heter <code>RequiresAcknowledgement</code> og <code>IsMandatory</code> i koden.</dd>
+  <dd class="avoid"><em>Unngå</em>: dokument, prosedyre, rutine</dd>
+</dl>
+<dl class="term">
+  <dt>Kvittering</dt>
+  <dd>At en bruker har bekreftet å ha lest og forstått en instruks, med tidspunkt og en valgfri kommentar. Kvitteringen gjelder den konkrete filen, så en ny versjon av instruksen krever ny kvittering.</dd>
+  <dd class="avoid"><em>Unngå</em>: lest, godkjent, acknowledgement, signering</dd>
+</dl>
+<dl class="term">
+  <dt>Arkivert vedlegg</dt>
+  <dd>Et vedlegg som er fjernet fra vakttypen, men beholdt for historikk og kvitteringsrapport. Vedlegg slettes aldri fysisk.</dd>
+  <dd class="avoid"><em>Unngå</em>: slettet</dd>
+</dl>
+
+<h2 id="dagens">3. Dagens løsning</h2>
+<ul>
+  <li>Én tabell, <code>ResourceTypeFiles</code>, med metadata. Selve filen ligger i Azure Blob via <code>IStorageService</code>.</li>
+  <li>Tre endepunkter i <code>ResourceTypesController</code>: last opp (admin), last ned (alle innloggede), slett (admin). Nedlasting svarer med <code>Content-Disposition: attachment</code>.</li>
+  <li>Logikken ligger i <code>ResourceTypesService</code> rett mot <code>PlannerDbContext</code>, uten repository eller policy.</li>
+  <li>Frontend: admin laster opp fra Vakttyper-siden. Brukeren ser filene i oppgave-dialogen i <code>EventItemCard.vue</code> under «Nyttig info», og kan bare laste ned. Ingen PDF-visning.</li>
+  <li>Ingen sporing av hvem som har lest. Opplæring (<code>ResourceTypeTraining</code>) er det nærmeste, men ADR 0001 foreslår å fase den ut, så ny sporing bygges ikke inn der.</li>
+  <li>Filer er knyttet til vakttype, ikke til vaktliste eller oppgave. En vakt får filene via <code>EventResource.ResourceType.Files</code>.</li>
+</ul>
+
+<h2 id="beslutninger">4. Beslutninger</h2>
+<p>Hver beslutning med begrunnelse. Alternativene som ble forkastet står under «Avgrensninger» der de er aktuelle å ta opp igjen.</p>
+
+<div class="decision">
+  <div class="label">Kvittering per fil, arkivering i stedet for sletting</div>
+  <p>En kvittering knyttes til <code>ResourceTypeFileId</code>. Ny versjon av en instruks er arkiver gammel + last opp ny, og alle må kvittere på nytt. Arkivering gir rapporthistorikk uten egen versjonsmodell.</p>
+</div>
+
+<div class="decision">
+  <div class="label">To flagg per vedlegg</div>
+  <p><code>RequiresAcknowledgement</code> gjør et vedlegg til en instruks. <code>IsMandatory</code> gjør instruksen påkrevd for å ta vakt. Påkrevd kan bare være sant når krever kvittering er sant. Et løypekart har ingen av flaggene.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Sperren gjelder bare egen påmelding</div>
+  <p>Backend avviser egen påmelding når en påkrevd instruks ikke er kvittert. Admin kan fortsatt tildele vakter fritt, men ser et varselikon på vakter der brukeren ikke har kvittert. Admin må kunne løse akutte bemanningshull.</p>
+</div>
+
+<div class="decision">
+  <div class="label">PDF vises med pdf.js i appen</div>
+  <p><code>@tato30/vue-pdf</code> i en fullskjermdialog, alle sider under hverandre. Bilder vises med <code>q-img</code> i samme dialog. iOS Safari viser bare første side av en PDF i iframe, så nettleserens egen viser er ikke godt nok. Komponenten lastes lazy, siden pdf.js er stor.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Kvitteringsknappen aktiveres ved scroll til bunnen</div>
+  <p>Knappen «Jeg har lest og forstått instruksen» er inaktiv til siste side har vært synlig. For bilder er den aktiv med en gang. Brukeren kan legge inn en valgfri kommentar. Etter kvittering viser dialogen «Kvittert dd.mm.yyyy», og instruksen kan leses på nytt uten ny kvittering.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Egen side «Instrukser» i profilmenyen, med badge</div>
+  <p>Siden lister alle instrukser gruppert per vakttype, med «Gjelder deg» først. Badge på profilikonet i toppmenyen og på menyvalget teller uleste instrukser i «Gjelder deg». En vakttype gjelder brukeren når brukeren har en vakt på den fra og med inneværende sesongstart (1. juli).</p>
+</div>
+
+<div class="decision">
+  <div class="label">Rapport per instruks på Vakttyper-siden</div>
+  <p>Hver instruks viser «12 av 18 har kvittert». Klikk åpner en dialog med brukerliste, tidspunkt, kommentar og «Ikke kvittert». Populasjonen er som standard brukere som vakttypen gjelder for, med en bryter for alle brukere. Da stemmer admin-tallene med badgen brukerne ser.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Ny modul Services/Attachments etter kompetansemønsteret</div>
+  <p>Repository, service, policy og regler. Dagens tre filoperasjoner flyttes dit. Controller-rutene beholdes. <code>ShiftService</code> får repositoryet injisert for sperren.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Metadata kan endres, ikke selve filen</div>
+  <p>Nytt PUT-endepunkt for beskrivelse og flagg. Kvitteringer beholdes når flagg skrus av og på. Filinnhold byttes bare ved arkiver + last opp, siden kvitteringen gjelder innholdet.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Brukerens status leveres i eksisterende DTO-er</div>
+  <p><code>FileInfoResponse</code> får <code>AcknowledgedAt</code> for innlogget bruker, fylt av <code>ResourceReader</code> der oppgaver leses med kjent bruker. <code>ResourceResponse</code> og <code>ShiftResponse</code> får <code>HasUnacknowledgedMandatoryInstructions</code>. Samme mønster som <code>MustAnswerTraining</code>.</p>
+</div>
+
+<div class="decision">
+  <div class="label">Description beholdes som tittel</div>
+  <p>Ingen egen <code>Title</code>-kolonne. <code>Description</code> vises som navn på vedlegget som i dag.</p>
+</div>
+
+<h2 id="datamodell">5. Datamodell</h2>
+<p>Endringene gjøres i SQL-prosjektet og er bakoverkompatible med API-et som kjører i produksjon. Databasen deployes derfor først, som vanlig.</p>
+
+<h3>Endringer i ResourceTypeFiles</h3>
+<pre><code>RequiresAcknowledgement bit not null
+  constraint DF_ResourceTypeFiles_RequiresAcknowledgement default 0,
+IsMandatory bit not null
+  constraint DF_ResourceTypeFiles_IsMandatory default 0,
+Archived datetime null,
+ArchivedBy int null,
+constraint FK_ResourceTypeFiles_Users_ArchivedBy
+  foreign key (ArchivedBy) references Users(UserId)</code></pre>
+
+<h3>Ny tabell ResourceTypeFileAcknowledgements</h3>
+<pre><code>CREATE TABLE [dbo].[ResourceTypeFileAcknowledgements]
+(
+  ResourceTypeFileAcknowledgementId int not null identity,
+  constraint PK_ResourceTypeFileAcknowledgements
+    primary key (ResourceTypeFileAcknowledgementId),
+  ResourceTypeFileId int not null,
+  constraint FK_ResourceTypeFileAcknowledgements_ResourceTypeFiles
+    foreign key (ResourceTypeFileId) references ResourceTypeFiles(ResourceTypeFileId),
+  UserId int not null,
+  constraint FK_ResourceTypeFileAcknowledgements_Users
+    foreign key (UserId) references Users(UserId),
+  constraint UQ_ResourceTypeFileAcknowledgements_UserId_ResourceTypeFileId
+    unique (UserId, ResourceTypeFileId),
+  Acknowledged datetime not null,
+  Comment nvarchar(1000) null
+)</code></pre>
+<ul>
+  <li><code>Acknowledged</code> lagres i UTC som andre tidspunkter. En kvittering endres aldri. Ny kvittering på samme fil er no-op og returnerer den eksisterende.</li>
+  <li>Entity <code>ResourceTypeFileAcknowledgement</code> i <code>Data/</code>, navigasjoner <code>ResourceTypeFile.Acknowledgements</code> og <code>User.FileAcknowledgements</code>, mapping i <code>PlannerDbContext</code>.</li>
+  <li>Arkiverte vedlegg filtreres bort i <code>ResourceMapping.MapResourceType</code>, slik at <code>ResourceTypeResponse.Files</code> bare har aktive vedlegg.</li>
+  <li>Blob-en i Azure Storage beholdes ved arkivering. <code>DeleteFile</code> i storage brukes ikke lenger fra denne modulen.</li>
+</ul>
+
+<h2 id="backend">6. Backend</h2>
+
+<h3>Modulstruktur</h3>
+<pre class="tree"><code>Services/Attachments/
+  IAttachmentRepository.cs     // Get, GetArchived, Add, Acknowledge, GetAcknowledgements,
+                               // GetUnacknowledgedMandatory(userId, resourceTypeId),
+                               // GetResourceTypesWithShiftsSince(userId, fromUtc), SaveChanges
+  AttachmentRepository.cs
+  IAttachmentService.cs
+  AttachmentService.cs         // Upload, UpdateMetadata, Archive, Download,
+                               // Acknowledge, GetMyInstructions, GetAcknowledgementReport
+  AttachmentPolicy.cs          // ren, statisk: hvem kan hva
+  AttachmentRules.cs           // ren, statisk: sperre- og gjelder-deg-regler
+  FileInfoResponse.cs          // flyttes hit fra ResourceTypes/
+  FileResponse.cs              // flyttes hit
+  FileUploadRequest.cs         // flyttes hit, utvides med flaggene
+  FileMetadataRequest.cs       // PUT-body
+  AcknowledgeRequest.cs        // { Comment? }
+  AcknowledgementReportResponse.cs
+  InstructionGroupResponse.cs  // GET api/me/instructions</code></pre>
+<p><code>FileUploadResponse</code> brukes ikke i dag og slettes. <code>ResourceTypesService</code> mister <code>AddFile</code>, <code>GetFile</code>, <code>DeleteFile</code> og <code>GetContainerPath</code>. Registrering i <code>Program.cs</code> som Scoped, ved siden av kompetansemodulen.</p>
+
+<h3>Policy og regler</h3>
+<pre><code>// AttachmentPolicy (rene funksjoner over Actor)
+CanManage(Actor actor)                      => actor.IsAdmin
+CanDownload(Actor actor, bool isArchived)   => !isArchived || actor.IsAdmin
+CanViewReport(Actor actor)                  => actor.IsAdmin
+CanAcknowledge(file)                        => file.RequiresAcknowledgement &amp;&amp; file.Archived == null
+
+// AttachmentRules
+BlockingInstructions(files, acknowledgedFileIds)
+  => aktive filer med IsMandatory som ikke finnes i acknowledgedFileIds
+AppliesTo(resourceTypeId, resourceTypeIdsWithShiftsThisSeason)
+  => resourceTypeIdsWithShiftsThisSeason.Contains(resourceTypeId)
+SeasonStartUtc(now) => DateTimeExtensions.GetSeasonRangeUtc(now.GetSeasonStartYear()).From</code></pre>
+<p>Ugyldige kombinasjoner avvises i servicen: <code>IsMandatory</code> uten <code>RequiresAcknowledgement</code> gir valideringsfeil. Opplasting godtar samme filtyper som i dag (PDF, JPG, PNG, GIF).</p>
+
+<h3>Endepunkter</h3>
+<div class="tbl">
+<table>
+  <thead><tr><th>Metode</th><th>Rute</th><th>Tilgang</th><th>Beskrivelse</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>api/resourcetypes/{id}/files</code></td><td><span class="pill admin">admin</span></td><td>Multipart: <code>file</code>, <code>description</code>, <code>requiresAcknowledgement</code>, <code>isMandatory</code>. Returnerer <code>FileInfoResponse</code>. Finnes i dag, utvides.</td></tr>
+    <tr><td>PUT</td><td><code>api/resourcetypes/{id}/files/{fileId}</code></td><td><span class="pill admin">admin</span></td><td>JSON <code>FileMetadataRequest</code>: beskrivelse og flagg. Ny.</td></tr>
+    <tr><td>DELETE</td><td><code>api/resourcetypes/{id}/files/{fileId}</code></td><td><span class="pill admin">admin</span></td><td>Arkiverer. Setter <code>Archived</code> og <code>ArchivedBy</code>. Finnes i dag, endrer oppførsel.</td></tr>
+    <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/{fileId}</code></td><td><span class="pill all">innlogget</span></td><td>Laster ned filen. Arkiverte filer gir 404 for ikke-admin. Finnes i dag.</td></tr>
+    <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/archived</code></td><td><span class="pill admin">admin</span></td><td>Arkiverte vedlegg for vakttypen, nyeste først. Ny.</td></tr>
+    <tr><td>GET</td><td><code>api/resourcetypes/{id}/files/{fileId}/acknowledgements?all=false</code></td><td><span class="pill admin">admin</span></td><td>Kvitteringsrapport. <code>all=false</code> gir brukere vakttypen gjelder for, <code>all=true</code> alle brukere. Ny. Løser #40.</td></tr>
+    <tr><td>POST</td><td><code>api/resourcetypes/{id}/files/{fileId}/acknowledgements</code></td><td><span class="pill all">innlogget</span></td><td>Kvitterer for innlogget bruker. Body <code>{ comment? }</code>. Idempotent. 400 hvis filen ikke krever kvittering eller er arkivert. Ny. Løser #41.</td></tr>
+    <tr><td>GET</td><td><code>api/me/instructions</code></td><td><span class="pill all">innlogget</span></td><td>Alle aktive instrukser gruppert per vakttype, med <code>appliesToMe</code> og kvitteringsstatus. Ny.</td></tr>
+  </tbody>
+</table>
+</div>
+<p>Rutene for filer ligger i <code>ResourceTypesController</code> som i dag, men delegerer til <code>IAttachmentService</code>. <code>api/me/instructions</code> legges i samme controller som <code>api/me/shifts</code>. Alle endepunkter annoteres med <code>ProducesResponseType</code> slik at OpenAPI og frontend-typene blir riktige.</p>
+
+<h3>DTO-er</h3>
+<div class="tbl">
+<table>
+  <thead><tr><th>DTO</th><th>Endring</th></tr></thead>
+  <tbody>
+    <tr><td><code>FileInfoResponse</code></td><td>+ <code>RequiresAcknowledgement</code>, <code>IsMandatory</code> (bool). + <code>AcknowledgedAt</code> (ISO UTC-streng, nullable) for innlogget bruker, null der bruker ikke er kjent. + <code>Archived</code> (ISO UTC-streng, nullable). Samme format som <code>Created</code>.</td></tr>
+    <tr><td><code>ResourceResponse</code></td><td>+ <code>HasUnacknowledgedMandatoryInstructions</code> (bool) for innlogget bruker. Regnes ut i <code>ResourceReader.CreateViewer</code> som <code>MustAnswerTraining</code>.</td></tr>
+    <tr><td><code>ShiftResponse</code></td><td>+ <code>HasUnacknowledgedMandatoryInstructions</code> (bool) for vaktens bruker. Sendes bare når innlogget bruker er admin eller eier av vakta, ellers <code>false</code>.</td></tr>
+    <tr><td><code>FileMetadataRequest</code></td><td>Ny: <code>Description</code>, <code>RequiresAcknowledgement</code>, <code>IsMandatory</code>.</td></tr>
+    <tr><td><code>AcknowledgeRequest</code></td><td>Ny: <code>Comment</code> (string?, maks 1000 tegn).</td></tr>
+    <tr><td><code>AcknowledgementReportResponse</code></td><td>Ny: <code>File</code> (FileInfoResponse), <code>Total</code>, <code>AcknowledgedCount</code>, <code>Users[]</code> med <code>UserId</code>, <code>FullName</code>, <code>AcknowledgedAt?</code>, <code>Comment?</code>, <code>AppliesTo</code>. Sortert: ikke kvittert først, så fullt navn, slik brukere sorteres ellers i appen. Bare aktive brukere tas med.</td></tr>
+    <tr><td><code>InstructionGroupResponse</code></td><td>Ny: <code>ResourceTypeId</code>, <code>ResourceTypeName</code>, <code>AppliesToMe</code>, <code>Files[]</code> (FileInfoResponse med <code>AcknowledgedAt</code>). Bare aktive filer med <code>RequiresAcknowledgement</code>. Vakttyper uten instrukser utelates.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Sperre i ShiftService</h3>
+<p>Ved egen påmelding (<code>POST api/resources/{id}/shifts</code> der innlogget bruker tar vakta selv) henter <code>ShiftService</code> blokkerende instrukser via <code>IAttachmentRepository.GetUnacknowledgedMandatory(userId, resourceTypeId)</code> før vakta legges til. Finnes det noen, avvises kallet med samme feiltype som <code>ShiftRules</code> bruker i dag, og meldingen:</p>
+<pre><code>Du må kvittere for instruksen «Heisførerinstruks storheis» før du kan ta vakt.</code></pre>
+<p>Admin som tildeler en annen bruker går utenom sperren. Sjekken ligger i <code>ShiftRules</code> som en ren regel med listen av blokkerende instrukser som input, så den kan testes uten database.</p>
+
+<h3>Regelen «gjelder deg»</h3>
+<p>En vakttype gjelder en bruker når brukeren har en <code>EventResourceUser</code> på en <code>EventResource</code> med denne vakttypen, og oppgavens starttid er fra og med inneværende sesongstart. Sesongstart er 1. juli norsk tid, fra <code>DateTimeExtensions.GetSeasonRangeUtc</code>. Samme regel brukes for <code>appliesToMe</code> i instrukslisten og for standardpopulasjonen i rapporten. Tid hentes fra <code>TimeProvider</code>, som i <code>SeasonService</code>.</p>
+
+<h2 id="frontend">7. Frontend</h2>
+<p>Tekster skrives på norsk rett i templatene, slik resten av appen gjør. Typene regenereres med <code>npm run gen:api</code> etter backend-bygg.</p>
+
+<h3>Nye filer</h3>
+<pre class="tree"><code>src/stores/InstructionStore.ts          // GET api/me/instructions, kvittering, badge-teller
+src/components/AttachmentViewerDialog.vue   // PDF/bilde-viser med kvittering
+src/components/AcknowledgementReportDialog.vue  // admin-rapport per instruks
+src/pages/InstructionsPage.vue          // rute /instructions</code></pre>
+
+<h3>InstructionStore</h3>
+<ul>
+  <li>State: <code>groups: InstructionGroupResponse[]</code>, <code>loading</code>.</li>
+  <li>Actions: <code>getMyInstructions()</code>, <code>acknowledge(resourceTypeId, fileId, comment?)</code> som poster og deretter henter listen på nytt.</li>
+  <li>Getter: <code>unacknowledgedCount</code>, antall filer uten <code>acknowledgedAt</code> i grupper med <code>appliesToMe</code>.</li>
+  <li><code>MainLayout.vue</code> kaller <code>getMyInstructions()</code> når bruker er innlogget ved montering. Kvittering fra oppgave-dialogen går også gjennom denne store-en, så badgen teller ned umiddelbart. <code>EventStore</code> henter dagen på nytt etterpå, slik påmelding gjør.</li>
+</ul>
+
+<h3>AttachmentViewerDialog</h3>
+<ul>
+  <li>Props: <code>file: FileInfoResponse</code>, <code>resourceTypeId</code>. Fullskjerm <code>q-dialog</code> (<code>maximized</code>) med toolbar: beskrivelse, nedlastingsknapp, lukk.</li>
+  <li>Henter filen som Blob med samme henting som <code>shared/fileDownload.ts</code>. Hentingen skilles ut i en egen funksjon der, slik at nedlasting og visning deler kode.</li>
+  <li>PDF: <code>VuePDF</code> fra <code>@tato30/vue-pdf</code>, lastet med <code>defineAsyncComponent</code>. Alle sider rendres under hverandre, skalert til bredden. pdf.js-workeren konfigureres med Vite sitt <code>?url</code>-import.</li>
+  <li>Bilder: <code>q-img</code>.</li>
+  <li>Bunnen av siste side observeres med <code>IntersectionObserver</code>. Når den har vært synlig, blir kvitteringsknappen aktiv. For bilder er den aktiv straks.</li>
+  <li>Fotlinje vises bare for instrukser: valgfritt kommentarfelt og knappen «Jeg har lest og forstått instruksen». Etter kvittering viser fotlinjen «Kvittert dd.mm.yyyy» og eventuell kommentar.</li>
+  <li>Emits <code>acknowledged</code>.</li>
+</ul>
+
+<h3>Oppgave-dialogen i EventItemCard.vue</h3>
+<ul>
+  <li>«Nyttig info» deles i to: instrukser øverst med status-badge («Ulest» i oransje, «Kvittert» i grønt, «Påkrevd» som ekstra merke), vanlige vedlegg under. Klikk åpner <code>AttachmentViewerDialog</code> i stedet for nedlasting.</li>
+  <li>Når <code>hasUnacknowledgedMandatoryInstructions</code> er sant, er påmeldingsknappen deaktivert med hjelpetekst «Les og kvitter for instruksen først».</li>
+  <li>Backend-feilen fra sperren vises med <code>Notify</code> som andre påmeldingsfeil.</li>
+  <li>Bemannede vakter med <code>hasUnacknowledgedMandatoryInstructions</code> får et varselikon med tooltip «Har ikke kvittert for påkrevd instruks». Vises for admin og for brukeren selv.</li>
+  <li>Info-ikonet på oppgaven (linje 24) blir oransje når brukeren har uleste instrukser på vakttypen.</li>
+</ul>
+
+<h3>InstructionsPage og menyen</h3>
+<ul>
+  <li>Rute <code>/instructions</code>. Menyvalg «Instrukser» i høyre profilmeny, mellom «Mine vakter» og «Mine timer», med <code>q-badge</code> som viser antall uleste når det er større enn null.</li>
+  <li>Samme badge på profilknappen i toppmenyen.</li>
+  <li>Siden har to seksjoner: «Gjelder deg» og «Andre vakttyper». Hver vakttype er en <code>q-expansion-item</code>, åpen som standard i «Gjelder deg». Hver instruks er en rad med beskrivelse, status-badge og «Påkrevd»-merke. Klikk åpner viseren.</li>
+  <li>Tom tilstand: «Ingen instrukser å lese.»</li>
+</ul>
+
+<h3>Vakttyper-siden for admin</h3>
+<ul>
+  <li>Opplastingsdialogen får to <code>q-toggle</code>: «Krever kvittering» og «Påkrevd for å ta vakt». Den andre er bare aktiv når den første er på.</li>
+  <li>Rediger-knapp per vedlegg åpner samme dialog uten filvelger, og kaller PUT.</li>
+  <li>Slett-knappen heter «Arkiver» og spør «Arkivere vedlegget? Det fjernes fra vakttypen, men kvitteringene beholdes.»</li>
+  <li>Instrukser viser «12 av 18 har kvittert». Klikk åpner <code>AcknowledgementReportDialog</code> med <code>q-table</code>: navn, kvittert tidspunkt, kommentar. Ikke kvittert øverst. Bryter «Vis alle brukere» kaller endepunktet med <code>all=true</code>. Løser #33.</li>
+  <li>Sammenslått seksjon «Arkiverte vedlegg» nederst i Filer-kortet, hentet ved åpning. Hvert arkivert vedlegg har nedlasting og rapport, men ingen gjenoppretting.</li>
+</ul>
+
+<h2 id="tilgang">8. Tilgangsregler</h2>
+<div class="tbl">
+<table>
+  <thead><tr><th>Handling</th><th>Vanlig bruker</th><th>Admin</th></tr></thead>
+  <tbody>
+    <tr><td>Se og laste ned aktive vedlegg</td><td>Ja</td><td>Ja</td></tr>
+    <tr><td>Se og laste ned arkiverte vedlegg</td><td>Nei</td><td>Ja</td></tr>
+    <tr><td>Laste opp, endre metadata, arkivere</td><td>Nei</td><td>Ja</td></tr>
+    <tr><td>Kvittere</td><td>Bare for seg selv</td><td>Bare for seg selv</td></tr>
+    <tr><td>Se egen kvitteringsstatus</td><td>Ja</td><td>Ja</td></tr>
+    <tr><td>Se andres kvitteringsstatus</td><td>Nei</td><td>Ja, via rapport og varselikon</td></tr>
+    <tr><td>Ta vakt uten kvittert påkrevd instruks</td><td>Nei</td><td>Kan tildele andre, ser varsel</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="testing">9. Testing</h2>
+<ul>
+  <li><strong>Rene tester</strong> (xUnit): <code>AttachmentPolicyTests</code>, <code>AttachmentRulesTests</code> og utvidelse av <code>ShiftRulesTests</code> for sperren.</li>
+  <li><strong>Integrasjonstester</strong> (Testcontainers): <code>AttachmentServiceIntegrationTests</code> for opplasting med flagg, arkivering, idempotent kvittering, rapport med og uten <code>all</code>, instruksliste med <code>appliesToMe</code> over sesonggrensen. <code>ShiftServiceIntegrationTests</code> for at egen påmelding avvises og admin-tildeling går gjennom. <code>ResourceReaderIntegrationTests</code> for <code>AcknowledgedAt</code> og flaggene i <code>ResourceResponse</code> og <code>ShiftResponse</code>.</li>
+  <li><strong>Storage</strong> mockes med NSubstitute som i dag.</li>
+  <li><strong>Frontend</strong> (Vitest): <code>InstructionStore</code> (teller, oppdatering etter kvittering) og «scrollet til bunnen»-logikken i viseren, skilt ut som en ren funksjon.</li>
+</ul>
+
+<h2 id="leveranse">10. Leveranseplan</h2>
+<p>Fire PR-er i rekkefølge. Databasen deployes manuelt etter PR 1 og før PR 2 merges. Frontend-PR-ene kan utvikles parallelt når PR 1 er merget.</p>
+<ol class="steps">
+  <li>
+    <div>
+      <h3>Database og backend</h3>
+      <p>Skjemaendringer, entity og mapping. Modulen <code>Services/Attachments</code> med flytting av dagens filoperasjoner. Flagg, arkivering, kvittering med kommentar, instruksliste, rapport-endepunkt, arkivliste. Sperre i <code>ShiftService</code>, nye felter i <code>FileInfoResponse</code>, <code>ResourceResponse</code> og <code>ShiftResponse</code>. Regenerert <code>openapi.json</code> og <code>npm run gen:api</code>. Ordlisten i <code>CONTEXT.md</code>, dette dokumentet lenket fra <code>CLAUDE.md</code>. Lukker #40 og backend-delen av #41.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Viser og kvittering</h3>
+      <p><code>AttachmentViewerDialog</code>, <code>InstructionStore</code> (uten badge-visning), oppgave-dialogen med status, sperre i påmeldingsflyten, flagg og redigering i admin-opplasting, «Arkiver» i stedet for «Slett». Lukker #32 og #41.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Instrukser-siden og badge</h3>
+      <p><code>InstructionsPage</code>, rute, menyvalg, badge på profilknapp og menyvalg, henting i <code>MainLayout</code>.</p>
+    </div>
+  </li>
+  <li>
+    <div>
+      <h3>Rapport og arkiv for admin</h3>
+      <p>Teller og <code>AcknowledgementReportDialog</code> på Vakttyper-siden, arkiverte vedlegg, varselikon på vakter. Lukker #33.</p>
+    </div>
+  </li>
+</ol>
+
+<h2 id="senere">11. Avgrensninger og senere arbeid</h2>
+<ul>
+  <li><strong>SMS-påminnelse</strong> om ulest instruks til brukere med kommende vakter. Infrastrukturen finnes, men det er en egen funksjon.</li>
+  <li><strong>Gjenoppretting</strong> av arkiverte vedlegg. Lett å legge til hvis feilarkivering viser seg å være vanlig.</li>
+  <li><strong>Egen rapportside</strong> på tvers av vakttyper, etter mønster fra Timelister. Vurderes hvis rapporten per instruks ikke holder.</li>
+  <li><strong>Advarsel før admin-tildeling</strong> i brukervelgeren. Varselikonet etter tildeling dekker behovet foreløpig.</li>
+  <li><strong>Versjonering</strong> av instrukser med flere filversjoner per dokument. Arkivering dekker behovet uten egen modell.</li>
+  <li><strong>Kodenavn</strong> (<code>ResourceTypeFile</code>, <code>Files</code>) beholdes. Omdøping til «Attachment» i entity og API-ruter tas eventuelt separat, slik ordliste-issuen #156 gjorde for andre begreper.</li>
+</ul>
+
+</div>
+</body>
+</html>

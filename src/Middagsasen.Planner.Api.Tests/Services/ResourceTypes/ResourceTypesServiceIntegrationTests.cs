@@ -1,39 +1,26 @@
 using Microsoft.EntityFrameworkCore;
-using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Resources;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
-using Middagsasen.Planner.Api.Services.Storage;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
-using NSubstitute;
 
 namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
 {
+    /// <summary>Integrasjonstester for vakttyper. Vedleggene testes i <c>Attachments/AttachmentServiceIntegrationTests</c>.</summary>
     [Collection("Database")]
     public class ResourceTypesServiceIntegrationTests
     {
         private readonly DatabaseFixture _fixture;
-        private readonly IStorageService _storageService;
 
         public ResourceTypesServiceIntegrationTests(DatabaseFixture fixture)
         {
             _fixture = fixture;
-            _storageService = Substitute.For<IStorageService>();
         }
 
-        private static ICurrentUserService MockCurrentUser(int userId, bool isAdmin = false)
+        private static ResourceTypesService CreateService(PlannerDbContext context)
         {
-            var mock = Substitute.For<ICurrentUserService>();
-            mock.UserId.Returns(userId);
-            mock.IsAdmin.Returns(isAdmin);
-            return mock;
-        }
-
-        private ResourceTypesService CreateService(PlannerDbContext context, int userId = 0, bool isAdmin = false)
-        {
-            var currentUser = MockCurrentUser(userId, isAdmin);
-            return new ResourceTypesService(context, new ResourceReader(context, TimeProvider.System), _storageService, currentUser);
+            return new ResourceTypesService(context, new ResourceReader(context, TimeProvider.System));
         }
 
         private static string UniqueName(string prefix) => $"{prefix}_{Guid.NewGuid():N}";
@@ -303,28 +290,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
 
             // Act & Assert
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteResourceType(999999));
-        }
-
-        [Fact]
-        public async Task GetFile_ThrowsEntityNotFound_WhenNotFound()
-        {
-            // Arrange
-            using var context = _fixture.CreateContext();
-            var service = CreateService(context);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetFile(999999, 999999));
-        }
-
-        [Fact]
-        public async Task DeleteFile_ThrowsEntityNotFound_WhenNotFound()
-        {
-            // Arrange
-            using var context = _fixture.CreateContext();
-            var service = CreateService(context);
-
-            // Act & Assert
-            await Assert.ThrowsAsync<EntityNotFoundException>(() => service.DeleteFile(999999, 999999));
         }
 
         #endregion
