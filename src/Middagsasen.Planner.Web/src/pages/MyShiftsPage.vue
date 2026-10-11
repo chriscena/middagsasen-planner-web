@@ -12,14 +12,7 @@
         ></q-btn>
         <q-toolbar-title>Mine vakter</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
     <q-list role="list" separator>
@@ -74,6 +67,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { api } from "@/boot/axios";
 import type { ShiftSeasonResponse } from "@/types";
 import { formatDayMonth, formatTimeRange, formatWeekday } from "@/shared/time";

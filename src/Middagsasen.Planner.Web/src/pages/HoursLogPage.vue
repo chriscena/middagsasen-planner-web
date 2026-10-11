@@ -20,14 +20,7 @@
           icon="more_time"
           @click="openTimetrackingForm"
         />
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
     <div class="q-pb-sm">
@@ -174,6 +167,7 @@
 import { useQuasar } from "quasar";
 import type { QInfiniteScroll } from "quasar";
 import { computed, useTemplateRef, reactive, onMounted } from "vue";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useWorkHourStore } from "@/stores/WorkHourStore";
 import { useAuthStore } from "@/stores/AuthStore";
 import { useSeasonStore } from "@/stores/SeasonStore";

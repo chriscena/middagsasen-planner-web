@@ -452,19 +452,9 @@
               <q-item-section>
                 <q-item-label lines="1">{{ file.description }}</q-item-label>
                 <q-item-label caption>
-                  <q-badge
-                    v-if="file.acknowledgedAt"
-                    color="green"
-                    label="Kvittert"
-                  ></q-badge>
-                  <q-badge v-else color="orange" label="Ulest"></q-badge>
-                  <q-badge
-                    v-if="file.isMandatory"
-                    outline
-                    color="grey-8"
-                    label="Påkrevd"
-                    class="q-ml-xs"
-                  ></q-badge>
+                  <InstructionStatusBadges
+                    :file="file"
+                  ></InstructionStatusBadges>
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -596,6 +586,7 @@ import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import AttachmentViewerDialog from "@/components/AttachmentViewerDialog.vue";
+import InstructionStatusBadges from "@/components/InstructionStatusBadges.vue";
 import {
   formatShortDate,
   formatTimeRange,

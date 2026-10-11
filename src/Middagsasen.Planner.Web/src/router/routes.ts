@@ -64,6 +64,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import("@/pages/MyShiftsPage.vue"),
       },
       {
+        path: "instructions",
+        component: () => import("@/pages/InstructionsPage.vue"),
+      },
+      {
         path: "hours",
         component: () => import("@/pages/HoursLogPage.vue"),
       },

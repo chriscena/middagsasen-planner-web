@@ -12,14 +12,7 @@
         ></q-btn>
         <q-toolbar-title>Time-godkjenning</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
     <div>
@@ -428,6 +421,7 @@
 import { useQuasar } from "quasar";
 import type { QTable, QTableColumn, QTableProps } from "quasar";
 import { onMounted, ref, computed, useTemplateRef, nextTick } from "vue";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useWorkHourStore } from "@/stores/WorkHourStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useAuthStore } from "@/stores/AuthStore";

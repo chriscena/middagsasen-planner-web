@@ -33,14 +33,7 @@
           icon="more_time"
           @click="openTimetrackingForm"
         />
-        <q-btn
-          title="Din brukerinfo"
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-        />
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar> </q-header
     ><q-badge
       outline
@@ -257,6 +250,7 @@ import type { TouchSwipeValue } from "quasar";
 // QCalendarAgenda brukes både som komponent (q-calendar-agenda) og som
 // instanstype for ref-en (prev/next/moveToToday/updateCurrent).
 import { QCalendarAgenda } from "@quasar/quasar-ui-qcalendar";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import type { Timestamp } from "@timestamp-js/core";
 import { nb } from "date-fns/locale";
 import { useRouter } from "vue-router";
