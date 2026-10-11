@@ -1,6 +1,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.Reminders;
 using Middagsasen.Planner.Api.Services.Resources;
@@ -25,8 +26,12 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         internal static string TrainingAnswerRequiredMessage(string resourceTypeName)
             => $"Du må svare på om du trenger opplæring på {resourceTypeName}.";
 
+        internal static string InstructionRequiredMessage(string description)
+            => $"Du må kvittere for instruksen «{description}» før du kan ta vakt.";
+
         public ShiftService(
             IShiftRepository repository,
+            IAttachmentRepository attachments,
             IResourceReader reader,
             ICurrentUserService currentUser,
             ITrainerNotifier trainerNotifier,
@@ -34,6 +39,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
             TimeProvider timeProvider)
         {
             Repository = repository;
+            Attachments = attachments;
             Reader = reader;
             CurrentUser = currentUser;
             TrainerNotifier = trainerNotifier;
@@ -42,6 +48,7 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         }
 
         public IShiftRepository Repository { get; }
+        public IAttachmentRepository Attachments { get; }
         public IResourceReader Reader { get; }
         public ICurrentUserService CurrentUser { get; }
         public ITrainerNotifier TrainerNotifier { get; }
@@ -51,6 +58,8 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         /// <summary>
         /// Opplæring: svaret <see cref="SignUpRequest.TrainingCompleted"/> lagres i samme transaksjon som vakta, etter
         /// regelen i <see cref="ApplyTrainingAnswer"/>. Svaret er påkrevd når målbrukeren mangler opplæringsrad.
+        /// Instrukser: egen påmelding avvises når en påkrevd instruks på vakttypen ikke er kvittert
+        /// (<see cref="ShiftRules.BlockingInstruction"/>); admin som setter opp en annen bruker går utenom.
         /// </summary>
         public async Task<ShiftResult> SignUp(int resourceId, SignUpRequest request)
         {
@@ -73,6 +82,10 @@ namespace Middagsasen.Planner.Api.Services.Shifts
                 var facts = ShiftFactsFactory.From(resource);
 
                 Enforce(ShiftRules.CheckSignUp(actor, facts, now, targetUserId, request.StartTime, request.EndTime));
+
+                var unacknowledged = await Attachments.GetUnacknowledgedMandatory(targetUserId, resource.ResourceTypeId);
+                if (ShiftRules.BlockingInstruction(actor, targetUserId, unacknowledged.Select(f => f.Description)) is { } instruction)
+                    throw new DomainValidationException(InstructionRequiredMessage(instruction));
 
                 // Den nye vakta har ingen id ennå. CheckSetTraining vurderes likevel mot målbrukeren (ShiftId 0), så regelen
                 // bare finnes ett sted; CheckSignUp har allerede krevd admin eller seg selv, så den slår ikke til i praksis.

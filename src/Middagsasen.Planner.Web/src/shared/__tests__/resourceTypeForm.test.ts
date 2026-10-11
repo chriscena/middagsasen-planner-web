@@ -26,6 +26,8 @@ function resourceType(): ResourceTypeResponse {
         updated: "2024-01-01",
         updatedBy: "x",
         mimeType: "application/pdf",
+        requiresAcknowledgement: false,
+        isMandatory: false,
       },
     ],
   };

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
 using Middagsasen.Planner.Api.Services.Events;
@@ -248,6 +249,86 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             Assert.DoesNotContain(
                 await reader.GetEvents(new Actor(seeded.Viewer.UserId, IsAdmin: false), ResourceStart.AddMinutes(1), ResourceStart.AddDays(1)),
                 e => e.Id == seeded.Event.EventId);
+        }
+
+        /// <summary>Gjør den seedede filen til en påkrevd instruks, og lar <c>Other</c> kvittere for den.</summary>
+        private async Task MakeMandatoryInstruction(Seeded seeded, params int[] acknowledgedByUserIds)
+        {
+            using var context = _fixture.CreateContext();
+            var file = await context.ResourceTypeFiles.SingleAsync(f => f.ResourceTypeFileId == seeded.File.ResourceTypeFileId);
+            file.RequiresAcknowledgement = true;
+            file.IsMandatory = true;
+            foreach (var userId in acknowledgedByUserIds)
+                context.ResourceTypeFileAcknowledgements.Add(new ResourceTypeFileAcknowledgement
+                {
+                    ResourceTypeFileId = file.ResourceTypeFileId,
+                    UserId = userId,
+                    Acknowledged = AcknowledgedAt,
+                });
+            await context.SaveChangesAsync();
+        }
+
+        private static readonly DateTime AcknowledgedAt = new(2026, 1, 14, 12, 0, 0);
+
+        [Fact]
+        public async Task Instructions_AcknowledgedAtAndFlags_ForActorAndShiftOwner()
+        {
+            var seeded = await Seed();
+            await MakeMandatoryInstruction(seeded, seeded.Other.UserId);
+
+            using var context = _fixture.CreateContext();
+            var reader = new ResourceReader(context, Clock);
+
+            // Vakttakeren har ikke kvittert: sperret, og ser varselet på sin egen vakt.
+            var forViewer = (await reader.GetResource(new Actor(seeded.Viewer.UserId, IsAdmin: false), seeded.Resource.EventResourceId))!;
+            var viewerFile = Assert.Single(forViewer.ResourceType.Files);
+            Assert.True(viewerFile.RequiresAcknowledgement);
+            Assert.True(viewerFile.IsMandatory);
+            Assert.Null(viewerFile.AcknowledgedAt);
+            Assert.Null(viewerFile.Archived);
+            Assert.True(forViewer.HasUnacknowledgedMandatoryInstructions);
+            Assert.True(forViewer.Shifts.Single().HasUnacknowledgedMandatoryInstructions);
+
+            // En annen bruker har kvittert: ikke sperret, og ser ikke vakttakerens status.
+            var forOther = (await reader.GetResource(new Actor(seeded.Other.UserId, IsAdmin: false), seeded.Resource.EventResourceId))!;
+            Assert.Equal(AcknowledgedAt, Assert.Single(forOther.ResourceType.Files).AcknowledgedAt);
+            Assert.Equal(DateTimeKind.Utc, Assert.Single(forOther.ResourceType.Files).AcknowledgedAt!.Value.Kind);
+            Assert.False(forOther.HasUnacknowledgedMandatoryInstructions);
+            Assert.False(forOther.Shifts.Single().HasUnacknowledgedMandatoryInstructions);
+
+            // Admin (treneren) har ikke kvittert selv, og ser varselet på vakttakerens vakt.
+            var events = await reader.GetEvents(new Actor(seeded.Trainer.UserId, IsAdmin: true), ResourceStart, ResourceStart.AddMinutes(1));
+            var forAdmin = events.Single(e => e.Id == seeded.Event.EventId).Resources.Single();
+            Assert.Null(Assert.Single(forAdmin.ResourceType.Files).AcknowledgedAt);
+            Assert.True(forAdmin.HasUnacknowledgedMandatoryInstructions);
+            Assert.True(forAdmin.Shifts.Single().HasUnacknowledgedMandatoryInstructions);
+
+            // Uten kjent bruker er kvitteringsstatusen ukjent.
+            Assert.Null(Assert.Single((await reader.GetResourceType(seeded.ResourceType.ResourceTypeId))!.Files).AcknowledgedAt);
+        }
+
+        [Fact]
+        public async Task ArchivedFiles_AreLeftOut_ButReadableById()
+        {
+            var seeded = await Seed();
+            var archivedAt = new DateTime(2026, 1, 14, 9, 0, 0);
+            using (var archive = _fixture.CreateContext())
+            {
+                var file = await archive.ResourceTypeFiles.SingleAsync(f => f.ResourceTypeFileId == seeded.File.ResourceTypeFileId);
+                file.Archived = archivedAt;
+                file.ArchivedBy = seeded.Trainer.UserId;
+                await archive.SaveChangesAsync();
+            }
+
+            using var context = _fixture.CreateContext();
+            var reader = new ResourceReader(context, Clock);
+            var actor = new Actor(seeded.Viewer.UserId, IsAdmin: false);
+
+            Assert.Empty((await reader.GetResource(actor, seeded.Resource.EventResourceId))!.ResourceType.Files);
+            Assert.Empty((await reader.GetResourceType(seeded.ResourceType.ResourceTypeId))!.Files);
+            var byId = (await reader.GetFile(seeded.File.ResourceTypeFileId))!;
+            Assert.Equal(archivedAt, byId.Archived);
+            Assert.Equal(DateTimeKind.Utc, byId.Archived!.Value.Kind);
         }
 
         [Fact]

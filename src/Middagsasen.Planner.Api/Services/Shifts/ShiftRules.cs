@@ -127,6 +127,24 @@ namespace Middagsasen.Planner.Api.Services.Shifts
         public static bool CanSignUp(Actor actor, ResourceFacts resource, DateTime now)
             => CheckSignUp(actor, resource, now, actor.UserId) is null;
 
+        // --- Instrukser ---
+
+        /// <summary>
+        /// Sperre for påkrevde instrukser: ved egen påmelding (<paramref name="targetUserId"/> er innlogget bruker, også
+        /// for admin) må brukeren ha kvittert for alle påkrevde instrukser på vakttypen. Returnerer beskrivelsen av
+        /// instruksen som sperrer (den første alfabetisk ved flere), eller <c>null</c> når ingenting sperrer.
+        /// Admin som setter opp en annen bruker går utenom sperren, men ser et varsel på vakta
+        /// (<c>ShiftResponse.HasUnacknowledgedMandatoryInstructions</c>).
+        /// </summary>
+        /// <param name="unacknowledgedMandatoryInstructions">
+        /// Beskrivelsene av de påkrevde instruksene målbrukeren ikke har kvittert for
+        /// (<see cref="Attachments.IAttachmentRepository.GetUnacknowledgedMandatory"/>).
+        /// </param>
+        public static string? BlockingInstruction(Actor actor, int targetUserId, IEnumerable<string> unacknowledgedMandatoryInstructions)
+            => targetUserId == actor.UserId
+                ? unacknowledgedMandatoryInstructions.OrderBy(d => d, StringComparer.OrdinalIgnoreCase).FirstOrDefault()
+                : null;
+
         // --- Endre vakt ---
 
         /// <summary>

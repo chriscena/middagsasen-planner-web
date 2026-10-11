@@ -50,6 +50,7 @@ function shift(
     canEdit: false,
     canWithdraw: false,
     canConfirmTraining: false,
+    hasUnacknowledgedMandatoryInstructions: false,
     ...overrides,
   };
 }
@@ -74,6 +75,7 @@ function resource(
     isPast: false,
     canSignUp: true,
     mustAnswerTraining: true,
+    hasUnacknowledgedMandatoryInstructions: false,
     ...overrides,
   };
 }

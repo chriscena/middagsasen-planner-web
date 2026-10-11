@@ -5,6 +5,9 @@ import type { components } from "./api";
 
 type Schemas = components["schemas"];
 
+export type AcknowledgeRequest = Schemas["AcknowledgeRequest"];
+export type AcknowledgementReportResponse = Schemas["AcknowledgementReportResponse"];
+export type AcknowledgementReportUserResponse = Schemas["AcknowledgementReportUserResponse"];
 export { ApprovalFilter } from "./enums";
 export { ApprovalStatus } from "./enums";
 export type ApproveCompetencyRequest = Schemas["ApproveCompetencyRequest"];
@@ -30,9 +33,11 @@ export type EventTemplateRequest = Schemas["EventTemplateRequest"];
 export type EventTemplateResponse = Schemas["EventTemplateResponse"];
 export type FacilityCompetencyWarningResponse = Schemas["FacilityCompetencyWarningResponse"];
 export type FileInfoResponse = Schemas["FileInfoResponse"];
+export type FileMetadataRequest = Schemas["FileMetadataRequest"];
 export type HallOfFameResponse = Schemas["HallOfFameResponse"];
 export type HallOfFamerResponse = Schemas["HallOfFamerResponse"];
 export type IFormFile = Schemas["IFormFile"];
+export type InstructionGroupResponse = Schemas["InstructionGroupResponse"];
 export type LocationMeasurementResponse = Schemas["LocationMeasurementResponse"];
 export type MeasurementResponse = Schemas["MeasurementResponse"];
 export type MeasurementValueResponse = Schemas["MeasurementValueResponse"];

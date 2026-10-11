@@ -1,5 +1,6 @@
-﻿namespace Middagsasen.Planner.Api.Services.ResourceTypes
+namespace Middagsasen.Planner.Api.Services.Attachments
 {
+    /// <summary>Innholdet i et vedlegg, til nedlasting.</summary>
     public class FileResponse
     {
         public byte[] Data { get; set; } = null!;

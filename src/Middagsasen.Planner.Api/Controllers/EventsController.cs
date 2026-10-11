@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Middagsasen.Planner.Api.Authentication;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Events;
 
 namespace Middagsasen.Planner.Api.Controllers
@@ -7,13 +8,15 @@ namespace Middagsasen.Planner.Api.Controllers
     [ApiController, Authorize]
     public class EventsController : ControllerBase
     {
-        public EventsController(IEventsService eventsService, ICurrentUserService currentUser)
+        public EventsController(IEventsService eventsService, IAttachmentService attachmentService, ICurrentUserService currentUser)
         {
             EventsService = eventsService;
+            AttachmentService = attachmentService;
             CurrentUser = currentUser;
         }
 
         public IEventsService EventsService { get; }
+        public IAttachmentService AttachmentService { get; }
         public ICurrentUserService CurrentUser { get; }
 
         [HttpGet("api/eventstatus")]
@@ -28,6 +31,17 @@ namespace Middagsasen.Planner.Api.Controllers
         public async Task<IEnumerable<ShiftSeasonResponse>> GetMyShifts()
         {
             return await EventsService.GetShiftsByUserId(CurrentUser.UserId);
+        }
+
+        /// <summary>
+        /// Alle aktive instrukser gruppert per vakttype, med <c>appliesToMe</c> (brukeren har vakt på vakttypen denne
+        /// sesongen) og kvitteringsstatus for innlogget bruker. Vakttyper som gjelder brukeren først.
+        /// </summary>
+        [HttpGet("api/me/instructions")]
+        [ProducesResponseType(typeof(IEnumerable<InstructionGroupResponse>), StatusCodes.Status200OK)]
+        public async Task<IEnumerable<InstructionGroupResponse>> GetMyInstructions()
+        {
+            return await AttachmentService.GetMyInstructions(CurrentUser.UserId);
         }
 
         [HttpGet("api/events")]

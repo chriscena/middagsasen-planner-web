@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Routing;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Controllers;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
 using NSubstitute;
@@ -19,7 +20,7 @@ namespace Middagsasen.Planner.Api.Tests.Controllers
 
         public ResourceTypesControllerTests()
         {
-            _sut = new ResourceTypesController(_resourceTypesService, Substitute.For<ICompetencyService>());
+            _sut = new ResourceTypesController(_resourceTypesService, Substitute.For<ICompetencyService>(), Substitute.For<IAttachmentService>());
         }
 
         private static AuthorizeAttribute? GetFileAuthorizeAttribute()

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
@@ -75,7 +76,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 query = query.Where(e => e.StartTime < to);
 
             var events = await query.ToListAsync();
-            var viewer = await CreateViewer(actor);
+            var viewer = await CreateViewer(actor, events.SelectMany(e => e.Resources));
             return events.Select(viewer.Map).ToList();
         }
 
@@ -85,7 +86,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             if (evnt is null)
                 return null;
 
-            var viewer = await CreateViewer(actor);
+            var viewer = await CreateViewer(actor, evnt.Resources);
             return viewer.Map(evnt);
         }
 
@@ -95,17 +96,40 @@ namespace Middagsasen.Planner.Api.Services.Resources
             if (resource is null)
                 return null;
 
-            var viewer = await CreateViewer(actor);
+            var viewer = await CreateViewer(actor, [resource]);
             return viewer.Map(resource);
         }
 
-        private async Task<Viewer> CreateViewer(Actor actor)
+        /// <summary>
+        /// Henter det flaggene for <paramref name="actor"/> trenger, med én spørring per tabell uansett antall oppgaver:
+        /// opplæringsradene og kvitteringene. Kvitteringer hentes for innlogget bruker og, for admin, for eierne av
+        /// vaktene i <paramref name="resources"/> (varselikonet); vanlige brukere ser bare sin egen status.
+        /// </summary>
+        private async Task<Viewer> CreateViewer(Actor actor, IEnumerable<EventResource> resources)
         {
             var trainingResourceTypeIds = await DbContext.ResourceTypeTrainings
                 .Where(t => t.UserId == actor.UserId)
                 .Select(t => t.ResourceTypeId)
                 .ToListAsync();
-            return new Viewer(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds);
+
+            var resourceList = resources.ToList();
+            var userIds = new HashSet<int> { actor.UserId };
+            if (actor.IsAdmin)
+                userIds.UnionWith(resourceList.SelectMany(r => r.Shifts).Select(s => s.UserId));
+            var resourceTypeIds = resourceList.Select(r => r.ResourceTypeId).Distinct().ToList();
+
+            var acknowledgedByUser = new Dictionary<int, IReadOnlyDictionary<int, DateTime>>();
+            if (resourceTypeIds.Count > 0)
+            {
+                var acknowledgements = await DbContext.ResourceTypeFileAcknowledgements
+                    .Where(a => userIds.Contains(a.UserId) && resourceTypeIds.Contains(a.File.ResourceTypeId))
+                    .Select(a => new { a.UserId, a.ResourceTypeFileId, a.Acknowledged })
+                    .ToListAsync();
+                foreach (var group in acknowledgements.GroupBy(a => a.UserId))
+                    acknowledgedByUser[group.Key] = group.ToDictionary(a => a.ResourceTypeFileId, a => a.Acknowledged);
+            }
+
+            return new Viewer(actor, TimeProvider.GetUtcNow(), trainingResourceTypeIds, acknowledgedByUser);
         }
 
         // --- Vakttyper ---
@@ -115,7 +139,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             var resourceTypes = await ResourceTypes
                 .Where(r => !r.Inactive)
                 .ToListAsync();
-            return resourceTypes.Select(ResourceMapping.MapResourceType).ToList();
+            return resourceTypes.Select(r => ResourceMapping.MapResourceType(r)).ToList();
         }
 
         public async Task<IReadOnlyDictionary<int, ResourceTypeResponse>> GetResourceTypes(IEnumerable<int> ids)
@@ -127,7 +151,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
             var resourceTypes = await ResourceTypes
                 .Where(r => idList.Contains(r.ResourceTypeId))
                 .ToListAsync();
-            return resourceTypes.ToDictionary(r => r.ResourceTypeId, ResourceMapping.MapResourceType);
+            return resourceTypes.ToDictionary(r => r.ResourceTypeId, r => ResourceMapping.MapResourceType(r));
         }
 
         public async Task<ResourceTypeResponse?> GetResourceType(int id)
@@ -170,7 +194,7 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 .Include(f => f.UpdatedByUser)
                 .AsNoTracking()
                 .SingleOrDefaultAsync(f => f.ResourceTypeFileId == fileId);
-            return file is null ? null : ResourceMapping.MapFile(file);
+            return file is null ? null : AttachmentMapping.MapFile(file);
         }
 
         /// <summary>
@@ -182,13 +206,18 @@ namespace Middagsasen.Planner.Api.Services.Resources
             /// <param name="actor">Innlogget bruker.</param>
             /// <param name="utcNow">Nå.</param>
             /// <param name="trainingResourceTypeIds">Vakttypene innlogget bruker har en opplæringsrad for.</param>
-            public Viewer(Actor actor, DateTimeOffset utcNow, IEnumerable<int> trainingResourceTypeIds)
+            /// <param name="acknowledgedByUser">Kvitteringene (vedlegg-id → tidspunkt) per bruker, for innlogget bruker og (admin) vaktenes eiere.</param>
+            public Viewer(Actor actor, DateTimeOffset utcNow, IEnumerable<int> trainingResourceTypeIds,
+                IReadOnlyDictionary<int, IReadOnlyDictionary<int, DateTime>> acknowledgedByUser)
             {
                 Actor = actor;
                 Now = utcNow.ToNorwegianLocalTime();
                 UtcNow = utcNow.UtcDateTime;
                 TrainingResourceTypeIds = trainingResourceTypeIds.ToHashSet();
+                AcknowledgedByUser = acknowledgedByUser;
             }
+
+            private static readonly IReadOnlyDictionary<int, DateTime> NoAcknowledgements = new Dictionary<int, DateTime>();
 
             private Actor Actor { get; }
 
@@ -199,6 +228,15 @@ namespace Middagsasen.Planner.Api.Services.Resources
             private DateTime UtcNow { get; }
 
             private HashSet<int> TrainingResourceTypeIds { get; }
+
+            private IReadOnlyDictionary<int, IReadOnlyDictionary<int, DateTime>> AcknowledgedByUser { get; }
+
+            private IReadOnlyDictionary<int, DateTime> AcknowledgementsFor(int userId)
+                => AcknowledgedByUser.GetValueOrDefault(userId) ?? NoAcknowledgements;
+
+            /// <summary>Brukeren mangler kvittering på en påkrevd instruks på vakttypen (<see cref="AttachmentRules.BlockingInstructions"/>).</summary>
+            private bool HasUnacknowledgedMandatoryInstructions(ResourceType resourceType, int userId)
+                => AttachmentRules.BlockingInstructions(resourceType.Files, AcknowledgementsFor(userId).Keys.ToHashSet()).Count > 0;
 
             public EventResponse Map(Event evnt) => new()
             {
@@ -268,13 +306,13 @@ namespace Middagsasen.Planner.Api.Services.Resources
                 {
                     Id = resource.EventResourceId,
                     EventId = resource.EventId,
-                    ResourceType = ResourceMapping.MapResourceType(resource.ResourceType),
+                    ResourceType = ResourceMapping.MapResourceType(resource.ResourceType, AcknowledgementsFor(Actor.UserId)),
                     StartTime = resource.StartTime.ToSimpleIsoString(),
                     EndTime = resource.EndTime.ToSimpleIsoString(),
                     ShiftCount = resource.ShiftCount,
                     Shifts = resource.Shifts
                         .OrderBy(s => s.EventResourceUserId)
-                        .Select(s => MapShift(s, facts, facts.Shifts.Single(f => f.ShiftId == s.EventResourceUserId)))
+                        .Select(s => MapShift(s, resource.ResourceType, facts, facts.Shifts.Single(f => f.ShiftId == s.EventResourceUserId)))
                         .ToList(),
                     Messages = resource.Messages
                         .OrderBy(m => m.Created).ThenBy(m => m.EventResourceMessageId)
@@ -286,11 +324,15 @@ namespace Middagsasen.Planner.Api.Services.Resources
                     IsPast = ShiftRules.IsPast(facts, Now),
                     CanSignUp = ShiftRules.CanSignUp(Actor, facts, Now),
                     MustAnswerTraining = ShiftRules.MustAnswerTraining(facts, TrainingResourceTypeIds.Contains(resource.ResourceTypeId)),
+                    HasUnacknowledgedMandatoryInstructions = HasUnacknowledgedMandatoryInstructions(resource.ResourceType, Actor.UserId),
                 };
             }
 
-            private ShiftResponse MapShift(EventResourceUser shift, ResourceFacts resource, ShiftFacts facts) => new()
+            private ShiftResponse MapShift(EventResourceUser shift, ResourceType resourceType, ResourceFacts resource, ShiftFacts facts) => new()
             {
+                // Andres kvitteringsstatus er bare synlig for admin; eieren ser sin egen.
+                HasUnacknowledgedMandatoryInstructions = Actor.IsAdminOrSelf(shift.UserId)
+                    && HasUnacknowledgedMandatoryInstructions(resourceType, shift.UserId),
                 Id = shift.EventResourceUserId,
                 EventResourceId = shift.EventResourceId,
                 User = ResourceMapping.MapShiftUser(shift.User),

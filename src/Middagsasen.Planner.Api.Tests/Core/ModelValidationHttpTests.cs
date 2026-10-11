@@ -11,6 +11,7 @@ using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Controllers;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Attachments;
 using Middagsasen.Planner.Api.Services.Competencies;
 using Middagsasen.Planner.Api.Services.Events;
 using Middagsasen.Planner.Api.Services.ResourceTypes;
@@ -44,6 +45,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
             builder.Services.AddSingleton(_templates);
             builder.Services.AddSingleton(_resourceTypes);
             builder.Services.AddSingleton(Substitute.For<ICompetencyService>());
+            builder.Services.AddSingleton(Substitute.For<IAttachmentService>());
             builder.Services.AddSingleton(Substitute.For<ICurrentUserService>());
 
             _app = builder.Build();
