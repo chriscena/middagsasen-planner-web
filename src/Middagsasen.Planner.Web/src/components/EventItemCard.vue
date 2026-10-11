@@ -452,19 +452,9 @@
               <q-item-section>
                 <q-item-label lines="1">{{ file.description }}</q-item-label>
                 <q-item-label caption>
-                  <q-badge
-                    v-if="file.acknowledgedAt"
-                    color="green"
-                    label="Kvittert"
-                  ></q-badge>
-                  <q-badge v-else color="orange" label="Ulest"></q-badge>
-                  <q-badge
-                    v-if="file.isMandatory"
-                    outline
-                    color="grey-8"
-                    label="Påkrevd"
-                    class="q-ml-xs"
-                  ></q-badge>
+                  <InstructionStatusBadges
+                    :file="file"
+                  ></InstructionStatusBadges>
                 </q-item-label>
               </q-item-section>
               <q-item-section side>
@@ -594,8 +584,10 @@ import { notifyApiError } from "@/shared/notifyApiError";
 import { getErrorResponse } from "@/shared/apiError";
 import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
 import { downloadResourceTypeFileOrNotify } from "@/shared/fileDownload";
+import { sortInstructionFiles } from "@/shared/instructionList";
 import { createShiftList, type ShiftListItem } from "@/shared/shiftList";
 import AttachmentViewerDialog from "@/components/AttachmentViewerDialog.vue";
+import InstructionStatusBadges from "@/components/InstructionStatusBadges.vue";
 import {
   formatShortDate,
   formatTimeRange,
@@ -711,11 +703,14 @@ const mustChooseTraining = computed(
     trainingComplete.value === null
 );
 
-// Vedleggene på oppgaven i dialogen, delt i instrukser (krever kvittering)
-// og vanlige vedlegg. Evalueres kun når oppgave-dialogen er åpen.
+// Vedleggene på oppgaven i dialogen, delt i instrukser (krever kvittering,
+// uleste først som på Instrukser-siden) og vanlige vedlegg. Evalueres kun når
+// oppgave-dialogen er åpen.
 const instructions = computed(() =>
-  (selectedResource.value?.resourceType.files ?? []).filter(
-    (f) => f.requiresAcknowledgement
+  sortInstructionFiles(
+    (selectedResource.value?.resourceType.files ?? []).filter(
+      (f) => f.requiresAcknowledgement
+    )
   )
 );
 const attachments = computed(() =>

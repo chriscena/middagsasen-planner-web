@@ -12,14 +12,7 @@
         ></q-btn>
         <q-toolbar-title>Brukere</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
     <q-input
@@ -234,6 +227,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useUserStore } from "@/stores/UserStore";
 import { useAuthStore } from "@/stores/AuthStore";
 import { useCompetencyStore } from "@/stores/CompetencyStore";

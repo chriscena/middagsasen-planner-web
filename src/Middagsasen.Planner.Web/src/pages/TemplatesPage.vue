@@ -12,14 +12,7 @@
         ></q-btn>
         <q-toolbar-title>Maler</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
 
@@ -79,6 +72,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useQuasar } from "quasar";
 import { useRouter } from "vue-router";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useEventStore } from "@/stores/EventStore";
 import TemplateForm from "@/components/TemplateForm.vue";
 import type {

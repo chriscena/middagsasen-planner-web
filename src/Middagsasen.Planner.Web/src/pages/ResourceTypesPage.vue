@@ -12,14 +12,7 @@
         ></q-btn>
         <q-toolbar-title>Vakttype</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          dense
-          flat
-          round
-          icon="person"
-          @click="emit('toggle-right')"
-          title="Din brukerinfo"
-        ></q-btn>
+        <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
     <q-list role="list" separator>
@@ -381,6 +374,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useQuasar } from "quasar";
+import ProfileMenuButton from "@/components/ProfileMenuButton.vue";
 import { useEventStore } from "@/stores/EventStore";
 import { useUserStore } from "@/stores/UserStore";
 import { useCompetencyStore } from "@/stores/CompetencyStore";
