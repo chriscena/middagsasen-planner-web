@@ -525,6 +525,12 @@ namespace Middagsasen.Planner.Api.Data
                     .HasForeignKey(d => d.ModifiedBy)
                     .OnDelete(DeleteBehavior.NoAction)
                     .HasConstraintName("FK_WorkHours_Users_ModifiedBy");
+
+                entity.HasOne(e => e.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(d => d.CreatedBy)
+                    .OnDelete(DeleteBehavior.NoAction)
+                    .HasConstraintName("FK_WorkHours_Users_CreatedBy");
             });
 
         }

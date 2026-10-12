@@ -15,7 +15,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         private IQueryable<WorkHour> WithUsers(IQueryable<WorkHour> query) => query
             .Include(w => w.ApprovedByUser)
-            .Include(w => w.ModifiedByUser);
+            .Include(w => w.ModifiedByUser)
+            .Include(w => w.CreatedByUser);
 
         public async Task<WorkHour?> GetWorkHourById(int workHourId)
         {
@@ -77,6 +78,11 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             return await query
                 .Select(w => new WorkHourInterval(w.UserId, w.ApprovalStatus, w.StartTime!.Value, w.EndTime!.Value))
                 .ToListAsync();
+        }
+
+        public async Task<bool> ActiveUserExists(int userId)
+        {
+            return await DbContext.Users.AnyAsync(u => u.UserId == userId && !u.Inactive);
         }
 
         public void Add(WorkHour workHour) => DbContext.WorkHours.Add(workHour);

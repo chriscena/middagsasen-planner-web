@@ -12,6 +12,16 @@
         ></q-btn>
         <q-toolbar-title>Time-godkjenning</q-toolbar-title>
         <q-space></q-space>
+        <q-btn
+          v-if="isAdmin"
+          title="Registrer timer for en bruker"
+          dense
+          flat
+          round
+          icon="more_time"
+          :disable="!seasonsLoaded"
+          @click="showCreateDialog = true"
+        />
         <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
@@ -325,6 +335,14 @@
       @saved="onWorkHourSaved"
     ></TimeTrackingForm>
   </q-dialog>
+  <q-dialog v-model="showCreateDialog" persistent>
+    <TimeTrackingForm
+      select-owner
+      :default-owner-id="userFilter"
+      @cancel="showCreateDialog = false"
+      @saved="onWorkHourCreated"
+    ></TimeTrackingForm>
+  </q-dialog>
   <q-dialog v-model="showWorkHourDialog">
     <q-card class="q-pa-sm" style="width: 100%">
       <q-card-section>
@@ -402,6 +420,9 @@
           Endret av {{ foundWorkHour.modifiedByName ?? "ukjent" }}
           {{ formatDateTime(foundWorkHour.modifiedTime) }}
         </q-item-label>
+        <q-item-label v-if="createdByText" caption class="q-pt-sm">
+          {{ createdByText }}
+        </q-item-label>
       </q-card-section>
       <q-separator></q-separator>
       <q-card-actions>
@@ -434,6 +455,7 @@ import {
   getApprovalActionText,
   getApprovalStatusDisplay,
   getApprovedByText,
+  getCreatedByText,
   getWorkHourError,
   isOpen,
   parseApprovalFilter,
@@ -446,6 +468,7 @@ import type { UserResponse, WorkHourResponse } from "@/types";
 import TimeTrackingForm from "@/components/TimeTrackingForm.vue";
 import { notifyApiError } from "@/shared/notifyApiError";
 import { isSessionExpiredError } from "@/auth/unauthorizedHandler";
+import { filterUsersByName } from "@/shared/users";
 
 // Filteret som sendes til q-table (`:filter`) og tilbake i @request.
 interface WorkHourFilter {
@@ -480,6 +503,8 @@ const foundWorkHour = ref<Partial<WorkHourResponse>>({});
 const showWorkHourDialog = ref(false);
 const editWorkHour = ref<WorkHourResponse | null>(null);
 const showEditDialog = ref(false);
+// Ny føring for en annen bruker.
+const showCreateDialog = ref(false);
 const selectedWorkHours = ref<WorkHourResponse[]>([]);
 const tableRef = useTemplateRef<QTable>("tableRef");
 const loading = ref(false);
@@ -602,6 +627,9 @@ const dialogStatus = computed(() =>
   getApprovalStatusDisplay(foundWorkHour.value.approvalStatus)
 );
 
+// «Registrert av» når føringen er ført av en annen enn eieren.
+const createdByText = computed(() => getCreatedByText(foundWorkHour.value));
+
 // Sesongens startår fra URL (`s`), ellers inneværende sesong.
 const seasonFilter = computed<number | null>(() => {
   const fromQuery = parseInt(String($route.query.s));
@@ -681,6 +709,13 @@ function closeWorkHourDialog() {
 
 function onWorkHourSaved() {
   showEditDialog.value = false;
+  tableRef.value?.requestServerInteraction();
+}
+
+// Skjemaet viser selv bekreftelsen; her lukkes dialogen og listen og
+// summene lastes på nytt.
+function onWorkHourCreated() {
+  showCreateDialog.value = false;
   tableRef.value?.requestServerInteraction();
 }
 
@@ -833,12 +868,7 @@ async function setFilter(changes: Partial<WorkHourFilter> = {}) {
 
 function filterUsers(val: string, update: (callbackFn: () => void) => void) {
   update(() => {
-    const needle = (val ?? "").toLowerCase();
-    userOptions.value = needle
-      ? userStore.users.filter((u) =>
-          (u.fullName ?? "").toLowerCase().includes(needle)
-        )
-      : userStore.users;
+    userOptions.value = filterUsersByName(userStore.users, val);
   });
 }
 

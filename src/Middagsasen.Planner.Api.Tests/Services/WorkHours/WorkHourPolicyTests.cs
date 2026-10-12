@@ -146,6 +146,23 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(Evaluate(entry, actor, Action.Unlock) == WorkHourAccess.Allowed, permissions.CanResetStatus);
         }
 
+        // Kolonner: eier er innlogget bruker, admin, opprett som godkjent, forventet
+        [Theory]
+        [InlineData(true, false, false, WorkHourAccess.Allowed)]
+        [InlineData(true, false, true, WorkHourAccess.Forbidden)]
+        [InlineData(false, false, false, WorkHourAccess.Forbidden)]
+        [InlineData(false, false, true, WorkHourAccess.Forbidden)]
+        [InlineData(true, true, false, WorkHourAccess.Allowed)]
+        [InlineData(true, true, true, WorkHourAccess.Allowed)]
+        [InlineData(false, true, false, WorkHourAccess.Allowed)]
+        [InlineData(false, true, true, WorkHourAccess.Allowed)]
+        public void CanCreate(bool forSelf, bool isAdmin, bool approve, WorkHourAccess expected)
+        {
+            var ownerId = forSelf ? OwnerId : OtherId;
+
+            Assert.Equal(expected, WorkHourPolicy.CanCreate(ownerId, approve, new Actor(OwnerId, isAdmin)));
+        }
+
         // Policyen vurderer kun tilgang/tilstand; verdien valideres av servicen etterpå (403 → 409 → 400).
         [Theory]
         [InlineData(0, false, null, WorkHourAccess.Forbidden)]

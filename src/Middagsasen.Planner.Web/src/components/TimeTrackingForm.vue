@@ -7,6 +7,9 @@
         :color="statusDisplay.badgeColor"
         >{{ statusDisplay.label }}</q-badge
       >
+      <div v-if="createdByText" class="text-caption text-grey-7">
+        {{ createdByText }}
+      </div>
       <div v-if="modifiedByText" class="text-caption text-grey-7">
         {{ modifiedByText }}
       </div>
@@ -32,6 +35,29 @@
       ></q-btn>
     </q-card-actions>
     <q-card-section class="q-gutter-sm">
+      <q-select
+        v-if="showOwnerSelect"
+        outlined
+        use-input
+        input-debounce="0"
+        label="Bruker"
+        :model-value="viewModel.ownerId"
+        :options="ownerOptions"
+        option-label="fullName"
+        option-value="id"
+        emit-value
+        map-options
+        :disable="loading || busy"
+        :rules="[(val) => val != null || 'Velg bruker']"
+        @filter="filterOwners"
+        @update:model-value="(val) => (viewModel.ownerId = val ?? null)"
+      >
+        <template #no-option>
+          <q-item>
+            <q-item-section class="text-grey"> Ingen treff </q-item-section>
+          </q-item>
+        </template>
+      </q-select>
       <DatePickerInput
         v-model="viewModel.startDate"
         @blur="setStartDate"
@@ -99,12 +125,23 @@
       <q-btn
         v-if="canSave"
         no-caps
-        unelevated
+        :outline="showOwnerSelect"
+        :unelevated="!showOwnerSelect"
         color="primary"
         label="Lagre"
         @click="saveHours"
         :disable="!validForm || busy"
         :loading="viewModel.saving"
+      ></q-btn>
+      <q-btn
+        v-if="showOwnerSelect"
+        no-caps
+        unelevated
+        color="positive"
+        label="Lagre og godkjenn"
+        @click="saveAndApproveHours"
+        :disable="!validForm || busy"
+        :loading="viewModel.savingApproved"
       ></q-btn>
     </q-card-actions>
   </q-card>
@@ -121,6 +158,7 @@ import {
   buildWorkHourPatch,
   getApprovalActionText,
   getApprovalStatusDisplay,
+  getCreatedByText,
   getWorkHourChanges,
   getWorkHourError,
   hasDuration,
@@ -137,8 +175,15 @@ import {
   toInstantWire,
 } from "@/shared/time";
 import { ApprovalStatus } from "@/types";
-import type { UpdateWorkHourRequest, WorkHourResponse } from "@/types";
+import type {
+  CreateWorkHourRequest,
+  UpdateWorkHourRequest,
+  UserResponse,
+  WorkHourResponse,
+} from "@/types";
 import { notifyApiError } from "@/shared/notifyApiError";
+import { useUserStore } from "@/stores/UserStore";
+import { filterUsersByName } from "@/shared/users";
 
 interface TimeTrackingViewModel {
   id: number | null;
@@ -156,7 +201,11 @@ interface TimeTrackingViewModel {
   descriptionValid: boolean | string | null;
   // null = ubehandlet (også for ny føring).
   status: ApprovalStatus | null;
+  // Eieren av en ny føring når admin registrerer for en annen (selectOwner).
+  ownerId: number | null;
   saving: boolean;
+  // «Lagre og godkjenn» pågår.
+  savingApproved: boolean;
   deleting: boolean;
   approving: ApprovalStatus | null;
   loading: boolean;
@@ -168,10 +217,18 @@ const props = withDefaults(
     // Viser «Godkjenn»/«Avslå» der føringen kan godkjennes (`canApprove` fra
     // serveren). Brukes fra godkjenningssiden.
     allowApproval?: boolean;
+    // Ny føring for en annen bruker (admin, fra godkjenningssiden): viser et
+    // søkbart brukervalg og «Lagre og godkjenn». Gjelder ikke redigering.
+    // Brukerlisten (bare aktive brukere) hentes fra UserStore av siden.
+    selectOwner?: boolean;
+    // Forhåndsvalgt eier i brukervalget, f.eks. brukeren siden er filtrert på.
+    defaultOwnerId?: number | null;
   }>(),
   {
     modelValue: undefined,
     allowApproval: false,
+    selectOwner: false,
+    defaultOwnerId: null,
   }
 );
 
@@ -181,6 +238,7 @@ const emit = defineEmits<{
 }>();
 const $q = useQuasar();
 const workHourStore = useWorkHourStore();
+const userStore = useUserStore();
 const loading = ref(false);
 
 const viewModel = reactive<TimeTrackingViewModel>({
@@ -196,7 +254,9 @@ const viewModel = reactive<TimeTrackingViewModel>({
   description: null,
   descriptionValid: true,
   status: null,
+  ownerId: null,
   saving: false,
+  savingApproved: false,
   deleting: false,
   approving: null,
   loading: false,
@@ -268,7 +328,26 @@ const hasChanges = computed(
 );
 
 const busy = computed(
-  () => viewModel.saving || viewModel.deleting || viewModel.approving !== null
+  () =>
+    viewModel.saving ||
+    viewModel.savingApproved ||
+    viewModel.deleting ||
+    viewModel.approving !== null
+);
+
+// Brukervalget vises bare for en ny føring.
+const showOwnerSelect = computed(() => props.selectOwner && !props.modelValue);
+
+const ownerOptions = ref<UserResponse[]>(userStore.users);
+
+function filterOwners(val: string, update: (callbackFn: () => void) => void) {
+  update(() => {
+    ownerOptions.value = filterUsersByName(userStore.users, val);
+  });
+}
+
+const createdByText = computed(() =>
+  props.modelValue ? getCreatedByText(props.modelValue) : null
 );
 
 const modifiedByText = computed(() => {
@@ -330,29 +409,46 @@ async function saveHours() {
   }
 }
 
-async function createHours() {
+async function saveAndApproveHours() {
+  if (!validateContent()) return;
+  await createHours(true);
+}
+
+// approve = «Lagre og godkjenn» (bare i selectOwner-modus).
+async function createHours(approve = false) {
   try {
-    viewModel.saving = true;
-    const payload = {
+    if (approve) viewModel.savingApproved = true;
+    else viewModel.saving = true;
+    const payload: CreateWorkHourRequest = {
       startTime: viewModel.startDateTime,
       endTime: viewModel.endDateTime,
       description: viewModel.description,
     };
+    if (showOwnerSelect.value) {
+      payload.userId = viewModel.ownerId;
+      payload.approve = approve;
+    }
     const result = await workHourStore.createWorkHour(payload);
     emit("saved", result);
     $q.notify({
-      message: "Timer lagret, bra jobba! 🙌",
+      message: showOwnerSelect.value
+        ? approve
+          ? "Timer lagret og godkjent"
+          : "Timer lagret"
+        : "Timer lagret, bra jobba! 🙌",
       color: "positive",
     });
   } catch (error) {
     handleWorkHourError(error, "create");
   } finally {
     viewModel.saving = false;
+    viewModel.savingApproved = false;
   }
 }
 
 const validForm = computed(() => {
   return (
+    (!showOwnerSelect.value || viewModel.ownerId !== null) &&
     viewModel.startDateValid &&
     viewModel.startTimeValid &&
     viewModel.endTimeValid &&
@@ -466,6 +562,13 @@ onMounted(() => {
     // (også når servertiden har sekunder som skjemaet ikke viser).
     original.value = { ...currentValues.value };
   } else {
+    // Forhåndsvelg bare en bruker som finnes i listen (aktiv).
+    if (
+      showOwnerSelect.value &&
+      userStore.users.some((u) => u.id === props.defaultOwnerId)
+    ) {
+      viewModel.ownerId = props.defaultOwnerId;
+    }
     calculateTime(viewModel.startDate, viewModel.startTime, viewModel.endTime);
   }
 });

@@ -4,10 +4,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public interface IWorkHourRepository
     {
-        /// <summary>Henter føring med tracking (for endring), inkl. ApprovedByUser/ModifiedByUser.</summary>
+        /// <summary>Henter føring med tracking (for endring), inkl. ApprovedByUser/ModifiedByUser/CreatedByUser.</summary>
         Task<WorkHour?> GetWorkHourById(int workHourId);
 
-        /// <summary>Henter føring uten tracking, inkl. ApprovedByUser/ModifiedByUser.</summary>
+        /// <summary>Henter føring uten tracking, inkl. ApprovedByUser/ModifiedByUser/CreatedByUser.</summary>
         Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId);
 
         /// <summary>
@@ -21,6 +21,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// <paramref name="from"/>/<paramref name="to"/> filtrerer på starttid i det halvåpne intervallet [from, to); null = ingen grense.
         /// </summary>
         Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null);
+
+        /// <summary>Om brukeren finnes og ikke er inaktiv.</summary>
+        Task<bool> ActiveUserExists(int userId);
 
         void Add(WorkHour workHour);
         void Remove(WorkHour workHour);

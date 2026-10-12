@@ -16,9 +16,14 @@ namespace Middagsasen.Planner.Api.Controllers
 
         public IWorkHoursService WorkHoursService { get; }
 
+        /// <summary>
+        /// Oppretter en timeføring. Admin kan opprette for en annen bruker (userId) og opprette som godkjent (approve).
+        /// </summary>
         [HttpPost]
         [ProducesResponseType<WorkHourResponse>(StatusCodes.Status201Created)]
         [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Create([FromBody] CreateWorkHourRequest request)
         {
             var response = await WorkHoursService.CreateWorkHour(request);

@@ -12,10 +12,12 @@ Håndheves i backend via `WorkHourPolicy` (statisk, uten avhengigheter).
 | Godkjenne / avslå | Nei | Kun åpne føringer |
 | «Ingen status» (låse opp) | Nei | Godkjente og avslåtte |
 | Redigere låst føring | Nei | Nei (må låse opp først) |
-| Opprette | Kun for seg selv | Kun for seg selv |
+| Opprette | Kun for seg selv, som åpen føring | For hvem som helst (aktiv bruker), åpen eller godkjent («Lagre og godkjenn») |
 | Lese | Egne føringer og summer | Alt |
 
-- Redigerbare felter: starttid, sluttid, beskrivelse. **Eier kan aldri endres.**
+- Redigerbare felter: starttid, sluttid, beskrivelse. **Eier kan aldri endres** etter opprettelse.
+- **Opprette for andre (#193):** admin kan sette eier (`userId`) ved opprettelse, f.eks. når en frivillig ikke har fått ført timene selv. Uten `userId` er eier innlogget bruker. Med `approve: true` opprettes føringen og godkjennes i samme lagring (`ApprovedBy`/`ApprovedTime` = admin og nå). Regelen er `WorkHourPolicy.CanCreate`.
+- **Sporbarhet:** `CreatedBy` (FK → `Users`) og `CreatedTime` settes av server ved opprettelse. `CreatedBy` er den som førte timene, ikke nødvendigvis eieren. Endringer spores fortsatt med `ModifiedBy`/`ModifiedTime` (settes ikke ved opprettelse), og det finnes ingen `UpdatedBy`.
 - Manglende tilgang → `403 Forbidden`. Føringen er låst → `409 Conflict`.
 - «Ingen status» beholdes som bevisst angrevei: admin låser opp, retter og godkjenner på nytt.
 - Status er enumen `ApprovalStatus` (`Approved = 1`, `Rejected = 2`, null = åpen); heltallsverdiene lagres i databasen. Udefinerte verdier gir `400`.
@@ -26,6 +28,7 @@ Håndheves i backend via `WorkHourPolicy` (statisk, uten avhengigheter).
 
 ### Skjema
 - `WorkHours`: nye kolonner `ModifiedBy INT NULL` (FK → `Users`) og `ModifiedTime DATETIME NULL`.
+- `WorkHours`: `CreatedBy INT NULL` (FK `FK_WorkHours_Users_CreatedBy` → `Users`) og `CreatedTime DATETIME NULL` (#193). Eksisterende rader får `CreatedBy = UserId` og `CreatedTime = StartTime` i `Scripts/Script.PostDeployment.sql`; se README i databaseprosjektet for hvorfor kolonnene er nullable og for deploy-rekkefølgen.
 - Oppdater `WorkHours.sql`, entiteten `WorkHour` og mapping i `PlannerDbContext`.
 
 ### Arkitektur
@@ -36,7 +39,7 @@ Håndheves i backend via `WorkHourPolicy` (statisk, uten avhengigheter).
 
 | Endepunkt | Endring |
 |---|---|
-| `POST /api/WorkHours` | `UserId` fjernes fra request — eier er alltid innlogget bruker |
+| `POST /api/WorkHours` | Body `{ userId?, startTime, endTime?, description?, approve? }`. `userId` utelatt = innlogget bruker; annen bruker kun for admin (`403`), ukjent eller inaktiv bruker gir `404`. `approve: true` kun for admin (`403`). Rekkefølge: `403` → `404` → `400` |
 | `PATCH /api/WorkHours/{id}` | Eneste redigeringsendepunkt. Body `{ startTime?, endTime?, description?, approvalStatus? }` — kun medsendte felter endres. Innhold og status lagres i én operasjon |
 | `PATCH /api/WorkHours/{id}/ApprovedBy` | Tar kun `{ approvalStatus }`. Brukes til masse-godkjenning og «Ingen status» |
 | `PUT /api/WorkHours/{id}` | **Fjernes** |
@@ -49,6 +52,7 @@ Håndheves i backend via `WorkHourPolicy` (statisk, uten avhengigheter).
 - `ApprovedBy` og `ApprovedTime` settes **alltid** av server fra innlogget bruker — aldri fra klient.
 - `EndTimeRequest` / `EndTimeResponse` slettes.
 - `WorkHourResponse` utvides med `modifiedBy`, `modifiedTime`, `modifiedByName`, `approvedByName` (navn fra backend, siden vanlige brukere ikke har tilgang til brukerlisten).
+- `WorkHourResponse` har også `createdBy`, `createdByName` og `createdTime` (#193). De kan være `null` på føringer som det gamle API-et laget rett før deploy, til deploy-skriptet har fylt dem ut.
 
 ### ModifiedBy-regler
 - Settes kun ved **faktisk endring** av innhold (starttid, sluttid, beskrivelse) — gamle og nye verdier sammenlignes.
@@ -75,7 +79,7 @@ Klienten sender kun felter som faktisk er endret. «Godkjenn» uten redigering s
 
 ## Tester
 
-- `WorkHourPolicyTests`: hele regeltabellen som `[Theory]`.
+- `WorkHourPolicyTests`: hele regeltabellen som `[Theory]`, inkludert `CanCreate`.
 - `WorkHoursServiceTests` (in-memory DB): delvis PATCH, ModifiedBy-regler, `ApprovedBy` fra server, redigering + godkjenning i én lagring, eier ved opprettelse.
 - Vitest for `TimeTrackingForm`: kun endrede felter sendes; godkjenn uten redigering sender kun `approvalStatus`.
 

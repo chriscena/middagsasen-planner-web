@@ -14,6 +14,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
         internal const string InvalidSeasonMessage = "Ugyldig sesong.";
         internal const string InvalidStatusMessage = "Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).";
+        internal const string UserNotFoundMessage = "Fant ikke brukeren.";
 
         public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
         {
@@ -26,19 +27,38 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public ICurrentUserService CurrentUser { get; }
         public TimeProvider TimeProvider { get; }
 
+        /// <summary>
+        /// Rekkefølge: 403 (tilgang) → 404 (ukjent eller inaktiv eier) → 400 (validering).
+        /// Tilgangen sjekkes før eieren slås opp, så en vanlig bruker ikke kan finne ut hvilke bruker-id-er som finnes.
+        /// </summary>
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
+            var actor = CurrentUser.ToActor();
+            var ownerId = request.UserId ?? actor.UserId;
+            var approve = request.Approve == true;
+
+            Ensure(LockedMessage, WorkHourPolicy.CanCreate(ownerId, approve, actor));
+            if (ownerId != actor.UserId && !await Repository.ActiveUserExists(ownerId))
+                throw new EntityNotFoundException(UserNotFoundMessage);
+
             if (!request.StartTime.HasValue)
                 throw new DomainValidationException(StartTimeRequiredMessage);
             ValidateTimes(request.StartTime, request.EndTime);
 
+            var now = TimeProvider.GetUtcNow().UtcDateTime;
+            // ModifiedBy/ModifiedTime settes ikke ved opprettelse; de gjelder senere endringer (se UpdateWorkHour).
             var workHour = new WorkHour
             {
-                UserId = CurrentUser.UserId,
+                UserId = ownerId,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
                 Description = request.Description,
+                CreatedBy = actor.UserId,
+                CreatedTime = now,
             };
+            // «Lagre og godkjenn»: opprettes og godkjennes i samme lagring.
+            if (approve)
+                ApplyStatus(workHour, ApprovalStatus.Approved, actor.UserId, now);
             Repository.Add(workHour);
             await Repository.SaveChangesAsync();
 
@@ -92,7 +112,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             }
 
             if (hasStatus)
-                ApplyStatus(workHour, request.ApprovalStatus, userId);
+                ApplyStatus(workHour, request.ApprovalStatus, userId, DateTime.UtcNow);
 
             // Innhold og status lagres i én operasjon. Gir 409 hvis status er endret av en annen
             // siden føringen ble hentet (ApprovalStatus er concurrency token).
@@ -111,7 +131,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 WorkHourPolicy.CanSetStatus(workHour, CurrentUser.ToActor(), request.ApprovalStatus));
             ValidateStatus(request.ApprovalStatus);
 
-            ApplyStatus(workHour, request.ApprovalStatus, userId);
+            ApplyStatus(workHour, request.ApprovalStatus, userId, DateTime.UtcNow);
             await Repository.SaveChangesAsync();
 
             return new ApprovedByResponse
@@ -258,13 +278,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 throw new DomainValidationException(EndBeforeStartMessage);
         }
 
-        private static void ApplyStatus(WorkHour workHour, ApprovalStatus? status, int userId)
+        private static void ApplyStatus(WorkHour workHour, ApprovalStatus? status, int userId, DateTime utcNow)
         {
             workHour.ApprovalStatus = status;
             if (status.HasValue)
             {
                 workHour.ApprovedBy = userId;
-                workHour.ApprovedTime = DateTime.UtcNow;
+                workHour.ApprovedTime = utcNow;
             }
             else
             {
@@ -338,6 +358,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 ModifiedBy = workHour.ModifiedBy,
                 ModifiedByName = workHour.ModifiedByUser?.FullName(),
                 ModifiedTime = workHour.ModifiedTime.AsUtc(),
+                CreatedBy = workHour.CreatedBy,
+                CreatedByName = workHour.CreatedByUser?.FullName(),
+                CreatedTime = workHour.CreatedTime.AsUtc(),
                 CanEdit = permissions.CanEdit,
                 CanDelete = permissions.CanDelete,
                 CanApprove = permissions.CanApprove,

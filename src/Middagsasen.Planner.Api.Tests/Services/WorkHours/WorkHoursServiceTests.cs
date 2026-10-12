@@ -87,20 +87,151 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(ApprovalStatus.Rejected, wh.ApprovalStatus);
         }
 
-        [Fact]
-        public async Task Create_IgnoresAnyClientOwner_UsesCurrentUser()
+        #region Opprettelse
+
+        private const int OtherId = 20;
+
+        /// <summary>Fanger føringen som legges til, og returnerer den ved oppslaget etter lagring.</summary>
+        private Func<WorkHour?> CaptureAdded()
         {
-            LoginAs(OwnerId, false);
             WorkHour? added = null;
             _repository.When(r => r.Add(Arg.Any<WorkHour>())).Do(c => added = c.Arg<WorkHour>());
             _repository.GetWorkHourByIdReadOnly(Arg.Any<int>()).Returns(_ => added);
-
-            var result = await _sut.CreateWorkHour(new CreateWorkHourRequest { StartTime = DateTime.UtcNow });
-
-            Assert.NotNull(added);
-            Assert.Equal(OwnerId, added!.UserId);
-            Assert.Equal(OwnerId, result.UserId);
+            return () => added;
         }
+
+        private static CreateWorkHourRequest NewRequest(int? userId = null, bool? approve = null) => new()
+        {
+            UserId = userId,
+            StartTime = new DateTime(2026, 9, 30, 8, 0, 0, DateTimeKind.Utc),
+            EndTime = new DateTime(2026, 9, 30, 10, 0, 0, DateTimeKind.Utc),
+            Approve = approve,
+        };
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData(OwnerId)]
+        public async Task Create_ForSelf_OwnerAndCreatorIsCurrentUser(int? userId)
+        {
+            LoginAs(OwnerId, false);
+            var added = CaptureAdded();
+
+            var result = await _sut.CreateWorkHour(NewRequest(userId));
+
+            var workHour = Assert.IsType<WorkHour>(added());
+            Assert.Equal(OwnerId, workHour.UserId);
+            Assert.Equal(OwnerId, workHour.CreatedBy);
+            Assert.Equal(Now.UtcDateTime, workHour.CreatedTime);
+            Assert.Null(workHour.ApprovalStatus);
+            Assert.Null(workHour.ModifiedBy);
+            Assert.Equal(OwnerId, result.UserId);
+            Assert.Equal(OwnerId, result.CreatedBy);
+            Assert.Equal(Now.UtcDateTime, result.CreatedTime);
+            // Egen føring slås ikke opp; innlogget bruker finnes.
+            await _repository.DidNotReceive().ActiveUserExists(Arg.Any<int>());
+        }
+
+        [Fact]
+        public async Task Create_UserForOther_ThrowsForbidden_WithoutLookingUpUser()
+        {
+            LoginAs(OwnerId, false);
+            _repository.ActiveUserExists(Arg.Any<int>()).Returns(false);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.CreateWorkHour(NewRequest(OtherId)));
+
+            // 403 og ikke 404, så en vanlig bruker ikke kan finne ut hvilke bruker-id-er som finnes.
+            await _repository.DidNotReceive().ActiveUserExists(Arg.Any<int>());
+            _repository.DidNotReceive().Add(Arg.Any<WorkHour>());
+            await _repository.DidNotReceive().SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Create_UserApproves_ThrowsForbidden()
+        {
+            LoginAs(OwnerId, false);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.CreateWorkHour(NewRequest(approve: true)));
+
+            _repository.DidNotReceive().Add(Arg.Any<WorkHour>());
+            await _repository.DidNotReceive().SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Create_UserWithApproveFalse_IsAllowed()
+        {
+            LoginAs(OwnerId, false);
+            var added = CaptureAdded();
+
+            await _sut.CreateWorkHour(NewRequest(approve: false));
+
+            Assert.Null(Assert.IsType<WorkHour>(added()).ApprovalStatus);
+        }
+
+        [Fact]
+        public async Task Create_AdminForOther_OwnerIsOther_CreatorIsAdmin()
+        {
+            LoginAs(AdminId, true);
+            _repository.ActiveUserExists(OtherId).Returns(true);
+            var added = CaptureAdded();
+
+            var result = await _sut.CreateWorkHour(NewRequest(OtherId));
+
+            var workHour = Assert.IsType<WorkHour>(added());
+            Assert.Equal(OtherId, workHour.UserId);
+            Assert.Equal(AdminId, workHour.CreatedBy);
+            Assert.Equal(Now.UtcDateTime, workHour.CreatedTime);
+            Assert.Null(workHour.ApprovalStatus);
+            Assert.Null(workHour.ApprovedBy);
+            // ModifiedBy gjelder senere endringer, ikke opprettelsen.
+            Assert.Null(workHour.ModifiedBy);
+            Assert.Equal(OtherId, result.UserId);
+            Assert.Equal(AdminId, result.CreatedBy);
+            await _repository.Received(1).SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Create_AdminForOtherAndApprove_ApprovesInSameSave()
+        {
+            LoginAs(AdminId, true);
+            _repository.ActiveUserExists(OtherId).Returns(true);
+            var added = CaptureAdded();
+
+            var result = await _sut.CreateWorkHour(NewRequest(OtherId, approve: true));
+
+            var workHour = Assert.IsType<WorkHour>(added());
+            Assert.Equal(OtherId, workHour.UserId);
+            Assert.Equal(AdminId, workHour.CreatedBy);
+            Assert.Equal(ApprovalStatus.Approved, workHour.ApprovalStatus);
+            Assert.Equal(AdminId, workHour.ApprovedBy);
+            Assert.Equal(Now.UtcDateTime, workHour.ApprovedTime);
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
+            Assert.Equal(AdminId, result.ApprovedBy);
+            await _repository.Received(1).SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Create_AdminForUnknownOrInactiveUser_ThrowsNotFound()
+        {
+            LoginAs(AdminId, true);
+            _repository.ActiveUserExists(OtherId).Returns(false);
+
+            var ex = await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateWorkHour(NewRequest(OtherId, approve: true)));
+
+            Assert.Equal(WorkHoursService.UserNotFoundMessage, ex.Message);
+            _repository.DidNotReceive().Add(Arg.Any<WorkHour>());
+            await _repository.DidNotReceive().SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Create_ForbiddenWinsOverValidation()
+        {
+            LoginAs(OwnerId, false);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
+                _sut.CreateWorkHour(new CreateWorkHourRequest { UserId = OtherId }));
+        }
+
+        #endregion
 
         #region Sesongfilter
 

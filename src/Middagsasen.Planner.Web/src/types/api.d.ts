@@ -3822,6 +3822,24 @@ export interface paths {
                         "application/problem+json": components["schemas"]["ProblemDetails"];
                     };
                 };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ProblemDetails"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -4435,11 +4453,14 @@ export interface components {
             currentCount: number;
         };
         CreateWorkHourRequest: {
+            /** Format: int32 */
+            userId?: null | number;
             /** Format: date-time */
             startTime: null | string;
             /** Format: date-time */
             endTime?: null | string;
             description?: null | string;
+            approve?: null | boolean;
         };
         EventFromTemplateRequest: {
             /** Format: date */
@@ -4915,6 +4936,11 @@ export interface components {
             modifiedByName?: null | string;
             /** Format: date-time */
             modifiedTime?: null | string;
+            /** Format: int32 */
+            createdBy?: null | number;
+            createdByName?: null | string;
+            /** Format: date-time */
+            createdTime?: null | string;
             canEdit: boolean;
             canDelete: boolean;
             canApprove: boolean;

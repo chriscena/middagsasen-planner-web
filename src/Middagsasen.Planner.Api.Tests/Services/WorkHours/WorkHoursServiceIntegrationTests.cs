@@ -35,7 +35,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         /// <summary>Fast «nå» (1. oktober 2026) slik at sesongvalidering og inneværende sesong er deterministisk.</summary>
         private static readonly TimeProvider Clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
 
-        private async Task<User> SeedUser(bool isAdmin = false, string firstName = "Test", string lastName = "User")
+        private async Task<User> SeedUser(bool isAdmin = false, string firstName = "Test", string lastName = "User", bool inactive = false)
         {
             using var context = _fixture.CreateContext();
             var user = new User
@@ -44,6 +44,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 FirstName = firstName,
                 LastName = lastName,
                 IsAdmin = isAdmin,
+                Inactive = inactive,
                 Created = DateTime.UtcNow,
             };
             context.Users.Add(user);
@@ -98,7 +99,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         [Fact]
         public async Task Create_UsesCurrentUserAsOwner()
         {
-            var user = await SeedUser();
+            var user = await SeedUser(firstName: "Frida", lastName: "Frivillig");
             using var context = _fixture.CreateContext();
             var service = CreateService(context, user);
 
@@ -108,9 +109,103 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(3.0m, result.Hours);
             Assert.Null(result.ApprovalStatus);
             Assert.Null(result.ModifiedBy);
+            Assert.Equal(user.UserId, result.CreatedBy);
+            Assert.Equal("Frida Frivillig", result.CreatedByName);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.CreatedTime);
+            Assert.Equal(DateTimeKind.Utc, result.CreatedTime!.Value.Kind);
             var db = await Reload(result.WorkHourId);
             Assert.Equal(user.UserId, db.UserId);
             Assert.Equal("Ny", db.Description);
+            Assert.Equal(user.UserId, db.CreatedBy);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, db.CreatedTime);
+        }
+
+        [Fact]
+        public async Task Create_AdminForOther_OwnerIsOther_CreatedByAdmin()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true, firstName: "Ada", lastName: "Admin");
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, admin);
+
+            var result = await service.CreateWorkHour(new CreateWorkHourRequest { UserId = owner.UserId, StartTime = Start, EndTime = End });
+
+            Assert.Equal(owner.UserId, result.UserId);
+            Assert.Equal(admin.UserId, result.CreatedBy);
+            Assert.Equal("Ada Admin", result.CreatedByName);
+            Assert.Null(result.ApprovalStatus);
+            Assert.Null(result.ModifiedBy);
+            // Åpen føring: admin kan fortsatt godkjenne den.
+            Assert.True(result.CanApprove);
+            var db = await Reload(result.WorkHourId);
+            Assert.Equal(owner.UserId, db.UserId);
+            Assert.Equal(admin.UserId, db.CreatedBy);
+        }
+
+        [Fact]
+        public async Task Create_AdminForOtherAndApprove_SavedApproved()
+        {
+            var owner = await SeedUser();
+            var admin = await SeedUser(isAdmin: true, firstName: "Gunn", lastName: "Godkjenner");
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, admin);
+
+            var result = await service.CreateWorkHour(new CreateWorkHourRequest { UserId = owner.UserId, StartTime = Start, EndTime = End, Approve = true });
+
+            Assert.Equal(ApprovalStatus.Approved, result.ApprovalStatus);
+            Assert.Equal(admin.UserId, result.ApprovedBy);
+            Assert.Equal("Gunn Godkjenner", result.ApprovedByName);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.ApprovedTime);
+            Assert.False(result.CanEdit);
+            Assert.True(result.CanResetStatus);
+            var db = await Reload(result.WorkHourId);
+            Assert.Equal(owner.UserId, db.UserId);
+            Assert.Equal(admin.UserId, db.CreatedBy);
+            Assert.Equal(ApprovalStatus.Approved, db.ApprovalStatus);
+            Assert.Equal(admin.UserId, db.ApprovedBy);
+        }
+
+        [Fact]
+        public async Task Create_UserForOther_ThrowsForbidden_AndSavesNothing()
+        {
+            var owner = await SeedUser();
+            var other = await SeedUser();
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, other);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
+                service.CreateWorkHour(new CreateWorkHourRequest { UserId = owner.UserId, StartTime = Start, EndTime = End }));
+
+            using var check = _fixture.CreateContext();
+            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == owner.UserId));
+        }
+
+        [Fact]
+        public async Task Create_UserApproves_ThrowsForbidden()
+        {
+            var user = await SeedUser();
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, user);
+
+            await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
+                service.CreateWorkHour(new CreateWorkHourRequest { StartTime = Start, EndTime = End, Approve = true }));
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task Create_AdminForInactiveOrUnknownUser_ThrowsNotFound(bool existsButInactive)
+        {
+            var admin = await SeedUser(isAdmin: true);
+            var ownerId = existsButInactive ? (await SeedUser(inactive: true)).UserId : int.MaxValue;
+            using var context = _fixture.CreateContext();
+            var service = CreateService(context, admin);
+
+            await Assert.ThrowsAsync<EntityNotFoundException>(() =>
+                service.CreateWorkHour(new CreateWorkHourRequest { UserId = ownerId, StartTime = Start, EndTime = End }));
+
+            using var check = _fixture.CreateContext();
+            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == ownerId));
         }
 
         [Fact]
@@ -1225,6 +1320,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 => _inner.GetWorkHours(userId, approved, from, to, skip, take);
             public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null)
                 => _inner.GetIntervals(userId, from, to);
+            public Task<bool> ActiveUserExists(int userId) => _inner.ActiveUserExists(userId);
             public void Add(WorkHour workHour) => _inner.Add(workHour);
             public void Remove(WorkHour workHour) => _inner.Remove(workHour);
 
