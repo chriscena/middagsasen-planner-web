@@ -63,7 +63,10 @@ npm run test:watch   # Vitest watch-modus
 ```bash
 dotnet build         # Regenererer også openapi/openapi.json
 dotnet run
-dotnet test ../Middagsasen.Planner.Api.Tests/
+dotnet test --project ../Middagsasen.Planner.Api.Tests/   # Microsoft Testing Platform (global.json), ikke VSTest
+# Filtrering (xunit.v3-syntaks, ikke --filter): --filter-class / --filter-method / --filter-namespace,
+# med * som jokertegn, og --filter-not-* for å utelate. F.eks. uten integrasjonstester (Testcontainers):
+dotnet test --project ../Middagsasen.Planner.Api.Tests/ --filter-not-class "*IntegrationTests" --filter-not-namespace "*.Database"
 ```
 
 ## Arkitektur og mønstre

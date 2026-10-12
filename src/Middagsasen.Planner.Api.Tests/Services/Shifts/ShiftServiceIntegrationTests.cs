@@ -311,7 +311,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var verify = _fixture.CreateContext();
             var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
-                .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+                .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.Equal(answer, training.TrainingComplete);
             Assert.Equal(answer ? user.UserId : null, training.ConfirmedBy);
             Assert.Equal(answer, training.Confirmed.HasValue);
@@ -444,7 +444,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var context = _fixture.CreateContext();
             context.Shifts.Add(new EventResourceUser { EventResourceId = resource.EventResourceId, UserId = user.UserId });
 
-            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            var ex = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(TestContext.Current.CancellationToken));
             Assert.Contains(ShiftRepository.UniqueShiftIndexName, ex.InnerException!.Message);
         }
 
@@ -653,7 +653,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             // Andre forsøk ser raden fra den samtidige forespørselen (fullført) og oppdaterer den, siden svaret er ulikt.
             using var verify = _fixture.CreateContext();
             var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
-                .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+                .Where(t => t.UserId == user.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.False(training.TrainingComplete);
             Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
             Assert.Single(result.Resource.Shifts);
@@ -678,7 +678,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             Assert.Single(await GetShifts(first.EventResourceId));
             Assert.Single(await GetShifts(second.EventResourceId));
             using var verify = _fixture.CreateContext();
-            Assert.Equal(1, await verify.ResourceTypeTrainings.CountAsync(t => t.UserId == user.UserId && t.ResourceTypeId == first.ResourceTypeId));
+            Assert.Equal(1, await verify.ResourceTypeTrainings.CountAsync(t => t.UserId == user.UserId && t.ResourceTypeId == first.ResourceTypeId, cancellationToken: TestContext.Current.CancellationToken));
             // Bare forespørselen som opprettet raden varsler trenerne.
             await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
         }
@@ -1110,7 +1110,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             // Andre forsøk ser raden fra den samtidige forespørselen (fullført) og oppdaterer den, siden svaret er ulikt.
             using var verify = _fixture.CreateContext();
             var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
-                .Where(t => t.UserId == other.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+                .Where(t => t.UserId == other.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.False(training.TrainingComplete);
             Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
             await _smsSender.ReceivedWithAnyArgs(1).SendMessages(default!);
@@ -1276,7 +1276,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
 
             using var verify = _fixture.CreateContext();
             var training = Assert.Single(await verify.ResourceTypeTrainings.AsNoTracking()
-                .Where(t => t.UserId == owner.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync());
+                .Where(t => t.UserId == owner.UserId && t.ResourceTypeId == resource.ResourceTypeId).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
             Assert.False(training.TrainingComplete);
             Assert.Equal(training.ResourceTypeTrainingId, result.ChangedTraining!.Id);
             await _smsSender.Received(1).SendMessages(Arg.Any<IEnumerable<SmsMessage>>());
@@ -1752,7 +1752,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var resource = await SeedResource(seed, shiftCount: 3);
-            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId, cancellationToken: TestContext.Current.CancellationToken);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeSaveInterceptor(inside),
@@ -1777,7 +1777,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             using var seed = _fixture.CreateContext();
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var resource = await SeedResource(seed, shiftCount: 3);
-            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId, cancellationToken: TestContext.Current.CancellationToken);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeWriteAfterReadInterceptor(inside),
@@ -1802,7 +1802,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var admin = await SeedUser(seed, "Admin", isAdmin: true);
             var user = await SeedUser(seed);
             var resource = await SeedResource(seed, shiftCount: 3);
-            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId);
+            var evt = await seed.Events.AsNoTracking().SingleAsync(e => e.EventId == resource.EventId, cancellationToken: TestContext.Current.CancellationToken);
 
             var (first, second, secondFinishedInsideFirst) = await RunInterleaved(
                 inside => new BeforeSaveInterceptor(inside),
@@ -1952,7 +1952,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
             var resource = await SeedResource(seed);
             var competency = new Competency { Name = UniqueName("Førstehjelp") };
             seed.Competencies.Add(competency);
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
             seed.ResourceTypeCompetencies.Add(new ResourceTypeCompetency { ResourceTypeId = resource.ResourceTypeId, CompetencyId = competency.CompetencyId, MinimumRequired = 1 });
             seed.UserCompetencies.Add(new UserCompetency
             {
@@ -1962,7 +1962,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Shifts
                 ExpiryDate = expiresInDays is { } days ? BeforeResource.UtcDateTime.AddDays(days) : null,
                 Created = DateTime.UtcNow,
             });
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context, user.UserId).SignUp(resource.EventResourceId, new SignUpRequest());

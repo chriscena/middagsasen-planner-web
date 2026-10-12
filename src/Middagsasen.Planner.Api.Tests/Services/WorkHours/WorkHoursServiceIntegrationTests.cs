@@ -178,7 +178,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 service.CreateWorkHour(new CreateWorkHourRequest { UserId = owner.UserId, StartTime = Start, EndTime = End }));
 
             using var check = _fixture.CreateContext();
-            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == owner.UserId));
+            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == owner.UserId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -206,7 +206,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 service.CreateWorkHour(new CreateWorkHourRequest { UserId = ownerId, StartTime = Start, EndTime = End }));
 
             using var check = _fixture.CreateContext();
-            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == ownerId));
+            Assert.False(await check.WorkHours.AnyAsync(w => w.UserId == ownerId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -601,7 +601,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
             Assert.Equal(wh.WorkHourId, result.WorkHourId);
             using var verify = _fixture.CreateContext();
-            Assert.False(await verify.WorkHours.AnyAsync(w => w.WorkHourId == wh.WorkHourId));
+            Assert.False(await verify.WorkHours.AnyAsync(w => w.WorkHourId == wh.WorkHourId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -615,7 +615,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             await CreateService(context, admin).DeleteWorkHour(wh.WorkHourId);
 
             using var verify = _fixture.CreateContext();
-            Assert.False(await verify.WorkHours.AnyAsync(w => w.WorkHourId == wh.WorkHourId));
+            Assert.False(await verify.WorkHours.AnyAsync(w => w.WorkHourId == wh.WorkHourId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]

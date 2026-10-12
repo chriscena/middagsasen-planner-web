@@ -171,7 +171,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var user = await SeedUser(context, "Aktiv");
             user.Inactive = inactive;
             user.IsHidden = hidden;
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             Assert.Equal(expected, await CreateService(context).IsActiveUser(user.UserId));
         }
@@ -331,7 +331,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             using var seedContext = _fixture.CreateContext();
             var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
             user.StaffingAlerts = true;
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using (var context = _fixture.CreateContext())
             {
@@ -397,14 +397,14 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var user = await SeedUserWithPhone(seedContext, TestPhoneNumbers.Unique());
             var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 1 };
             seedContext.ResourceTypes.Add(rt);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             seedContext.ResourceTypeTrainings.Add(new ResourceTypeTraining
             {
                 UserId = user.UserId,
                 ResourceTypeId = rt.ResourceTypeId,
                 TrainingComplete = true,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).UpdateMe(user.UserId, new UpdateMeRequest { FirstName = "Med opplæring" });
@@ -526,7 +526,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var phoneNo = TestPhoneNumbers.Unique();
             var deleted = await SeedUserWithPhone(seedContext, phoneNo);
             deleted.Inactive = true;
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var result = await CreateService(context).Create(new UserRequest
@@ -702,7 +702,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var phoneNo = TestPhoneNumbers.Unique();
             var user = await SeedUserWithPhone(seedContext, phoneNo);
             user.ShiftReminders = true;
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using (var deleteContext = _fixture.CreateContext())
                 await CreateService(deleteContext).Delete(user.UserId);
@@ -724,7 +724,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             var phoneNo = TestPhoneNumbers.Unique();
             var admin = await SeedUserWithPhone(seedContext, phoneNo, isAdmin: true);
             admin.StaffingAlerts = true;
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using (var deleteContext = _fixture.CreateContext())
                 await CreateService(deleteContext).Delete(admin.UserId);

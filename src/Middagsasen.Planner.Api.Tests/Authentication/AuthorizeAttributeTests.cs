@@ -98,7 +98,7 @@ namespace Middagsasen.Planner.Api.Tests.Authentication
             Assert.Equal(expectedStatus, context.Response.StatusCode);
             Assert.Equal("application/problem+json", context.Response.ContentType);
             context.Response.Body.Seek(0, SeekOrigin.Begin);
-            var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(context.Response.Body, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var problem = await JsonSerializer.DeserializeAsync<ProblemDetails>(context.Response.Body, new JsonSerializerOptions(JsonSerializerDefaults.Web), TestContext.Current.CancellationToken);
             Assert.NotNull(problem);
             Assert.Equal(expectedStatus, problem.Status);
             Assert.Equal(expectedDetail, problem.Detail);

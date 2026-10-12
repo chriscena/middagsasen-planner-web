@@ -127,7 +127,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             using var verifyContext = _fixture.CreateContext();
             var untouched = await verifyContext.EventResource.AsNoTracking()
-                .SingleAsync(r => r.EventResourceId == existingResource.EventResourceId);
+                .SingleAsync(r => r.EventResourceId == existingResource.EventResourceId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(existingEvent.EventId, untouched.EventId);
             Assert.Equal(2, untouched.ShiftCount);
         }
@@ -157,7 +157,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Assert
             using var verifyContext = _fixture.CreateContext();
-            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(1, Assert.Single(dbEvent.Resources).ShiftCount);
         }
 
@@ -203,7 +203,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbEvent = await verifyContext.Events
                 .Include(e => e.Resources)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == result.Id);
+                .SingleOrDefaultAsync(e => e.EventId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbEvent);
             Assert.Equal(name, dbEvent.Name);
             Assert.Single(dbEvent.Resources);
@@ -262,7 +262,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     new EventResource { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2027, 2, 10, 8, 0, 0), EndTime = new DateTime(2027, 2, 10, 16, 0, 0), ShiftCount = 1 }
                 }
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -317,7 +317,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbEvent = await verifyContext.Events
                 .AsNoTracking()
-                .SingleAsync(e => e.EventId == evt.EventId);
+                .SingleAsync(e => e.EventId == evt.EventId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(updatedName, dbEvent.Name);
             Assert.Equal("Updated description", dbEvent.Description);
         }
@@ -375,7 +375,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var oldResource = await verifyContext.EventResource
                 .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.EventResourceId == existingResource.EventResourceId);
+                .SingleOrDefaultAsync(r => r.EventResourceId == existingResource.EventResourceId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Null(oldResource);
         }
 
@@ -399,7 +399,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbEvent = await verifyContext.Events
                 .AsNoTracking()
-                .SingleOrDefaultAsync(e => e.EventId == evt.EventId);
+                .SingleOrDefaultAsync(e => e.EventId == evt.EventId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Null(dbEvent);
         }
 
@@ -528,7 +528,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var seed = _fixture.CreateContext();
             var otherType = await SeedResourceType(seed, UniqueName("Barneheis"));
             var (evt, resource) = await SeedEventWithResource(seed);
-            var storedTypeName = await seed.ResourceTypes.Where(t => t.ResourceTypeId == resource.ResourceTypeId).Select(t => t.Name).SingleAsync();
+            var storedTypeName = await seed.ResourceTypes.Where(t => t.ResourceTypeId == resource.ResourceTypeId).Select(t => t.Name).SingleAsync(cancellationToken: TestContext.Current.CancellationToken);
             // Skjemaet er lastet med 3 og settes til 4. En annen admin har siden lagt til to ledige vakter (5).
             await SetShiftCount(resource.EventResourceId, 5);
 
@@ -565,7 +565,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(resource.StartTime, storedResource.StartTime);
             Assert.Equal(5, storedResource.ShiftCount);
             using var verify = _fixture.CreateContext();
-            Assert.Equal(1, await verify.EventResource.CountAsync(r => r.EventId == evt.EventId));
+            Assert.Equal(1, await verify.EventResource.CountAsync(r => r.EventId == evt.EventId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -652,7 +652,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbMessage = await verifyContext.Messages
                 .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.EventResourceMessageId == result.Id);
+                .SingleOrDefaultAsync(m => m.EventResourceMessageId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbMessage);
             Assert.Equal("Test message", dbMessage.Message);
         }
@@ -685,7 +685,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbMessage = await verifyContext.Messages
                 .AsNoTracking()
-                .SingleAsync(m => m.EventResourceMessageId == result.Id);
+                .SingleAsync(m => m.EventResourceMessageId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(user.UserId, dbMessage.CreatedBy);
         }
 
@@ -715,7 +715,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbMessage = await verifyContext.Messages
                 .AsNoTracking()
-                .SingleAsync(m => m.EventResourceMessageId == result.Id);
+                .SingleAsync(m => m.EventResourceMessageId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal("Trimmet melding", dbMessage.Message);
         }
 
@@ -741,7 +741,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(EventsService.MessageEmptyMessage, ex.Message);
 
             using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId));
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -765,7 +765,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(EventsService.MessageTooLongMessage, ex.Message);
 
             using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId));
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceId == resource.EventResourceId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -784,7 +784,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 CreatedBy = user.UserId,
             };
             seedContext.Messages.Add(message);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             // Forfatteren sletter sin egen melding.
@@ -799,7 +799,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbMessage = await verifyContext.Messages
                 .AsNoTracking()
-                .SingleOrDefaultAsync(m => m.EventResourceMessageId == message.EventResourceMessageId);
+                .SingleOrDefaultAsync(m => m.EventResourceMessageId == message.EventResourceMessageId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Null(dbMessage);
         }
 
@@ -826,7 +826,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -839,7 +839,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbEvent = await verifyContext.Events
                 .Include(e => e.Resources)
                 .AsNoTracking()
-                .SingleAsync(e => e.EventId == result.Id);
+                .SingleAsync(e => e.EventId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 12, 31, 22, 0, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2027, 1, 1, 6, 0, 0), dbEvent.EndTime);
 
@@ -881,7 +881,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbEvent = await verifyContext.Events
                 .Include(e => e.Resources)
                 .AsNoTracking()
-                .SingleAsync(e => e.EventId == result.Id);
+                .SingleAsync(e => e.EventId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 1, 16, 6, 0, 0), dbEvent.EndTime);
             var resource = Assert.Single(dbEvent.Resources);
             Assert.Equal(new DateTime(2026, 1, 16, 1, 0, 0), resource.StartTime);
@@ -916,7 +916,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbResource = await verifyContext.EventResource
                 .AsNoTracking()
-                .SingleAsync(r => r.EventResourceId == resource.EventResourceId);
+                .SingleAsync(r => r.EventResourceId == resource.EventResourceId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 1, 15, 23, 45, 0), dbResource.StartTime);
             Assert.Equal(new DateTime(2026, 1, 16, 2, 0, 0), dbResource.EndTime);
         }
@@ -973,7 +973,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Assert
             using var verifyContext = _fixture.CreateContext();
-            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id);
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 1, 15, 22, 0, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2026, 1, 16, 2, 0, 0), dbEvent.EndTime);
             var dbResource = Assert.Single(dbEvent.Resources);
@@ -1005,7 +1005,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Assert
             using var verifyContext = _fixture.CreateContext();
-            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId);
+            var dbEvent = await verifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == evt.EventId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 1, 17, 9, 15, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2026, 1, 17, 17, 45, 0), dbEvent.EndTime);
             var dbResource = Assert.Single(dbEvent.Resources);
@@ -1216,7 +1216,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (evt, resource) = await SeedEventWithResource(seedContext);
             await SeedTrainer(seedContext, resource.ResourceTypeId, trainer.UserId);
             seedContext.ResourceTypeTrainings.Add(new ResourceTypeTraining { UserId = owner.UserId, ResourceTypeId = resource.ResourceTypeId, TrainingComplete = false });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             await SeedShift(seedContext, resource.EventResourceId, owner.UserId);
 
             using var context = _fixture.CreateContext();
@@ -1244,7 +1244,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (_, resource) = await SeedEventWithResource(seedContext);
             var message = new EventResourceMessage { EventResourceId = resource.EventResourceId, Message = "Admin sletter", Created = DateTime.UtcNow, CreatedBy = author.UserId };
             seedContext.Messages.Add(message);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: admin.UserId, isAdmin: true);
@@ -1252,7 +1252,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await service.DeleteMessage(message.EventResourceMessageId, resource.EventResourceId);
 
             using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId));
+            Assert.False(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -1264,7 +1264,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var (_, resource) = await SeedEventWithResource(seedContext);
             var message = new EventResourceMessage { EventResourceId = resource.EventResourceId, Message = "Skal ikke slettes", Created = DateTime.UtcNow, CreatedBy = author.UserId };
             seedContext.Messages.Add(message);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: otherUser.UserId);
@@ -1273,7 +1273,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 () => service.DeleteMessage(message.EventResourceMessageId, resource.EventResourceId));
 
             using var verifyContext = _fixture.CreateContext();
-            Assert.True(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId));
+            Assert.True(await verifyContext.Messages.AnyAsync(m => m.EventResourceMessageId == message.EventResourceMessageId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         #endregion
