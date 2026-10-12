@@ -121,6 +121,21 @@ export function getApprovedByText(row: ApprovedByValues): string {
     : `Avslått av: ${name}`;
 }
 
+export interface CreatedByValues {
+  userId?: number | null | undefined;
+  createdBy?: number | null | undefined;
+  createdByName?: string | null | undefined;
+}
+
+/**
+ * «Registrert av Navn» når føringen er ført av en annen enn eieren (admin som
+ * har registrert timer for en bruker), ellers null.
+ */
+export function getCreatedByText(row: CreatedByValues): string | null {
+  if (!row.createdBy || row.createdBy === row.userId) return null;
+  return `Registrert av ${row.createdByName ?? "ukjent"}`;
+}
+
 // ---------------------------------------------------------------------------
 // Filter på godkjenningssiden
 

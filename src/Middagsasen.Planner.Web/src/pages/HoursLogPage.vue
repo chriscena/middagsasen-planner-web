@@ -134,6 +134,13 @@
               <q-item-label caption v-if="hours.modifiedBy" class="text-italic">
                 Endret av {{ hours.modifiedByName ?? "ukjent" }}
               </q-item-label>
+              <q-item-label
+                caption
+                v-if="getCreatedByText(hours)"
+                class="text-italic"
+              >
+                {{ getCreatedByText(hours) }}
+              </q-item-label>
             </q-item-section>
             <q-item-section side>
               <q-item-label>
@@ -176,7 +183,7 @@ import TimeTrackingForm from "@/components/TimeTrackingForm.vue";
 import { formatHours, formatNumber } from "@/shared/formatter";
 import { formatDate, formatTime } from "@/shared/time";
 import { getSeasonStartYear } from "@/shared/season";
-import { getApprovalStatusDisplay } from "@/shared/workHours";
+import { getApprovalStatusDisplay, getCreatedByText } from "@/shared/workHours";
 import { ApprovalStatus } from "@/types";
 import type { WorkHourResponse } from "@/types";
 import { notifyApiError } from "@/shared/notifyApiError";

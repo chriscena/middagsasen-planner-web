@@ -42,6 +42,8 @@ export const useWorkHourStore = defineStore("workHours", {
     activeWorkHour: {},
   }),
   actions: {
+    // userId (eier) og approve sendes bare når de er gitt. Uten userId er
+    // eieren innlogget bruker; annen eier og approve er bare lov for admin.
     async createWorkHour(
       model: CreateWorkHourRequest
     ): Promise<WorkHourResponse> {
@@ -49,6 +51,8 @@ export const useWorkHourStore = defineStore("workHours", {
         startTime: model.startTime,
         endTime: model.endTime,
         description: model.description,
+        ...(model.userId != null && { userId: model.userId }),
+        ...(model.approve != null && { approve: model.approve }),
       };
       const response = await api.post<WorkHourResponse>(
         `/api/WorkHours`,

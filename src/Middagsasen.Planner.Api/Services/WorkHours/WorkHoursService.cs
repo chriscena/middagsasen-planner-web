@@ -1,6 +1,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
 using Middagsasen.Planner.Api.Data;
+using Middagsasen.Planner.Api.Services.Users;
 
 namespace Middagsasen.Planner.Api.Services.WorkHours
 {
@@ -14,31 +15,54 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         internal const string EndBeforeStartMessage = "Sluttid må være etter starttid.";
         internal const string InvalidSeasonMessage = "Ugyldig sesong.";
         internal const string InvalidStatusMessage = "Ugyldig status. Gyldige verdier er 1 (godkjent) og 2 (avslått).";
+        internal const string UserNotFoundMessage = "Fant ikke brukeren.";
 
-        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, TimeProvider timeProvider)
+        public WorkHoursService(IWorkHourRepository repository, ICurrentUserService currentUser, IUserService userService, TimeProvider timeProvider)
         {
             Repository = repository;
             CurrentUser = currentUser;
+            UserService = userService;
             TimeProvider = timeProvider;
         }
 
         public IWorkHourRepository Repository { get; }
         public ICurrentUserService CurrentUser { get; }
+        public IUserService UserService { get; }
         public TimeProvider TimeProvider { get; }
 
+        /// <summary>
+        /// Rekkefølge: 403 (tilgang) → 404 (ukjent eller inaktiv eier) → 400 (validering).
+        /// Tilgangen sjekkes før eieren slås opp, så en vanlig bruker ikke kan finne ut hvilke bruker-id-er som finnes.
+        /// </summary>
         public async Task<WorkHourResponse> CreateWorkHour(CreateWorkHourRequest request)
         {
+            var actor = CurrentUser.ToActor();
+            var ownerId = request.UserId ?? actor.UserId;
+            var approve = request.Approve == true;
+
+            if (!WorkHourPolicy.CanCreate(ownerId, approve, actor))
+                throw new ForbiddenAccessException(ForbiddenMessage);
+            if (ownerId != actor.UserId && !await UserService.IsActiveUser(ownerId))
+                throw new EntityNotFoundException(UserNotFoundMessage);
+
             if (!request.StartTime.HasValue)
                 throw new DomainValidationException(StartTimeRequiredMessage);
             ValidateTimes(request.StartTime, request.EndTime);
 
+            var now = UtcNow;
+            // ModifiedBy/ModifiedTime settes ikke ved opprettelse; de gjelder senere endringer (se UpdateWorkHour).
             var workHour = new WorkHour
             {
-                UserId = CurrentUser.UserId,
+                UserId = ownerId,
                 StartTime = request.StartTime,
                 EndTime = request.EndTime,
                 Description = request.Description,
+                CreatedBy = actor.UserId,
+                CreatedTime = now,
             };
+            // «Lagre og godkjenn»: opprettes og godkjennes i samme lagring.
+            if (approve)
+                ApplyStatus(workHour, ApprovalStatus.Approved, actor.UserId, now);
             Repository.Add(workHour);
             await Repository.SaveChangesAsync();
 
@@ -88,11 +112,11 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
             if (hasContent && !WorkHourPolicy.IsOwner(workHour, userId))
             {
                 workHour.ModifiedBy = userId;
-                workHour.ModifiedTime = DateTime.UtcNow;
+                workHour.ModifiedTime = UtcNow;
             }
 
             if (hasStatus)
-                ApplyStatus(workHour, request.ApprovalStatus, userId);
+                ApplyStatus(workHour, request.ApprovalStatus, userId, UtcNow);
 
             // Innhold og status lagres i én operasjon. Gir 409 hvis status er endret av en annen
             // siden føringen ble hentet (ApprovalStatus er concurrency token).
@@ -111,7 +135,7 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 WorkHourPolicy.CanSetStatus(workHour, CurrentUser.ToActor(), request.ApprovalStatus));
             ValidateStatus(request.ApprovalStatus);
 
-            ApplyStatus(workHour, request.ApprovalStatus, userId);
+            ApplyStatus(workHour, request.ApprovalStatus, userId, UtcNow);
             await Repository.SaveChangesAsync();
 
             return new ApprovedByResponse
@@ -201,6 +225,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .ToList();
         }
 
+        /// <summary>Nå (UTC) fra <see cref="TimeProvider"/>, som lagres i ModifiedTime, ApprovedTime og CreatedTime.</summary>
+        private DateTime UtcNow => TimeProvider.GetUtcNow().UtcDateTime;
+
         /// <summary>Inneværende sesongs startår, vurdert i norsk tid.</summary>
         private int CurrentSeasonStartYear() => TimeProvider.GetUtcNow().GetSeasonStartYear();
 
@@ -258,13 +285,13 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 throw new DomainValidationException(EndBeforeStartMessage);
         }
 
-        private static void ApplyStatus(WorkHour workHour, ApprovalStatus? status, int userId)
+        private static void ApplyStatus(WorkHour workHour, ApprovalStatus? status, int userId, DateTime utcNow)
         {
             workHour.ApprovalStatus = status;
             if (status.HasValue)
             {
                 workHour.ApprovedBy = userId;
-                workHour.ApprovedTime = DateTime.UtcNow;
+                workHour.ApprovedTime = utcNow;
             }
             else
             {
@@ -338,6 +365,9 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 ModifiedBy = workHour.ModifiedBy,
                 ModifiedByName = workHour.ModifiedByUser?.FullName(),
                 ModifiedTime = workHour.ModifiedTime.AsUtc(),
+                CreatedBy = workHour.CreatedBy,
+                CreatedByName = workHour.CreatedByUser?.FullName(),
+                CreatedTime = workHour.CreatedTime.AsUtc(),
                 CanEdit = permissions.CanEdit,
                 CanDelete = permissions.CanDelete,
                 CanApprove = permissions.CanApprove,

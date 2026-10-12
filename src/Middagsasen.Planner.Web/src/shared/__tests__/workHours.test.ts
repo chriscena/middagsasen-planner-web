@@ -8,6 +8,7 @@ import {
   getApprovalActionText,
   getApprovalStatusDisplay,
   getApprovedByText,
+  getCreatedByText,
   getWorkHourChanges,
   getWorkHourError,
   getWorkHourErrorKind,
@@ -79,6 +80,28 @@ describe("getApprovalStatusDisplay", () => {
         approvalStatus: unknown,
       })
     ).toBe("");
+  });
+});
+
+describe("getCreatedByText", () => {
+  it("viser hvem som registrerte når det er en annen enn eieren", () => {
+    expect(
+      getCreatedByText({ userId: 2, createdBy: 1, createdByName: "Admin" })
+    ).toBe("Registrert av Admin");
+  });
+
+  it("bruker «ukjent» når navnet mangler", () => {
+    expect(getCreatedByText({ userId: 2, createdBy: 1 })).toBe(
+      "Registrert av ukjent"
+    );
+  });
+
+  it("viser ingenting når eieren selv registrerte eller feltet mangler", () => {
+    expect(
+      getCreatedByText({ userId: 2, createdBy: 2, createdByName: "Ola" })
+    ).toBeNull();
+    expect(getCreatedByText({ userId: 2, createdBy: null })).toBeNull();
+    expect(getCreatedByText({ userId: 2 })).toBeNull();
   });
 });
 

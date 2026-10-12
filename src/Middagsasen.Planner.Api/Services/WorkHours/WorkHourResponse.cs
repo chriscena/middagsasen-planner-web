@@ -18,6 +18,14 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         public int? ModifiedBy { get; set; }
         public string? ModifiedByName { get; set; }
         public DateTime? ModifiedTime { get; set; }
+        /// <summary>
+        /// Hvem som førte timene (ikke nødvendigvis eieren <see cref="UserId"/>). Kan mangle (null) på føringer
+        /// som ble laget av eldre API-versjoner og ennå ikke er fylt ut av deploy-skriptet.
+        /// </summary>
+        public int? CreatedBy { get; set; }
+        public string? CreatedByName { get; set; }
+        /// <summary>Når føringen ble opprettet (UTC). Kan mangle av samme grunn som <see cref="CreatedBy"/>.</summary>
+        public DateTime? CreatedTime { get; set; }
 
         /// <summary>Innlogget bruker kan endre starttid, sluttid og beskrivelse (eier eller admin, og føringen er åpen).</summary>
         public bool CanEdit { get; set; }

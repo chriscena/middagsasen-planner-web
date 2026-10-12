@@ -37,6 +37,11 @@ namespace Middagsasen.Planner.Api.Services.Users
             return Map(user);
         }
 
+        public async Task<bool> IsActiveUser(int id)
+        {
+            return await DbContext.Users.AnyAsync(u => u.UserId == id && !u.Inactive);
+        }
+
         internal const string PhoneNoInUseMessage = "Telefonnummeret er allerede i bruk.";
         internal const string PhoneNoInvalidMessage = "Telefonnummeret er ugyldig.";
         internal const string PhoneNoRequiredMessage = "Telefonnummer må fylles ut.";

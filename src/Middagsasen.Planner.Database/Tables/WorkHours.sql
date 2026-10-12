@@ -16,4 +16,10 @@ CREATE TABLE WorkHours
   ModifiedBy INT null,
   constraint FK_WorkHours_Users_ModifiedBy foreign key (ModifiedBy) REFERENCES Users(UserId),
   ModifiedTime DATETIME null,
+  -- Hvem som førte timene (ikke nødvendigvis eieren UserId) og når. Settes av API-et ved opprettelse.
+  -- Nullable fordi API-versjonen før disse kolonnene ikke setter dem; Script.PostDeployment.sql fyller
+  -- inn manglende verdier (CreatedBy = UserId, CreatedTime = StartTime) ved hver deploy.
+  CreatedBy INT null,
+  constraint FK_WorkHours_Users_CreatedBy foreign key (CreatedBy) REFERENCES Users(UserId),
+  CreatedTime DATETIME null,
 )

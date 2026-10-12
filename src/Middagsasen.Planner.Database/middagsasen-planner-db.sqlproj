@@ -16,6 +16,7 @@
     <!-- Skriptene i Scripts er ikke en del av databasemodellen. -->
     <Build Remove="Scripts\**" />
     <PreDeploy Include="Scripts\Script.PreDeployment.sql" />
+    <PostDeploy Include="Scripts\Script.PostDeployment.sql" />
     <None Include="Scripts\FinnBrukernavnKollisjoner.sql" />
     <None Include="Scripts\OpprettDeployBruker.sql" />
   </ItemGroup>
