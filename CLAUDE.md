@@ -67,6 +67,8 @@ dotnet test --project ../Middagsasen.Planner.Api.Tests/   # Microsoft Testing Pl
 # Filtrering (xunit.v3-syntaks, ikke --filter): --filter-class / --filter-method / --filter-namespace,
 # med * som jokertegn, og --filter-not-* for å utelate. F.eks. uten integrasjonstester (Testcontainers):
 dotnet test --project ../Middagsasen.Planner.Api.Tests/ --filter-not-class "*IntegrationTests" --filter-not-namespace "*.Database"
+# Coverage (coverlet.MTP), skriver TestResults/coverage.cobertura.<tidsstempel>.xml i gjeldende mappe (gitignored):
+dotnet test --project ../Middagsasen.Planner.Api.Tests/ --coverlet --coverlet-output-format cobertura --coverlet-include "[Middagsasen.Planner.Api]*"
 ```
 
 ## Arkitektur og mønstre
