@@ -12,57 +12,17 @@ namespace Middagsasen.Planner.Api.Tests.Database
     /// Databasene slettes etter hver test.
     /// </summary>
     [Collection("Database")]
-    public class PreDeploymentScriptTests : IAsyncLifetime
+    public class PreDeploymentScriptTests : DeploymentScriptTestBase
     {
-        private readonly DatabaseFixture _fixture;
-        private readonly List<string> _databases = [];
-
-        public PreDeploymentScriptTests(DatabaseFixture fixture)
+        public PreDeploymentScriptTests(DatabaseFixture fixture) : base(fixture)
         {
-            _fixture = fixture;
-        }
-
-        public Task InitializeAsync() => Task.CompletedTask;
-
-        public async Task DisposeAsync()
-        {
-            // Tøm connection pool først, ellers holder poolede tilkoblinger databasene i bruk.
-            SqlConnection.ClearAllPools();
-            await using var master = new SqlConnection(_fixture.ConnectionString);
-            await master.OpenAsync();
-            foreach (var name in _databases)
-            {
-                await new SqlCommand(
-                    $"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}];",
-                    master).ExecuteNonQueryAsync();
-            }
         }
 
         private static readonly Lazy<string> Script = new(() => ReadScript("Script.PreDeployment.sql"));
 
-        private static string ReadScript(string fileName)
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null)
-            {
-                var path = Path.Combine(dir.FullName, "src", "Middagsasen.Planner.Database", "Scripts", fileName);
-                if (File.Exists(path)) return File.ReadAllText(path);
-                dir = dir.Parent;
-            }
-            throw new FileNotFoundException($"Fant ikke {fileName}");
-        }
-
         private async Task<string> CreateDatabase(bool withUsersTable = true)
         {
-            var name = $"PreDeploy_{Guid.NewGuid():N}";
-            await using (var master = new SqlConnection(_fixture.ConnectionString))
-            {
-                await master.OpenAsync();
-                await new SqlCommand($"CREATE DATABASE [{name}]", master).ExecuteNonQueryAsync();
-            }
-            _databases.Add(name);
-
-            var connectionString = new SqlConnectionStringBuilder(_fixture.ConnectionString) { InitialCatalog = name }.ConnectionString;
+            var connectionString = await CreateEmptyDatabase("PreDeploy");
             if (withUsersTable)
             {
                 // Uten den unike indeksen, slik tabellen ser ut før deploy.
@@ -76,17 +36,6 @@ namespace Middagsasen.Planner.Api.Tests.Database
                     """);
             }
             return connectionString;
-        }
-
-        /// <summary>Kjører SQL og returnerer meldingene fra <c>PRINT</c>.</summary>
-        private static async Task<List<string>> Execute(string connectionString, string sql)
-        {
-            var messages = new List<string>();
-            await using var connection = new SqlConnection(connectionString);
-            connection.InfoMessage += (_, e) => messages.Add(e.Message);
-            await connection.OpenAsync();
-            await new SqlCommand(sql, connection).ExecuteNonQueryAsync();
-            return messages;
         }
 
         private static async Task<Dictionary<int, string>> InsertUsers(string connectionString, params (string UserName, bool Inactive)[] users)

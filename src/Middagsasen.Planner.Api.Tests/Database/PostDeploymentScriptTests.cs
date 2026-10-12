@@ -9,57 +9,15 @@ namespace Middagsasen.Planner.Api.Tests.Database
     /// database i containeren, så delte testdata ikke berøres. Databasene slettes etter hver test.
     /// </summary>
     [Collection("Database")]
-    public class PostDeploymentScriptTests : IAsyncLifetime
+    public class PostDeploymentScriptTests : DeploymentScriptTestBase
     {
-        private readonly DatabaseFixture _fixture;
-        private readonly List<string> _databases = [];
-
-        public PostDeploymentScriptTests(DatabaseFixture fixture)
+        public PostDeploymentScriptTests(DatabaseFixture fixture) : base(fixture)
         {
-            _fixture = fixture;
-        }
-
-        public Task InitializeAsync() => Task.CompletedTask;
-
-        public async Task DisposeAsync()
-        {
-            // Tøm connection pool først, ellers holder poolede tilkoblinger databasene i bruk.
-            SqlConnection.ClearAllPools();
-            await using var master = new SqlConnection(_fixture.ConnectionString);
-            await master.OpenAsync();
-            foreach (var name in _databases)
-            {
-                await new SqlCommand(
-                    $"ALTER DATABASE [{name}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{name}];",
-                    master).ExecuteNonQueryAsync();
-            }
         }
 
         private static readonly Lazy<string> Script = new(() => ReadScript("Script.PostDeployment.sql"));
 
-        private static string ReadScript(string fileName)
-        {
-            var dir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (dir != null)
-            {
-                var path = Path.Combine(dir.FullName, "src", "Middagsasen.Planner.Database", "Scripts", fileName);
-                if (File.Exists(path)) return File.ReadAllText(path);
-                dir = dir.Parent;
-            }
-            throw new FileNotFoundException($"Fant ikke {fileName}");
-        }
-
-        private async Task<string> CreateDatabase()
-        {
-            var name = $"PostDeploy_{Guid.NewGuid():N}";
-            await using (var master = new SqlConnection(_fixture.ConnectionString))
-            {
-                await master.OpenAsync();
-                await new SqlCommand($"CREATE DATABASE [{name}]", master).ExecuteNonQueryAsync();
-            }
-            _databases.Add(name);
-            return new SqlConnectionStringBuilder(_fixture.ConnectionString) { InitialCatalog = name }.ConnectionString;
-        }
+        private Task<string> CreateDatabase() => CreateEmptyDatabase("PostDeploy");
 
         /// <summary>
         /// Users og WorkHours. Med <paramref name="withCreatedColumns"/> slik tabellen ser ut etter skjemaendringen
@@ -92,17 +50,6 @@ namespace Middagsasen.Planner.Api.Tests.Database
                         CreatedTime DATETIME null;
                     """);
             }
-        }
-
-        /// <summary>Kjører SQL og returnerer meldingene fra <c>PRINT</c>.</summary>
-        private static async Task<List<string>> Execute(string connectionString, string sql)
-        {
-            var messages = new List<string>();
-            await using var connection = new SqlConnection(connectionString);
-            connection.InfoMessage += (_, e) => messages.Add(e.Message);
-            await connection.OpenAsync();
-            await new SqlCommand(sql, connection).ExecuteNonQueryAsync();
-            return messages;
         }
 
         private static async Task<List<(int UserId, DateTime StartTime, int? CreatedBy, DateTime? CreatedTime)>> ReadWorkHours(string connectionString)

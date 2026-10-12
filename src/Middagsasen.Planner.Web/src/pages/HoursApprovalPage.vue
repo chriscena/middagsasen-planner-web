@@ -237,6 +237,13 @@
             </q-card-section>
             <q-separator></q-separator>
             <q-card-section class="row">
+              <q-item-label
+                v-if="getCreatedByText(props.row)"
+                caption
+                class="text-italic"
+              >
+                {{ getCreatedByText(props.row) }}
+              </q-item-label>
               <q-space></q-space>
               <q-item-label caption>
                 {{ getApprovedByText(props.row) }}
@@ -280,6 +287,18 @@
           <q-td :props="props">
             {{ formatDate(props.row.endTime) }}
             {{ formatTime(props.row.endTime) }}
+          </q-td>
+        </template>
+        <template #body-cell-description="props">
+          <q-td :props="props">
+            {{ props.row.description }}
+            <q-item-label
+              v-if="getCreatedByText(props.row)"
+              caption
+              class="text-italic"
+            >
+              {{ getCreatedByText(props.row) }}
+            </q-item-label>
           </q-td>
         </template>
         <template #body-cell-hours="props">
