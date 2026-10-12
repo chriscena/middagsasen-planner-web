@@ -637,7 +637,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Attachments
             await SeedFile(seed, withoutInstructions.ResourceTypeId, admin.UserId, "Prisliste", requiresAcknowledgement: false);
             await SeedFile(seed, inactiveType.ResourceTypeId, admin.UserId, "Gammel instruks");
             inactiveType.Inactive = true;
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             // Vakt akkurat ved sesongstart (1. juli 00:00 norsk tid) gjelder; vakt 30. juni gjør det ikke.
             await SeedShift(seed, applies.ResourceTypeId, user.UserId, new DateTime(2026, 7, 1, 0, 0, 0));

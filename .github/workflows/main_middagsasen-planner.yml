@@ -38,7 +38,7 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: Test with dotnet
-        run: dotnet test src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
+        run: dotnet test --project src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
 
       - name: dotnet publish
         run: dotnet publish src/Middagsasen.Planner.Api/Middagsasen.Planner.Api.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp

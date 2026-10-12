@@ -34,7 +34,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         private WebApplication _app = null!;
         private HttpClient _client = null!;
 
-        public async Task InitializeAsync()
+        public async ValueTask InitializeAsync()
         {
             var builder = WebApplication.CreateBuilder();
             builder.WebHost.UseTestServer();
@@ -73,7 +73,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
             _attachments.Acknowledge(Arg.Any<int>(), Arg.Any<int>(), Arg.Any<AcknowledgeRequest?>()).Returns(new FileInfoResponse { Id = 3, ResourceTypeId = 7 });
         }
 
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             _client.Dispose();
             await _app.DisposeAsync();
@@ -331,7 +331,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
 
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
             Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
-            var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+            var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync(TestContext.Current.CancellationToken)).RootElement;
             Assert.Equal("Antall vakter er endret av noen andre.", body.GetProperty("detail").GetString());
             await _events.Received(1).UpdateEvent(5, Arg.Is<EventRequest>(r => r.Resources.Single().OriginalShiftCount == 3));
         }
@@ -458,7 +458,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         [Fact]
         public async Task InvalidQueryValue_Returns400WithNorwegianFieldError()
         {
-            var response = await _client.GetAsync("/api/eventstatus?month=abc&year=2026");
+            var response = await _client.GetAsync("/api/eventstatus?month=abc&year=2026", TestContext.Current.CancellationToken);
 
             var errors = Errors(await AssertValidationProblem(response));
             Assert.Equal([ModelValidation.InvalidValueMessage], errors["month"]);
@@ -493,7 +493,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         {
             using var content = Multipart(("description", "Heisførerinstruks"), ("requiresAcknowledgement", "true"), ("isMandatory", "true"));
 
-            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content, TestContext.Current.CancellationToken);
 
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             await _attachments.Received(1).Upload(7, Arg.Is<FileUploadRequest>(r =>
@@ -510,7 +510,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
             // Dagens frontend sender bare file og description.
             using var content = Multipart(("description", "Løypekart"));
 
-            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content, TestContext.Current.CancellationToken);
 
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             await _attachments.Received(1).Upload(7, Arg.Is<FileUploadRequest>(r =>
@@ -522,7 +522,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         {
             using var content = Multipart();
 
-            var response = await _client.PostAsync("/api/resourcetypes/7/files", content);
+            var response = await _client.PostAsync("/api/resourcetypes/7/files", content, TestContext.Current.CancellationToken);
 
             var errors = Errors(await AssertValidationProblem(response));
             Assert.Contains("description", errors.Keys);
@@ -532,7 +532,7 @@ namespace Middagsasen.Planner.Api.Tests.Core
         [Fact]
         public async Task Acknowledge_WithoutBody_IsAccepted_WithNullRequest()
         {
-            var response = await _client.PostAsync("/api/resourcetypes/7/files/3/acknowledgements", null);
+            var response = await _client.PostAsync("/api/resourcetypes/7/files/3/acknowledgements", null, TestContext.Current.CancellationToken);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             await _attachments.Received(1).Acknowledge(7, 3, null);

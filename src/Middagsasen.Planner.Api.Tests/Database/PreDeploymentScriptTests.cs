@@ -221,7 +221,7 @@ namespace Middagsasen.Planner.Api.Tests.Database
             var connectionString = await CreateDatabase(withUsersTable: false);
             var options = new DbContextOptionsBuilder<PlannerDbContext>().UseSqlServer(connectionString).Options;
             await using (var context = new TestPlannerDbContext(options))
-                await context.Database.EnsureCreatedAsync();
+                await context.Database.EnsureCreatedAsync(TestContext.Current.CancellationToken);
             await Execute(connectionString, """
                 drop index IX_Users_UserName on Users;
                 -- Gir resten av kolonnene standardverdier, så InsertUsers kan brukes som mot den minimale tabellen.
@@ -239,12 +239,12 @@ namespace Middagsasen.Planner.Api.Tests.Database
             var invalid = new List<int>();
             await using (var connection = new SqlConnection(connectionString))
             {
-                await connection.OpenAsync();
-                await using var reader = await new SqlCommand(ReadScript("FinnBrukernavnKollisjoner.sql"), connection).ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await connection.OpenAsync(TestContext.Current.CancellationToken);
+                await using var reader = await new SqlCommand(ReadScript("FinnBrukernavnKollisjoner.sql"), connection).ExecuteReaderAsync(TestContext.Current.CancellationToken);
+                while (await reader.ReadAsync(TestContext.Current.CancellationToken))
                     rows.Add((reader.GetString(reader.GetOrdinal("NyttBrukernavn")), reader.GetInt32(reader.GetOrdinal("UserId"))));
-                Assert.True(await reader.NextResultAsync(), "Mangler resultatsettet med brukernavn som ikke kan normaliseres");
-                while (await reader.ReadAsync())
+                Assert.True(await reader.NextResultAsync(TestContext.Current.CancellationToken), "Mangler resultatsettet med brukernavn som ikke kan normaliseres");
+                while (await reader.ReadAsync(TestContext.Current.CancellationToken))
                     invalid.Add(reader.GetInt32(reader.GetOrdinal("UserId")));
             }
 
@@ -317,9 +317,9 @@ namespace Middagsasen.Planner.Api.Tests.Database
             var workHourShifts = new List<int?>();
             await using (var connection = new SqlConnection(connectionString))
             {
-                await connection.OpenAsync();
-                await using var reader = await new SqlCommand("select ShiftId from WorkHours order by WorkHourId", connection).ExecuteReaderAsync();
-                while (await reader.ReadAsync())
+                await connection.OpenAsync(TestContext.Current.CancellationToken);
+                await using var reader = await new SqlCommand("select ShiftId from WorkHours order by WorkHourId", connection).ExecuteReaderAsync(TestContext.Current.CancellationToken);
+                while (await reader.ReadAsync(TestContext.Current.CancellationToken))
                     workHourShifts.Add(reader.IsDBNull(0) ? null : reader.GetInt32(0));
             }
             // Timeføringer som pekte på en slettet vakt, mister koblingen (ShiftId er ubrukt); de andre står urørt.

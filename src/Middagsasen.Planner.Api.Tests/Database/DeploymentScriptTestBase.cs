@@ -18,9 +18,9 @@ namespace Middagsasen.Planner.Api.Tests.Database
 
         protected DatabaseFixture Fixture { get; }
 
-        public Task InitializeAsync() => Task.CompletedTask;
+        public ValueTask InitializeAsync() => ValueTask.CompletedTask;
 
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             // Tøm connection pool først, ellers holder poolede tilkoblinger databasene i bruk.
             SqlConnection.ClearAllPools();

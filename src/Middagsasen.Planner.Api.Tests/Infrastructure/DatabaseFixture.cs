@@ -77,7 +77,7 @@ namespace Middagsasen.Planner.Api.Tests.Infrastructure
 
         public string ConnectionString => _container.GetConnectionString();
 
-        public async Task InitializeAsync()
+        public async ValueTask InitializeAsync()
         {
             await _container.StartAsync();
 
@@ -103,7 +103,7 @@ namespace Middagsasen.Planner.Api.Tests.Infrastructure
               GROUP by u.UserId, u.FirstName, u.LastName
             """;
 
-        public async Task DisposeAsync()
+        public async ValueTask DisposeAsync()
         {
             await _container.DisposeAsync();
         }

@@ -104,7 +104,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbTemplate = await verifyContext.EventTemplates
                 .Include(t => t.ResourceTemplates)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(t => t.EventTemplateId == result.Id);
+                .SingleOrDefaultAsync(t => t.EventTemplateId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbTemplate);
             Assert.Equal(templateName, dbTemplate.Name);
             Assert.Equal(eventName, dbTemplate.EventName);
@@ -143,7 +143,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     new ResourceTemplate { ResourceTypeId = rt.ResourceTypeId, StartTime = new DateTime(2026, 2, 15, 8, 0, 0), EndTime = new DateTime(2026, 2, 15, 16, 0, 0), ShiftCount = 1 }
                 }
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -183,7 +183,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -240,7 +240,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var resourceTemplateId = template.ResourceTemplates.First().ResourceTemplateId;
 
             var updatedName = UniqueName("Updated");
@@ -283,7 +283,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates
                 .AsNoTracking()
-                .SingleAsync(t => t.EventTemplateId == template.EventTemplateId);
+                .SingleAsync(t => t.EventTemplateId == template.EventTemplateId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(updatedName, dbTemplate.Name);
             Assert.Equal(updatedEventName, dbTemplate.EventName);
         }
@@ -314,7 +314,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var existingResourceTemplateId = template.ResourceTemplates.First().ResourceTemplateId;
 
             using var context = _fixture.CreateContext();
@@ -361,7 +361,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbTemplate = await verifyContext.EventTemplates
                 .Include(t => t.ResourceTemplates)
                 .AsNoTracking()
-                .SingleAsync(t => t.EventTemplateId == template.EventTemplateId);
+                .SingleAsync(t => t.EventTemplateId == template.EventTemplateId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(2, dbTemplate.ResourceTemplates.Count);
         }
 
@@ -390,7 +390,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var resourceTemplateId = template.ResourceTemplates.First().ResourceTemplateId;
 
             using var context = _fixture.CreateContext();
@@ -428,7 +428,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbResourceTemplate = await verifyContext.Set<ResourceTemplate>()
                 .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ResourceTemplateId == resourceTemplateId);
+                .SingleOrDefaultAsync(r => r.ResourceTemplateId == resourceTemplateId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Null(dbResourceTemplate);
         }
 
@@ -479,7 +479,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Assert
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
-                .SingleAsync(t => t.EventTemplateId == result.Id);
+                .SingleAsync(t => t.EventTemplateId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(1, Assert.Single(dbTemplate.ResourceTemplates).ShiftCount);
         }
 
@@ -510,7 +510,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Assert
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
-                .SingleAsync(t => t.EventTemplateId == result.Id);
+                .SingleAsync(t => t.EventTemplateId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2000, 1, 1, 22, 0, 0), dbTemplate.StartTime);
             Assert.Equal(new DateTime(2000, 1, 1, 2, 0, 0), dbTemplate.EndTime);
             var dbResource = Assert.Single(dbTemplate.ResourceTemplates);
@@ -533,7 +533,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 EndTime = new DateTime(2026, 1, 15, 16, 0, 0),
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -547,7 +547,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates
                 .AsNoTracking()
-                .SingleOrDefaultAsync(t => t.EventTemplateId == template.EventTemplateId);
+                .SingleOrDefaultAsync(t => t.EventTemplateId == template.EventTemplateId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Null(dbTemplate);
         }
 
@@ -607,7 +607,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var dbTemplate = await verifyContext.EventTemplates
                 .Include(t => t.ResourceTemplates)
                 .AsNoTracking()
-                .SingleOrDefaultAsync(t => t.EventTemplateId == result.Id);
+                .SingleOrDefaultAsync(t => t.EventTemplateId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbTemplate);
             Assert.Equal(templateName, dbTemplate.Name);
             Assert.Equal(evt.Name, dbTemplate.EventName);
@@ -632,7 +632,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 }
             };
             seedContext.Events.Add(evt);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
 
@@ -642,7 +642,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             // Assert: klokkeslettene beholdes, alle på referansedatoen.
             using var verifyContext = _fixture.CreateContext();
             var dbTemplate = await verifyContext.EventTemplates.Include(t => t.ResourceTemplates).AsNoTracking()
-                .SingleAsync(t => t.EventTemplateId == template.Id);
+                .SingleAsync(t => t.EventTemplateId == template.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2000, 1, 1, 22, 0, 0), dbTemplate.StartTime);
             Assert.Equal(new DateTime(2000, 1, 1, 6, 0, 0), dbTemplate.EndTime);
             var resources = dbTemplate.ResourceTemplates.OrderBy(r => r.ShiftCount).ToList();
@@ -657,7 +657,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var created = await eventsService.CreateEventFromTemplate(template.Id, new EventFromTemplateRequest { StartDate = new DateOnly(2026, 4, 10) });
 
             using var eventVerifyContext = _fixture.CreateContext();
-            var dbEvent = await eventVerifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == created.Id);
+            var dbEvent = await eventVerifyContext.Events.Include(e => e.Resources).AsNoTracking().SingleAsync(e => e.EventId == created.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(new DateTime(2026, 4, 10, 22, 0, 0), dbEvent.StartTime);
             Assert.Equal(new DateTime(2026, 4, 11, 6, 0, 0), dbEvent.EndTime);
             var eventResources = dbEvent.Resources.OrderBy(r => r.ShiftCount).ToList();
@@ -694,7 +694,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             using var seedContext = _fixture.CreateContext();
             var trainer = new User { UserName = UniqueName("user"), FirstName = "Trener", LastName = "Mal", Created = DateTime.UtcNow };
             seedContext.Users.Add(trainer);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var rt = new ResourceType { Name = UniqueName("RT"), DefaultShiftCount = 2 };
             rt.Trainers.Add(new ResourceTypeTrainer { UserId = trainer.UserId });
@@ -721,7 +721,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 ],
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -762,7 +762,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 ],
             };
             seedContext.EventTemplates.Add(template);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
 
@@ -773,7 +773,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             Assert.Equal(template.EventTemplateId, result.Id);
             Assert.Equal(rt.ResourceTypeId, Assert.Single(result.ResourceTemplates!).ResourceType.Id);
             using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.EventTemplates.AnyAsync(t => t.EventTemplateId == template.EventTemplateId));
+            Assert.False(await verifyContext.EventTemplates.AnyAsync(t => t.EventTemplateId == template.EventTemplateId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         #endregion
