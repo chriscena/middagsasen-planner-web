@@ -95,7 +95,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.ResourceTypes
                 .AsNoTracking()
-                .SingleOrDefaultAsync(r => r.ResourceTypeId == result.Id);
+                .SingleOrDefaultAsync(r => r.ResourceTypeId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbEntity);
             Assert.Equal(name, dbEntity.Name);
             Assert.Equal(3, dbEntity.DefaultShiftCount);
@@ -177,7 +177,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.ResourceTypes
                 .AsNoTracking()
-                .SingleAsync(r => r.ResourceTypeId == seeded.ResourceTypeId);
+                .SingleAsync(r => r.ResourceTypeId == seeded.ResourceTypeId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(updatedName, dbEntity.Name);
             Assert.Equal(7, dbEntity.DefaultShiftCount);
             Assert.Equal("Updated notification", dbEntity.NotificationMessage);
@@ -195,7 +195,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             // Get the trainer ID that was created
             var existingTrainer = await seedContext.ResourceTypeTrainers
                 .AsNoTracking()
-                .SingleAsync(t => t.ResourceTypeId == seeded.ResourceTypeId && t.UserId == user1.UserId);
+                .SingleAsync(t => t.ResourceTypeId == seeded.ResourceTypeId && t.UserId == user1.UserId, cancellationToken: TestContext.Current.CancellationToken);
 
             // Act - remove user1, add user2
             using var context = _fixture.CreateContext();
@@ -224,7 +224,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             var trainers = await verifyContext.ResourceTypeTrainers
                 .AsNoTracking()
                 .Where(t => t.ResourceTypeId == seeded.ResourceTypeId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Single(trainers);
             Assert.Equal(user2.UserId, trainers.First().UserId);
         }
@@ -250,7 +250,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.ResourceTypes
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.ResourceTypes
                 .AsNoTracking()
-                .SingleAsync(r => r.ResourceTypeId == seeded.ResourceTypeId);
+                .SingleAsync(r => r.ResourceTypeId == seeded.ResourceTypeId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(dbEntity.Inactive);
             Assert.Equal(name, dbEntity.Name);
         }

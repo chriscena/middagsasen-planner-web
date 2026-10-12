@@ -231,7 +231,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             using var context = _fixture.CreateContext();
             context.Users.Add(new User { UserName = phoneNo, Created = DateTime.UtcNow });
 
-            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync(TestContext.Current.CancellationToken));
         }
 
         [Theory]
@@ -391,7 +391,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Authentication
             using (var deactivateContext = _fixture.CreateContext())
             {
                 deactivateContext.Users.Single(u => u.UserId == user.UserId).Inactive = true;
-                await deactivateContext.SaveChangesAsync();
+                await deactivateContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             }
 
             using var context = _fixture.CreateContext();

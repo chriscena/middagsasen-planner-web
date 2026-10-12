@@ -110,7 +110,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.Competencies
                 .AsNoTracking()
-                .SingleOrDefaultAsync(c => c.CompetencyId == result.Id);
+                .SingleOrDefaultAsync(c => c.CompetencyId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbEntity);
             Assert.Equal(name, dbEntity.Name);
             Assert.Equal("A test competency", dbEntity.Description);
@@ -153,7 +153,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var rtcs = await verifyContext.ResourceTypeCompetencies
                 .AsNoTracking()
                 .Where(r => r.CompetencyId == result.Id && r.ResourceTypeId == rt.ResourceTypeId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Single(rtcs);
             Assert.Equal(3, rtcs.First().MinimumRequired);
         }
@@ -219,7 +219,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 ResourceTypeId = rt.ResourceTypeId,
                 MinimumRequired = 2,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             // Add approver
             seedContext.CompetencyApprovers.Add(new CompetencyApprover
@@ -227,7 +227,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 CompetencyId = competency.CompetencyId,
                 UserId = user.UserId,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -275,7 +275,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.Competencies
                 .AsNoTracking()
-                .SingleAsync(c => c.CompetencyId == competency.CompetencyId);
+                .SingleAsync(c => c.CompetencyId == competency.CompetencyId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(updatedName, dbEntity.Name);
             Assert.Equal("New desc", dbEntity.Description);
             Assert.True(dbEntity.HasExpiry);
@@ -297,7 +297,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 ResourceTypeId = rt1.ResourceTypeId,
                 MinimumRequired = 1,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context);
@@ -327,7 +327,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 .AsNoTracking()
                 .Where(r => r.CompetencyId == competency.CompetencyId)
                 .OrderBy(r => r.ResourceTypeId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(2, rtcs.Count);
             var rt1Assoc = rtcs.Single(r => r.ResourceTypeId == rt1.ResourceTypeId);
             var rt2Assoc = rtcs.Single(r => r.ResourceTypeId == rt2.ResourceTypeId);
@@ -357,7 +357,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.Competencies
                 .AsNoTracking()
-                .SingleAsync(c => c.CompetencyId == competency.CompetencyId);
+                .SingleAsync(c => c.CompetencyId == competency.CompetencyId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(dbEntity.Inactive);
             Assert.Equal(name, dbEntity.Name);
         }
@@ -397,7 +397,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleOrDefaultAsync(uc => uc.UserCompetencyId == result.Id);
+                .SingleOrDefaultAsync(uc => uc.UserCompetencyId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbEntity);
             Assert.False(dbEntity.Approved);
         }
@@ -425,7 +425,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
                 Created = DateTime.UtcNow,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: user.UserId + 1, isAdmin: true);
@@ -460,7 +460,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
                 Created = DateTime.UtcNow,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var ucId = seedContext.UserCompetencies
                 .AsNoTracking()
                 .Single(uc => uc.UserId == user.UserId && uc.CompetencyId == competency.CompetencyId)
@@ -482,7 +482,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleAsync(uc => uc.UserCompetencyId == ucId);
+                .SingleAsync(uc => uc.UserCompetencyId == ucId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(dbEntity.Approved);
             Assert.Equal(approver.UserId, dbEntity.ApprovedBy);
         }
@@ -503,7 +503,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
                 Created = DateTime.UtcNow,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var ucId = seedContext.UserCompetencies
                 .AsNoTracking()
                 .Single(uc => uc.UserId == user.UserId && uc.CompetencyId == competency.CompetencyId)
@@ -528,7 +528,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleAsync(uc => uc.UserCompetencyId == ucId);
+                .SingleAsync(uc => uc.UserCompetencyId == ucId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(expiryDate, dbEntity.ExpiryDate);
         }
 
@@ -563,7 +563,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             }));
 
             using var verifyContext = _fixture.CreateContext();
-            Assert.False(await verifyContext.UserCompetencies.AnyAsync(uc => uc.CompetencyId == competency.CompetencyId));
+            Assert.False(await verifyContext.UserCompetencies.AnyAsync(uc => uc.CompetencyId == competency.CompetencyId, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Theory]
@@ -593,7 +593,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Created = DateTime.UtcNow,
             };
             seedContext.UserCompetencies.Add(userCompetency);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: notApprover.UserId);
@@ -604,7 +604,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId);
+                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.False(dbEntity.Approved);
             Assert.Null(dbEntity.ApprovedBy);
         }
@@ -631,7 +631,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Created = DateTime.UtcNow,
             };
             seedContext.UserCompetencies.Add(userCompetency);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: approver.UserId);
@@ -663,7 +663,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Created = DateTime.UtcNow,
             };
             seedContext.UserCompetencies.Add(userCompetency);
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var service = CreateService(context, userId: approver.UserId, isAdmin: isAdmin);
@@ -683,7 +683,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId);
+                .SingleAsync(uc => uc.UserCompetencyId == userCompetency.UserCompetencyId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.Equal(isAdmin, dbEntity.Approved);
         }
 
@@ -716,7 +716,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 ApprovedBy = approver.UserId,
                 Created = DateTime.UtcNow,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var ucId = seedContext.UserCompetencies
                 .AsNoTracking()
                 .Single(uc => uc.UserId == user.UserId && uc.CompetencyId == competency.CompetencyId)
@@ -738,7 +738,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.UserCompetencies
                 .AsNoTracking()
-                .SingleAsync(uc => uc.UserCompetencyId == ucId);
+                .SingleAsync(uc => uc.UserCompetencyId == ucId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.False(dbEntity.Approved);
             Assert.Null(dbEntity.ApprovedDate);
             Assert.Null(dbEntity.ApprovedBy);
@@ -759,7 +759,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 Approved = false,
                 Created = DateTime.UtcNow,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var ucId = seedContext.UserCompetencies
                 .AsNoTracking()
                 .Single(uc => uc.UserId == user.UserId && uc.CompetencyId == competency.CompetencyId)
@@ -819,7 +819,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             var rtcs = await verifyContext.ResourceTypeCompetencies
                 .AsNoTracking()
                 .Where(r => r.ResourceTypeId == rt.ResourceTypeId)
-                .ToListAsync();
+                .ToListAsync(cancellationToken: TestContext.Current.CancellationToken);
             Assert.Single(rtcs);
             Assert.Equal(comp2.CompetencyId, rtcs.First().CompetencyId);
         }
@@ -877,7 +877,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.CompetencyApprovers
                 .AsNoTracking()
-                .SingleOrDefaultAsync(ca => ca.CompetencyApproverId == result.Id);
+                .SingleOrDefaultAsync(ca => ca.CompetencyApproverId == result.Id, cancellationToken: TestContext.Current.CancellationToken);
             Assert.NotNull(dbEntity);
             Assert.Equal(competency.CompetencyId, dbEntity.CompetencyId);
             Assert.Equal(user.UserId, dbEntity.UserId);
@@ -897,7 +897,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 CompetencyId = competency.CompetencyId,
                 UserId = user.UserId,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
             var approverId = seedContext.CompetencyApprovers
                 .AsNoTracking()
                 .Single(ca => ca.CompetencyId == competency.CompetencyId && ca.UserId == user.UserId)
@@ -914,7 +914,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
             using var verifyContext = _fixture.CreateContext();
             var dbEntity = await verifyContext.CompetencyApprovers
                 .AsNoTracking()
-                .SingleAsync(ca => ca.CompetencyApproverId == approverId);
+                .SingleAsync(ca => ca.CompetencyApproverId == approverId, cancellationToken: TestContext.Current.CancellationToken);
             Assert.True(dbEntity.Inactive);
         }
 
@@ -943,7 +943,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 UserId = user.UserId,
                 Inactive = false,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var repository = new CompetencyRepository(context);
@@ -969,7 +969,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Competencies
                 UserId = user.UserId,
                 Inactive = true,
             });
-            await seedContext.SaveChangesAsync();
+            await seedContext.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var repository = new CompetencyRepository(context);

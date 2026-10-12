@@ -15,7 +15,8 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         private IQueryable<WorkHour> WithUsers(IQueryable<WorkHour> query) => query
             .Include(w => w.ApprovedByUser)
-            .Include(w => w.ModifiedByUser);
+            .Include(w => w.ModifiedByUser)
+            .Include(w => w.CreatedByUser);
 
         public async Task<WorkHour?> GetWorkHourById(int workHourId)
         {

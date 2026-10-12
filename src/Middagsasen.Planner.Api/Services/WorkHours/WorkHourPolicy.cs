@@ -30,6 +30,14 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 
         public static bool IsOwner(WorkHour entry, int userId) => entry.UserId == userId;
 
+        /// <summary>
+        /// Opprette en føring for <paramref name="ownerId"/>, eventuelt som godkjent (<paramref name="approve"/>).
+        /// Vanlig bruker kun for seg selv og kun åpen føring; admin for hvem som helst, også godkjent.
+        /// Ren tilgangssjekk (403): en ny føring kan ikke være låst.
+        /// </summary>
+        public static bool CanCreate(int ownerId, bool approve, Actor actor)
+            => actor.IsAdminOrSelf(ownerId) && (!approve || actor.IsAdmin);
+
         /// <summary>Admin kan lese alt; vanlig bruker kun egne føringer.</summary>
         public static bool CanRead(WorkHour entry, Actor actor)
             => actor.IsAdminOrSelf(entry.UserId);

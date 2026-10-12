@@ -263,7 +263,7 @@ Behold MSSQL-databasen uendret under overgangen. Hvis noe feiler:
 ## Verifisering
 
 ```bash
-dotnet test src/Middagsasen.Planner.Api.Tests/ --verbosity normal
+dotnet test --project src/Middagsasen.Planner.Api.Tests/
 ```
 
 Alle 89 tester må passere mot PostgreSQL-containeren.

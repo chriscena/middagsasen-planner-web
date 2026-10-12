@@ -311,10 +311,10 @@ namespace Middagsasen.Planner.Api.Tests.Services.Resources
             var seeded = await Seed();
             using (var archive = _fixture.CreateContext())
             {
-                var file = await archive.ResourceTypeFiles.SingleAsync(f => f.ResourceTypeFileId == seeded.File.ResourceTypeFileId);
+                var file = await archive.ResourceTypeFiles.SingleAsync(f => f.ResourceTypeFileId == seeded.File.ResourceTypeFileId, cancellationToken: TestContext.Current.CancellationToken);
                 file.Archived = new DateTime(2026, 1, 14, 9, 0, 0);
                 file.ArchivedBy = seeded.Trainer.UserId;
-                await archive.SaveChangesAsync();
+                await archive.SaveChangesAsync(TestContext.Current.CancellationToken);
             }
 
             using var context = _fixture.CreateContext();

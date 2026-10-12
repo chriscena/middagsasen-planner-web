@@ -47,7 +47,7 @@ jobs:
         run: dotnet build src/Middagsasen.Planner.Database/middagsasen-planner-db.sqlproj --configuration Release
 
       - name: Test with dotnet
-        run: dotnet test src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
+        run: dotnet test --project src/Middagsasen.Planner.Api.Tests/Middagsasen.Planner.Api.Tests.csproj --configuration Release --no-build
 
       # Kun verifisering — ingenting deployes fra PR
       - name: dotnet publish

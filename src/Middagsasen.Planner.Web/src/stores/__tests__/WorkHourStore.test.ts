@@ -41,13 +41,13 @@ describe("WorkHourStore", () => {
       };
       mockApi.post.mockResolvedValue({ data: created });
 
-      // Ekstra felt (userId) skal ikke sendes videre; lagt i en variabel så
+      // Ekstra felt skal ikke sendes videre; lagt i en variabel så
       // TypeScript tillater feltet utover CreateWorkHourRequest.
       const model = {
         startTime: "s",
         endTime: "e",
         description: "d",
-        userId: 42,
+        workHourId: 7,
       };
       const result = await store.createWorkHour(model);
 
@@ -57,6 +57,40 @@ describe("WorkHourStore", () => {
         description: "d",
       });
       expect(result).toEqual(created);
+    });
+
+    it("omits userId and approve when they are null", async () => {
+      mockApi.post.mockResolvedValue({ data: {} });
+
+      await store.createWorkHour({
+        startTime: "s",
+        userId: null,
+        approve: null,
+      });
+
+      const payload = mockApi.post.mock.calls[0]?.[1];
+      expect(payload).not.toHaveProperty("userId");
+      expect(payload).not.toHaveProperty("approve");
+    });
+
+    it("sends userId and approve when given", async () => {
+      mockApi.post.mockResolvedValue({ data: {} });
+
+      await store.createWorkHour({
+        startTime: "s",
+        endTime: "e",
+        description: "d",
+        userId: 7,
+        approve: true,
+      });
+
+      expect(mockApi.post).toHaveBeenCalledWith("/api/WorkHours", {
+        startTime: "s",
+        endTime: "e",
+        description: "d",
+        userId: 7,
+        approve: true,
+      });
     });
   });
 

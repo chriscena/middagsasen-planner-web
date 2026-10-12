@@ -234,7 +234,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             await Assert.ThrowsAsync<DomainValidationException>(() => CreateEventsService(context).CreateEvent(request));
 
             using var verify = _fixture.CreateContext();
-            Assert.False(await verify.Events.AnyAsync(e => e.Name == request.Name));
+            Assert.False(await verify.Events.AnyAsync(e => e.Name == request.Name, cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Theory]
@@ -252,7 +252,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             Assert.Equal([(competency.CompetencyId, 1)], await StoredRequirements(eventId));
             using var verify = _fixture.CreateContext();
-            Assert.NotEqual(request.Name, (await verify.Events.AsNoTracking().SingleAsync(e => e.EventId == eventId)).Name);
+            Assert.NotEqual(request.Name, (await verify.Events.AsNoTracking().SingleAsync(e => e.EventId == eventId, cancellationToken: TestContext.Current.CancellationToken)).Name);
         }
 
         [Fact]
@@ -288,7 +288,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
             var deleted = await SeedCompetency(seed);
             var eventId = await SeedEventWithRequirements((active, 1), (deleted, 2));
             deleted.Inactive = true;
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             // null = uendret: kravet til den slettede kompetansen blir stående i databasen, men vises ikke.
             using var keepContext = _fixture.CreateContext();
@@ -495,7 +495,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 CompetencyRequirements = [new EventTemplateCompetencyRequirement { CompetencyId = competency.CompetencyId, MinimumRequired = 2 }],
             };
             seed.EventTemplates.Add(template);
-            await seed.SaveChangesAsync();
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             using var context = _fixture.CreateContext();
             var result = await CreateEventsService(context)
@@ -509,7 +509,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
 
             // Vaktlisten er uavhengig av malen.
             using var verify = _fixture.CreateContext();
-            Assert.Single(await verify.EventTemplateCompetencyRequirements.Where(r => r.EventTemplateId == template.EventTemplateId).ToListAsync());
+            Assert.Single(await verify.EventTemplateCompetencyRequirements.Where(r => r.EventTemplateId == template.EventTemplateId).ToListAsync(cancellationToken: TestContext.Current.CancellationToken));
         }
 
         [Fact]
@@ -614,11 +614,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                 CompetencyRequirements = [new EventCompetencyRequirement { CompetencyId = competency.CompetencyId, MinimumRequired = 1 }],
             };
             context.Events.Add(evt);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
             context.Shifts.AddRange(
                 new EventResourceUser { EventResourceId = early.EventResourceId, UserId = first.UserId },
                 new EventResourceUser { EventResourceId = late.EventResourceId, UserId = second.UserId });
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(TestContext.Current.CancellationToken);
 
             var result = await ReadEvent(evt.EventId);
 
@@ -647,9 +647,9 @@ namespace Middagsasen.Planner.Api.Tests.Services.Events
                     CompetencyRequirements = [new EventCompetencyRequirement { CompetencyId = competency.CompetencyId, MinimumRequired = 1 }],
                 };
                 context.Events.Add(evt);
-                await context.SaveChangesAsync();
+                await context.SaveChangesAsync(TestContext.Current.CancellationToken);
                 context.Shifts.Add(new EventResourceUser { EventResourceId = kiosk.EventResourceId, UserId = driver.UserId, StartTime = At(17), EndTime = At(19) });
-                await context.SaveChangesAsync();
+                await context.SaveChangesAsync(TestContext.Current.CancellationToken);
                 (eventId, resourceId, resourceTypeId) = (evt.EventId, kiosk.EventResourceId, rt.ResourceTypeId);
             }
             Assert.Single((await ReadEvent(eventId)).CompetencyWarnings);

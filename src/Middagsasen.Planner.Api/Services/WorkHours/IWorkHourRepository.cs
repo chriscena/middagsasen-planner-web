@@ -4,10 +4,10 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
 {
     public interface IWorkHourRepository
     {
-        /// <summary>Henter føring med tracking (for endring), inkl. ApprovedByUser/ModifiedByUser.</summary>
+        /// <summary>Henter føring med tracking (for endring), inkl. ApprovedByUser/ModifiedByUser/CreatedByUser.</summary>
         Task<WorkHour?> GetWorkHourById(int workHourId);
 
-        /// <summary>Henter føring uten tracking, inkl. ApprovedByUser/ModifiedByUser.</summary>
+        /// <summary>Henter føring uten tracking, inkl. ApprovedByUser/ModifiedByUser/CreatedByUser.</summary>
         Task<WorkHour?> GetWorkHourByIdReadOnly(int workHourId);
 
         /// <summary>
