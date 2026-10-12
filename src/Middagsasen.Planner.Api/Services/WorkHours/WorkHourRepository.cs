@@ -80,11 +80,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
                 .ToListAsync();
         }
 
-        public async Task<bool> ActiveUserExists(int userId)
-        {
-            return await DbContext.Users.AnyAsync(u => u.UserId == userId && !u.Inactive);
-        }
-
         public void Add(WorkHour workHour) => DbContext.WorkHours.Add(workHour);
 
         public void Remove(WorkHour workHour) => DbContext.WorkHours.Remove(workHour);

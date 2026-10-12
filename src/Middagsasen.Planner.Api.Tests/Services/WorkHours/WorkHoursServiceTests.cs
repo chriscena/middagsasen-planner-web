@@ -1,6 +1,7 @@
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.WorkHours;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
@@ -17,11 +18,12 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
         private readonly IWorkHourRepository _repository = Substitute.For<IWorkHourRepository>();
         private readonly ICurrentUserService _currentUser = Substitute.For<ICurrentUserService>();
+        private readonly IUserService _userService = Substitute.For<IUserService>();
         private readonly WorkHoursService _sut;
 
         public WorkHoursServiceTests()
         {
-            _sut = new WorkHoursService(_repository, _currentUser, new FakeTimeProvider(Now));
+            _sut = new WorkHoursService(_repository, _currentUser, _userService, new FakeTimeProvider(Now));
         }
 
         private void LoginAs(int userId, bool isAdmin)
@@ -59,6 +61,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(ApprovalStatus.Approved, wh.ApprovalStatus);
             Assert.Equal(AdminId, wh.ApprovedBy);
             Assert.Equal(AdminId, wh.ModifiedBy);
+            Assert.Equal(Now.UtcDateTime, wh.ApprovedTime);
+            Assert.Equal(Now.UtcDateTime, wh.ModifiedTime);
         }
 
         [Fact]
@@ -128,19 +132,19 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(OwnerId, result.CreatedBy);
             Assert.Equal(Now.UtcDateTime, result.CreatedTime);
             // Egen føring slås ikke opp; innlogget bruker finnes.
-            await _repository.DidNotReceive().ActiveUserExists(Arg.Any<int>());
+            await _userService.DidNotReceive().IsActiveUser(Arg.Any<int>());
         }
 
         [Fact]
         public async Task Create_UserForOther_ThrowsForbidden_WithoutLookingUpUser()
         {
             LoginAs(OwnerId, false);
-            _repository.ActiveUserExists(Arg.Any<int>()).Returns(false);
+            _userService.IsActiveUser(Arg.Any<int>()).Returns(false);
 
             await Assert.ThrowsAsync<ForbiddenAccessException>(() => _sut.CreateWorkHour(NewRequest(OtherId)));
 
             // 403 og ikke 404, så en vanlig bruker ikke kan finne ut hvilke bruker-id-er som finnes.
-            await _repository.DidNotReceive().ActiveUserExists(Arg.Any<int>());
+            await _userService.DidNotReceive().IsActiveUser(Arg.Any<int>());
             _repository.DidNotReceive().Add(Arg.Any<WorkHour>());
             await _repository.DidNotReceive().SaveChangesAsync();
         }
@@ -171,7 +175,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task Create_AdminForOther_OwnerIsOther_CreatorIsAdmin()
         {
             LoginAs(AdminId, true);
-            _repository.ActiveUserExists(OtherId).Returns(true);
+            _userService.IsActiveUser(OtherId).Returns(true);
             var added = CaptureAdded();
 
             var result = await _sut.CreateWorkHour(NewRequest(OtherId));
@@ -193,7 +197,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task Create_AdminForOtherAndApprove_ApprovesInSameSave()
         {
             LoginAs(AdminId, true);
-            _repository.ActiveUserExists(OtherId).Returns(true);
+            _userService.IsActiveUser(OtherId).Returns(true);
             var added = CaptureAdded();
 
             var result = await _sut.CreateWorkHour(NewRequest(OtherId, approve: true));
@@ -213,7 +217,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         public async Task Create_AdminForUnknownOrInactiveUser_ThrowsNotFound()
         {
             LoginAs(AdminId, true);
-            _repository.ActiveUserExists(OtherId).Returns(false);
+            _userService.IsActiveUser(OtherId).Returns(false);
 
             var ex = await Assert.ThrowsAsync<EntityNotFoundException>(() => _sut.CreateWorkHour(NewRequest(OtherId, approve: true)));
 

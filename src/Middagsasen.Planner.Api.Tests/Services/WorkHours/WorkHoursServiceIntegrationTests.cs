@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Data;
 using Middagsasen.Planner.Api.Services;
+using Middagsasen.Planner.Api.Services.Users;
 using Middagsasen.Planner.Api.Services.WorkHours;
 using Middagsasen.Planner.Api.Tests.Infrastructure;
 using NSubstitute;
@@ -30,7 +31,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         }
 
         private static WorkHoursService CreateService(PlannerDbContext context, User user)
-            => new(new WorkHourRepository(context), MockCurrentUser(user.UserId, user.IsAdmin), Clock);
+            => new(new WorkHourRepository(context), MockCurrentUser(user.UserId, user.IsAdmin), new UserService(context), Clock);
 
         /// <summary>Fast «nå» (1. oktober 2026) slik at sesongvalidering og inneværende sesong er deterministisk.</summary>
         private static readonly TimeProvider Clock = new FakeTimeProvider(new DateTimeOffset(2026, 10, 1, 12, 0, 0, TimeSpan.Zero));
@@ -283,13 +284,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            var before = DateTime.UtcNow.AddMinutes(-1);
             var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest { StartTime = Start.AddMinutes(30) });
 
             Assert.Equal(admin.UserId, result.ModifiedBy);
             Assert.Equal("Ada Admin", result.ModifiedByName);
-            Assert.NotNull(result.ModifiedTime);
-            Assert.True(result.ModifiedTime > before);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.ModifiedTime);
             Assert.Equal(owner.UserId, result.UserId);
             var db = await Reload(wh.WorkHourId);
             Assert.Equal(admin.UserId, db.ModifiedBy);
@@ -363,7 +362,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            var before = DateTime.UtcNow.AddMinutes(-1);
             var result = await service.UpdateWorkHour(wh.WorkHourId, new UpdateWorkHourRequest
             {
                 Description = "Rettet",
@@ -375,7 +373,8 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             Assert.Equal(admin.UserId, result.ApprovedBy);
             Assert.Equal("Gunn Godkjenner", result.ApprovedByName);
             Assert.Equal(admin.UserId, result.ModifiedBy);
-            Assert.True(result.ApprovedTime > before);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.ApprovedTime);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.ModifiedTime);
 
             var db = await Reload(wh.WorkHourId);
             Assert.Equal("Rettet", db.Description);
@@ -518,12 +517,11 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
             using var context = _fixture.CreateContext();
             var service = CreateService(context, admin);
 
-            var before = DateTime.UtcNow.AddMinutes(-1);
             var result = await service.UpdateApprovedBy(wh.WorkHourId, new ApprovedByRequest { ApprovalStatus = ApprovalStatus.Rejected });
 
             Assert.Equal(ApprovalStatus.Rejected, result.ApprovalStatus);
             Assert.Equal(admin.UserId, result.ApprovedBy);
-            Assert.True(result.ApprovedTime > before);
+            Assert.Equal(Clock.GetUtcNow().UtcDateTime, result.ApprovedTime);
             var db = await Reload(wh.WorkHourId);
             Assert.Equal(ApprovalStatus.Rejected, db.ApprovalStatus);
             Assert.Equal(admin.UserId, db.ApprovedBy);
@@ -1320,7 +1318,6 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
                 => _inner.GetWorkHours(userId, approved, from, to, skip, take);
             public Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null)
                 => _inner.GetIntervals(userId, from, to);
-            public Task<bool> ActiveUserExists(int userId) => _inner.ActiveUserExists(userId);
             public void Add(WorkHour workHour) => _inner.Add(workHour);
             public void Remove(WorkHour workHour) => _inner.Remove(workHour);
 
@@ -1339,7 +1336,7 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
         private (WorkHoursService Service, RacingRepository Repository) CreateRacingService(PlannerDbContext context, User user)
         {
             var repository = new RacingRepository(context);
-            return (new WorkHoursService(repository, MockCurrentUser(user.UserId, user.IsAdmin), Clock), repository);
+            return (new WorkHoursService(repository, MockCurrentUser(user.UserId, user.IsAdmin), new UserService(context), Clock), repository);
         }
 
         /// <summary>Endrer status direkte i databasen via en annen context, utenom servicen.</summary>

@@ -17,7 +17,7 @@ Hvis normaliseringen ville gitt flere brukere med samme brukernavn, endrer skrip
 ### Før deploy
 
 1. Kjør `Scripts/FinnBrukernavnKollisjoner.sql` mot databasen. Den endrer ingenting, og gir to resultatsett: brukere som kolliderer, med antall vakter, timeføringer, opplæringer og kompetanser for å hjelpe med valget av hvilken bruker som skal beholdes, og brukernavn som ikke kan normaliseres (bør ryddes, men stopper ikke deployen).
-2. Slå sammen kolliderende brukere manuelt: flytt vakter, timeføringer, opplæringer osv. til brukeren som skal beholdes, og slett (eller gi et annet brukernavn til) de andre.
+2. Slå sammen kolliderende brukere manuelt: flytt vakter, timeføringer, opplæringer osv. til brukeren som skal beholdes, og slett (eller gi et annet brukernavn til) de andre. For timeføringer må alle kolonnene som peker på brukeren flyttes, ikke bare eieren `UserId`: også `CreatedBy` (fylt ut med `UserId` ved deploy, se under), `ApprovedBy` og `ModifiedBy`. Ellers stopper slettingen av duplikatet på fremmednøklene `FK_WorkHours_Users_CreatedBy`, `FK_WorkHours_Users_ApprovedBy` og `FK_WorkHours_Users_ModifiedBy`.
 3. Kjør spørringen på nytt og sjekk at det første resultatsettet (kollisjoner) er tomt.
 4. Deploy databasen (dacpac), og sjekk deploy-loggen for advarselen om brukernavn som ikke kan normaliseres.
 5. Merge endringen til `main`, så API-et deployes.

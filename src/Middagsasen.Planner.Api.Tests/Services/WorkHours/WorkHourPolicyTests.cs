@@ -148,15 +148,15 @@ namespace Middagsasen.Planner.Api.Tests.Services.WorkHours
 
         // Kolonner: eier er innlogget bruker, admin, opprett som godkjent, forventet
         [Theory]
-        [InlineData(true, false, false, WorkHourAccess.Allowed)]
-        [InlineData(true, false, true, WorkHourAccess.Forbidden)]
-        [InlineData(false, false, false, WorkHourAccess.Forbidden)]
-        [InlineData(false, false, true, WorkHourAccess.Forbidden)]
-        [InlineData(true, true, false, WorkHourAccess.Allowed)]
-        [InlineData(true, true, true, WorkHourAccess.Allowed)]
-        [InlineData(false, true, false, WorkHourAccess.Allowed)]
-        [InlineData(false, true, true, WorkHourAccess.Allowed)]
-        public void CanCreate(bool forSelf, bool isAdmin, bool approve, WorkHourAccess expected)
+        [InlineData(true, false, false, true)]
+        [InlineData(true, false, true, false)]
+        [InlineData(false, false, false, false)]
+        [InlineData(false, false, true, false)]
+        [InlineData(true, true, false, true)]
+        [InlineData(true, true, true, true)]
+        [InlineData(false, true, false, true)]
+        [InlineData(false, true, true, true)]
+        public void CanCreate(bool forSelf, bool isAdmin, bool approve, bool expected)
         {
             var ownerId = forSelf ? OwnerId : OtherId;
 

@@ -22,9 +22,6 @@ namespace Middagsasen.Planner.Api.Services.WorkHours
         /// </summary>
         Task<IReadOnlyList<WorkHourInterval>> GetIntervals(int? userId, DateTime? from = null, DateTime? to = null);
 
-        /// <summary>Om brukeren finnes og ikke er inaktiv.</summary>
-        Task<bool> ActiveUserExists(int userId);
-
         void Add(WorkHour workHour);
         void Remove(WorkHour workHour);
         /// <summary>

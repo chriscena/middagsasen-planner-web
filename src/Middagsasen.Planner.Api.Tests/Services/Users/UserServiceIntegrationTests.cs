@@ -160,6 +160,30 @@ namespace Middagsasen.Planner.Api.Tests.Services.Users
             await Assert.ThrowsAsync<EntityNotFoundException>(() => service.GetUserById(int.MaxValue));
         }
 
+        [Theory]
+        [InlineData(false, false, true)]
+        // Skjulte brukere er aktive.
+        [InlineData(false, true, true)]
+        [InlineData(true, false, false)]
+        public async Task IsActiveUser_IsTrueOnlyForNotInactive(bool inactive, bool hidden, bool expected)
+        {
+            using var context = _fixture.CreateContext();
+            var user = await SeedUser(context, "Aktiv");
+            user.Inactive = inactive;
+            user.IsHidden = hidden;
+            await context.SaveChangesAsync();
+
+            Assert.Equal(expected, await CreateService(context).IsActiveUser(user.UserId));
+        }
+
+        [Fact]
+        public async Task IsActiveUser_IsFalse_WhenNotFound()
+        {
+            using var context = _fixture.CreateContext();
+
+            Assert.False(await CreateService(context).IsActiveUser(int.MaxValue));
+        }
+
         [Fact]
         public async Task Update_ThrowsEntityNotFound_WhenNotFound()
         {

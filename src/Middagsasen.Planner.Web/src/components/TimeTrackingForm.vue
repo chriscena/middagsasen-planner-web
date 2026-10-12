@@ -41,7 +41,7 @@
         use-input
         input-debounce="0"
         label="Bruker"
-        :model-value="viewModel.ownerId"
+        v-model="viewModel.ownerId"
         :options="ownerOptions"
         option-label="fullName"
         option-value="id"
@@ -50,7 +50,6 @@
         :disable="loading || busy"
         :rules="[(val) => val != null || 'Velg bruker']"
         @filter="filterOwners"
-        @update:model-value="(val) => (viewModel.ownerId = val ?? null)"
       >
         <template #no-option>
           <q-item>
@@ -161,6 +160,7 @@ import {
   getCreatedByText,
   getWorkHourChanges,
   getWorkHourError,
+  getWorkHourErrorKind,
   hasDuration,
 } from "@/shared/workHours";
 import type { WorkHourAction, WorkHourValues } from "@/shared/workHours";
@@ -440,9 +440,29 @@ async function createHours(approve = false) {
     });
   } catch (error) {
     handleWorkHourError(error, "create");
+    // 404 ved opprettelse = eieren finnes ikke lenger (f.eks. deaktivert etter
+    // at siden ble lastet). Hent brukerlisten på nytt.
+    if (showOwnerSelect.value && getWorkHourErrorKind(error) === "notFound") {
+      await refreshOwners();
+    }
   } finally {
     viewModel.saving = false;
     viewModel.savingApproved = false;
+  }
+}
+
+// Henter brukerlisten på nytt og nullstiller valget hvis den valgte brukeren
+// ikke lenger er med (bare aktive brukere returneres).
+async function refreshOwners() {
+  try {
+    await userStore.getUsers();
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+  ownerOptions.value = userStore.users;
+  if (!userStore.users.some((u) => u.id === viewModel.ownerId)) {
+    viewModel.ownerId = null;
   }
 }
 

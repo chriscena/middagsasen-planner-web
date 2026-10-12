@@ -19,7 +19,7 @@
           flat
           round
           icon="more_time"
-          :disable="!seasonsLoaded"
+          :disable="!usersLoaded"
           @click="showCreateDialog = true"
         />
         <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
@@ -509,6 +509,8 @@ const selectedWorkHours = ref<WorkHourResponse[]>([]);
 const tableRef = useTemplateRef<QTable>("tableRef");
 const loading = ref(false);
 const seasonsLoaded = ref(false);
+// Brukerlisten er hentet; «Registrer timer» trenger den til brukervalget.
+const usersLoaded = ref(false);
 const userOptions = ref<UserResponse[]>([]);
 const showApprovalDialog = ref(false);
 // Statusen masse-godkjenningen setter. Settes alltid før bekreftelsesdialogen åpnes.
@@ -880,7 +882,9 @@ function userNameById(id: number | undefined) {
 onMounted(async () => {
   try {
     await Promise.all([
-      userStore.getUsers(),
+      userStore.getUsers().then(() => {
+        usersLoaded.value = true;
+      }),
       userStore.getUser(),
       seasonStore.getSeasons(),
     ]);
