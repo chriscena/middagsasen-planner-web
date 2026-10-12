@@ -12,16 +12,6 @@
         ></q-btn>
         <q-toolbar-title>Time-godkjenning</q-toolbar-title>
         <q-space></q-space>
-        <q-btn
-          v-if="isAdmin"
-          title="Registrer timer for en bruker"
-          dense
-          flat
-          round
-          icon="more_time"
-          :disable="!usersLoaded"
-          @click="showCreateDialog = true"
-        />
         <ProfileMenuButton @click="emit('toggle-right')"></ProfileMenuButton>
       </q-toolbar>
     </q-header>
@@ -37,7 +27,7 @@
         :visible-columns="visibleColumns"
         :loading="loading"
         :rows="userWorkHours"
-        style="max-height: 85vh"
+        style="max-height: calc(100vh - 150px)"
         no-data-label="Ingen data"
         class="sticky-header-table"
         v-model:pagination="pagination"
@@ -308,6 +298,23 @@
         </template>
       </q-table>
     </div>
+    <!-- Bunnlinjen gjelder andre brukere (admin); toppen er for egne ting. -->
+    <q-footer v-if="isAdmin">
+      <q-toolbar>
+        <q-space></q-space>
+        <q-btn
+          fab
+          unelevated
+          padding="md"
+          class="q-ma-xs"
+          icon="add"
+          color="accent"
+          text-color="blue-grey-9"
+          :disable="!usersLoaded"
+          @click="showCreateDialog = true"
+          title="Registrer timer for en bruker"
+      /></q-toolbar>
+    </q-footer>
   </q-page>
   <q-dialog v-model="showApprovalDialog">
     <q-card>
