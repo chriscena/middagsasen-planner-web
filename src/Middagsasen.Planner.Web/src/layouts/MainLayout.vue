@@ -6,92 +6,110 @@
       v-model="leftDrawerOpen"
       side="left"
     >
-      <q-toolbar
-        ><q-space></q-space
-        ><q-btn
-          text-color="blue-grey-8 "
-          flat
-          round
-          dense
-          icon="close"
-          title="Lukk"
-          @click="leftDrawerOpen = false"
-        ></q-btn
-      ></q-toolbar>
-      <q-separator></q-separator>
-      <q-list separator>
-        <q-item clickable to="/" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="calendar_today"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Kalender</q-item-label>
-          </q-item-section>
-        </q-item>
-        <q-item clickable to="/phonelist" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="contacts"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Telefonliste</q-item-label>
-          </q-item-section>
-        </q-item>
-        <q-item clickable to="/weather" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="ac_unit"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Værdata</q-item-label>
-          </q-item-section>
-        </q-item>
+      <div class="column no-wrap" style="min-height: 100%">
+        <q-toolbar
+          ><q-space></q-space
+          ><q-btn
+            text-color="blue-grey-8 "
+            flat
+            round
+            dense
+            icon="close"
+            title="Lukk"
+            @click="leftDrawerOpen = false"
+          ></q-btn
+        ></q-toolbar>
+        <q-separator></q-separator>
+        <q-list separator>
+          <q-item clickable to="/" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="calendar_today"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Kalender</q-item-label>
+            </q-item-section>
+          </q-item>
+          <q-item clickable to="/phonelist" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="contacts"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Telefonliste</q-item-label>
+            </q-item-section>
+          </q-item>
+          <q-item clickable to="/weather" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="ac_unit"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Værdata</q-item-label>
+            </q-item-section>
+          </q-item>
 
-        <q-item v-if="isAdmin" to="/templates" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="edit_calendar"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Maler</q-item-label>
-          </q-item-section>
-        </q-item>
+          <q-item v-if="isAdmin" to="/templates" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="edit_calendar"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Maler</q-item-label>
+            </q-item-section>
+          </q-item>
 
-        <q-item v-if="isAdmin" to="/users" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="group"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Brukere</q-item-label>
-          </q-item-section>
-        </q-item>
+          <q-item v-if="isAdmin" to="/users" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="group"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Brukere</q-item-label>
+            </q-item-section>
+          </q-item>
 
-        <q-item v-if="isAdmin" clickable to="/competencies" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="workspace_premium"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Kompetanse</q-item-label>
-          </q-item-section>
-        </q-item>
+          <q-item v-if="isAdmin" clickable to="/competencies" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="workspace_premium"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Kompetanse</q-item-label>
+            </q-item-section>
+          </q-item>
 
-        <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="settings"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Vakttyper</q-item-label>
-          </q-item-section>
-        </q-item>
+          <q-item v-if="isAdmin" clickable to="/resourcetypes" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="settings"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Vakttyper</q-item-label>
+            </q-item-section>
+          </q-item>
 
-        <q-item v-if="isAdmin" clickable to="/approveHours" v-ripple>
-          <q-item-section avatar>
-            <q-icon name="alarm_on"></q-icon>
-          </q-item-section>
-          <q-item-section>
-            <q-item-label>Timelister</q-item-label>
-          </q-item-section>
-        </q-item>
-      </q-list>
-      <q-separator></q-separator>
-      <div class="q-px-md q-py-sm text-caption text-grey">{{ appVersion }}</div>
+          <q-item v-if="isAdmin" clickable to="/approveHours" v-ripple>
+            <q-item-section avatar>
+              <q-icon name="alarm_on"></q-icon>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>Timelister</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+        <q-space></q-space>
+        <div>
+          <q-separator></q-separator>
+          <div class="q-px-md q-py-sm text-caption text-grey">
+            {{ appVersion }}
+          </div>
+          <div
+            class="q-px-md q-py-sm text-caption text-grey-7 row items-center no-wrap"
+          >
+            Utviklet og driftet av
+            <img
+              src="~@/assets/iflow-grayscale.svg"
+              alt="IFLOW"
+              class="q-ml-xs"
+              style="height: 1.3em; width: auto"
+            />
+          </div>
+        </div>
+      </div>
     </q-drawer>
 
     <q-drawer elevated v-model="rightDrawerOpen" side="right" overlay>
