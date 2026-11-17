@@ -48,6 +48,18 @@
         @click="showingOtpDialog = true"
         >Opprette konto eller glemt passord?</q-btn
       >
+
+      <div
+        class="q-mt-xl text-caption text-grey-7 row items-center justify-center no-wrap"
+      >
+        Utviklet og driftet av
+        <img
+          src="~@/assets/iflow-grayscale.svg"
+          alt="IFLOW"
+          class="q-ml-xs"
+          style="height: 1.3em; width: auto"
+        />
+      </div>
     </div>
     <q-dialog v-model="showingOtpDialog" persistent>
       <q-card>
