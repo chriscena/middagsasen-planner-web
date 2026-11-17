@@ -91,23 +91,21 @@
             </q-item-section>
           </q-item>
         </q-list>
+        <q-separator></q-separator>
+        <div
+          class="q-px-md q-py-sm text-caption text-grey-7 row items-center no-wrap"
+        >
+          Utviklet og driftet av
+          <img
+            src="~@/assets/iflow-grayscale.svg"
+            alt="IFLOW"
+            class="q-ml-xs"
+            style="height: 1.3em; width: auto"
+          />
+        </div>
         <q-space></q-space>
-        <div>
-          <q-separator></q-separator>
-          <div class="q-px-md q-py-sm text-caption text-grey">
-            {{ appVersion }}
-          </div>
-          <div
-            class="q-px-md q-py-sm text-caption text-grey-7 row items-center no-wrap"
-          >
-            Utviklet og driftet av
-            <img
-              src="~@/assets/iflow-grayscale.svg"
-              alt="IFLOW"
-              class="q-ml-xs"
-              style="height: 1.3em; width: auto"
-            />
-          </div>
+        <div class="q-px-md q-py-sm text-caption text-grey">
+          {{ appVersion }}
         </div>
       </div>
     </q-drawer>
