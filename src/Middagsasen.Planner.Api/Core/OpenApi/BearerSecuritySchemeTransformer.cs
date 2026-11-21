@@ -5,7 +5,7 @@ namespace Middagsasen.Planner.Api.Core.OpenApi
 {
     /// <summary>
     /// Legger til et <c>Bearer</c> http security scheme i OpenAPI-dokumentet, slik at man kan lime inn
-    /// JWT-token via "Authorize"-knappen i Swagger UI. Kravet legges globalt på dokumentet fordi
+    /// JWT-token i autentiseringsfeltet i Scalar. Kravet legges globalt på dokumentet fordi
     /// autentisering håndteres av egen JwtMiddleware og [Authorize]-attributt, som generatoren ikke kjenner til.
     /// </summary>
     internal sealed class BearerSecuritySchemeTransformer : IOpenApiDocumentTransformer

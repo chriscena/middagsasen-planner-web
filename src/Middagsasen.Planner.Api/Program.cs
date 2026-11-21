@@ -2,6 +2,7 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.ApplicationInsights;
 using Microsoft.Extensions.Options;
+using Scalar.AspNetCore;
 using Middagsasen.Planner.Api;
 using Middagsasen.Planner.Api.Authentication;
 using Middagsasen.Planner.Api.Core;
@@ -162,9 +163,11 @@ else
 
 if (app.Environment.IsDevelopment())
 {
-    // OpenAPI-dokumentet serveres på /openapi/v1.json, Swagger UI på /swagger.
+    // OpenAPI-dokumentet serveres på /openapi/v1.json, Scalar (API-dokumentasjon) på /docs.
     app.MapOpenApi();
-    app.UseSwaggerUI(options => options.SwaggerEndpoint("/openapi/v1.json", "v1"));
+    app.MapScalarApiReference("/docs", options => options
+        .WithTitle("Middagsåsen Planner API")
+        .AddPreferredSecuritySchemes(["Bearer"]));
 }
 
 if (!app.Environment.IsDevelopment())
