@@ -5,7 +5,7 @@ Vaktplanleggingssystem for skianlegget Middagsåsen. Domene: event/vakt-planlegg
 ## Tech stack
 
 - **Frontend:** TypeScript (strict), Vue 3 + Pinia + Quasar 2 (Vite), vue-router 4, axios, vuelidate, chart.js, vue-i18n
-- **Backend:** ASP.NET Core 10 Web API, EF Core 10, JWT-autentisering (custom middleware), Argon2 passord-hashing, Serilog, innebygd OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Swagger UI
+- **Backend:** ASP.NET Core 10 Web API, EF Core 10, JWT-autentisering (custom middleware), Argon2 passord-hashing, Serilog, innebygd OpenAPI (`Microsoft.AspNetCore.OpenApi`) + Scalar
 - **Database:** MSSQL (SQL Azure), 24 tabeller + 2 views, SQL Server Database Project
 - **Infrastruktur:** Azure (App Insights, Blob Storage), SMS-integrasjon
 - **Test:** xUnit + NSubstitute + Testcontainers (MSSQL) (backend), Vitest (frontend)
