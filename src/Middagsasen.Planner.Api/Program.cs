@@ -167,7 +167,11 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference("/docs", options => options
         .WithTitle("Middagsåsen Planner API")
-        .AddPreferredSecuritySchemes(["Bearer"]));
+        .AddPreferredSecuritySchemes(["Bearer"])
+        .HideDeveloperTools()
+        .HideTestRequestButton()
+        .HideClientButton()
+        .DisableAgent());
 }
 
 if (!app.Environment.IsDevelopment())
